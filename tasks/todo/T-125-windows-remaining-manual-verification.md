@@ -272,6 +272,26 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       „Timelapse exportován do JPEG“; zrušení uprostřed nezanechá žádnou složku (ani skrytou `.….partial`); zavřený dialog
       bez výběru nic nespustí; klik na toast nic neotevře a nespadne.
 
+### 2m. Timelapse z hotové nahrávky (z T-164, implementováno na Macu 2026-11-04)
+- [ ] **T-164** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb,
+      hlavně `FFmpegTimelapseFromRecordingTests` (demuxer `mov` buildu BtbN čte nahrávku jen jako pakety; nahrávka useknutá
+      uprostřed dat fragmentu dá 22 z 39 snímků, useknutá uvnitř hlavičky `moof` skončí `Unreadable` – zapsat, jestli BtbN
+      takový soubor otevře), `CameraTimelapseFromRecordingMakerTests` (i `AFileWithSpecialCharactersInItsPathIsRead`: `#`, `%`
+      a diakritika přes `Uri` na Windows), `TimelapseFromRecordingFolderTests`, `CameraRecordingsTimelapseFromRecordingTests`,
+      `TimelapseExportNotificationTests` (toast nového druhu bez `launch`), UiTests
+      `TrayMenuTests.TheTimelapseFromRecordingItemStartsItAndShowsItsProgressInPlace`; E2E upravené `TrayMenuDetailTests`
+      (klávesy O, C, R, T, P, L, E, M, D), `TrayMenuTests` a `CameraTaskbarAndModeSwitchTests` (nová položka „Create timelapse
+      from recording… (experimental)“ za „Export timelapse to JPEG…“); `dotnet publish src/LayerPeek.App -c Release -r win-x64`
+      bez nových varování AOT / trim.
+- [ ] **T-164** (ruční část Windows): simulátor s kamerou, hotová nahrávka tisku (T-145, ideálně s výpadkem kamery, tedy
+      i `…-2.mp4`); v podmenu tiskárny „Vytvořit timelapse z nahrávky… (experimentální)“ → dialog Otevřít v popředí, otevřený
+      v `%USERPROFILE%\Videos\LayerPeek\<tiskárna>`, filtr „Nahrávka (MP4)“. Výběr nahrávky → položka u všech tiskáren
+      „Zrušit timelapse z nahrávky (x %)“, potom vedle nahrávky `…_recording_timelapse.mp4` (přehraje se ve Filmech a TV
+      při 30 fps, obsahuje i část po výpadku), toast „Timelapse z nahrávky vytvořen“; „Přehrát poslední timelapse“ ho otevře,
+      když je nejnovější. Výběr timelapse → toast „… selhalo / Soubor není nahrávka z LayerPeeku.“ Zrušení uprostřed (velká
+      nahrávka, nebo nahrávka na síťovém disku) nezanechá žádný soubor (ani skrytý `.….partial`, `dir /a`). Během vytváření
+      jde spustit i export do JPEG jiného timelapse.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

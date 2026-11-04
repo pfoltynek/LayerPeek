@@ -1855,4 +1855,43 @@
   <data name="NotificationTimelapseExportError" xml:space="preserve">
     <value>Nastala neočekávaná chyba, podrobnosti jsou v logu.</value>
   </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>_Vytvořit timelapse z nahrávky… (experimentální)</value>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>Zrušit _vytváření timelapse ({0} %)</value>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Vytváří se timelapse z {0}</value>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Vytvoření timelapse z nahrávky není v této verzi k dispozici.</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Vyberte nahrávku pro vytvoření timelapse (experimentální)</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Nahrávka (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Timelapse z nahrávky vytvořen</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>Snímků: {0}, vedle nahrávky.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Vytvoření timelapse z nahrávky selhalo</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>Soubor není nahrávka z LayerPeeku.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>Nahrávku nejde přečíst (soubor chybí nebo je poškozený).</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>V této verzi chybí knihovna videa.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>Do složky vedle nahrávky nejde zapisovat.</value>
+  </data>
 </root>

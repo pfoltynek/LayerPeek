@@ -15,7 +15,8 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// ever deleted by the rotation. Alarm snapshots of the print failure detection (T-153) are JPEG files next to the
 /// recordings, named and rotated like them (<see cref="SnapshotFileName"/>). A JPEG export of a timelapse (T-165) is a
 /// folder next to it (<see cref="JpegExportFolderName"/>) with numbered frames (<see cref="JpegExportFrameFileName"/>); the
-/// rotation counts and deletes it as a whole.
+/// rotation counts and deletes it as a whole. A timelapse made from a finished recording (T-164) is named after the recording
+/// (<see cref="RecordingTimelapseFileName"/>) and written under <see cref="UnfinishedFileName"/> until it is complete.
 /// Names use only characters that are valid on Windows and macOS, sort by time and never collide (the recorder adds
 /// <c>-2</c>, <c>-3</c> … for a taken name and after a stream restart, T-144).
 /// </summary>
@@ -49,6 +50,12 @@ public static class CameraRecordingFolders
 
     /// <summary>What ends the name of a timelapse before the extension (T-160).</summary>
     private const string TimelapseMarker = "_timelapse";
+
+    /// <summary>
+    /// What a timelapse made from a finished recording (T-164) has before <see cref="TimelapseMarker"/>: it never takes the
+    /// name of the live timelapse of the same print (that one is named by its own start, without this).
+    /// </summary>
+    private const string FromRecordingMarker = "_recording";
 
     /// <summary>What ends the name of the JPEG export folder of a timelapse (T-165), before a <c>-2</c>, <c>-3</c> … suffix.</summary>
     private const string JpegExportMarker = "_jpg";
@@ -182,6 +189,37 @@ public static class CameraRecordingFolders
     }
 
     /// <summary>
+    /// The file name of a timelapse made from the finished recording <paramref name="recordingStem"/> (T-164, user decision
+    /// 2026-11-04): the recording's name without its extension (and without a <c>-2</c>, <c>-3</c> … of a segment) with
+    /// <c>_recording_timelapse.mp4</c>, e.g. <c>2026-11-04_14-05-09_Benchy_recording_timelapse.mp4</c>. It follows
+    /// <see cref="IsTimelapseFileName"/> (playing the last timelapse, the JPEG export, the rotation) and sorts right after its
+    /// recording; it cannot be the name of the live timelapse of the same print (<see cref="TimelapseFileName"/> has no
+    /// <see cref="FromRecordingMarker"/>, and an existing file is never overwritten anyway).
+    /// </summary>
+    public static string RecordingTimelapseFileName(string recordingStem)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(recordingStem);
+        return string.Concat(recordingStem, FromRecordingMarker, TimelapseMarker, Extension);
+    }
+
+    /// <summary>
+    /// The name a file has while it is written outside the recorders (T-164: a timelapse from a recording):
+    /// <c>.&lt;name&gt;.partial</c>, hidden on macOS; it gets its final name only when it is complete, so a cancelled or failed
+    /// job never leaves a half-written file. The same pattern as <see cref="UnfinishedJpegExportFolderName"/>.
+    /// </summary>
+    public static string UnfinishedFileName(string fileName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(fileName);
+        return string.Concat(".", fileName, UnfinishedSuffix);
+    }
+
+    /// <summary>Whether <paramref name="fileName"/> is a timelapse that is still written, or left by a crash (<see cref="UnfinishedFileName"/> of a timelapse name).</summary>
+    public static bool IsUnfinishedTimelapseFileName(string? fileName) =>
+        fileName is not null && fileName.Length > 1 + UnfinishedSuffix.Length && fileName[0] == '.'
+        && fileName.EndsWith(UnfinishedSuffix, StringComparison.OrdinalIgnoreCase)
+        && IsTimelapseFileName(fileName.Substring(1, fileName.Length - 1 - UnfinishedSuffix.Length));
+
+    /// <summary>
     /// The file name of the snapshot of a print failure alarm (T-153) taken at <paramref name="time"/> (local time of the
     /// user): <c>2026-11-04_14-05-09_alarm-bed-change.jpg</c>. <paramref name="detectorId"/> is a valid detector id
     /// (lower-case letters, digits, dashes), so the name is valid everywhere.
@@ -218,7 +256,7 @@ public static class CameraRecordingFolders
     public static string UnfinishedJpegExportFolderName(string folderName)
     {
         ArgumentException.ThrowIfNullOrEmpty(folderName);
-        return string.Concat(".", folderName, UnfinishedSuffix);
+        return UnfinishedFileName(folderName);
     }
 
     /// <summary>Whether <paramref name="folderName"/> is an export folder that is still written, or left by a crash (<see cref="UnfinishedJpegExportFolderName"/>).</summary>

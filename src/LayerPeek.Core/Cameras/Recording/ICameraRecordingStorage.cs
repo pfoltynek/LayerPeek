@@ -7,7 +7,8 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// <param name="LastWriteUtc">When it was last written (of a folder: its newest frame, or the folder itself).</param>
 /// <param name="IsFolder">A JPEG export folder of a timelapse (T-165), counted and deleted as a whole.</param>
 /// <param name="IsUnfinished">
-/// An export folder that is still written or was left by a crash (<see cref="CameraRecordingFolders.IsUnfinishedJpegExportFolderName"/>):
+/// An export folder (<see cref="CameraRecordingFolders.IsUnfinishedJpegExportFolderName"/>) or a timelapse from a recording
+/// (T-164, <see cref="CameraRecordingFolders.IsUnfinishedTimelapseFileName"/>) that is still written or was left by a crash:
 /// not counted, deleted once it is old enough.
 /// </param>
 public readonly record struct CameraRecordingFile(string Path, string FolderName, long Length, DateTime LastWriteUtc, bool IsFolder = false, bool IsUnfinished = false);
@@ -37,7 +38,8 @@ public interface ICameraRecordingStorage
     /// The recordings in <paramref name="root"/>: files named by <see cref="CameraRecordingFolders.IsRecordingFileName"/>
     /// or <see cref="CameraRecordingFolders.IsSnapshotFileName"/> (alarm snapshots, T-153) directly in subfolders that carry
     /// the marker, and the JPEG export folders of timelapses there (T-165, <see cref="CameraRecordingFile.IsFolder"/>, with
-    /// the size of their frames); nothing else (no files of the root itself, no other levels, no unmarked folders, no links).
+    /// the size of their frames), and timelapses from recordings that are still written there (T-164,
+    /// <see cref="CameraRecordingFile.IsUnfinished"/>); nothing else (no files of the root itself, no other levels, no unmarked folders, no links).
     /// Missing or unreadable folders give no files (never throws).
     /// </summary>
     IReadOnlyList<CameraRecordingFile> FindRecordings(string root);
@@ -147,6 +149,11 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
                         if (CameraRecordingFolders.IsRecordingFileName(file.Name) || CameraRecordingFolders.IsSnapshotFileName(file.Name))
                         {
                             files.Add(new CameraRecordingFile(file.FullName, folder.Name, file.Length, file.LastWriteTimeUtc));
+                        }
+                        else if (CameraRecordingFolders.IsUnfinishedTimelapseFileName(file.Name))
+                        {
+                            // T-164: a timelapse from a recording that is still written, or was left by a crash.
+                            files.Add(new CameraRecordingFile(file.FullName, folder.Name, file.Length, file.LastWriteTimeUtc, IsUnfinished: true));
                         }
                     }
 

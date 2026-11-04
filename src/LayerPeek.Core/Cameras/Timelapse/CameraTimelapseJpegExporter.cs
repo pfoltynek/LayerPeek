@@ -181,12 +181,62 @@ public sealed partial class CameraTimelapseJpegExporter : IAsyncDisposable, IDis
         try
         {
             Uri built = new UriBuilder(Uri.UriSchemeFile, string.Empty) { Path = fullPath }.Uri;
-            return string.Equals(built.LocalPath, fullPath, StringComparison.Ordinal) ? built : null;
+            if (string.Equals(built.LocalPath, fullPath, StringComparison.Ordinal))
+            {
+                return built;
+            }
+
+            // A '#' together with a valid "%XX" in the path (e.g. a printer folder "Printer #1 %20"): both attempts above
+            // unescape the "%XX". Every segment escaped on its own (also '%' and '#') gives exactly the path back.
+            return EscapedFileUri(fullPath) is { } escaped && string.Equals(escaped.LocalPath, fullPath, StringComparison.Ordinal)
+                ? escaped
+                : null;
         }
         catch (UriFormatException)
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// <c>file://</c> with every segment of <paramref name="fullPath"/> percent-escaped (a Windows drive or UNC host kept
+    /// as it is); <see langword="null"/> for a path of another form.
+    /// </summary>
+    /// <exception cref="UriFormatException">The escaped address is still no valid URI.</exception>
+    private static Uri? EscapedFileUri(string fullPath)
+    {
+        string path = Path.DirectorySeparatorChar == '\\' ? fullPath.Replace('\\', '/') : fullPath;
+        string prefix;
+        string rest;
+        if (path.StartsWith("//", StringComparison.Ordinal))
+        {
+            // UNC: file://host/share/…
+            int slash = path.IndexOf('/', 2);
+            if (slash < 0)
+            {
+                return null;
+            }
+
+            prefix = "file:" + path[..slash];
+            rest = path[slash..];
+        }
+        else if (path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] == '/')
+        {
+            // Windows drive: file:///C:/…
+            prefix = "file:///" + path[..2];
+            rest = path[2..];
+        }
+        else if (path.StartsWith('/'))
+        {
+            prefix = "file://";
+            rest = path;
+        }
+        else
+        {
+            return null;
+        }
+
+        return new Uri(prefix + string.Join('/', rest.Split('/').Select(Uri.EscapeDataString)), UriKind.Absolute);
     }
 
     private async Task RunAsync(Export export)

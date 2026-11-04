@@ -1855,4 +1855,43 @@
   <data name="NotificationTimelapseExportError" xml:space="preserve">
     <value>Une erreur inattendue s'est produite, voir le journal.</value>
   </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>C_réer un timelapse depuis un enregistrement… (expérimental)</value>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>Annuler la c_réation du timelapse ({0} %)</value>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Création d'un timelapse depuis {0}</value>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>La création de timelapses depuis des enregistrements n'est pas disponible dans cette version.</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Choisissez un enregistrement pour créer un timelapse (expérimental)</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Enregistrement (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Timelapse créé depuis l'enregistrement</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>{0} images, à côté de l'enregistrement.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Échec de la création du timelapse depuis l'enregistrement</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>Le fichier n'est pas un enregistrement de LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>Impossible de lire l'enregistrement (fichier manquant ou endommagé).</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>La bibliothèque vidéo manque dans cette version.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>Impossible d'écrire dans le dossier à côté de l'enregistrement.</value>
+  </data>
 </root>

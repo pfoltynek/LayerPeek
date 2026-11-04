@@ -1855,4 +1855,43 @@
   <data name="NotificationTimelapseExportError" xml:space="preserve">
     <value>Ein unerwarteter Fehler ist aufgetreten, siehe Protokoll.</value>
   </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>Zeitraffer aus Aufnahme ers_tellen… (experimentell)</value>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>Ers_tellen des Zeitraffers abbrechen ({0} %)</value>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Erstellt einen Zeitraffer aus {0}</value>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Zeitraffer aus Aufnahmen sind in dieser Version nicht verfügbar.</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Aufnahme für den Zeitraffer wählen (experimentell)</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Aufnahme (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Zeitraffer aus Aufnahme erstellt</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>{0} Bilder, neben der Aufnahme.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Erstellen des Zeitraffers aus der Aufnahme fehlgeschlagen</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>Die Datei ist keine Aufnahme von LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>Die Aufnahme kann nicht gelesen werden (Datei fehlt oder ist beschädigt).</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>In dieser Version fehlt die Videobibliothek.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>Der Ordner neben der Aufnahme ist nicht beschreibbar.</value>
+  </data>
 </root>

@@ -73,6 +73,16 @@ public enum TrayMenuCommand
 
     /// <summary>"Cancel JPEG export (42 %)" (T-165), instead of <see cref="ExportTimelapseJpeg"/> while an export runs.</summary>
     CancelTimelapseJpegExport,
+
+    /// <summary>
+    /// "Create timelapse from recording… (experimental)" (T-164): the open dialog for a recording file (in the recordings folder
+    /// of <see cref="TrayMenuEntry.PrinterId"/>), then a timelapse of it next to it.
+    /// </summary>
+    CreateTimelapseFromRecording,
+
+    /// <summary>"Cancel timelapse from recording (42 %)" (T-164), instead of <see cref="CreateTimelapseFromRecording"/> while one is made.</summary>
+    CancelTimelapseFromRecording,
+
     About,
 
     /// <summary>

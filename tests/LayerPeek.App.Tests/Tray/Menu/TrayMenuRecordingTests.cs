@@ -65,6 +65,7 @@ public sealed class TrayMenuRecordingTests : IDisposable
             play => Assert.Equal((TrayMenuCommand.PlayLastRecording, "_Play last recording", false, Strings.MenuNoRecordingYet), (play.Command, play.Header, play.IsEnabled, play.ToolTip)),
             playTimelapse => Assert.Equal((TrayMenuCommand.PlayLastTimelapse, "Play _last timelapse", false, Strings.MenuNoTimelapseYet), (playTimelapse.Command, playTimelapse.Header, playTimelapse.IsEnabled, playTimelapse.ToolTip)),
             export => Assert.Equal((TrayMenuCommand.ExportTimelapseJpeg, "_Export timelapse to JPEG… (experimental)", true, null, "mk4"), (export.Command, export.Header, export.IsEnabled, export.ToolTip, export.PrinterId)),
+            fromRecording => Assert.Equal((TrayMenuCommand.CreateTimelapseFromRecording, "Create ti_melapse from recording… (experimental)", true, null, "mk4"), (fromRecording.Command, fromRecording.Header, fromRecording.IsEnabled, fromRecording.ToolTip, fromRecording.PrinterId)),
             folder => Assert.Equal((TrayMenuCommand.OpenRecordingsFolder, "Open recordings fol_der", true), (folder.Command, folder.Header, folder.IsEnabled)));
         Assert.All(submenu.Where(static item => !item.IsSeparator), static item => Assert.True(item.HasAccessKey));
 
@@ -207,15 +208,19 @@ public sealed class TrayMenuRecordingTests : IDisposable
         _recordings.SetTimelapse("mk4", CameraRecordingActivity.Recording);
         _recordings.SetTimelapse("c", CameraRecordingActivity.Recording);
         char?[] exportKeys = [.. Enumerable.Range(0, 2).Select(i => AccessKey(Item(viewModel, TrayMenuCommand.ExportTimelapseJpeg, i), info))];
+        char?[] fromRecordingKeys = [.. Enumerable.Range(0, 2).Select(i => AccessKey(Item(viewModel, TrayMenuCommand.CreateTimelapseFromRecording, i), info))];
         // T-165: and a running JPEG export ("Cancel JPEG export", same key as "Export timelapse to JPEG…").
         _recordings.SetTimelapseExport(new CameraTimelapseExportStatus(true, "mk4", "/rec/mk4/2026-11-04_10-00-00_timelapse.mp4", 5, 10));
+        // T-164: and a running timelapse from a recording (same key as "Create timelapse from recording…").
+        _recordings.SetTimelapseFromRecording(new CameraTimelapseFromRecordingStatus(true, "mk4", "/rec/mk4/2026-11-04_10-00-00.mp4", 3, 50));
         _dispatcher.RunAll();
 
         for (int i = 0; i < 2; i++)
         {
             TrayMenuEntryList submenu = viewModel.PrinterItems[i].Submenu!;
-            Assert.Equal(11, submenu.Count);
+            Assert.Equal(12, submenu.Count);
             Assert.Equal(exportKeys[i], AccessKey(Item(viewModel, TrayMenuCommand.CancelTimelapseJpegExport, i), info));
+            Assert.Equal(fromRecordingKeys[i], AccessKey(Item(viewModel, TrayMenuCommand.CancelTimelapseFromRecording, i), info));
             char?[] keys = [.. submenu.Where(static item => !item.IsSeparator).Select(item => AccessKey(item, info))];
             Assert.All(keys, key => Assert.True(key is { } k && char.IsLetterOrDigit(k), $"{language}: {string.Join(", ", keys)}"));
             Assert.True(keys.Distinct().Count() == keys.Length, $"{language}: access keys {string.Join(", ", keys)} are not unique.");
@@ -251,6 +256,50 @@ public sealed class TrayMenuRecordingTests : IDisposable
         _recordings.SetTimelapseExport(CameraTimelapseExportStatus.Idle);
         _dispatcher.RunAll();
         Assert.Equal("_Export timelapse to JPEG… (experimental)", Item(viewModel, TrayMenuCommand.ExportTimelapseJpeg).Header);
+    }
+
+    [Fact]
+    public async Task TheTimelapseFromRecordingItemAsksForAFileAndTurnsIntoCancelWithTheProgressForEveryPrinter()
+    {
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()), WithCamera(Definition("b", "Beta")));
+        using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
+
+        _target.Click(Item(viewModel, TrayMenuCommand.CreateTimelapseFromRecording, 1));
+        Assert.Equal(["b"], _recordings.TimelapsesFromRecordingRequested);
+        Assert.Empty(_recordings.TimelapseExportsRequested);
+
+        // From another thread, like the maker raises it: one job for all printers, and the JPEG export item stays.
+        await Task.Run(() => _recordings.SetTimelapseFromRecording(new CameraTimelapseFromRecordingStatus(true, "b", "/rec/Beta/2026-11-04_10-00-00.mp4", 12, 42)), TestContext.Current.CancellationToken);
+        _dispatcher.RunAll();
+
+        for (int i = 0; i < 2; i++)
+        {
+            TrayMenuEntry cancel = Item(viewModel, TrayMenuCommand.CancelTimelapseFromRecording, i);
+            Assert.Equal(("Cancel ti_melapse from recording (42%)", true, "Creating a timelapse from 2026-11-04_10-00-00.mp4"), (cancel.Header, cancel.IsEnabled, cancel.ToolTip));
+            Assert.DoesNotContain(viewModel.PrinterItems[i].Submenu!, static item => item.Command == TrayMenuCommand.CreateTimelapseFromRecording);
+            Assert.True(Item(viewModel, TrayMenuCommand.ExportTimelapseJpeg, i).IsEnabled);
+        }
+
+        _target.Click(Item(viewModel, TrayMenuCommand.CancelTimelapseFromRecording));
+        Assert.Equal(1, _recordings.TimelapseFromRecordingCancels);
+        Assert.Equal(0, _recordings.TimelapseExportCancels);
+
+        _recordings.SetTimelapseFromRecording(CameraTimelapseFromRecordingStatus.Idle);
+        _dispatcher.RunAll();
+        Assert.Equal("Create ti_melapse from recording… (experimental)", Item(viewModel, TrayMenuCommand.CreateTimelapseFromRecording).Header);
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public void WithoutTheTimelapseFromRecordingTheItemIsDisabledWithTheReason()
+    {
+        _recordings.IsTimelapseFromRecordingAvailable = false;
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()));
+
+        TrayMenuEntry item = Item(viewModel, TrayMenuCommand.CreateTimelapseFromRecording);
+        Assert.Equal((false, Strings.TimelapseFromRecordingUnavailable), (item.IsEnabled, item.ToolTip));
+        viewModel.RunRecordingCommand(item);
+        Assert.Empty(_recordings.TimelapsesFromRecordingRequested);
     }
 
     [Fact]

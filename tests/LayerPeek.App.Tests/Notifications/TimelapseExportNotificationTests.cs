@@ -17,7 +17,8 @@ namespace LayerPeek.App.Tests.Notifications;
 /// <summary>
 /// T-165: the end of a JPEG export of a timelapse becomes a short notification (done with the frames, or failed with a
 /// localized reason; a cancel is not notified), with the printer name as the title, following "Show notifications" and the
-/// sound setting (information). Only fakes: nothing reaches Windows or macOS.
+/// sound setting (information). T-164: the end of a timelapse from a recording goes the same way with its own texts. Only
+/// fakes: nothing reaches Windows or macOS.
 /// </summary>
 public sealed class TimelapseExportNotificationTests
 {
@@ -88,7 +89,7 @@ public sealed class TimelapseExportNotificationTests
         Assert.Contains(1234.ToString(culture), done.Detail, StringComparison.Ordinal);
 
         HashSet<string> reasons = [];
-        foreach (CameraTimelapseExportProblem problem in Enum.GetValues<CameraTimelapseExportProblem>().Where(static p => p is not CameraTimelapseExportProblem.None and not CameraTimelapseExportProblem.Cancelled))
+        foreach (CameraTimelapseExportProblem problem in Enum.GetValues<CameraTimelapseExportProblem>().Where(static p => p is not CameraTimelapseExportProblem.None and not CameraTimelapseExportProblem.Cancelled and not CameraTimelapseExportProblem.NotARecording))
         {
             NotificationLines failed = TimelapseExportNotificationText.Lines(new TimelapseExportNotification(null, null, 0, problem, false), culture);
             Assert.Equal("LayerPeek", failed.Title);
@@ -106,6 +107,95 @@ public sealed class TimelapseExportNotificationTests
         {
             Assert.NotEqual(TimelapseExportNotificationText.Lines(new TimelapseExportNotification(null, null, 1, CameraTimelapseExportProblem.None, false), english).Body, done.Body);
         }
+    }
+
+    [Fact]
+    public void ATimelapseFromARecordingIsNotifiedWithItsKindButACancelIsNot()
+    {
+        using CameraTimelapseJpegExporter exporter = Exporter();
+        using CameraTimelapseFromRecordingMaker maker = new(new NoFeeds(), new NoWriters(), NullLogger<CameraTimelapseFromRecordingMaker>.Instance);
+        ExportSink notifications = new();
+        using TimelapseExportNotificationObserver observer = new(exporter, notifications, NullLogger<TimelapseExportNotificationObserver>.Instance, maker);
+        observer.ApplySettings(new AppSettings
+        {
+            Printers = [TestPrinters.Definition("core", "Core One")],
+            Notifications = new NotificationSettings { Sound = NotificationSound.All },
+        });
+
+        observer.OnMade(maker, new CameraTimelapseFromRecordingResult("core", "/rec/Core One/2026-11-04_10-00-00.mp4", ["/rec/Core One/2026-11-04_10-00-00_recording_timelapse.mp4"], 120, CameraTimelapseExportProblem.None));
+        observer.OnMade(maker, new CameraTimelapseFromRecordingResult("core", "/rec/x.mp4", [], 3, CameraTimelapseExportProblem.Cancelled));
+        observer.OnMade(maker, new CameraTimelapseFromRecordingResult(null, "/rec/x.mp4", [], 0, CameraTimelapseExportProblem.NotARecording));
+
+        Assert.Equal(
+            [
+                new TimelapseExportNotification("core", "Core One", 120, CameraTimelapseExportProblem.None, PlaySound: true, TimelapseExportKind.FromRecording),
+                new TimelapseExportNotification(null, null, 0, CameraTimelapseExportProblem.NotARecording, PlaySound: true, TimelapseExportKind.FromRecording),
+            ],
+            notifications.All);
+
+        // Unsubscribed with the observer.
+        observer.Dispose();
+        Assert.Equal(2, notifications.All.Count);
+    }
+
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void EveryEndOfATimelapseFromARecordingHasItsOwnTranslatedText(string language)
+    {
+        CultureInfo culture = CultureInfo.GetCultureInfo(language);
+        CultureInfo english = CultureInfo.GetCultureInfo("en");
+        NotificationLines done = TimelapseExportNotificationText.Lines(new TimelapseExportNotification("core", "Core One", 1234, CameraTimelapseExportProblem.None, false, TimelapseExportKind.FromRecording), culture);
+        Assert.Equal("Core One", done.Title);
+        Assert.Equal(Strings.ResourceManager.GetString(nameof(Strings.NotificationTimelapseFromRecordingDone), culture), done.Body);
+        Assert.Contains(1234.ToString(culture), done.Detail, StringComparison.Ordinal);
+        Assert.NotEqual(TimelapseExportNotificationText.Lines(new TimelapseExportNotification("core", "Core One", 1234, CameraTimelapseExportProblem.None, false), culture).Body, done.Body);
+
+        HashSet<string> reasons = [];
+        foreach (CameraTimelapseExportProblem problem in Enum.GetValues<CameraTimelapseExportProblem>().Where(static p => p is not CameraTimelapseExportProblem.None and not CameraTimelapseExportProblem.Cancelled and not CameraTimelapseExportProblem.NotATimelapse))
+        {
+            NotificationLines failed = TimelapseExportNotificationText.Lines(new TimelapseExportNotification(null, null, 0, problem, false, TimelapseExportKind.FromRecording), culture);
+            Assert.Equal("LayerPeek", failed.Title);
+            Assert.Equal(Strings.ResourceManager.GetString(nameof(Strings.NotificationTimelapseFromRecordingFailed), culture), failed.Body);
+            Assert.False(string.IsNullOrWhiteSpace(failed.Detail));
+            Assert.DoesNotContain("{", failed.Detail, StringComparison.Ordinal);
+            Assert.True(reasons.Add(failed.Detail!), $"{language}: {problem} has the reason of another problem.");
+            if (language != "en")
+            {
+                Assert.NotEqual(TimelapseExportNotificationText.FromRecordingReason(problem, english), failed.Detail);
+            }
+        }
+
+        if (language != "en")
+        {
+            Assert.NotEqual(TimelapseExportNotificationText.Lines(new TimelapseExportNotification(null, null, 1, CameraTimelapseExportProblem.None, false, TimelapseExportKind.FromRecording), english).Body, done.Body);
+        }
+    }
+
+    [Fact]
+    public async Task TheMacNotificationOfATimelapseFromARecordingHasItsTexts()
+    {
+        FakeUserNotificationCenter center = new();
+        using UserNotificationService service = new(center, static () => CultureInfo.GetCultureInfo("en-US"), new ListLogger<UserNotificationService>());
+
+        service.ShowTimelapseExportFinished(new TimelapseExportNotification("core", "Core One", 7, CameraTimelapseExportProblem.None, PlaySound: false, TimelapseExportKind.FromRecording));
+        await Waiting.ForAsync(() => center.Posted.Count == 1);
+
+        UserNotificationRequest request = center.Posted[0];
+        Assert.Equal("Core One", request.Title);
+        Assert.Equal("Timelapse created from recording\n7 frames, next to the recording.", request.Body);
+        Assert.Null(request.LaunchArgument);
+    }
+
+    [Fact]
+    public void TheToastOfATimelapseFromARecordingHasItsTextsAndNoLaunchArgument()
+    {
+        TimelapseExportNotification notification = new("core", "Core One", 0, CameraTimelapseExportProblem.Unreadable, PlaySound: true, TimelapseExportKind.FromRecording);
+
+        XDocument toast = XDocument.Parse(ToastContentBuilder.BuildTimelapseExport(notification, CultureInfo.GetCultureInfo("cs-CZ")));
+
+        Assert.Null(toast.Root!.Attribute("launch"));
+        Assert.Equal(["Core One", "Vytvoření timelapse z nahrávky selhalo", "Nahrávku nejde přečíst (soubor chybí nebo je poškozený)."], toast.Descendants("text").Select(static text => text.Value));
+        Assert.Empty(toast.Descendants("audio"));
     }
 
     [Fact]
@@ -190,6 +280,14 @@ public sealed class TimelapseExportNotificationTests
     private sealed class NoFeeds : ICameraFeedFactory
     {
         public ICameraFeed Create(Uri streamUri) => throw new CameraFeedException("No decoder.");
+    }
+
+    private sealed class NoWriters : Core.Cameras.Recording.ICameraRecordingWriterFactory
+    {
+        public Core.Cameras.Recording.CameraRecorderAvailability Availability => Core.Cameras.Recording.CameraRecorderAvailability.Unavailable("No muxer.");
+
+        public Core.Cameras.Recording.ICameraRecordingWriter Create(string path, CameraStreamInfo info, ReadOnlySpan<byte> firstKeyFrame) =>
+            throw new InvalidOperationException("No muxer.");
     }
 
     private sealed class NoEncoders : ICameraJpegSequenceEncoderFactory

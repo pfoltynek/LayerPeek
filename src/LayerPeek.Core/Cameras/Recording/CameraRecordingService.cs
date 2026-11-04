@@ -115,6 +115,21 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IC
     }
 
     /// <summary>
+    /// The interval of the timelapses in the running settings (T-160, <see cref="CameraRecordingSettings.TimelapseInterval"/>);
+    /// a timelapse made from a recording uses it too (T-164).
+    /// </summary>
+    public TimeSpan TimelapseInterval
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _settings.TimelapseInterval;
+            }
+        }
+    }
+
+    /// <summary>
     /// Records <paramref name="printers"/> with <paramref name="settings"/> from now on. Call before every monitoring run and
     /// whenever the settings change. Printers that stay configured and point to the same machine keep their state and
     /// running recording (a renamed printer records into its new folder from its next recording; a new camera address

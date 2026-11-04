@@ -277,7 +277,8 @@ internal static partial class AppServices
                 sp.GetRequiredService<PrintNotificationObserver>(),
                 // T-146: recording failures as notifications, with the printer names and notification settings of this run.
                 sp.GetRequiredService<RecordingNotificationObserver>(),
-                // T-165: the end of a JPEG export, with the printer names and notification settings of this run.
+                // T-165 / T-164: the end of a JPEG export or of a timelapse from a recording, with the printer names and
+                // notification settings of this run.
                 sp.GetRequiredService<TimelapseExportNotificationObserver>(),
                 // Before the cool-down monitor: a raised threshold may cool a printer down while it is configured.
                 sp.GetRequiredService<CooldownNotificationObserver>(),
@@ -829,10 +830,19 @@ internal static partial class AppServices
         services.AddSingleton<IRecordingFilePicker>(static sp => OperatingSystem.IsMacOS()
             ? new MacRecordingFilePicker(sp.GetRequiredService<ILogger<MacRecordingFilePicker>>())
             : new StorageProviderRecordingFilePicker(sp.GetRequiredService<ILogger<StorageProviderRecordingFilePicker>>()));
+        // T-164: a timelapse from a finished recording, only on demand from the tray menu: the demuxer reads the packets (no
+        // decoder), the recording writer remuxes the chosen key frames (MP4, 30 fps); idle without a job. The service keeps the
+        // recording and the file being written away from its rotation and counts the file afterwards.
+        services.AddSingleton(static sp => new CameraTimelapseFromRecordingMaker(
+            sp.GetRequiredService<ICameraFeedFactory>(),
+            sp.GetRequiredService<ICameraRecordingWriterFactory>(),
+            sp.GetRequiredService<ILogger<CameraTimelapseFromRecordingMaker>>(),
+            sp.GetRequiredService<CameraRecordingService>()));
         services.AddSingleton(static sp => new TimelapseExportNotificationObserver(
             sp.GetRequiredService<CameraTimelapseJpegExporter>(),
             sp.GetRequiredService<INotificationService>(),
-            sp.GetRequiredService<ILogger<TimelapseExportNotificationObserver>>()));
+            sp.GetRequiredService<ILogger<TimelapseExportNotificationObserver>>(),
+            sp.GetRequiredService<CameraTimelapseFromRecordingMaker>()));
         // T-146: what the tray menu, the tooltip, the camera window and the settings window use of the recordings.
         services.AddSingleton<ICameraRecordings>(static sp => new CameraRecordings(
             sp.GetRequiredService<CameraRecordingService>(),
@@ -840,7 +850,8 @@ internal static partial class AppServices
             sp.GetRequiredService<IFileLauncher>(),
             CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>()),
             sp.GetRequiredService<CameraTimelapseJpegExporter>(),
-            sp.GetRequiredService<IRecordingFilePicker>()));
+            sp.GetRequiredService<IRecordingFilePicker>(),
+            sp.GetRequiredService<CameraTimelapseFromRecordingMaker>()));
         services.AddSingleton(static sp => new RecordingNotificationObserver(
             sp.GetRequiredService<CameraRecordingService>(),
             sp.GetRequiredService<INotificationService>(),
