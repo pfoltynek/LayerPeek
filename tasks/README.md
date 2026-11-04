@@ -174,7 +174,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-155 | Detekce chyb tisku – první detektor „Změna na podložce“ (bed-change) | all | core-dev | P2 | T-152, T-153 |
 | T-156 | Detekce chyb tisku – další detektory včetně první vrstvy (rozpad) | all | architect | P3 | T-155 |
 | T-157 | Automatické pozastavení tisku po detekci chyby (volitelné, PrusaLink) | all | core-dev + ui-dev | P3 | T-154, T-155 |
-| T-158 | Timelapse – zápis z klíčových snímků bez překódování (Core + Camera.FFmpeg) | all | core-dev | P3 | T-149, T-144, T-148 |
+| T-158 | Timelapse – zápis z klíčových snímků bez překódování (Core + Camera.FFmpeg) (hotovo; ruční přehrání a Windows v T-125 / T-127) | all | core-dev | P3 | T-149, T-144, T-148 |
 | T-159 | Detekce změny vrstvy z osy Z (PrusaLink `axis_z`) a spouštěč timelapse po vrstvě | all | core-dev + ui-dev | P3 | T-149, T-148, T-160, T-161 |
 | T-160 | Timelapse – služba v Core (spouštěč po čase, automaticky i ručně, složka, rotace) | all | core-dev | P3 | T-158, T-145, T-148 |
 | T-161 | Timelapse – UI (nastavení, tray menu, okno kamery, štítek Experimentální, notifikace) a E2E | all | ui-designer + ui-dev | P3 | T-160, T-146, T-148 |

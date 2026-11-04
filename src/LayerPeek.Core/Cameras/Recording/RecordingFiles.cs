@@ -10,7 +10,8 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// 0 (<see cref="RecordingClock"/>), and every <see cref="Close"/> completes it, so that the next packet of a key frame
 /// starts the next file, named <c>name-2.ext</c>, <c>name-3.ext</c> … (an existing file is never overwritten). Used by
 /// one thread at a time; <see cref="Files"/>, <see cref="BytesWritten"/> and <see cref="Duration"/> may be read anywhere.
-/// Writing a packet allocates nothing.
+/// Writing a packet allocates nothing. With a constant frame rate (timelapse, T-158) the packets' own timestamps are
+/// ignored and packet <i>n</i> of a file is at <i>n</i> frames (<see cref="RecordingClock.AtFrameRate"/>).
 /// </summary>
 internal sealed partial class RecordingFiles
 {
@@ -23,6 +24,7 @@ internal sealed partial class RecordingFiles
     private readonly string _folder;
     private readonly string _name;
     private readonly string _extension;
+    private readonly int _framesPerSecond;
 
     // Published for other threads.
     private string[] _files = [];
@@ -38,8 +40,11 @@ internal sealed partial class RecordingFiles
     private int _nextSegment = 1;
 
     /// <param name="filePath">Absolute path of the first file (the folder must exist); later files add a suffix.</param>
-    public RecordingFiles(string printerId, string filePath, ICameraRecordingWriterFactory writers, ILogger logger)
+    /// <param name="framesPerSecond">A constant frame rate for the files' timestamps; 0: the stream's timestamps.</param>
+    public RecordingFiles(string printerId, string filePath, ICameraRecordingWriterFactory writers, ILogger logger, int framesPerSecond = 0)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(framesPerSecond);
+        _framesPerSecond = framesPerSecond;
         _printerId = printerId;
         _writers = writers;
         _logger = logger;
@@ -127,7 +132,7 @@ internal sealed partial class RecordingFiles
         }
 
         _fileName = Path.GetFileName(path);
-        _clock = new RecordingClock(info.TimeBase);
+        _clock = _framesPerSecond > 0 ? RecordingClock.AtFrameRate(info.TimeBase, _framesPerSecond) : new RecordingClock(info.TimeBase);
         Volatile.Write(ref _files, [.. _files, path]);
         LogFileStarted(_printerId, _fileName);
     }

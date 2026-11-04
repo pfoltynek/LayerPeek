@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 using FFmpeg.AutoGen.Abstractions;
 
 namespace LayerPeek.Camera.FFmpeg.Tests;
@@ -15,7 +17,11 @@ internal sealed record Mp4Contents(
     bool TimestampsIncrease,
     int DecodedFrames,
     int DecodeErrors,
-    double DurationSeconds);
+    double DurationSeconds,
+    long PacketBytes);
+
+/// <summary>One decoded frame: whether the decoder marked it a key frame, and a digest of its pixels (like <c>framemd5</c>).</summary>
+internal readonly record struct DecodedFrame(bool KeyFrame, string Digest);
 
 /// <summary>
 /// Opens a recording with FFmpeg's demuxer and decodes every frame (T-144): the file is valid, starts with a key frame,
@@ -23,7 +29,9 @@ internal sealed record Mp4Contents(
 /// </summary>
 internal static unsafe class Mp4Probe
 {
-    public static Mp4Contents Read(string path)
+    /// <param name="strict">Any decoding error fails the frame (like <c>ffmpeg -err_detect explode</c>).</param>
+    /// <param name="frames">Receives every decoded frame, in output order.</param>
+    public static Mp4Contents Read(string path, bool strict = false, List<DecodedFrame>? frames = null)
     {
         FFmpegRuntime.EnsureLoaded();
         AVFormatContext* format = null;
@@ -42,12 +50,18 @@ internal static unsafe class Mp4Probe
             Assert.True(decoder is not null, "No decoder for the recorded codec.");
             codec = ffmpeg.avcodec_alloc_context3(decoder);
             Check(ffmpeg.avcodec_parameters_to_context(codec, parameters), "decoder parameters");
+            if (strict)
+            {
+                codec->err_recognition |= ffmpeg.AV_EF_EXPLODE | ffmpeg.AV_EF_BITSTREAM | ffmpeg.AV_EF_BUFFER;
+            }
+
             Check(ffmpeg.avcodec_open2(codec, decoder, null), "open the decoder");
 
             int packets = 0;
             int keyFrames = 0;
             int decoded = 0;
             int errors = 0;
+            long bytes = 0;
             bool startsWithKey = false;
             bool increasing = true;
             long lastDts = long.MinValue;
@@ -62,20 +76,21 @@ internal static unsafe class Mp4Probe
                     }
 
                     keyFrames += key ? 1 : 0;
+                    bytes += packet->size;
                     increasing &= packet->dts != ffmpeg.AV_NOPTS_VALUE && packet->dts > lastDts;
                     lastDts = packet->dts;
                     errors += ffmpeg.avcodec_send_packet(codec, packet) < 0 ? 1 : 0;
-                    decoded += Drain(codec, frame, ref errors);
+                    decoded += Drain(codec, frame, ref errors, frames);
                 }
 
                 ffmpeg.av_packet_unref(packet);
             }
 
             _ = ffmpeg.avcodec_send_packet(codec, null);
-            decoded += Drain(codec, frame, ref errors);
+            decoded += Drain(codec, frame, ref errors, frames);
             double duration = format->duration > 0 ? format->duration / (double)ffmpeg.AV_TIME_BASE : 0;
             string name = System.Runtime.InteropServices.Marshal.PtrToStringUTF8((nint)format->iformat->name) ?? "";
-            return new Mp4Contents(name, (int)format->nb_streams, parameters->codec_id, parameters->width, parameters->height, packets, keyFrames, startsWithKey, increasing, decoded, errors, duration);
+            return new Mp4Contents(name, (int)format->nb_streams, parameters->codec_id, parameters->width, parameters->height, packets, keyFrames, startsWithKey, increasing, decoded, errors, duration, bytes);
         }
         finally
         {
@@ -102,7 +117,7 @@ internal static unsafe class Mp4Probe
         return contents;
     }
 
-    private static int Drain(AVCodecContext* codec, AVFrame* frame, ref int errors)
+    private static int Drain(AVCodecContext* codec, AVFrame* frame, ref int errors, List<DecodedFrame>? frames)
     {
         int count = 0;
         while (true)
@@ -115,7 +130,27 @@ internal static unsafe class Mp4Probe
             }
 
             count++;
+            frames?.Add(new DecodedFrame((frame->flags & ffmpeg.AV_FRAME_FLAG_KEY) != 0, Digest(frame)));
         }
+    }
+
+    /// <summary>SHA-256 of the visible pixels of a planar 4:2:0 frame (the Buddy3D's format), row by row without padding.</summary>
+    private static string Digest(AVFrame* frame)
+    {
+        AVPixelFormat format = (AVPixelFormat)frame->format;
+        Assert.True(format is AVPixelFormat.AV_PIX_FMT_YUV420P or AVPixelFormat.AV_PIX_FMT_YUVJ420P, $"Unexpected pixel format {format}.");
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        for (uint plane = 0; plane < 3; plane++)
+        {
+            int width = plane == 0 ? frame->width : (frame->width + 1) / 2;
+            int height = plane == 0 ? frame->height : (frame->height + 1) / 2;
+            for (int row = 0; row < height; row++)
+            {
+                hash.AppendData(new ReadOnlySpan<byte>(frame->data[plane] + ((long)row * frame->linesize[plane]), width));
+            }
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset());
     }
 
     private static void Check(int result, string stage)

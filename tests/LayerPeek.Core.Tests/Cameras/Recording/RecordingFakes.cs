@@ -123,5 +123,12 @@ internal sealed class TestPackets
         Assert.True(Subscription.TryEnqueue(packet));
     }
 
+    /// <summary>A packet with the given bytes (e.g. an Annex B access unit), 1/20 s after the previous one.</summary>
+    public void Packet(byte[] data, bool keyFrame)
+    {
+        _timestamp += 4500;
+        Assert.True(Subscription.TryEnqueue(new CameraPacket(data, _timestamp, _timestamp, 4500, keyFrame, CameraTimeBase.Rtp90kHz)));
+    }
+
     public void End(CameraStreamEndReason reason) => Subscription.TryEnd(reason, failure: null);
 }

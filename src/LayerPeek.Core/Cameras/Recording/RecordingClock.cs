@@ -5,6 +5,8 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// at 0 with the first packet, the decoding timestamp strictly increasing and the presentation timestamp never below it.
 /// RTSP timestamps can be missing, step back or jump (camera clock, lost packets); such a packet continues one frame
 /// after the previous one and the clock re-anchors there, so that a single bad value does not shift the rest.
+/// A clock made by <see cref="AtFrameRate"/> ignores the packets' timestamps instead: packet <i>n</i> is at <i>n</i> frames
+/// of a constant frame rate (timelapse, T-158).
 /// </summary>
 internal struct RecordingClock
 {
@@ -23,7 +25,9 @@ internal struct RecordingClock
     private readonly CameraTimeBase _timeBase;
     private readonly long _maxStep;
     private readonly long _maxFrameDuration;
+    private readonly int _framesPerSecond;
     private bool _started;
+    private long _frames;
     private long _origin;
     private long _lastDts;
     private long _frameDuration;
@@ -36,12 +40,36 @@ internal struct RecordingClock
         _frameDuration = Math.Max(1, ToTicks(TimeSpan.FromSeconds(1.0 / AssumedFramesPerSecond), timeBase));
     }
 
+    /// <summary>
+    /// A clock that puts packet <i>n</i> at <i>n</i> frames of <paramref name="framesPerSecond"/> (in <paramref name="timeBase"/>,
+    /// rounded to nearest; a time base too coarse for the rate still gets strictly increasing timestamps), each one frame
+    /// long, whatever the packets' own timestamps are.
+    /// </summary>
+    public static RecordingClock AtFrameRate(CameraTimeBase timeBase, int framesPerSecond)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(framesPerSecond, 1);
+        return new RecordingClock(timeBase, framesPerSecond);
+    }
+
+    private RecordingClock(CameraTimeBase timeBase, int framesPerSecond)
+        : this(timeBase)
+    {
+        _framesPerSecond = framesPerSecond;
+    }
+
     /// <summary>The recorded time so far: up to the end of the last packet.</summary>
     public readonly TimeSpan Elapsed => _started ? ToTimeSpan(_lastDts + _frameDuration, _timeBase) : TimeSpan.Zero;
 
     /// <summary>The file's timestamps of <paramref name="packet"/> (its timestamps are converted to the file's time base first).</summary>
     public void Next(in CameraPacket packet, out long pts, out long dts, out long duration)
     {
+        if (_framesPerSecond > 0)
+        {
+            NextFrame(out dts, out duration);
+            pts = dts;
+            return;
+        }
+
         long? rawDts = Convert(packet.Dts, packet.TimeBase);
         long? rawPts = Convert(packet.Pts, packet.TimeBase);
         duration = packet.Duration > 0 ? Math.Max(0, Convert(packet.Duration, packet.TimeBase) ?? 0) : 0;
@@ -82,6 +110,20 @@ internal struct RecordingClock
         // B-frames: the presentation offset is kept when it is sane (the Buddy3D's Baseline profile has none).
         long offset = rawPts is { } p && rawDts is { } d && p >= d && p - d <= _maxStep ? p - d : 0;
         pts = dts + offset;
+    }
+
+    /// <summary>The next frame of the constant frame rate: from its start to the start of the frame after it.</summary>
+    private void NextFrame(out long dts, out long duration)
+    {
+        CameraTimeBase frame = new(1, _framesPerSecond);
+        long start = Rescale(_frames, frame, _timeBase);
+        long end = Rescale(_frames + 1, frame, _timeBase);
+        dts = _started ? Math.Max(start, _lastDts + 1) : 0;
+        duration = Math.Max(1, end - dts);
+        _started = true;
+        _frames++;
+        _lastDts = dts;
+        _frameDuration = duration;
     }
 
     private readonly long? Convert(long? value, CameraTimeBase from) =>

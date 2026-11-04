@@ -171,6 +171,17 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       nahrávku“ otevře nejnovější z nich. Ve Správci úloh roste paměť procesu během tisku jen o ~16 MB na tiskárnu (2 min)
       a po konci tisku se vrátí.
 
+### 2g. Timelapse – zápis z klíčových snímků (z T-158, implementováno na Macu 2026-11-04)
+- [ ] **T-158** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb
+      (nové `CameraTimelapse*` v Core, `FFmpegTimelapseTests` s BtbN – fixture, simulátor, „pád“, výpadek, dvakrát týž IDR);
+      `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
+- [ ] **T-158** (krit. „dva po sobě jdoucí vybrané IDR se stejným `idr_pic_id` … přehrání ve Filmech a TV ručně“): dekodér
+      Media Foundation zatím neověřený (spike T-149). Na Windows zkopírovat z Macu `~/LayerPeek-samples/timelapse/`
+      (`t158-same-idr-pic-id.mp4`: 5 snímků, `idr_pic_id` 7, 7, 8, 8, 7; `t158-coreone-clip-25-keyframes.mp4`: 25 klíčových
+      snímků skutečné Buddy3D, 0,83 s) nebo po T-161 pořídit timelapse z aplikace; oba soubory se ve Filmech a TV i ve VLC
+      přehrají bez zelených / rozpadlých snímků a posuvník projde všechny snímky. Kdyby Media Foundation stejné `idr_pic_id`
+      odmítal, založit úkol na přepis `idr_pic_id` v hlavičce řezu (spike T-149, bez dekódování).
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

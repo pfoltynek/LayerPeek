@@ -141,6 +141,60 @@ public sealed class RecordingClockTests
         Assert.Equal(expected, RecordingClock.Rescale(value, new CameraTimeBase(1, fromDenominator), new CameraTimeBase(1, toDenominator)));
     }
 
+    [Fact]
+    public void AtAFrameRatePacketNIsAtNFramesWhateverItsTimestamps()
+    {
+        // T-158: a timelapse at 30 fps in the 90 kHz RTP clock; the camera's timestamps are ~2.2 s apart, missing or backwards.
+        RecordingClock clock = RecordingClock.AtFrameRate(Rtp, 30);
+        Assert.Equal(TimeSpan.Zero, clock.Elapsed);
+
+        (long Pts, long Dts, long Duration)[] frames = Frames(ref clock, 900_000, 1_098_000, null, 50_000);
+
+        Assert.Equal([(0L, 0L, 3000L), (3000L, 3000L, 3000L), (6000L, 6000L, 3000L), (9000L, 9000L, 3000L)], frames);
+        Assert.Equal(TimeSpan.FromSeconds(4.0 / 30), clock.Elapsed);
+    }
+
+    [Fact]
+    public void AtAFrameRateTheFramesAreRoundedWithoutDrift()
+    {
+        RecordingClock clock = RecordingClock.AtFrameRate(new CameraTimeBase(1, 1000), 30);
+
+        (long Pts, long Dts, long Duration)[] frames = Frames(ref clock, 0, 0, 0, 0);
+
+        Assert.Equal([0L, 33L, 67L, 100L], frames.Select(static f => f.Dts));
+        Assert.Equal([33L, 34L, 33L, 33L], frames.Select(static f => f.Duration));
+        Assert.Equal(TimeSpan.FromMilliseconds(133), clock.Elapsed);
+    }
+
+    [Fact]
+    public void AtAFrameRateATooCoarseTimeBaseStillIncreases()
+    {
+        RecordingClock clock = RecordingClock.AtFrameRate(new CameraTimeBase(1, 10), 30);
+
+        (long Pts, long Dts, long Duration)[] frames = Frames(ref clock, 0, 0, 0, 0);
+
+        Assert.Equal([0L, 1L, 2L, 3L], frames.Select(static f => f.Dts));
+        Assert.All(frames, static f => Assert.True(f.Duration >= 1));
+    }
+
+    [Fact]
+    public void AFrameRateMustBePositive()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => RecordingClock.AtFrameRate(Rtp, 0));
+    }
+
+    private static (long Pts, long Dts, long Duration)[] Frames(ref RecordingClock clock, params long?[] values)
+    {
+        (long, long, long)[] result = new (long, long, long)[values.Length];
+        for (int i = 0; i < values.Length; i++)
+        {
+            clock.Next(Packet(values[i], values[i], duration: 4500), out long pts, out long dts, out long duration);
+            result[i] = (pts, dts, duration);
+        }
+
+        return result;
+    }
+
     private static long[] Dts(ref RecordingClock clock, params long?[] values)
     {
         long[] result = new long[values.Length];
