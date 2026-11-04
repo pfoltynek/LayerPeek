@@ -1610,7 +1610,7 @@
     <value>Durée (minutes)</value>
   </data>
   <data name="SettingsDashcamMinutesHint" xml:space="preserve">
-    <value>Conservées en mémoire pendant l'impression (environ 8&#160;Mo par minute et par imprimante) et sauvegardées avec {0}&#160;s après l'événement.</value>
+    <value>Gardées en mémoire pendant l'impression (env. 8&#160;Mo par minute et imprimante), sauvegardées avec {0}&#160;s après l'événement.</value>
   </data>
   <data name="SettingsDashcamTriggers" xml:space="preserve">
     <value>Sauvegarder automatiquement</value>
@@ -1746,5 +1746,71 @@
   </data>
   <data name="SettingsDetectionIntervalError" xml:space="preserve">
     <value>Saisissez un nombre de {0} à {1}.</value>
+  </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>Démarrer le _timelapse (expérimental)</value>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>Arrêter le _timelapse (expérimental)</value>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Lire le dernier ti_melapse</value>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>Cette imprimante n'a pas encore de timelapse.</value>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Démarrer le timelapse (expérimental)</value>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Arrêter le timelapse (expérimental)</value>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>Le timelapse démarre…</value>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>Le timelapse est en cours de finalisation…</value>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>Aucune image n'est prise pendant la pause de l'impression.</value>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>Cette version de LayerPeek ne peut pas créer de timelapses.</value>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Le timelapse a échoué</value>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>Cette version de LayerPeek ne peut pas créer de timelapses.</value>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>Le fichier du timelapse n'a pas pu être écrit.</value>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>Le timelapse à lui seul dépasse la limite de taille de tous les enregistrements ({0}&#160;Go).</value>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Timelapse</value>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Expérimental</value>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>Une fonction expérimentale&#160;: elle peut changer ou ne pas toujours fonctionner de manière fiable.</value>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Temps entre les images (secondes)</value>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>Une image par intervalle, aucune pendant la pause de l'impression. La vidéo est lue à {0} images par seconde.</value>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Créer un timelapse des impressions</value>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Crée un timelapse du début d'une impression jusqu'à une minute après sa fin, même sans fenêtre de caméra ouverte. Le temps entre les images se règle dans l'onglet Enregistrement.</value>
   </data>
 </root>

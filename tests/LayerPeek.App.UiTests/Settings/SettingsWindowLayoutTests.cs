@@ -411,7 +411,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 SettingsWindowHarness recording = await SettingsWindowHarness.OpenAsync(
                     scope,
                     SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
-                    recordings: new LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings { IsAvailable = available },
+                    recordings: new LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings { IsAvailable = available, IsTimelapseAvailable = available },
                     recordingFolderPicker: picker);
                 recording.Click("SettingsTabRecording");
                 if (available)
@@ -420,6 +420,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                     recording.ViewModel.RecordingLimitGigabytes = 0;
                     // T-148: the dashcam length is invalid as well (its error replaces its hint).
                     recording.ViewModel.DashcamMinutes = 11;
+                    // T-161: and the timelapse interval (its error replaces its hint).
+                    recording.ViewModel.TimelapseIntervalSeconds = 601;
                     // T-154: and the sampling interval of the detection (its error appears under it).
                     recording.ViewModel.DetectionIntervalSeconds = 9;
                     recording.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
@@ -433,7 +435,9 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingFolderError").IsEffectivelyVisible);
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingLimitError").IsEffectivelyVisible);
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsDashcamMinutesError").IsEffectivelyVisible);
-                Assert.True(recording.Find<TextBlock>("SettingsDashcamTriggersHint").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsTimelapseIntervalError").IsEffectivelyVisible);
+                Assert.Equal(!available, recording.Find<TextBlock>("SettingsTimelapseUnavailable").IsEffectivelyVisible);
+                Assert.True(recording.Find<Border>("SettingsTimelapseExperimental").IsEffectivelyVisible);
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsDetectionIntervalError").IsEffectivelyVisible);
                 // T-154: every choice of "Alarm" fits its combo box (it trims, so CutTexts would not notice).
                 ComboBox repeat = recording.Find<ComboBox>("SettingsDetectionRepeat");

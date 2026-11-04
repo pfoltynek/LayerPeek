@@ -1747,4 +1747,70 @@
   <data name="SettingsDetectionIntervalError" xml:space="preserve">
     <value>Inserisci un numero da {0} a {1}.</value>
   </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>Avvia time_lapse (sperimentale)</value>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>Interrompi time_lapse (sperimentale)</value>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Riproduci ultimo ti_melapse</value>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>Questa stampante non ha ancora alcun timelapse.</value>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Avvia timelapse (sperimentale)</value>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Interrompi timelapse (sperimentale)</value>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>Il timelapse si sta avviando…</value>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>Il timelapse è in fase di completamento…</value>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>Durante la pausa della stampa non vengono acquisiti fotogrammi.</value>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>Questa versione di LayerPeek non può creare timelapse.</value>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Timelapse non riuscito</value>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>Questa versione di LayerPeek non può creare timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>Impossibile scrivere il file del timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>Il timelapse da solo supera il limite di dimensione di tutte le registrazioni ({0}&#160;GB).</value>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Timelapse</value>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Sperimentale</value>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>Una funzione sperimentale: potrebbe cambiare o non funzionare sempre in modo affidabile.</value>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Tempo tra i fotogrammi (secondi)</value>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>Un fotogramma per intervallo, nessuno durante la pausa della stampa. Il video ha {0} fotogrammi al secondo.</value>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Crea un timelapse delle stampe</value>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Crea un timelapse dall'inizio di una stampa fino a un minuto dopo la sua fine, anche senza la finestra della telecamera aperta. Il tempo tra i fotogrammi è nella scheda Registrazione.</value>
+  </data>
 </root>

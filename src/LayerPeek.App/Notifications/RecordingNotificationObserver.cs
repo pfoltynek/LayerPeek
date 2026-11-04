@@ -13,7 +13,8 @@ namespace LayerPeek.App.Notifications;
 /// decision 2026-11-03 on T-145): the printer name of the current run as the title, the localized reason built by the
 /// notification service from <see cref="CameraRecordingProblem"/> (the English message of the service only goes to the
 /// log). Follows "Show notifications" and the sound setting (a failure counts like a printer error). Failures come on any
-/// thread; the notification service queues them. Never throws into the service.
+/// thread; the notification service queues them. Never throws into the service. T-161: a failed timelapse
+/// (<see cref="CameraRecordingError.IsTimelapse"/>) has texts of its own.
 /// </summary>
 internal sealed partial class RecordingNotificationObserver : IMonitoringObserver, IDisposable
 {
@@ -107,7 +108,8 @@ internal sealed partial class RecordingNotificationObserver : IMonitoringObserve
                 _sizeLimitGigabytes,
                 _minFreeGigabytes,
                 _settings.ShouldPlaySound(NotificationSeverity.ActionRequired),
-                IsDashcam: error.Mode == CameraRecordingMode.Dashcam);
+                IsDashcam: error.Mode == CameraRecordingMode.Dashcam && !error.IsTimelapse,
+                IsTimelapse: error.IsTimelapse);
         }
 
         try

@@ -88,6 +88,39 @@ public sealed class CameraRecordingsTests : IDisposable
         Assert.Empty(_launchers.Files);
     }
 
+    /// <summary>
+    /// T-161: "Play last timelapse" opens the newest timelapse the service knows (also from an earlier run), "Play last
+    /// recording" never picks it; without a timelapse recorder the timelapse cannot start.
+    /// </summary>
+    [Fact]
+    public async Task PlayLastTimelapseOpensTheNewestTimelapseAndPlayLastTheNewestRecording()
+    {
+        await using CameraRecordingService service = Service();
+        CameraRecordings recordings = Recordings(service);
+        service.Configure([Printer()], CameraRecordingSettings.Default);
+        string folder = service.GetPrinterFolder("mk4")!;
+        CameraRecordingStorage.Instance.PrepareFolder(folder);
+        string timelapse = Path.Combine(folder, "2026-11-04_08-00-00_Benchy_timelapse.mp4");
+        string recording = Path.Combine(folder, "2026-11-04_09-00-00_Benchy.mp4");
+        await File.WriteAllBytesAsync(timelapse, [1], TestContext.Current.CancellationToken);
+        await File.WriteAllBytesAsync(recording, [1], TestContext.Current.CancellationToken);
+
+        // A new configuration scans the folder again (the rotation knows the newest files of every printer).
+        service.Configure([Printer() with { Name = "Workshop MK4" }], new CameraRecordingSettings { SizeLimitGigabytes = 9 });
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
+        while (service.GetStatus("mk4").Timelapse.LastFile is null || service.GetStatus("mk4").LastFile is null)
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+
+        Assert.True(await recordings.PlayLastTimelapseAsync("mk4"));
+        Assert.True(await recordings.PlayLastAsync("mk4"));
+        Assert.Equal([timelapse, recording], _launchers.Files);
+        Assert.False(recordings.IsTimelapseAvailable);
+        Assert.False(recordings.StartTimelapse("mk4"));
+        recordings.StopTimelapse("mk4");
+    }
+
     private sealed class NoRecorder : ICameraRecorder
     {
         public CameraRecorderAvailability Availability { get; } = CameraRecorderAvailability.Unavailable("No MP4 muxer in this build.");

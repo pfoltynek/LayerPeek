@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.Input;
 
 using LayerPeek.App.Cameras.Recording;
+using LayerPeek.Core.Cameras.Recording;
 
 namespace LayerPeek.App.Cameras;
 
@@ -16,6 +17,7 @@ namespace LayerPeek.App.Cameras;
 /// T-148: a printer with a dashcam also has "Save the last N min" in the context menu of the window (normal window and mini
 /// preview), enabled while the last minutes are held, otherwise disabled with the reason as its tip.
 /// </para>
+/// <para>T-161: the timelapse button right before the record button (<c>CameraViewModel.Timelapse.cs</c>).</para>
 /// </summary>
 public sealed partial class CameraViewModel
 {
@@ -61,8 +63,10 @@ public sealed partial class CameraViewModel
         _refreshRecording = RefreshRecording;
         // Subscribed before reading the state: a change in between only causes one more (idempotent) refresh.
         recordings.Changed += OnRecordingChanged;
-        _recordingState = RecordingControlState.Of(recordings, PrinterId);
-        _dashcamState = DashcamControlState.Of(recordings, PrinterId);
+        CameraRecordingStatus status = recordings.GetStatus(PrinterId);
+        _recordingState = new(recordings.IsAvailable, status.Activity);
+        _dashcamState = DashcamControlState.Of(status);
+        _timelapseState = TimelapseControlState.Of(recordings.IsTimelapseAvailable, status.Timelapse);
     }
 
     private void DisposeRecording()
@@ -79,6 +83,7 @@ public sealed partial class CameraViewModel
         OnPropertyChanged(nameof(RecordingToolTip));
         OnPropertyChanged(nameof(SaveDashcamText));
         OnPropertyChanged(nameof(SaveDashcamToolTip));
+        OnPropertyChanged(nameof(TimelapseToolTip));
     }
 
     private void SaveDashcam()
@@ -132,8 +137,11 @@ public sealed partial class CameraViewModel
             return;
         }
 
-        RefreshDashcam(recordings);
-        RecordingControlState state = RecordingControlState.Of(recordings, PrinterId);
+        // One read of the status for all three controls.
+        CameraRecordingStatus status = recordings.GetStatus(PrinterId);
+        RefreshDashcam(DashcamControlState.Of(status));
+        RefreshTimelapse(TimelapseControlState.Of(recordings.IsTimelapseAvailable, status.Timelapse));
+        RecordingControlState state = new(recordings.IsAvailable, status.Activity);
         if (state == _recordingState)
         {
             return;
@@ -151,9 +159,8 @@ public sealed partial class CameraViewModel
     }
 
     /// <summary>UI thread: the dashcam item follows its state; raises only what changed.</summary>
-    private void RefreshDashcam(ICameraRecordings recordings)
+    private void RefreshDashcam(DashcamControlState state)
     {
-        DashcamControlState state = DashcamControlState.Of(recordings, PrinterId);
         if (state == _dashcamState)
         {
             return;

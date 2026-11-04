@@ -34,5 +34,7 @@ public static class SettingsFieldIds
 
     public const string SettingsDashcamMinutes = "SettingsDashcamMinutes";
 
+    public const string SettingsTimelapseInterval = "SettingsTimelapseInterval";
+
     public const string SettingsDetectionInterval = "SettingsDetectionInterval";
 }

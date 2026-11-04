@@ -55,6 +55,15 @@ public enum TrayMenuCommand
 
     /// <summary>"Save the last N min" (T-148): the dashcam of <see cref="TrayMenuEntry.PrinterId"/> saves the last minutes now.</summary>
     SaveDashcam,
+
+    /// <summary>"Start timelapse (experimental)" of <see cref="TrayMenuEntry.PrinterId"/> (T-161): a manual timelapse of its camera.</summary>
+    StartTimelapse,
+
+    /// <summary>"Stop timelapse (experimental)" of <see cref="TrayMenuEntry.PrinterId"/> (T-161): ends its timelapse, manual or automatic.</summary>
+    StopTimelapse,
+
+    /// <summary>"Play last timelapse" (T-161): the newest timelapse of <see cref="TrayMenuEntry.PrinterId"/> in the system's default app.</summary>
+    PlayLastTimelapse,
     About,
 
     /// <summary>

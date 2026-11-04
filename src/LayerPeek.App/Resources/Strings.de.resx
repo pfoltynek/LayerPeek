@@ -1747,4 +1747,70 @@
   <data name="SettingsDetectionIntervalError" xml:space="preserve">
     <value>Geben Sie eine Zahl von {0} bis {1} ein.</value>
   </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>_Zeitraffer starten (experimentell)</value>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>_Zeitraffer beenden (experimentell)</value>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Letzten Zeit_raffer abspielen</value>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>Dieser Drucker hat noch keinen Zeitraffer.</value>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Zeitraffer starten (experimentell)</value>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Zeitraffer beenden (experimentell)</value>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>Der Zeitraffer startet…</value>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>Der Zeitraffer wird abgeschlossen…</value>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>Während der Druck pausiert, werden keine Bilder aufgenommen.</value>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>Diese Version von LayerPeek kann keine Zeitraffer aufnehmen.</value>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Zeitraffer fehlgeschlagen</value>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>Diese Version von LayerPeek kann keine Zeitraffer aufnehmen.</value>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>Die Zeitraffer-Datei konnte nicht geschrieben werden.</value>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>Der Zeitraffer allein ist größer als die Größengrenze aller Aufnahmen ({0}&#160;GB).</value>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Zeitraffer</value>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Experimentell</value>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>Eine experimentelle Funktion: Sie kann sich ändern oder nicht immer zuverlässig funktionieren.</value>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Zeit zwischen Bildern (Sekunden)</value>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>Ein Bild pro Intervall, keines während der Druck pausiert. Das Video läuft mit {0} Bildern pro Sekunde.</value>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Zeitraffer von Drucken aufnehmen</value>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Nimmt vom Beginn eines Drucks bis eine Minute nach seinem Ende einen Zeitraffer auf, auch ohne geöffnetes Kamerafenster. Die Zeit zwischen Bildern steht auf der Registerkarte Aufnahme.</value>
+  </data>
 </root>

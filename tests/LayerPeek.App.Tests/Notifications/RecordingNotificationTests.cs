@@ -127,6 +127,67 @@ public sealed class RecordingNotificationTests : IDisposable
         Assert.Equal(full.Detail, dashcam.Detail);
     }
 
+    /// <summary>T-161: a failed timelapse (also an automatic one) is told apart from a recording and from the dashcam.</summary>
+    [Theory]
+    [InlineData(CameraRecordingMode.Manual)]
+    [InlineData(CameraRecordingMode.Automatic)]
+    public void AFailedTimelapseIsNotifiedAsATimelapse(CameraRecordingMode mode)
+    {
+        FakePrinterMonitor monitor = new();
+        using CameraRecordingService service = Service(monitor);
+        RecordingSink notifications = new();
+        using RecordingNotificationObserver observer = new(service, notifications, 5_000_000_000, NullLogger<RecordingNotificationObserver>.Instance);
+        observer.ApplySettings(new AppSettings { Printers = [Printer()], Recording = new CameraRecordingSettings { SizeLimitGigabytes = 20 } });
+
+        observer.OnFailed(service, new CameraRecordingError("core", CameraRecordingProblem.WriteFailed, "x", DateTimeOffset.UnixEpoch, mode) { IsTimelapse = true });
+
+        RecordingNotification notification = Assert.Single(notifications.All);
+        Assert.Equal((true, false, CameraRecordingProblem.WriteFailed, 20), (notification.IsTimelapse, notification.IsDashcam, notification.Problem, notification.SizeLimitGigabytes));
+    }
+
+    /// <summary>
+    /// T-161: a failed timelapse has its own headline and, where the recording's reason names the recording, its own reason;
+    /// in every language, translated.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void AFailedTimelapseHasItsOwnTranslatedTexts(string language)
+    {
+        CultureInfo culture = CultureInfo.GetCultureInfo(language);
+        CultureInfo english = CultureInfo.GetCultureInfo("en");
+        HashSet<string> reasons = [];
+        foreach (CameraRecordingProblem problem in Enum.GetValues<CameraRecordingProblem>())
+        {
+            RecordingNotification recording = new("core", "Core One", problem, 37, 5, PlaySound: false);
+            RecordingNotification timelapse = recording with { IsTimelapse = true };
+            NotificationLines lines = RecordingNotificationText.Lines(timelapse, culture);
+            NotificationLines recordingLines = RecordingNotificationText.Lines(recording, culture);
+
+            Assert.Equal("Core One", lines.Title);
+            Assert.Equal(Strings.ResourceManager.GetString(nameof(Strings.NotificationTimelapseFailed), culture), lines.Body);
+            Assert.NotEqual(recordingLines.Body, lines.Body);
+            Assert.False(string.IsNullOrWhiteSpace(lines.Detail));
+            Assert.DoesNotContain("{", lines.Detail, StringComparison.Ordinal);
+            Assert.True(reasons.Add(lines.Detail!), $"{language}: {problem} has the reason of another problem.");
+            bool own = problem is CameraRecordingProblem.Unavailable or CameraRecordingProblem.WriteFailed or CameraRecordingProblem.SizeLimitReached;
+            Assert.Equal(own, recordingLines.Detail != lines.Detail);
+            if (problem == CameraRecordingProblem.SizeLimitReached)
+            {
+                Assert.Contains("37", lines.Detail, StringComparison.Ordinal);
+            }
+
+            if (own && language != "en")
+            {
+                Assert.NotEqual(RecordingNotificationText.Lines(timelapse, english).Detail, lines.Detail);
+            }
+        }
+
+        if (language != "en")
+        {
+            Assert.NotEqual(RecordingNotificationText.Lines(new RecordingNotification("c", "c", CameraRecordingProblem.DiskFull, 1, 5, false) { IsTimelapse = true }, english).Body, Strings.ResourceManager.GetString(nameof(Strings.NotificationTimelapseFailed), culture));
+        }
+    }
+
     [Theory]
     [MemberData(nameof(Languages))]
     public void EveryProblemHasItsOwnTranslatedReason(string language)

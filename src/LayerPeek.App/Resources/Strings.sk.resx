@@ -1747,4 +1747,70 @@
   <data name="SettingsDetectionIntervalError" xml:space="preserve">
     <value>Zadajte číslo od {0} do {1}.</value>
   </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>Spustiť _timelapse (experimentálne)</value>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>Zastaviť _timelapse (experimentálne)</value>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Prehrať posledný ti_melapse</value>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>Tlačiareň zatiaľ nemá žiadny timelapse.</value>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Spustiť timelapse (experimentálne)</value>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Zastaviť timelapse (experimentálne)</value>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>Timelapse sa spúšťa…</value>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>Timelapse sa dokončuje…</value>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>Počas pauzy tlače sa snímky nezaznamenávajú.</value>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>Táto verzia LayerPeeku nevie zaznamenávať timelapse.</value>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Timelapse zlyhal</value>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>Táto verzia LayerPeeku nevie zaznamenávať timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>Súbor timelapse sa nepodarilo zapísať.</value>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>Samotný timelapse je väčší než limit veľkosti všetkých nahrávok ({0}&#160;GB).</value>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Timelapse</value>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Experimentálne</value>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>Experimentálna funkcia: môže sa zmeniť alebo nemusí vždy fungovať spoľahlivo.</value>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Čas medzi snímkami (sekundy)</value>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>Jedna snímka za zvolený čas, počas pauzy tlače žiadna. Video má {0} snímok za sekundu.</value>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Zaznamenávať timelapse tlače</value>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Zaznamenáva timelapse od začiatku tlače do minúty po jej konci, aj bez otvoreného okna kamery. Čas medzi snímkami je na karte Nahrávanie.</value>
+  </data>
 </root>

@@ -110,6 +110,19 @@ a kritérium.
       v poznámkách T-160) jednou jen s timelapse a jednou i s nahráváním; zapsat CPU procesu, alokace a velikost souboru
       do T-160. Zároveň přehrát vzniklý `…_timelapse.mp4` v QuickTime Playeru (20 snímků, bez rozpadlých snímků).
 
+- [ ] **T-161** (krit. „Ruční start / stop z tray menu i z okna kamery“, „Okno kamery i malý náhled ukazují indikátor“,
+      „Tray menu … otevře poslední timelapse v přehrávači systému“, ruční část macOS; sezení agenta nemělo aktivní displej):
+      simulátor s kamerou (`--speed 20`); v podmenu tiskárny v menu baru „Spustit timelapse (experimentální)“ → soubor
+      `~/Movies/LayerPeek/<tiskárna>/…_timelapse.mp4`, položka „Zastavit timelapse (experimentální)“; okno kamery i malý
+      náhled ukazují jantarové stopky s „TL“ bez ukazatele nad oknem, během `1 pause` simulátoru ztlumené; stop z okna kamery
+      (tlačítko, VoiceOver přečte „Zastavit timelapse (experimentální)“) → „Přehrát poslední timelapse“ otevře soubor
+      v QuickTime Playeru. Nastavení: štítek „Experimentální“ u sekce Timelapse (záložka Nahrávání) a u „Pořizovat timelapse
+      tisku“ (podzáložka Kamera), se systémovým písmem nic neuříznuté; notifikace „Timelapse selhal“ při chybě (např. složka
+      na odpojeném disku), klik otevře nastavení na záložce Nahrávání. Zapsat, jak vypadá tip zakázané položky v NSMenu.
+- [ ] **T-161** (návrh): uživatel prohlédne `docs/design/timelapse-ui.md` a snímky `settings-recording.png` (zhuštěná sekce
+      dashcamu, nová sekce Timelapse), `settings-camera.png`, `camera-timelapse.png`, `camera-mini-timelapse-buttons.png`
+      v `tests/LayerPeek.App.UiTests/Snapshots/macOS/`; neblokující otázky v T-161; změny = nový úkol.
+
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`
       proběhl celý interaktivně včetně ručních kontrol níže; nalezené chyby skriptu zapsané (nový úkol). Zapsat odpověď
