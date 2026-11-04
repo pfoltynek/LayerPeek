@@ -407,6 +407,9 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
 
         run.Subscription = subscription;
         session.Run = run;
+        // A sample may have been published before the run knew its lease: that work item found no subscription and left
+        // the exchange's notification pending, so no later sample would ever notify. One check now takes it (or nothing).
+        run.Schedule();
         LogWatching(printer.Id, detectors.Count, config.Interval.TotalSeconds);
     }
 
@@ -729,7 +732,12 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
 
         public JobKey Job { get; } = job;
 
-        public CameraFrameSubscription? Subscription { get; set; }
+        /// <summary>Set once under the service's lock right after the lease was taken; read by the worker.</summary>
+        public CameraFrameSubscription? Subscription
+        {
+            get => Volatile.Read(ref field);
+            set => Volatile.Write(ref field, value);
+        }
 
         /// <summary>The latest snapshot, for the context of the next sample.</summary>
         public PrinterSnapshot Snapshot

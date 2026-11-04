@@ -166,6 +166,47 @@ public sealed class CameraStreamHubKeyFrameTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task TheRecorderStillGetsEveryPacketWhileSamplesAreTaken()
+    {
+        using CameraFrameSubscription samples = _hub.SubscribeFrames("mk4", StreamUri, Samples());
+        await using CameraPacketSubscription recording = _hub.SubscribePackets("mk4", StreamUri);
+        FakeItemFeed feed = await _factory.FeedAsync(1);
+        CameraStreamDemand demand = await feed.Started;
+        Assert.False(demand.Frames);
+        Assert.True(demand.Packets);
+
+        feed.PushPacket(fill: 1, keyFrame: true);
+        feed.PushFrame(fill: 10, keyFrame: true);
+        feed.PushPacket(fill: 2);
+        feed.PushFrame(fill: 20);
+        feed.PushPacket(fill: 3, keyFrame: true);
+        feed.PushFrame(fill: 30, keyFrame: true);
+        Assert.Equal(10, (await NextFrameAsync(samples)).Pixels[0]);
+
+        List<byte> packets = [];
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TestTimeouts.Wait);
+        await foreach (CameraStreamItem item in recording.ReadAsync(timeout.Token))
+        {
+            if (item.Kind == CameraStreamItemKind.Packet)
+            {
+                packets.Add(item.Packet.Data.Span[0]);
+                if (packets.Count == 3)
+                {
+                    break;
+                }
+            }
+        }
+
+        // Every packet in order; of the frames only the first due key frame was decoded (the second is not due yet).
+        await HandledAsync(feed, 6);
+        Assert.Equal([1, 2, 3], packets);
+        Assert.Equal(1, feed.DecodedFrames);
+        Assert.False(demand.Frames);
+        Assert.Null(samples.TakeLatest());
+    }
+
+    [Fact]
     public void GrayscaleSizeIsValidated()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new CameraGrayscaleSize(CameraGrayscaleSize.MinSide - 1, 180));
