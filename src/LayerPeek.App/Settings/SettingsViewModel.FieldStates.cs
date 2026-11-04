@@ -59,5 +59,6 @@ public sealed partial class SettingsViewModel
         : HasRemainingTimeError ? SettingsFieldIds.SettingsRemainingTime
         : HasRecordingLimitError ? SettingsFieldIds.SettingsRecordingLimit
         : HasDashcamMinutesError ? SettingsFieldIds.SettingsDashcamMinutes
+        : HasDetectionIntervalError ? SettingsFieldIds.SettingsDetectionInterval
         : null;
 }

@@ -1639,4 +1639,112 @@
   <data name="NotificationDashcamFailed" xml:space="preserve">
     <value>Salvataggio degli ultimi minuti non riuscito</value>
   </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Possibile errore di stampa – {0}</value>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>Falso allarme</value>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Cambiamento sul piano</value>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Rileva un pezzo sparito o spostato e nuovo materiale sul piano. Non rileva la qualità del primo strato, i problemi all'ugello né i difetti all'interno del pezzo.</value>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Limite noto: meno affidabile con filamento scuro su una piastra nera.</value>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Rilevatore {0}</value>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Rilevamento</value>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Sorveglia le stampe di questa stampante con la telecamera</value>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Funziona solo durante la stampa e con la luce della camera accesa. L'immagine della telecamera resta su questo computer.</value>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Il rilevamento richiede la telecamera della stampante: attivala nella sottoscheda Telecamera.</value>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Il rilevamento degli errori di stampa è disattivato per tutte le stampanti: attivalo nella scheda Registrazione.</value>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Area del piano</value>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Trascina fuori dal rettangolo per disegnarne uno nuovo, dentro per spostarlo, da un angolo per ridimensionarlo. Tastiera: le frecce lo spostano, Maiusc+frecce ne cambiano le dimensioni.</value>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Area del piano: {0}&#160;% da sinistra, {1}&#160;% dall'alto, larghezza {2}&#160;%, altezza {3}&#160;%</value>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Immagine intera</value>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Predefinita per Core One</value>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Carica immagine</value>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Acquisisce una nuova immagine dalla telecamera (come Verifica telecamera nella sottoscheda Telecamera) e la conserva per la prossima volta.</value>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>Nessuna immagine. Caricala dalla telecamera.</value>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Ultima immagine salvata: la telecamera potrebbe essersi spostata nel frattempo.</value>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>Cosa rilevare</value>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>Questa versione di LayerPeek non ha ancora rilevatori.</value>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Sensibilità</value>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Sensibilità – {0}</value>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Più alta: più allarmi, anche falsi. Più bassa: meno allarmi, un errore può sfuggire.</value>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Rilevamento degli errori di stampa</value>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Cerca errori di stampa nell'immagine della telecamera</value>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Attivalo anche per ogni stampante nella sua sottoscheda Rilevamento.</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Salva un'immagine di ogni allarme</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>Nella cartella delle registrazioni della stampante; conta nel limite di dimensione delle registrazioni.</value>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Allarme</value>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Una volta per stampa e tipo di errore</value>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Di nuovo ogni {0}&#160;min finché dura</value>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Controlla la telecamera ogni (s)</value>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Più breve rileva prima un errore, più lungo usa meno CPU.</value>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Inserisci un numero da {0} a {1}.</value>
+  </data>
 </root>

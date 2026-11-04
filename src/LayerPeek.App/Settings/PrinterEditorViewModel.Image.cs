@@ -341,6 +341,8 @@ public sealed partial class PrinterEditorViewModel
         }
 
         RemoveCustomImageCommand?.NotifyCanExecuteChanged();
+        // T-154: the default bed region follows the model.
+        OnDetectionModelChanged();
     }
 
     private string ImageDescription() =>

@@ -17,8 +17,9 @@ public interface INotificationService
     void Show(PrintNotification notification);
 
     /// <summary>
-    /// Shows a suspected print failure (T-153; texts, the snapshot in the notification and its "False alarm" action come
-    /// with T-154). The same rules as <see cref="Show"/>: thread-safe, returns quickly, may throw. Sound follows
+    /// Shows a suspected print failure (T-153; T-154: the texts, the snapshot as the image of the notification, a click opens
+    /// the camera window, the "False alarm" action records the alarm). The same rules as <see cref="Show"/>: thread-safe,
+    /// returns quickly, may throw. Sound follows
     /// <see cref="Detection.PrintFailureNotification.PlaySound"/>. Default: not shown (platforms without notifications).
     /// </summary>
     void ShowPrintFailure(Detection.PrintFailureNotification notification)

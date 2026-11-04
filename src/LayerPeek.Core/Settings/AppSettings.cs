@@ -287,6 +287,7 @@ public sealed record AppSettings
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && CameraWindowAutoClose == other.CameraWindowAutoClose
         && Recording == other.Recording
+        && Detection == other.Detection
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
@@ -301,6 +302,7 @@ public sealed record AppSettings
         hash.Add(CameraOverlayOpacityPercent);
         hash.Add(CameraWindowAutoClose);
         hash.Add(Recording);
+        hash.Add(Detection);
         hash.Add(Notifications);
         hash.Add(Printers.Count);
         return hash.ToHashCode();

@@ -24,6 +24,9 @@ internal sealed class FakeRecordingWriterFactory : ICameraRecordingWriterFactory
     /// <summary>Thrown by <see cref="FakeRecordingWriter.Complete"/>.</summary>
     public Exception? CompleteFailure { get; init; }
 
+    /// <summary>Called on the writing thread with the fill of every packet written (after it is stored).</summary>
+    public Action<byte>? Written { get; init; }
+
     public FakeRecordingWriter[] Writers => [.. _writers];
 
     public ICameraRecordingWriter Create(string path, CameraStreamInfo info, ReadOnlySpan<byte> firstKeyFrame)
@@ -34,13 +37,13 @@ internal sealed class FakeRecordingWriterFactory : ICameraRecordingWriterFactory
             throw failure;
         }
 
-        FakeRecordingWriter writer = new(path, info, firstKeyFrame.ToArray(), WriteFailure, CompleteFailure);
+        FakeRecordingWriter writer = new(path, info, firstKeyFrame.ToArray(), WriteFailure, CompleteFailure, Written);
         _writers.Enqueue(writer);
         return writer;
     }
 }
 
-internal sealed class FakeRecordingWriter(string path, CameraStreamInfo info, byte[] firstKeyFrame, (int Write, Exception Error)? writeFailure, Exception? completeFailure)
+internal sealed class FakeRecordingWriter(string path, CameraStreamInfo info, byte[] firstKeyFrame, (int Write, Exception Error)? writeFailure, Exception? completeFailure, Action<byte>? written = null)
     : ICameraRecordingWriter
 {
     private readonly WrittenPacket[] _packets = new WrittenPacket[4096];
@@ -74,9 +77,11 @@ internal sealed class FakeRecordingWriter(string path, CameraStreamInfo info, by
             throw failure.Error;
         }
 
-        _packets[_count % _packets.Length] = new WrittenPacket(data.IsEmpty ? (byte)0 : data[0], data.Length, pts, dts, duration, isKeyFrame);
+        byte fill = data.IsEmpty ? (byte)0 : data[0];
+        _packets[_count % _packets.Length] = new WrittenPacket(fill, data.Length, pts, dts, duration, isKeyFrame);
         Volatile.Write(ref _count, _count + 1);
         Volatile.Write(ref _bytes, _bytes + data.Length);
+        written?.Invoke(fill);
     }
 
     public void Complete()

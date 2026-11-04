@@ -24,7 +24,25 @@ internal enum NotificationPermission
 /// <param name="LaunchArgument">
 /// Handed back on click (<see cref="ToastLaunchArgument"/>); <see langword="null"/>: a click opens nothing.
 /// </param>
-internal sealed record UserNotificationRequest(string Identifier, string Title, string Body, bool PlaySound, string? LaunchArgument);
+internal sealed record UserNotificationRequest(string Identifier, string Title, string Body, bool PlaySound, string? LaunchArgument)
+{
+    /// <summary>
+    /// An image file shown with the notification (T-154: the snapshot of a print failure); <see langword="null"/>: none. The
+    /// OS moves the file into its own store, so it must be a copy the app does not need any more.
+    /// </summary>
+    public string? AttachmentPath { get; init; }
+
+    /// <summary>A button of the notification (T-154: "False alarm"); <see langword="null"/>: none.</summary>
+    public UserNotificationAction? Action { get; init; }
+}
+
+/// <summary>A button of a notification (T-154).</summary>
+/// <param name="Title">Its label.</param>
+/// <param name="Argument">
+/// Handed back like a launch argument when the button is chosen (<see cref="ToastLaunchArgument"/>); the app is not brought to
+/// the front for it.
+/// </param>
+internal sealed record UserNotificationAction(string Title, string Argument);
 
 /// <summary>
 /// The notification center of the OS for one app identity (macOS: <c>UNUserNotificationCenter</c> of the bundle identifier,

@@ -109,6 +109,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private readonly bool _timelapsePrints;
     private bool _savedCameraEnabled;
 
+    // Removed or the window closed: nothing loaded later is kept (T-154, the last frame).
+    private bool _detached;
+
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
     /// <param name="cameraCredentialsRemoved">Credentials were removed from the stored camera address (notice shown until answered or saved).</param>
@@ -158,6 +161,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _timelapsePrints = camera.TimelapsePrints;
         InitializeMiniStrip(camera);
         _savedCameraEnabled = saved is not null && camera.Enabled;
+        InitializeDetection(saved);
         InitializeImage(saved, storedCustomImage);
         FormatCellNames();
         ValidateAddress();
@@ -429,6 +433,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 // T-146: recording needs the camera.
                 OnPropertyChanged(nameof(CanEditRecordPrints));
                 OnPropertyChanged(nameof(CanEditDashcam));
+                // T-154: so does the detection.
+                OnDetectionStateChanged();
                 _owner.OnPrinterEdited(nameChanged: false);
             }
         }
@@ -831,6 +837,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 DetectedModel = EffectiveDetectedModel,
                 Image = _imageChoice,
                 CooldownThresholds = cooldownThresholds,
+                Detection = BuildDetection(),
             };
 
     /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
@@ -961,6 +968,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ResetCameraWindowCommand.NotifyCanExecuteChanged();
         ApplyCameraWindowCommand.NotifyCanExecuteChanged();
         ApplyCooldownThresholdsToAllCommand.NotifyCanExecuteChanged();
+        OnDetectionEditableChanged();
     }
 
     /// <summary>A save after "Factory settings" forgot the remembered camera window.</summary>
@@ -1128,6 +1136,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
         // T-112: the help texts of the fields (their errors and hints) for screen readers.
         OnFieldStatesChanged();
+
+        // T-154: the detector texts and the region editor's name.
+        RefreshDetectionTexts();
     }
 
     /// <summary>
@@ -1140,6 +1151,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _cameraTest?.Cancel();
         ForgetPassword();
         SetCameraPreview(null);
+        _detached = true;
+        SetLastFrame(null);
     }
 
     private void ForgetPassword()
@@ -1278,6 +1291,11 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                     // The address works without the removed credentials: the notice did its job.
                     CameraCredentialsRemoved = false;
                     ShowCameraPreview(result.Image);
+                    // T-154: the frame of the bed region editor while the camera is not available later.
+                    if (result.Image is { } image)
+                    {
+                        SaveLastFrame(image);
+                    }
                 }
             }
             else if (_cameraTestCancelledByUser)
@@ -1374,6 +1392,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(HasCameraPreview));
         }
+
+        OnRegionEditorImageChanged();
 
         (old as IDisposable)?.Dispose();
     }

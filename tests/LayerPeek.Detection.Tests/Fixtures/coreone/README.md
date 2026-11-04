@@ -25,3 +25,11 @@ done
 - V `.gitattributes` jsou soubory `*.gray` označené jako binární.
 
 Nové fixture se přidávají stejným příkazem; limit ~10 snímků z rozhodnutí 2026-11-03 platí dál.
+
+## Syntetická selhání (T-155, rozhodnutí uživatele 2026-11-04)
+
+Testy detektoru „Změna na podložce“ z těchto snímků za běhu tvoří syntetické tisky a selhání (`tests/Shared/Detection`:
+šest klíčových snímků klipu dokola jako pohyblivá hlava, šum komprese, průběh jasu, špagety, hrouda, posunutý nebo zmizelý
+díl). Žádné vygenerované soubory se necommitují. Celá lokální série a klip z `~/LayerPeek-samples` se čtou jen
+v `BedChangeLocalSamplesTests` a bez nich se test přeskočí.
+

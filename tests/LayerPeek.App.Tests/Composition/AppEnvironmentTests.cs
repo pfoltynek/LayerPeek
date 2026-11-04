@@ -202,6 +202,9 @@ public sealed class AppEnvironmentTests
             Assert.Contains("] E2E: Window opened.", log, StringComparison.Ordinal);
 
             Assert.Equal(AppDataPaths.GetDefaultLogDirectory(), AppEnvironment.Production.LogDirectory());
+            // T-154: the caches likewise.
+            Assert.Equal(AppDataPaths.GetDefaultCacheDirectory(), AppEnvironment.Production.CacheDirectory());
+            Assert.Equal(Path.Combine(environment.DataDirectory(), "cache"), environment.CacheDirectory());
         }
         finally
         {

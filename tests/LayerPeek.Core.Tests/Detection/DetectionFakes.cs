@@ -143,4 +143,18 @@ internal sealed class FakeRecordingsFolder(string root) : ICameraRecordingsFolde
     public int Rotations => Volatile.Read(ref _rotations);
 
     public void RequestRotation() => Interlocked.Increment(ref _rotations);
+
+    /// <summary>Every dashcam save asked for (printer and trigger).</summary>
+    public ConcurrentQueue<(string PrinterId, CameraDashcamTrigger Trigger)> DashcamSaves { get; } = new();
+
+    /// <summary>What <see cref="SaveDashcam"/> answers; a test also makes it throw.</summary>
+    public bool DashcamResult { get; set; } = true;
+
+    public bool ThrowOnDashcam { get; set; }
+
+    public bool SaveDashcam(string printerId, CameraDashcamTrigger trigger)
+    {
+        DashcamSaves.Enqueue((printerId, trigger));
+        return ThrowOnDashcam ? throw new InvalidOperationException("Scripted dashcam failure.") : DashcamResult;
+    }
 }

@@ -33,4 +33,6 @@ public static class SettingsFieldIds
     public const string SettingsRecordingLimit = "SettingsRecordingLimit";
 
     public const string SettingsDashcamMinutes = "SettingsDashcamMinutes";
+
+    public const string SettingsDetectionInterval = "SettingsDetectionInterval";
 }

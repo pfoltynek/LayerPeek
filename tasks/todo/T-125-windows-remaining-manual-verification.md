@@ -171,7 +171,35 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       nahrávku“ otevře nejnovější z nich. Ve Správci úloh roste paměť procesu během tisku jen o ~16 MB na tiskárnu (2 min)
       a po konci tisku se vrátí.
 
-### 2g. Timelapse – zápis z klíčových snímků (z T-158, implementováno na Macu 2026-11-04)
+### 2g. Detekce chyb tisku – UI (z T-154, implementováno na Macu 2026-11-04)
+- [ ] **T-154** (krit. „Poplach zobrazí notifikaci podle návrhu (E2E na Windows)“ a „Falešný poplach funguje z místa podle
+      návrhu“, E2E): `pwsh tools/run-e2e.ps1 -Class '*PrintFailureAlarm*'` = PASS – detektor testovacího režimu
+      (`LAYERPEEK_TEST_FAKE_DETECTOR=1`, Debug) během tisku simulátoru s kamerou vyvolá toast „Possible print failure –
+      Detector e2e-alarm“ s názvem tiskárny, snímek `…_alarm-e2e-alarm.jpg` je v `Recordings` testovací datové složky,
+      tlačítko „False alarm“ v banneru (UIA Invoke) uloží `detection/false-alarms/*.json` a nic neotevře, klik na toast
+      v centru oznámení otevře okno kamery. Test je na Macu jen přeložený: kdyby UIA tlačítko akce v banneru nenašlo
+      (jiný název / typ prvku), upravit hledání v testu a zapsat, co UIA hlásí.
+- [ ] **T-154** (ruční, obrázek toastu): v banneru i v centru oznámení je pod textem snímek kamery v poměru stran kamery
+      (vložený obrázek, ne oříznutý hero); jednou s „Ukládat snímek každého poplachu“ zapnutým (obrázek = uložený soubor ve
+      složce nahrávek) a jednou vypnutým (obrázek z `%LOCALAPPDATA%\LayerPeek\cache\notification-images`, ve složce nejvýš
+      5 souborů). Zvuk jako u chyby tisku. Postup: simulátor s kamerou, v testovacím režimu `LAYERPEEK_TEST_FAKE_DETECTOR=1`
+      (Debug) nebo s detektorem „Změna na podložce“ po T-155 a zakrytím podložky.
+- [ ] **T-154** (krit. „`dotnet build` a `dotnet test` bez chyb a varování; Native AOT publish bez nových varování“, část
+      Windows): `dotnet test` na Windows bez chyb (nové `SettingsDetectionTests`, `DetectionRegionGeometryTests`,
+      `PrintFailureNotificationTests`, `PrintFailureActivationTests`, `SettingsWindowDetectionUiTests`,
+      `SettingsWindowLayoutTests.DetectionSubTabFitsInEveryLanguage`); `dotnet publish src/LayerPeek.App -c Release -r win-x64`
+      bez nových varování AOT / trim.
+- [ ] **T-154** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+      a zkontrolovat nové `settings-detection.png`, `settings-detection-camera-off-fr.png` a změněné `settings-recording.png`
+      (sekce „Detekce chyb tisku“, nápověda dashcamu v levém sloupci) a všechny `settings-*.png` podzáložek tiskárny (čtvrtá
+      podzáložka „Detekce“ v záhlaví) v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová).
+- [ ] **T-154** (ruční, editor výřezu se systémovým písmem): podzáložka Detekce u Core One – „Načíst snímek“ ukáže snímek
+      kamery simulátoru, tažení myší kreslí / přesouvá / mění velikost obdélníku (kurzor podle místa), šipky a Shift+šipky ho
+      mění, Ctrl+šipky o 10 %, Esc během tažení vrátí původní; Předčítání (Narrator) přečte „Výřez podložky: … % zleva …“.
+      Po zavření a novém otevření okna bez kamery editor ukáže poslední uložený snímek s popiskem. Záhlaví čtyř podzáložek
+      je na jednom řádku i ve francouzštině se Segoe UI.
+
+### 2h. Timelapse – zápis z klíčových snímků (z T-158, implementováno na Macu 2026-11-04)
 - [ ] **T-158** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb
       (nové `CameraTimelapse*` v Core, `FFmpegTimelapseTests` s BtbN – fixture, simulátor, „pád“, výpadek, dvakrát týž IDR);
       `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
@@ -182,7 +210,22 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       přehrají bez zelených / rozpadlých snímků a posuvník projde všechny snímky. Kdyby Media Foundation stejné `idr_pic_id`
       odmítal, založit úkol na přepis `idr_pic_id` v hlavičce řezu (spike T-149, bez dekódování).
 
-### 2h. Timelapse – služba (z T-160, implementováno na Macu 2026-11-04)
+### 2i. Detekce chyb tisku – detektor „Změna na podložce“ (z T-155, implementováno na Macu 2026-11-04)
+- [ ] **T-155** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
+      chyb (nové `BedChangeDetectorTests`, `BedChangeDetectorCostTests`, `BedChangeAccuracyCoreOneTests`,
+      `BedChangeAccuracyFullFrameTests` v Detection; `BedChangeLocalSamplesTests` se bez `~/LayerPeek-samples` přeskočí;
+      `BedChangeAlarmSimulatorTests` a `FFmpegRecordingTests.ARecordingPlaysAsTheSimulatorsCameraClip` s BtbN; `Mp4ClipTests`
+      simulátoru).
+- [ ] **T-155** (krit. „Licence … Native AOT publish bez nových varování“, část Windows): `dotnet publish src/LayerPeek.App
+      -c Release -r win-x64` bez nových varování AOT / trim (žádná nová závislost).
+- [ ] **T-155** (krit. „Spotřeba CPU a paměti změřená“, část win-x64): změřit čas detektoru na vzorek jako v poznámkách T-155
+      (testovací aplikace mimo repozitář: `PrintFailureDetectors.All[0].Create()`, 6 klíčových snímků fixture dokola,
+      20 000 vzorků po 300 zahřívacích, `Stopwatch` a `GC.GetAllocatedBytesForCurrentThread`, Native AOT `-r win-x64`) pro
+      výřez Core One i celý snímek; zapsat ms na vzorek a podíl jádra při 2 s a 5 s. Mez T-153: detekce < 1 % jednoho jádra
+      na tiskárnu (macOS: 0,22 / 0,71 ms na vzorek). Volitelně celou cestu jako v T-153 (simulátor `--camera-clip`,
+      `Process.TotalProcessorTime` za 60 s).
+
+### 2j. Timelapse – služba (z T-160, implementováno na Macu 2026-11-04)
 - [ ] **T-160** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb
       (nové `CameraTimelapseServiceTests`, `CameraTimelapseTimeTriggerTests`, `TimelapseFileNameTests`,
       `SettingsMapperTimelapseTests`, `PreparingANewFolderFromSeveralWritersAtOnce…` v Core, `SettingsTimelapseTests` v App);

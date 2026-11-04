@@ -282,6 +282,28 @@ public sealed class CameraDashcamTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task AnItemCountsAsReadOnlyOnceItIsHandled()
+    {
+        // The tests read the buffer and move the fake clock on once ItemsRead counts an item: counted before the item was
+        // handled, the buffer was not cleared yet on a new connection (or a packet not timestamped yet) when the test went on.
+        // A packet that arrives during a save is written while the reader handles it: it must not be counted yet then.
+        ConcurrentQueue<(byte Fill, long Read)> written = new();
+        FakeRecordingWriterFactory writers = new() { Written = fill => written.Enqueue((fill, _dashcam!.ItemsRead)) };
+        CameraDashcam dashcam = Start(writers);
+        await StartedAsync();
+        await FeedAsync(10);
+
+        Assert.True(dashcam.Save(FilePath));
+        await FeedAsync(5, first: 10);
+
+        // Packets 10 … 14 come after the event (0 … 9 are the buffer, written before them); before packet n the reader
+        // handled the stream description and packets 0 … n-1.
+        (byte Fill, long Read)[] live = [.. written.Where(static w => w.Fill >= 10)];
+        Assert.Equal([10, 11, 12, 13, 14], live.Select(static w => (int)w.Fill));
+        Assert.All(live, static w => Assert.Equal(1 + w.Fill, w.Read));
+    }
+
+    [Fact]
     public async Task ASaveThatCannotBeWrittenIsReportedAndBufferingGoesOn()
     {
         FakeRecordingWriterFactory writers = new() { WriteFailure = (3, new CameraRecordingException(CameraRecordingFailure.DiskFull, "The disk is full.")) };

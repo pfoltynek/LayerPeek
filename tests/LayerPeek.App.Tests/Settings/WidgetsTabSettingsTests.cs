@@ -882,7 +882,8 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         Assert.True(vm.SelectAdjacentTab(forward: true));
         Assert.Equal(SettingsViewModel.WidgetsTab, vm.SelectedTabIndex);
         Assert.False(vm.SelectAdjacentPrinterTab(forward: true));
-        Assert.Equal(3, SettingsViewModel.PrinterTabCount);
+        // Printer, Camera, Camera window and (T-154) Detection.
+        Assert.Equal(4, SettingsViewModel.PrinterTabCount);
         Assert.Equal("Widgets", vm.WidgetsTabName);
     }
 

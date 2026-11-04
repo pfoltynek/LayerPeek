@@ -44,4 +44,23 @@ public class AppDataPathsTests
         // Never next to settings.json.
         Assert.False(directory.StartsWith(AppDataPaths.GetDefaultDirectory(), StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void DefaultCacheDirectoryIsTheStandardCacheFolderOfTheOs()
+    {
+        string directory = AppDataPaths.GetDefaultCacheDirectory();
+
+        Assert.True(Path.IsPathFullyQualified(directory));
+        if (OperatingSystem.IsWindows())
+        {
+            // Local, not roaming (T-154: images, never synchronized with the profile).
+            Assert.Equal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppDataPaths.AppFolderName, "cache"), directory);
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            Assert.Equal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches", AppDataPaths.AppFolderName), directory);
+        }
+
+        Assert.False(directory.StartsWith(AppDataPaths.GetDefaultDirectory(), StringComparison.OrdinalIgnoreCase));
+    }
 }

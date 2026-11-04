@@ -83,6 +83,20 @@ a kritérium.
       roste paměť během tisku jen o ~17 MB a po konci tisku se vrátí. Záložka „Nahrávání“ má pod nahráváním sekci „Poslední
       minuty tisku (dashcam)“, nic se neuřízne se systémovým písmem.
 
+- [ ] **T-154** (krit. „Poplach zobrazí notifikaci podle návrhu (macOS)“ a „Falešný poplach funguje“, ruční část macOS;
+      sezení agenta nemělo aktivní displej): aplikace v `LayerPeek.app` (notifikace jen v bundlu), simulátor s kamerou,
+      tiskárna se zapnutou detekcí (Nahrávání › „Hledat chyby tisku v obraze kamery“ + podzáložka Detekce), v testovacím
+      režimu `LAYERPEEK_TEST_FAKE_DETECTOR=1` (Debug, testovací bundle `….E2E`) nebo s detektorem T-155. Notifikace má titulek
+      = název tiskárny, text „Možná chyba tisku – …“, **přílohu se snímkem** (náhled vpravo, po rozbalení velký) a tlačítko
+      „Falešný poplach“ (po najetí / rozbalení notifikace; už u **prvního** poplachu po startu – kategorie se registruje
+      těsně před ním, zapsat, jestli tlačítko chybí). Tlačítko uloží `~/Library/Application Support/LayerPeek/detection/false-alarms/*.json`
+      a aplikaci do popředí nepřenese; klik na notifikaci otevře okno kamery (i z centra oznámení). Uložený snímek zůstane ve
+      `~/Movies/LayerPeek/<tiskárna>` (příloha je kopie, macOS ji přesune do svého úložiště), ve složce
+      `~/Library/Caches/LayerPeek/notification-images` nezůstávají soubory. Zvuk jako u chyby tisku. Editor výřezu: tažení myší, šipky,
+      ⌘+šipky o 10 %, VoiceOver přečte „Výřez podložky: … % zleva …“; záhlaví čtyř podzáložek na jednom řádku se systémovým písmem.
+- [ ] **T-154** (krit. „Design spec schválený uživatelem“): uživatel prohlédne `docs/design/print-failure-detection-ui.md`
+      a snímky `tests/LayerPeek.App.UiTests/Snapshots/macOS/settings-detection.png`, `settings-detection-camera-off-fr.png`,
+      `settings-recording.png` (odpovědi 2026-11-04 jsou v T-154, neblokující otázky 11–15 tamtéž); změny = nový úkol.
 - [ ] **T-158** (krit. „dva po sobě jdoucí vybrané IDR se stejným `idr_pic_id` … přehrání v QuickTime ručně“; agent ověřil
       jen dekódování přes AVFoundation `AVAssetReader` – 5/5 a 25/25 snímků bez chyby): v QuickTime Playeru otevřít
       `~/LayerPeek-samples/timelapse/t158-same-idr-pic-id.mp4` (5 snímků, `idr_pic_id` 7, 7, 8, 8, 7) a
@@ -185,6 +199,13 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       nahrávku z kamery simulátoru i ze skutečné Buddy3D (po T-146 z menu nebo okna kamery; do té doby soubor nahraný
       podle T-144 / T-147, poznámky) otevřít v QuickTime Playeru: obraz běží od začátku do konce, posuvník funguje, délka
       odpovídá. U nahrávky přerušené výpadkem kamery jdou přehrát oba soubory (`…mp4`, `…-2.mp4`).
+- [ ] **T-155** (krit. „Poplach z detektoru projde celou cestou“, ruční část se skutečnou tiskárnou a Buddy3D): Core One
+      s výchozím výřezem (přední část podložky), zapnutá detekce (po T-154 v nastavení, do té doby v `settings.json`
+      `detection.enabled` a `printers[*].detection.enabled` = `true`) a dashcam. (1) Celý běžný tisk včetně první vrstvy
+      a pauzy: žádný poplach. (2) Inscenované selhání během tisku, např. na přední část podložky položit chomáč světlého
+      filamentu nebo předmět ~2 cm: do ~1–3 min poplach (toast T-154 se snímkem), v `~/Movies/LayerPeek/<tiskárna>/` snímek
+      `…_alarm-bed-change.jpg` a `…_dashcam-failure.mp4`; „Falešný poplach“ uloží záznam do `detection/false-alarms`.
+      Výsledek (čas do poplachu, skóre z logu „Print failure suspected … score“) zapsat do poznámek T-155.
 - [ ] **T-106** (krit. „Ruční krok: na skutečné tiskárně ověřit, že kolísání s minimálním rozsahem 6 °C nepůsobí příliš
       dramaticky“): widget Teploty M a L a řádek grafu malého náhledu během ustáleného tisku; když působí dramaticky,
       zapsat a založit úkol (návrh 8–10 °C, rozhodne uživatel).

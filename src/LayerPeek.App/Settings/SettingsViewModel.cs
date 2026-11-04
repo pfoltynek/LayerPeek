@@ -77,8 +77,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>Sub-tab of the selected printer: how the camera window opens (T-035).</summary>
     public const int CameraWindowPrinterTab = 2;
 
+    /// <summary>Sub-tab of the selected printer: print failure detection with the bed region (T-154).</summary>
+    public const int DetectionPrinterTab = 3;
+
     /// <summary>How many sub-tabs a printer has (the Overlay sub-tab of T-036 gave way to the Widgets tab, T-092).</summary>
-    public const int PrinterTabCount = 3;
+    public const int PrinterTabCount = 4;
 
     private const int TabCount = 5;
 
@@ -314,6 +317,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 OnPropertyChanged(nameof(HasSelectedPrinter));
                 RemovePrinterCommand.NotifyCanExecuteChanged();
                 OnSelectedPrinterChanged();
+                OnDetectionTabMaybeShown();
             }
         }
     }
@@ -385,9 +389,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         set
         {
             // A tab control may write -1 while its items change.
-            if (value is >= 0 and < TabCount)
+            if (value is >= 0 and < TabCount && SetProperty(ref _selectedTabIndex, value))
             {
-                SetProperty(ref _selectedTabIndex, value);
+                OnDetectionTabMaybeShown();
             }
         }
     }
@@ -403,9 +407,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         get => _selectedPrinterTabIndex;
         set
         {
-            if (value is >= 0 and < PrinterTabCount)
+            if (value is >= 0 and < PrinterTabCount && SetProperty(ref _selectedPrinterTabIndex, value))
             {
-                SetProperty(ref _selectedPrinterTabIndex, value);
+                OnDetectionTabMaybeShown();
             }
         }
     }
@@ -882,6 +886,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
         _disposed = true;
         _lifetime.Cancel();
+        // T-154: no last frame of a printer that was never saved stays in the cache.
+        ForgetLastFramesOfUnsavedPrinters();
         DisposeWidgets();
         DisposeTopmost();
         foreach (PrinterEditorViewModel printer in Printers)
@@ -916,6 +922,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         RefreshNotificationTexts();
         RefreshUpdateTexts();
         RefreshRecordingTexts();
+        RefreshDetectionTexts();
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -1074,6 +1081,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
         _cameraWindowAutoClose = settings.CameraWindowAutoClose;
         PopulateRecording(settings.Recording);
+        PopulateDetection(settings.Detection);
 
         _noticeSource = data.Status switch
         {
@@ -1329,6 +1337,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
 
         ForgetRememberedCameraWindows(_baseline, updated);
+        ForgetLastFramesOfRemovedPrinters(_baseline, updated);
         _baseline = updated;
         // Before MarkSaved: a printer new in this save is no target of a camera window's layout.
         TakeLayoutsAfterSave(latestLayouts, result.KeptOverlayLayouts);
@@ -1459,7 +1468,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     {
         settings = null;
         if (_pollingIntervalSeconds is not { } seconds || _remainingTimeMinutes is not { } minutes || _pollingIntervalError is not null || _remainingTimeError is not null
-            || BuildRecording() is not { } recording)
+            || BuildRecording() is not { } recording || BuildDetection() is not { } detection)
         {
             return false;
         }
@@ -1489,6 +1498,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,
                 CameraWindowAutoClose = _cameraWindowAutoClose,
                 Recording = recording,
+                Detection = detection,
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,
@@ -1533,6 +1543,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             ? null
             : Format(Strings.SettingsErrorRemainingTime, NotificationSettings.MaxRemainingTimeMinutes);
         ValidateRecording();
+        ValidateDetection();
     }
 
     /// <summary>Names must be unique (trimmed, case-insensitive) so that the tray menu and notifications are unambiguous.</summary>

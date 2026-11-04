@@ -53,10 +53,27 @@ public readonly record struct DetectionRegion
     public static DetectionRegion DefaultFor(PrinterDefinition printer)
     {
         ArgumentNullException.ThrowIfNull(printer);
-        PrinterModel model = printer.Image.Mode == PrinterImageMode.Model
-            ? printer.Image.Model
-            : printer.DetectedModel is { } code ? PrinterModels.FromCode(code) : PrinterModel.Unknown;
-        return model == PrinterModel.CoreOne ? CoreOneBed : Full;
+        return DefaultFor(printer.Image, printer.DetectedModel);
+    }
+
+    /// <summary>
+    /// <see cref="DefaultFor(PrinterDefinition)"/> of a printer being edited (T-154: the settings window has no definition
+    /// yet): <see cref="CoreOneBed"/> when <see cref="IsCoreOne"/>, otherwise the whole frame.
+    /// </summary>
+    public static DetectionRegion DefaultFor(PrinterImageChoice image, PrinterModelCode? detectedModel) =>
+        IsCoreOne(image, detectedModel) ? CoreOneBed : Full;
+
+    /// <summary>
+    /// Whether a printer counts as a Core One for its default region: the model the user chose for its image, otherwise the
+    /// detected one (T-154 offers "Default for Core One" only then).
+    /// </summary>
+    public static bool IsCoreOne(PrinterImageChoice image, PrinterModelCode? detectedModel)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        PrinterModel model = image.Mode == PrinterImageMode.Model
+            ? image.Model
+            : detectedModel is { } code ? PrinterModels.FromCode(code) : PrinterModel.Unknown;
+        return model == PrinterModel.CoreOne;
     }
 
     /// <summary>

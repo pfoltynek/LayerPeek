@@ -52,7 +52,8 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // Guarded by _gate.
-    // PrintNotification, UpdateNotification (T-058) or RecordingNotification (T-146), in the order they came.
+    // PrintNotification, UpdateNotification (T-058), RecordingNotification (T-146) or PrintFailureNotification (T-154), in
+    // the order they came.
     private readonly Queue<object> _pending = new();
     private readonly Queue<SettingsRequest> _requests = new();
     private bool _started;
@@ -80,6 +81,12 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     /// <summary>The OS side (composition tests).</summary>
     internal IToastPlatform Platform => _platform;
+
+    /// <summary>
+    /// The image files of print failure toasts (T-154); <see langword="null"/>: those toasts have no image. Used only on the
+    /// toast thread.
+    /// </summary>
+    internal AlarmNotificationImages? AlarmImages { get; init; }
 
 #if DEBUG
     /// <summary>
@@ -150,6 +157,26 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     /// <summary>The toast about a failed camera recording (T-146), queued like a printer toast.</summary>
     public void ShowRecordingFailed(RecordingNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || _unavailable || _pending.Count >= MaxPending)
+            {
+                return;
+            }
+
+            _pending.Enqueue(notification);
+            EnsureStarted();
+            Monitor.Pulse(_gate);
+        }
+    }
+
+    /// <summary>
+    /// The toast of a suspected print failure (T-154), queued like a printer toast; its image file is prepared on the toast
+    /// thread.
+    /// </summary>
+    public void ShowPrintFailure(Core.Detection.PrintFailureNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
         lock (_gate)
@@ -274,6 +301,10 @@ internal sealed partial class ToastNotificationService : INotificationService, I
                         else if (notification is RecordingNotification recording)
                         {
                             ShowRecording(session, recording);
+                        }
+                        else if (notification is Core.Detection.PrintFailureNotification failure)
+                        {
+                            ShowPrintFailure(session, failure);
                         }
                         else
                         {
@@ -461,6 +492,27 @@ internal sealed partial class ToastNotificationService : INotificationService, I
             LogRecordingShowFailed(ex, notification.Problem, notification.PrinterId);
         }
     }
+
+    private void ShowPrintFailure(IToastSession session, Core.Detection.PrintFailureNotification notification)
+    {
+        Core.Detection.PrintFailureAlarm alarm = notification.Alarm;
+        try
+        {
+            string? image = AlarmImages?.Prepare(alarm, useSavedSnapshot: true);
+            session.Show(ToastContentBuilder.BuildPrintFailure(notification, _textCulture(), image), tag: null);
+            LogPrintFailureShown(alarm.DetectorId, alarm.PrinterId, image is not null);
+        }
+        catch (Exception ex)
+        {
+            LogPrintFailureShowFailed(ex, alarm.DetectorId, alarm.PrinterId);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Toast shown for the suspected print failure ({DetectorId}) of printer '{PrinterId}' (image: {HasImage}).")]
+    private partial void LogPrintFailureShown(string detectorId, string printerId, bool hasImage);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The toast for the suspected print failure ({DetectorId}) of printer '{PrinterId}' could not be shown.")]
+    private partial void LogPrintFailureShowFailed(Exception exception, string detectorId, string printerId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Toast shown for the recording failure ({Problem}) of printer '{PrinterId}'.")]
     private partial void LogRecordingShown(Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
