@@ -124,9 +124,9 @@ public sealed class BedChangeDetector : IPrintFailureDetector
 
     /// <summary>
     /// The detector the app offers. Thresholds in changed pixels relative to <see cref="BedChangeOptions.ScoreArea"/>
-    /// (T-155 tuning on the synthetic failures and the successful print, see the task notes): sensitivity 0 = 0.5 %
-    /// (~90 pixels of 320×180), 100 = 0.1 % (~18), the default 50 = 0.3 % (~54 pixels, a lump of filament about 1 cm
-    /// across at the front of a Core One bed).
+    /// (T-155 tuning on the synthetic failures and the successful print, kept by T-166 over many seeds, see the task
+    /// notes): sensitivity 0 = 0.5 % (~90 pixels of 320×180), 100 = 0.1 % (~18), the default 50 = 0.3 % (~54 pixels, a
+    /// lump of filament about 1 cm across at the front of a Core One bed).
     /// </summary>
     public static PrintFailureDetectorRegistration Registration { get; } = new(
         DetectorId,
