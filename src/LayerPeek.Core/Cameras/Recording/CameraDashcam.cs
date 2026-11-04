@@ -176,7 +176,7 @@ internal sealed partial class CameraDashcam : ICameraDashcam
                 _pendingSave = filePath;
                 Volatile.Write(ref _requested, 1);
                 _state = CameraDashcamState.Saving;
-                _deadlineTimer = _time.CreateTimer(static s => ((CameraDashcam)s!).Wake(), this, _options.PostEventDuration, Timeout.InfiniteTimeSpan);
+                _deadlineTimer = _time.CreateTimer(static s => ((CameraDashcam)s!).OnDeadlineTimer(), this, _options.PostEventDuration, Timeout.InfiniteTimeSpan);
                 _wake.Cancel();
             }
             else
@@ -235,17 +235,32 @@ internal sealed partial class CameraDashcam : ICameraDashcam
 
     public ValueTask DisposeAsync() => new(StopAsync());
 
-    /// <summary>Any thread: the reader looks at the requests (or the end of the save) now.</summary>
-    private void Wake()
+    /// <summary>
+    /// The deadline timer fired: wakes the reader to end the save, or, when it fired before the deadline by the timestamps
+    /// (timers run on a coarser clock, on Windows ~15.6 ms), waits the rest, so that a stalled camera still ends the save.
+    /// </summary>
+    private void OnDeadlineTimer()
     {
         lock (_gate)
         {
-            // Cancelled under the lock: the reader replaces (and disposes) the source only under it, never one in use here;
-            // once ended (the source is disposed), a late timer callback does nothing.
-            if (_state != CameraDashcamState.Ended)
+            if (_state == CameraDashcamState.Ended || _deadlineTimer is not { } timer)
             {
-                _wake.Cancel();
+                // Ended or left meanwhile (a late callback of a disposed timer).
+                return;
             }
+
+            long remaining = Volatile.Read(ref _deadline) - _time.GetTimestamp();
+            if (remaining > 0)
+            {
+                // At least 1 ms: rounding down to 0 would fire again at once.
+                double milliseconds = Math.Max(1, Math.Ceiling(remaining * 1000.0 / _time.TimestampFrequency));
+                timer.Change(TimeSpan.FromMilliseconds(milliseconds), Timeout.InfiniteTimeSpan);
+                return;
+            }
+
+            // Cancelled under the lock: the reader replaces (and disposes) the source only under it, never one in use here;
+            // once ended (the source is disposed), a late callback does nothing (above).
+            _wake.Cancel();
         }
     }
 

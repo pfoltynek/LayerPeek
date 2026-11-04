@@ -46,10 +46,10 @@ public sealed class CameraDashcamTests : IAsyncDisposable
         TestDirectories.Delete(_folder);
     }
 
-    private CameraDashcam Start(FakeRecordingWriterFactory writers, CameraDashcamOptions? options = null)
+    private CameraDashcam Start(FakeRecordingWriterFactory writers, CameraDashcamOptions? options = null, TimeProvider? time = null)
     {
         _dashcam = CameraDashcam.Start(
-            "mk4", _packets.Subscription, writers, _time, options ?? Options, d => _states.Enqueue(d.State), _saves.Enqueue, NullLogger.Instance);
+            "mk4", _packets.Subscription, writers, time ?? _time, options ?? Options, d => _states.Enqueue(d.State), _saves.Enqueue, NullLogger.Instance);
         return _dashcam;
     }
 
@@ -163,6 +163,32 @@ public sealed class CameraDashcamTests : IAsyncDisposable
         await Eventually.TrueAsync(() => writers.Writers is [{ Count: > 0 }], "buffer written");
         _time.Advance(TimeSpan.FromSeconds(1));
 
+        CameraDashcamSave save = await SavedAsync();
+        Assert.Equal([FilePath], save.Files);
+        Assert.True(writers.Writers[0].IsCompleted);
+        await Eventually.TrueAsync(() => dashcam.State == CameraDashcamState.Buffering, "buffering again");
+    }
+
+    [Fact]
+    public async Task AStalledCameraEndsTheSaveOnTimeAlsoWhenTheTimerFiresEarly()
+    {
+        // The system timers run on a coarser clock than the timestamps (on Windows ~15.6 ms): the deadline timer may fire a
+        // little before the deadline by the timestamps. The save still ends then, not only with the next packet.
+        FakeRecordingWriterFactory writers = new();
+        CameraDashcam dashcam = Start(writers, time: new EarlyTimerClock(_time, TimeSpan.FromMilliseconds(10)));
+        await StartedAsync();
+        await FeedAsync(10);
+
+        Assert.True(dashcam.Save(FilePath));
+        await Eventually.TrueAsync(() => writers.Writers is [{ Count: > 0 }], "buffer written");
+        // The timer fires 10 ms early: not yet the end of the save.
+        _time.Advance(TimeSpan.FromSeconds(1) - TimeSpan.FromMilliseconds(10));
+        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+        Assert.Empty(_saves);
+        Assert.Equal(CameraDashcamState.Saving, dashcam.State);
+
+        // The deadline by the timestamps: the save ends without another packet.
+        _time.Advance(TimeSpan.FromMilliseconds(10));
         CameraDashcamSave save = await SavedAsync();
         Assert.Equal([FilePath], save.Files);
         Assert.True(writers.Writers[0].IsCompleted);
@@ -316,6 +342,30 @@ public sealed class CameraDashcamTests : IAsyncDisposable
         Assert.Equal(120 * CameraDashcamOptions.DefaultMaxPacketsPerSecond, options.MaxBufferPackets);
         Assert.Equal(TimeSpan.FromSeconds(30), CameraDashcamOptions.Default.PostEventDuration);
         Assert.Throws<ArgumentOutOfRangeException>(() => new CameraDashcamOptions { BufferDuration = TimeSpan.Zero });
+    }
+
+    /// <summary>The timestamps of <paramref name="inner"/>, its timers firing <paramref name="early"/> before their due time (longer ones only).</summary>
+    private sealed class EarlyTimerClock(FakeTimeProvider inner, TimeSpan early) : TimeProvider
+    {
+        public override long TimestampFrequency => inner.TimestampFrequency;
+
+        public override long GetTimestamp() => inner.GetTimestamp();
+
+        public override DateTimeOffset GetUtcNow() => inner.GetUtcNow();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+            new EarlyTimer(inner.CreateTimer(callback, state, Early(dueTime), period), this);
+
+        private TimeSpan Early(TimeSpan dueTime) => dueTime > early * 2 ? dueTime - early : dueTime;
+
+        private sealed class EarlyTimer(ITimer timer, EarlyTimerClock owner) : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => timer.Change(owner.Early(dueTime), period);
+
+            public void Dispose() => timer.Dispose();
+
+            public ValueTask DisposeAsync() => timer.DisposeAsync();
+        }
     }
 }
 

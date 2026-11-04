@@ -168,3 +168,19 @@ dashcamu. Skutečná Buddy3D (60 s klip `coreone-20261103-1905-60s.mp4` = 7,79 M
   trim / AOT (jen dosavadní hlášky linkeru / dsymutil). Žádný nový balíček.
 
 Uzavřeno 2026-11-04: zbývající ruční ověření přesunuto do T-125 a T-127 (rozhodnutí uživatele).
+
+## Review
+Review qa-reviewer 2026-11-04 (macOS arm64): schváleno po jedné opravě.
+- **Opraveno:** jednorázový časovač konce ukládání mohl vystřelit o chvilku dřív, než podle časových značek (`Stopwatch`)
+  nastal konec (časovače běží na hrubších hodinách, na Windows ~15,6 ms). Kontrola pak konec odložila a časovač se už znovu
+  nenastavil, takže u zaseknuté kamery ukládání neskončilo (až s dalším paketem nebo zastavením). Teď časovač
+  (`CameraDashcam.OnDeadlineTimer`) v takovém případě počká zbytek času. Test
+  `AStalledCameraEndsTheSaveOnTimeAlsoWhenTheTimerFiresEarly` (hodiny, jejichž časovače vystřelí o 10 ms dřív).
+- **Neblokující:** `BeginDashcamSave` při prodloužení (`State == Saving`) nekontroluje volné místo; když ukládání mezi
+  kontrolou a voláním `Save` zrovna skončí, začne nové uložení bez kontroly 5 GB (složka už existuje). Okrajové, ponecháno.
+- **Mez paměti 512 KiB/s** ponechána: nic se předem nealokuje (bloky po 256 KiB vznikají podle potřeby), běžná kamera
+  (~1 Mbit/s, ~16 MB / 2 min) narazí jen na čas; mez jen chrání před vadnou kamerou. Kamera nad ~4,2 Mbit/s dostane
+  kratší buffer (zahazují se nejstarší GOP), nikdy nic nepřehratelného. Přísnější mez (např. 2 Mbit/s) by zkracovala
+  i běžné 1080p IP kamery na polovinu a paměť běžné kamery by neušetřila.
+- `dotnet build` 0 upozornění; `dotnet test` celkem 9095, neúspěšné 0, přeskočeno 200; testy `*Dashcam*` (Core 66, App 52,
+  UiTests 4, FFmpeg 1) opakovaně a souběžně bez selhání; `dotnet publish -r osx-arm64` bez varování trim / AOT.
