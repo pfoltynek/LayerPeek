@@ -39,6 +39,30 @@ public sealed class FFmpegRecordingTests : IDisposable
     }
 
     [FFmpegFact]
+    public async Task ARecordingPlaysAsTheSimulatorsCameraClip()
+    {
+        // T-155: --camera-clip takes LayerPeek's own recordings (fragmented MP4) as well as raw H.264.
+        string path = Path.Combine(_folder, "recording.mp4");
+        await WriteFixtureAsync(path, (writer, _) =>
+        {
+            writer.Complete();
+            return Task.CompletedTask;
+        }, _ => { });
+
+        H264Clip clip = H264Clip.Load(path);
+
+        H264Clip raw = TestFixtures.Buddy3DClip;
+        Assert.Equal(raw.Frames.Count, clip.Frames.Count);
+        Assert.Equal(raw.LoopStart, clip.LoopStart);
+        for (int f = 0; f < raw.Frames.Count; f++)
+        {
+            // The slices are the same bytes; parameter sets may come from the MP4 header in addition.
+            byte[][] slices = [.. raw.Frames[f].Where(static n => (n[0] & 0x1F) is 1 or 5)];
+            Assert.Equal(slices, [.. clip.Frames[f].Where(static n => (n[0] & 0x1F) is 1 or 5)]);
+        }
+    }
+
+    [FFmpegFact]
     public async Task AfterACrashTheFileIsReadableUpToTheLastFragment()
     {
         string path = Path.Combine(_folder, "crash.mp4");

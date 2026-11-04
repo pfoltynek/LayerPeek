@@ -49,7 +49,7 @@ public sealed class SimulatorHostTests
             [
                 "--printers", "4", "--port", "9000", "--models", "mini,xl", "--scenario", "idle,offline,flaky",
                 "--speed", "10", "--print-minutes", "2.5", "--user", "operator", "--password", "secret", "--host", "0.0.0.0",
-                "--offline-mode", "hang", "--camera-port", "9554", "--clip", "my.h264", "--fps", "30",
+                "--offline-mode", "hang", "--camera-port", "9554", "--camera-clip", "my.mp4", "--fps", "30",
             ],
             out SimulatorOptions options,
             out string? error), error);
@@ -67,7 +67,7 @@ public sealed class SimulatorHostTests
         Assert.Equal(IPAddress.Any, options.Address);
         Assert.Equal(OfflineMode.Hang, options.OfflineMode);
         Assert.Equal(9554, options.CameraPort);
-        Assert.Equal("my.h264", options.ClipPath);
+        Assert.Equal("my.mp4", options.ClipPath);
         Assert.Equal(30, options.FramesPerSecond);
     }
 

@@ -404,6 +404,9 @@ public sealed class PrintFailureDetectionServiceTests : IAsyncDisposable
         Assert.True(File.Exists(Path.Combine(_recordings.RecordingsFolder, "Core One", CameraRecordingFolders.MarkerFileName)));
         Assert.Equal(1, _recordings.Rotations);
 
+        // T-155: the dashcam keeps the minutes around the failure (T-148 trigger).
+        Assert.Equal([("core-one", CameraDashcamTrigger.FailureDetected)], _recordings.DashcamSaves);
+
         // Still failing: no second alarm of this print.
         for (int i = 0; i < 4; i++)
         {
@@ -412,6 +415,22 @@ public sealed class PrintFailureDetectionServiceTests : IAsyncDisposable
 
         await Task.Delay(50, TestContext.Current.CancellationToken);
         Assert.Single(_notifications.Shown);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ADashcamThatSavesNothingOrFailsDoesNotCostTheAlarm(bool fail)
+    {
+        _recordings.DashcamResult = false;
+        _recordings.ThrowOnDashcam = fail;
+        FakeItemFeed feed = await StartPrintingAsync();
+
+        await ConfirmAlarmAsync(feed);
+
+        Assert.Single(_recordings.DashcamSaves);
+        Assert.Single(_notifications.Shown);
+        Assert.Equal(fail, Messages.Any(static m => m.Contains("dashcam", StringComparison.Ordinal)));
     }
 
     [Fact]

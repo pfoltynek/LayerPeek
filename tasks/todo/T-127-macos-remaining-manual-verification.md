@@ -192,6 +192,13 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       nahrávku z kamery simulátoru i ze skutečné Buddy3D (po T-146 z menu nebo okna kamery; do té doby soubor nahraný
       podle T-144 / T-147, poznámky) otevřít v QuickTime Playeru: obraz běží od začátku do konce, posuvník funguje, délka
       odpovídá. U nahrávky přerušené výpadkem kamery jdou přehrát oba soubory (`…mp4`, `…-2.mp4`).
+- [ ] **T-155** (krit. „Poplach z detektoru projde celou cestou“, ruční část se skutečnou tiskárnou a Buddy3D): Core One
+      s výchozím výřezem (přední část podložky), zapnutá detekce (po T-154 v nastavení, do té doby v `settings.json`
+      `detection.enabled` a `printers[*].detection.enabled` = `true`) a dashcam. (1) Celý běžný tisk včetně první vrstvy
+      a pauzy: žádný poplach. (2) Inscenované selhání během tisku, např. na přední část podložky položit chomáč světlého
+      filamentu nebo předmět ~2 cm: do ~1–3 min poplach (toast T-154 se snímkem), v `~/Movies/LayerPeek/<tiskárna>/` snímek
+      `…_alarm-bed-change.jpg` a `…_dashcam-failure.mp4`; „Falešný poplach“ uloží záznam do `detection/false-alarms`.
+      Výsledek (čas do poplachu, skóre z logu „Print failure suspected … score“) zapsat do poznámek T-155.
 - [ ] **T-106** (krit. „Ruční krok: na skutečné tiskárně ověřit, že kolísání s minimálním rozsahem 6 °C nepůsobí příliš
       dramaticky“): widget Teploty M a L a řádek grafu malého náhledu během ustáleného tisku; když působí dramaticky,
       zapsat a založit úkol (návrh 8–10 °C, rozhodne uživatel).

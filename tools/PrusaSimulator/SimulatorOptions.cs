@@ -18,7 +18,7 @@ public sealed record SimulatorOptions
     private static readonly HashSet<string> ValuedOptions = new(StringComparer.Ordinal)
     {
         "--printers", "--port", "--models", "--scenario", "--speed", "--print-minutes", "--user", "--password", "--host",
-        "--offline-mode", "--camera-port", "--clip", "--fps",
+        "--offline-mode", "--camera-port", "--camera-clip", "--clip", "--fps",
     };
 
     public const string Usage = """
@@ -41,7 +41,8 @@ public sealed record SimulatorOptions
           --no-previews           job files without G-code previews (/thumb/s and /thumb/l answer 404)
           --no-camera             no RTSP camera
           --camera-port <n>       RTSP port (default 8554; 0 = any free port)
-          --clip <file>           H.264 Annex B clip to loop (default: the recorded Buddy3D clip)
+          --camera-clip <file>    clip to loop instead of the recorded Buddy3D clip: raw H.264 (Annex B, .h264) or
+                                  an MP4 with H.264, e.g. a LayerPeek recording or dashcam save (--clip: same)
           --fps <x>               camera frame rate (default 25)
           -h, --help              this help
 
@@ -203,7 +204,7 @@ public sealed record SimulatorOptions
                 case "--offline-mode" when Enum.TryParse(value, ignoreCase: true, out OfflineMode mode) && Enum.IsDefined(mode) && !int.TryParse(value, out _):
                     options = options with { OfflineMode = mode };
                     break;
-                case "--clip" when !string.IsNullOrWhiteSpace(value):
+                case "--camera-clip" or "--clip" when !string.IsNullOrWhiteSpace(value):
                     options = options with { ClipPath = value };
                     break;
                 default:

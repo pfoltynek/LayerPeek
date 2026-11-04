@@ -28,6 +28,7 @@ namespace LayerPeek.Core.Detection;
 /// share <see cref="PrintFailureDetectionOptions.ConfirmationRatio"/> of the samples of the last
 /// <see cref="PrintFailureDetectionOptions.ConfirmationWindow"/>; once per print and kind, or again every
 /// <see cref="PrintFailureDetectionOptions.RepeatInterval"/> while it lasts (<see cref="PrintFailureAlarmRepeat"/>). It
+/// asks the dashcam to save the minutes around it (<see cref="CameraDashcamTrigger.FailureDetected"/>, T-148 / T-155),
 /// takes a full-size snapshot from the next key frame (a short lease of its own), encodes it as JPEG
 /// (<see cref="ICameraImageEncoder"/>), saves it into the printer's recording folder when
 /// <see cref="PrintFailureDetectionSettings.SaveSnapshots"/> (counted in the recordings' size limit), and then raises
@@ -471,6 +472,27 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
         LogConfirmed(alarm.PrinterId, alarm.DetectorId, score, detector.Threshold);
     }
 
+    /// <summary>
+    /// T-148 / T-155: the dashcam keeps the minutes before the failure and the time after it (unless the user switched
+    /// that trigger off or the printer has no dashcam). Off the service's lock: the recording service takes its own.
+    /// Never throws.
+    /// </summary>
+    private void SaveDashcam(string printerId)
+    {
+        try
+        {
+            if (_recordings.SaveDashcam(printerId, CameraDashcamTrigger.FailureDetected))
+            {
+                LogDashcamSaving(printerId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Defensive: the recordings promise not to throw, and a failed save must not cost the alarm.
+            LogDashcamFailed(ex, printerId);
+        }
+    }
+
     /// <summary>Under the lock: keeps <paramref name="task"/> until it completed, for <see cref="DisposeAsync"/>.</summary>
     private void Track(Task task)
     {
@@ -490,11 +512,13 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
             TaskScheduler.Default);
     }
 
-    /// <summary>Thread pool: snapshot, file, event and notification of one alarm; never throws.</summary>
+    /// <summary>Thread pool: dashcam, snapshot, file, event and notification of one alarm; never throws.</summary>
     private async Task RaiseAsync(PrintFailureAlarm alarm, string root, string folder, bool save)
     {
         try
         {
+            // First, so that the dashcam's save starts at once (the snapshot waits for a key frame).
+            SaveDashcam(alarm.PrinterId);
             byte[] jpeg = await CaptureSnapshotAsync(alarm.PrinterId).ConfigureAwait(false);
             string? path = null;
             if (save && jpeg.Length > 0)
@@ -620,6 +644,12 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Print failure suspected at printer '{PrinterId}' by detector '{DetectorId}' (score {Score:0.0000}, threshold {Threshold:0.0000}).")]
     private partial void LogConfirmed(string printerId, string detectorId, float score, float threshold);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The dashcam of printer '{PrinterId}' saves the minutes around a print failure alarm.")]
+    private partial void LogDashcamSaving(string printerId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The dashcam of printer '{PrinterId}' could not be saved for a print failure alarm.")]
+    private partial void LogDashcamFailed(Exception exception, string printerId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "An alarm of printer '{PrinterId}' by detector '{DetectorId}' (score {Score:0.0000}) was marked as a false alarm.")]
     private partial void LogFalseAlarm(string printerId, string detectorId, float score);

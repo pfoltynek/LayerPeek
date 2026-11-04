@@ -210,6 +210,20 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       přehrají bez zelených / rozpadlých snímků a posuvník projde všechny snímky. Kdyby Media Foundation stejné `idr_pic_id`
       odmítal, založit úkol na přepis `idr_pic_id` v hlavičce řezu (spike T-149, bez dekódování).
 
+### 2i. Detekce chyb tisku – detektor „Změna na podložce“ (z T-155, implementováno na Macu 2026-11-04)
+- [ ] **T-155** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
+      chyb (nové `BedChangeDetectorTests`, `BedChangeDetectorCostTests`, `BedChangeAccuracyCoreOneTests`,
+      `BedChangeAccuracyFullFrameTests` v Detection; `BedChangeLocalSamplesTests` se bez `~/LayerPeek-samples` přeskočí;
+      `BedChangeAlarmSimulatorTests` a `FFmpegRecordingTests.ARecordingPlaysAsTheSimulatorsCameraClip` s BtbN; `Mp4ClipTests`
+      simulátoru).
+- [ ] **T-155** (krit. „Licence … Native AOT publish bez nových varování“, část Windows): `dotnet publish src/LayerPeek.App
+      -c Release -r win-x64` bez nových varování AOT / trim (žádná nová závislost).
+- [ ] **T-155** (krit. „Spotřeba CPU a paměti změřená“, část win-x64): změřit čas detektoru na vzorek jako v poznámkách T-155
+      (testovací aplikace mimo repozitář: `PrintFailureDetectors.All[0].Create()`, 6 klíčových snímků fixture dokola,
+      20 000 vzorků po 300 zahřívacích, `Stopwatch` a `GC.GetAllocatedBytesForCurrentThread`, Native AOT `-r win-x64`) pro
+      výřez Core One i celý snímek; zapsat ms na vzorek a podíl jádra při 2 s a 5 s. Mez T-153: detekce < 1 % jednoho jádra
+      na tiskárnu (macOS: 0,22 / 0,71 ms na vzorek). Volitelně celou cestu jako v T-153 (simulátor `--camera-clip`,
+      `Process.TotalProcessorTime` za 60 s).
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

@@ -174,6 +174,8 @@ public sealed class PrintFailureDetectionSimulatorTests
         public void RequestRotation()
         {
         }
+
+        public bool SaveDashcam(string printerId, CameraDashcamTrigger trigger) => false;
     }
 
     private sealed class NoEncoder : ICameraImageEncoder

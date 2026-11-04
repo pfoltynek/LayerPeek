@@ -6,6 +6,8 @@
   -->
   <ItemGroup>
     <InternalsVisibleTo Include="LayerPeek.Detection.Tests" />
+    <!-- The end-to-end alarm through the simulated camera (T-155) shortens the detector's time constants. -->
+    <InternalsVisibleTo Include="LayerPeek.Camera.FFmpeg.Tests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\LayerPeek.Core\LayerPeek.Core.csproj" />

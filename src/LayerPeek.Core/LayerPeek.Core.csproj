@@ -3,6 +3,8 @@
   <ItemGroup>
     <!-- Tests of the persisted settings shape and of the notifier's handler run in memory against internal types. -->
     <InternalsVisibleTo Include="LayerPeek.Core.Tests" />
+    <!-- The accuracy tests of the detectors (T-155) confirm alarms with the orchestration's own K-of-N window. -->
+    <InternalsVisibleTo Include="LayerPeek.Detection.Tests" />
   </ItemGroup>
 
 </Project>
