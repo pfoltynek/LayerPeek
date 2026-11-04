@@ -44,7 +44,7 @@ dostanou nová časová razítka (snímek *n* = *n* × délka snímku výstupu) 
       (FFmpeg; přehrání v QuickTime / Filmech a TV ručně → T-127 / T-125). Ruční přehrání → přesunuto do T-125 a T-127
 - [x] Odběr bez dekódování (počítadlo dekódovaných snímků = 0), ustálený stav bez alokací na paket.
 - [x] Výpadek spojení: stejné SPS/PPS = jeden soubor, jiné = nový soubor s příponou.
-- [x] Pád procesu: soubor čitelný až po poslední snímek před pádem (test kopie nedokončeného souboru jako v T-144).
+- [x] Pád procesu: soubor čitelný až po předposlední snímek před pádem (test kopie nedokončeného souboru jako v T-144). *Uživatel 2026-11-04 přijal, že poslední snímek (1/30 s videa) se při pádu ztratí; zůstává ve svém fragmentu, dokud nezačne další.*
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; `dotnet publish src/LayerPeek.App -c Release -r osx-arm64`
       (nebo `win-x64`) bez varování trim / AOT. Část Windows (testy s BtbN, `win-x64`) → přesunuto do T-125
 
