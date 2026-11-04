@@ -163,7 +163,8 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                     break;
                 case TrayMenuCommand.StartRecording or TrayMenuCommand.StopRecording or TrayMenuCommand.PlayLastRecording or TrayMenuCommand.OpenRecordingsFolder
                     or TrayMenuCommand.SaveDashcam or TrayMenuCommand.StartTimelapse or TrayMenuCommand.StopTimelapse or TrayMenuCommand.PlayLastTimelapse
-                    or TrayMenuCommand.ExportTimelapseJpeg or TrayMenuCommand.CancelTimelapseJpegExport:
+                    or TrayMenuCommand.ExportTimelapseJpeg or TrayMenuCommand.CancelTimelapseJpegExport
+                    or TrayMenuCommand.CreateTimelapseFromRecording or TrayMenuCommand.CancelTimelapseFromRecording:
                     _source.RunRecordingCommand(entry);
                     break;
                 case TrayMenuCommand.Settings:

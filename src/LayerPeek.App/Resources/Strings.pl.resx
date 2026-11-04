@@ -1855,4 +1855,43 @@
   <data name="NotificationTimelapseExportError" xml:space="preserve">
     <value>Wystąpił nieoczekiwany błąd, szczegóły w dzienniku.</value>
   </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>_Utwórz timelapse z nagrania… (eksperymentalny)</value>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>An_uluj tworzenie timelapse ({0}%)</value>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Tworzenie timelapse z {0}</value>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Tworzenie timelapse z nagrań nie jest dostępne w tej wersji.</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Wybierz nagranie do utworzenia timelapse (eksperymentalny)</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Nagranie (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Utworzono timelapse z nagrania</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>Klatki: {0}, obok nagrania.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Tworzenie timelapse z nagrania nie powiodło się</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>Plik nie jest nagraniem z LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>Nie można odczytać nagrania (brak pliku lub plik uszkodzony).</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>W tej wersji brakuje biblioteki wideo.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>Nie można zapisywać w folderze obok nagrania.</value>
+  </data>
 </root>

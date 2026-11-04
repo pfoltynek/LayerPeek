@@ -7,7 +7,7 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// removed as well once they are old enough not to belong to a recording that is just starting. Alarm snapshots of the
 /// print failure detection (T-153), dashcam saves (T-148), timelapses (T-160) and the JPEG export folders of timelapses
 /// (T-165, as a whole, by the time in their name) count and go oldest first like the recordings; an export folder left
-/// unfinished by a crash goes like an empty leftover.
+/// unfinished by a crash goes like an empty leftover, and so does an unfinished timelapse from a recording (T-164).
 /// </summary>
 internal static class CameraRecordingRotation
 {
@@ -40,7 +40,7 @@ internal static class CameraRecordingRotation
 
             if (file.IsUnfinished)
             {
-                // T-165: an export that is not written any more (a crash, or a lost delete) goes; a running one is active.
+                // T-165 / T-164: an export or a timelapse from a recording that is not written any more (a crash, or a lost delete) goes; a running one is active.
                 if (utcNow - file.LastWriteUtc >= EmptyLeftoverAge)
                 {
                     if (storage.TryDelete(file.Path))

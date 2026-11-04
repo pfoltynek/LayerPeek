@@ -328,6 +328,12 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             case TrayMenuCommand.CancelTimelapseJpegExport:
                 recordings.CancelTimelapseExport();
                 break;
+            case TrayMenuCommand.CreateTimelapseFromRecording when entry.PrinterId is { } id:
+                _ = recordings.CreateTimelapseFromRecordingAsync(id);
+                break;
+            case TrayMenuCommand.CancelTimelapseFromRecording:
+                recordings.CancelTimelapseFromRecording();
+                break;
         }
     }
 
@@ -363,8 +369,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     }
 
     /// <summary>
-    /// Any thread (T-165): the JPEG export started, made progress or ended. Its item is in every printer's submenu (one export
-    /// at a time), so every printer is formatted again in the UI update of the next burst; nothing while the menu shows a
+    /// Any thread (T-165, T-164): the JPEG export or the timelapse from a recording started, made progress or ended. Its item is
+    /// in every printer's submenu (one job of each at a time), so every printer is formatted again in the UI update of the next burst; nothing while the menu shows a
     /// status message.
     /// </summary>
     private void OnTimelapseExportChanged(object? sender, EventArgs e)
@@ -649,6 +655,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// (disabled until the printer has a recording) and "Open recordings folder". T-161: "Start timelapse" / "Stop timelapse"
     /// (experimental) after the recording controls, "Play last timelapse" after "Play last recording"; the folder is shared.
     /// T-165: "Export timelapse to JPEG… (experimental)" (or "Cancel JPEG export (42 %)") after "Play last timelapse".
+    /// T-164: "Create timelapse from recording… (experimental)" (or "Cancel timelapse from recording (42 %)") after it.
     /// </summary>
     private static void AddRecordingEntries(List<TrayMenuEntry> items, ICameraRecordings recordings, string printerId)
     {
@@ -707,6 +714,17 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             export.Text,
             export.IsEnabled,
             export.ToolTip,
+            PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        // T-164: a timelapse from a recording file (experimental, the label is in the text), the same item for every printer.
+        TimelapseFromRecordingControlState fromRecording = new(recordings.IsTimelapseFromRecordingAvailable, recordings.TimelapseFromRecording);
+        items.Add(new TrayMenuEntry(
+            fromRecording.IsRunning ? TrayMenuCommand.CancelTimelapseFromRecording : TrayMenuCommand.CreateTimelapseFromRecording,
+            fromRecording.Text,
+            fromRecording.IsEnabled,
+            fromRecording.ToolTip,
             PrinterId: printerId)
         {
             HasAccessKey = true,

@@ -200,6 +200,31 @@ internal sealed class FakeCameraRecordings : ICameraRecordings
     }
 
     public void CancelTimelapseExport() => TimelapseExportCancels++;
+
+    /// <summary>This build can make timelapses from recordings (T-164).</summary>
+    public bool IsTimelapseFromRecordingAvailable { get; set; } = true;
+
+    public CameraTimelapseFromRecordingStatus TimelapseFromRecording { get; private set; } = CameraTimelapseFromRecordingStatus.Idle;
+
+    /// <summary>The printers whose menu asked for a timelapse from a recording (T-164).</summary>
+    public List<string> TimelapsesFromRecordingRequested { get; } = [];
+
+    public int TimelapseFromRecordingCancels { get; private set; }
+
+    /// <summary>The timelapse from a recording (T-164) runs with <paramref name="status"/>; <see cref="TimelapseExportChanged"/> is raised on the calling thread.</summary>
+    public void SetTimelapseFromRecording(CameraTimelapseFromRecordingStatus status)
+    {
+        TimelapseFromRecording = status;
+        TimelapseExportChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public Task CreateTimelapseFromRecordingAsync(string printerId)
+    {
+        TimelapsesFromRecordingRequested.Add(printerId);
+        return Task.CompletedTask;
+    }
+
+    public void CancelTimelapseFromRecording() => TimelapseFromRecordingCancels++;
 }
 
 /// <summary>The folder dialog with a scripted answer (T-146).</summary>

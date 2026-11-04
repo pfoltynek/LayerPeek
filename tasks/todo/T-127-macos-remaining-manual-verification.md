@@ -131,6 +131,15 @@ a kritérium.
       `…_timelapse_jpg` s `0001.jpg`… (Náhled je otevře, pořadí jako ve videu), notifikace „Timelapse exportován do JPEG“.
       Druhý klik na položku, dokud je panel otevřený, nic nového neotevře; okno kamery během otevřeného panelu dál běží;
       zrušení uprostřed nezanechá žádnou složku (ani skrytou `.….partial`, `ls -a`).
+- [ ] **T-164** (krit. „Akce v UI, průběh, notifikace …“, ruční část macOS; sezení agenta nemělo displej): simulátor
+      s kamerou, hotová nahrávka tisku (T-145, ideálně s výpadkem kamery, tedy i `…-2.mp4`); v podmenu tiskárny v menu baru
+      „Vytvořit timelapse z nahrávky… (experimentální)“ → volné okno Otevřít (`NSOpenPanel`) v popředí s titulkem „Vyberte
+      nahrávku pro vytvoření timelapse (experimentální)“, otevřené v `~/Movies/LayerPeek/<tiskárna>`. Výběr nahrávky →
+      položka „Zrušit timelapse z nahrávky (x %)“ (procento roste i v otevřeném menu), potom vedle nahrávky
+      `…_recording_timelapse.mp4` (QuickTime Player ho přehraje, 30 fps, i část po výpadku), notifikace „Timelapse z nahrávky
+      vytvořen“. Výběr timelapse → notifikace „Vytvoření timelapse z nahrávky selhalo / Soubor není nahrávka z LayerPeeku.“
+      Zrušení uprostřed nezanechá žádný soubor (ani skrytý `.….partial`, `ls -a`); během vytváření jde otevřít dialog exportu
+      do JPEG jen tehdy, když žádný jiný dialog není otevřený.
 
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`

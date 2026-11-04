@@ -1,6 +1,9 @@
 namespace LayerPeek.Core.Cameras.Timelapse;
 
-/// <summary>Why a JPEG export of a timelapse (T-165) ended without its folder.</summary>
+/// <summary>
+/// Why a JPEG export of a timelapse (T-165) ended without its folder, or a timelapse from a recording (T-164,
+/// <see cref="CameraTimelapseFromRecordingMaker"/>) without its file.
+/// </summary>
 public enum CameraTimelapseExportProblem
 {
     /// <summary>It succeeded.</summary>
@@ -12,16 +15,22 @@ public enum CameraTimelapseExportProblem
     /// <summary>The chosen file is not a timelapse of LayerPeek (<see cref="Recording.CameraRecordingFolders.IsTimelapseFileName"/>).</summary>
     NotATimelapse,
 
+    /// <summary>
+    /// T-164: the chosen file is not a recording of LayerPeek (<see cref="Recording.CameraRecordingFolders.IsRecordingFileName"/>),
+    /// or it is a timelapse already.
+    /// </summary>
+    NotARecording,
+
     /// <summary>The file is missing, damaged or not a video the decoder reads (H.264 in MP4).</summary>
     Unreadable,
 
-    /// <summary>The video decoder is not available in this build (FFmpeg missing).</summary>
+    /// <summary>The video decoder (T-164: the demuxer or the MP4 muxer) is not available in this build (FFmpeg missing).</summary>
     Unavailable,
 
-    /// <summary>The frames could not be written next to the timelapse (no permission, read-only drive…).</summary>
+    /// <summary>The frames (T-164: the timelapse) could not be written next to the source (no permission, read-only drive…).</summary>
     WriteFailed,
 
-    /// <summary>The drive of the timelapse is full.</summary>
+    /// <summary>The drive of the source file is full.</summary>
     DiskFull,
 
     /// <summary>Anything else (the JPEG encoder failed…); details are in the log.</summary>

@@ -2038,4 +2038,56 @@
     <value>An unexpected error occurred, see the log.</value>
     <comment>T-165: reason of any other failure (details in the log).</comment>
   </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>Create ti_melapse from recording… (experimental)</value>
+    <comment>T-164: item of a printer submenu, after MenuExportTimelapseJpeg: opens the open dialog for a recording file and makes a timelapse of it next to it. Experimental (user decision 2026-11-04): keep the label. "_" marks the access key: unique within the submenu and the same as in MenuCancelTimelapseFromRecording. The ellipsis says that a dialog follows.</comment>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>Cancel ti_melapse from recording ({0}%)</value>
+    <comment>T-164: the same item while a timelapse is made from a recording: cancels it. {0} = percent done (0–100). Same access key as MenuCreateTimelapseFromRecording.</comment>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Creating a timelapse from {0}</value>
+    <comment>T-164: tooltip of the cancel item while a timelapse is made. {0} = file name of the recording.</comment>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Creating timelapses from recordings is not available in this build.</value>
+    <comment>T-164: tooltip of the disabled item when this build cannot write timelapses (no MP4 muxer) or has no open dialog.</comment>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Choose a recording to create a timelapse from (experimental)</value>
+    <comment>T-164: title (and macOS message) of the open dialog for the recording file. Experimental: keep the label.</comment>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Recording (MP4)</value>
+    <comment>T-164: name of the file type filter of the open dialog (Windows).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Timelapse created from recording</value>
+    <comment>T-164: second line of the notification of a finished timelapse from a recording (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>{0} frames, next to the recording.</value>
+    <comment>T-164: third line of the notification of a finished timelapse from a recording. {0} = number of frames (a number, no plural forms needed).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Creating a timelapse from the recording failed</value>
+    <comment>T-164: second line of the notification of a failed timelapse from a recording (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>The file is not a LayerPeek recording.</value>
+    <comment>T-164: reason: the chosen file is no recording of LayerPeek (or a timelapse already).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>The recording cannot be read (missing or damaged file).</value>
+    <comment>T-164: reason: the recording is missing, damaged or no video the app can read.</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>The video library is missing in this build.</value>
+    <comment>T-164: reason: the video library (FFmpeg) is missing in this build.</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>The folder next to the recording cannot be written.</value>
+    <comment>T-164: reason: the folder next to the recording cannot be written.</comment>
+  </data>
 </root>

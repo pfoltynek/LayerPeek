@@ -1855,4 +1855,43 @@
   <data name="NotificationTimelapseExportError" xml:space="preserve">
     <value>Se produjo un error inesperado; consulte el registro.</value>
   </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>Crear ti_melapse desde una grabación… (experimental)</value>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>Cancelar creación de ti_melapse ({0} %)</value>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Creando un timelapse desde {0}</value>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>La creación de timelapses desde grabaciones no está disponible en esta versión.</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Elija una grabación para crear un timelapse (experimental)</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Grabación (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Timelapse creado desde la grabación</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>{0} fotogramas, junto a la grabación.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Error al crear el timelapse desde la grabación</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>El archivo no es una grabación de LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>No se puede leer la grabación (falta el archivo o está dañado).</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Falta la biblioteca de vídeo en esta versión.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>No se puede escribir en la carpeta junto a la grabación.</value>
+  </data>
 </root>

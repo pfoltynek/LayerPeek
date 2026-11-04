@@ -9,14 +9,16 @@ using LayerPeek.Core.Settings;
 namespace LayerPeek.App.Notifications;
 
 /// <summary>
-/// Turns <see cref="CameraTimelapseJpegExporter.Completed"/> into a short notification (T-165, user decision 2026-11-04: at
+/// Turns <see cref="CameraTimelapseJpegExporter.Completed"/> (T-165) and <see cref="CameraTimelapseFromRecordingMaker.Completed"/>
+/// (T-164) into a short notification (user decision 2026-11-04: at
 /// the end, done and failed; a cancel is the user's own act and is not notified), with the printer name of the current run
 /// as the title. Follows "Show notifications"; it is information, so it sounds only with the "all notifications" sound
-/// setting. Results come on any thread; the notification service queues them. Never throws into the exporter.
+/// setting. Results come on any thread; the notification service queues them. Never throws into the exporter or the maker.
 /// </summary>
 internal sealed partial class TimelapseExportNotificationObserver : IMonitoringObserver, IDisposable
 {
     private readonly CameraTimelapseJpegExporter _exporter;
+    private readonly CameraTimelapseFromRecordingMaker? _maker;
     private readonly INotificationService _notifications;
     private readonly ILogger<TimelapseExportNotificationObserver> _logger;
     private readonly Lock _gate = new();
@@ -26,7 +28,12 @@ internal sealed partial class TimelapseExportNotificationObserver : IMonitoringO
     private NotificationSettings _settings = new();
     private bool _disposed;
 
-    public TimelapseExportNotificationObserver(CameraTimelapseJpegExporter exporter, INotificationService notifications, ILogger<TimelapseExportNotificationObserver> logger)
+    /// <param name="maker">The timelapse from a recording (T-164); <see langword="null"/>: only the JPEG export is notified.</param>
+    public TimelapseExportNotificationObserver(
+        CameraTimelapseJpegExporter exporter,
+        INotificationService notifications,
+        ILogger<TimelapseExportNotificationObserver> logger,
+        CameraTimelapseFromRecordingMaker? maker = null)
     {
         ArgumentNullException.ThrowIfNull(exporter);
         ArgumentNullException.ThrowIfNull(notifications);
@@ -34,7 +41,12 @@ internal sealed partial class TimelapseExportNotificationObserver : IMonitoringO
         _exporter = exporter;
         _notifications = notifications;
         _logger = logger;
+        _maker = maker;
         _exporter.Completed += OnCompleted;
+        if (_maker is not null)
+        {
+            _maker.Completed += OnMade;
+        }
     }
 
     public void ApplySettings(AppSettings settings)
@@ -63,6 +75,11 @@ internal sealed partial class TimelapseExportNotificationObserver : IMonitoringO
     public void Dispose()
     {
         _exporter.Completed -= OnCompleted;
+        if (_maker is not null)
+        {
+            _maker.Completed -= OnMade;
+        }
+
         lock (_gate)
         {
             _disposed = true;
@@ -72,7 +89,24 @@ internal sealed partial class TimelapseExportNotificationObserver : IMonitoringO
     /// <summary>Any thread: an export ended.</summary>
     internal void OnCompleted(object? sender, CameraTimelapseExportResult result)
     {
-        if (result is null || result.Problem == CameraTimelapseExportProblem.Cancelled)
+        if (result is not null)
+        {
+            Notify(TimelapseExportKind.Jpeg, result.PrinterId, result.Frames, result.Problem);
+        }
+    }
+
+    /// <summary>Any thread: a timelapse from a recording ended (T-164).</summary>
+    internal void OnMade(object? sender, CameraTimelapseFromRecordingResult result)
+    {
+        if (result is not null)
+        {
+            Notify(TimelapseExportKind.FromRecording, result.PrinterId, result.Frames, result.Problem);
+        }
+    }
+
+    private void Notify(TimelapseExportKind kind, string? printerId, int frames, CameraTimelapseExportProblem problem)
+    {
+        if (problem == CameraTimelapseExportProblem.Cancelled)
         {
             return;
         }
@@ -87,12 +121,12 @@ internal sealed partial class TimelapseExportNotificationObserver : IMonitoringO
 
             if (!_settings.Enabled)
             {
-                LogNotNotified(result.Problem);
+                LogNotNotified(kind, problem);
                 return;
             }
 
-            string? name = result.PrinterId is { } id && _names.TryGetValue(id, out string? known) ? known : null;
-            notification = new TimelapseExportNotification(result.PrinterId, name, result.Frames, result.Problem, _settings.ShouldPlaySound(NotificationSeverity.Information));
+            string? name = printerId is { } id && _names.TryGetValue(id, out string? known) ? known : null;
+            notification = new TimelapseExportNotification(printerId, name, frames, problem, _settings.ShouldPlaySound(NotificationSeverity.Information), kind);
         }
 
         try
@@ -101,13 +135,13 @@ internal sealed partial class TimelapseExportNotificationObserver : IMonitoringO
         }
         catch (Exception ex)
         {
-            LogShowFailed(ex, result.Problem);
+            LogShowFailed(ex, kind, problem);
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Debug, Message = "The end of a JPEG export ({Problem}) is not notified: notifications are off.")]
-    private partial void LogNotNotified(CameraTimelapseExportProblem problem);
+    [LoggerMessage(Level = LogLevel.Debug, Message = "The end of a timelapse job ({Kind}, {Problem}) is not notified: notifications are off.")]
+    private partial void LogNotNotified(TimelapseExportKind kind, CameraTimelapseExportProblem problem);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Showing the end of a JPEG export ({Problem}) failed.")]
-    private partial void LogShowFailed(Exception exception, CameraTimelapseExportProblem problem);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Showing the end of a timelapse job ({Kind}, {Problem}) failed.")]
+    private partial void LogShowFailed(Exception exception, TimelapseExportKind kind, CameraTimelapseExportProblem problem);
 }

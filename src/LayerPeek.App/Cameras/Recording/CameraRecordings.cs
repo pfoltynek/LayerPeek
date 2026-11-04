@@ -77,7 +77,10 @@ internal interface ICameraRecordings
     /// <summary>The JPEG export now (T-165; one at a time for all printers).</summary>
     CameraTimelapseExportStatus TimelapseExport { get; }
 
-    /// <summary>The JPEG export started, made progress or ended (any thread); read it with <see cref="TimelapseExport"/>.</summary>
+    /// <summary>
+    /// The JPEG export (T-165) or the timelapse from a recording (T-164) started, made progress or ended (any thread); read
+    /// them with <see cref="TimelapseExport"/> and <see cref="TimelapseFromRecording"/>.
+    /// </summary>
     event EventHandler? TimelapseExportChanged;
 
     /// <summary>
@@ -89,12 +92,28 @@ internal interface ICameraRecordings
 
     /// <summary>Cancels the running JPEG export (T-165), if any.</summary>
     void CancelTimelapseExport();
+
+    /// <summary>This build can make timelapses from recordings (T-164: the MP4 muxer, the maker and an open dialog exist).</summary>
+    bool IsTimelapseFromRecordingAvailable { get; }
+
+    /// <summary>The timelapse from a recording now (T-164; one at a time for all printers).</summary>
+    CameraTimelapseFromRecordingStatus TimelapseFromRecording { get; }
+
+    /// <summary>
+    /// UI thread. "Create timelapse from recording…" of a printer's submenu (T-164, user decisions 2026-11-04): the open dialog
+    /// for a recording file, in the printer's recordings folder when it exists (else the root), then a timelapse of the chosen
+    /// file at the interval of the live timelapse (T-160). Nothing while one is made or a dialog is open. Never throws.
+    /// </summary>
+    Task CreateTimelapseFromRecordingAsync(string printerId);
+
+    /// <summary>Cancels the running timelapse from a recording (T-164), if any.</summary>
+    void CancelTimelapseFromRecording();
 }
 
 /// <summary><see cref="ICameraRecordings"/> over the app's <see cref="CameraRecordingService"/> and the system launchers.</summary>
 internal sealed class CameraRecordings : ICameraRecordings
 {
-    /// <summary>The extension of a timelapse without the dot (for the macOS filter).</summary>
+    /// <summary>The extension of a timelapse and a recording without the dot (for the macOS filter).</summary>
     private const string TimelapseExtension = "mp4";
 
     private readonly CameraRecordingService _service;
@@ -102,20 +121,23 @@ internal sealed class CameraRecordings : ICameraRecordings
     private readonly IFileLauncher _files;
     private readonly CameraTimelapseJpegExporter? _exporter;
     private readonly IRecordingFilePicker? _picker;
+    private readonly CameraTimelapseFromRecordingMaker? _maker;
 
-    // UI thread only: the open dialog of the export is shown.
+    // UI thread only: an open dialog (of the export or of the timelapse from a recording) is shown.
     private bool _picking;
 
     /// <param name="options">The options of <paramref name="service"/>: its default root and the free space it needs.</param>
     /// <param name="exporter">The JPEG export of timelapses (T-165); <see langword="null"/>: none.</param>
-    /// <param name="picker">The open dialog of the export (T-165); <see langword="null"/>: no export.</param>
+    /// <param name="picker">The open dialog of the export (T-165) and of the timelapse from a recording (T-164); <see langword="null"/>: neither.</param>
+    /// <param name="maker">The timelapse from a recording (T-164); <see langword="null"/>: none.</param>
     public CameraRecordings(
         CameraRecordingService service,
         IFolderLauncher folders,
         IFileLauncher files,
         CameraRecordingServiceOptions options,
         CameraTimelapseJpegExporter? exporter = null,
-        IRecordingFilePicker? picker = null)
+        IRecordingFilePicker? picker = null,
+        CameraTimelapseFromRecordingMaker? maker = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(service);
@@ -129,6 +151,7 @@ internal sealed class CameraRecordings : ICameraRecordings
         DashcamPostEventDuration = options.DashcamPostEventDuration;
         _exporter = exporter;
         _picker = picker;
+        _maker = maker;
     }
 
     public event EventHandler? TimelapseExportChanged
@@ -139,6 +162,11 @@ internal sealed class CameraRecordings : ICameraRecordings
             {
                 _exporter.Changed += value;
             }
+
+            if (_maker is not null)
+            {
+                _maker.Changed += value;
+            }
         }
 
         remove
@@ -147,8 +175,17 @@ internal sealed class CameraRecordings : ICameraRecordings
             {
                 _exporter.Changed -= value;
             }
+
+            if (_maker is not null)
+            {
+                _maker.Changed -= value;
+            }
         }
     }
+
+    public bool IsTimelapseFromRecordingAvailable => _maker is not null && _picker is not null && _maker.Availability.IsAvailable;
+
+    public CameraTimelapseFromRecordingStatus TimelapseFromRecording => _maker?.Status ?? CameraTimelapseFromRecordingStatus.Idle;
 
     public bool IsTimelapseExportAvailable => _exporter is not null && _picker is not null;
 
@@ -210,9 +247,58 @@ internal sealed class CameraRecordings : ICameraRecordings
     public async Task ExportTimelapseToJpegAsync(string printerId)
     {
         ArgumentNullException.ThrowIfNull(printerId);
-        if (_exporter is not { } exporter || _picker is not { } picker || _picking || exporter.Status.IsRunning)
+        if (_exporter is not { } exporter || exporter.Status.IsRunning)
         {
             return;
+        }
+
+        string? file = await PickAsync(printerId, Resources.Strings.TimelapseExportPickerTitle, Resources.Strings.TimelapseExportPickerFilter, TimelapseFilePatterns).ConfigureAwait(true);
+        if (file is not null)
+        {
+            // False when an export started meanwhile (never from this menu): that one goes on.
+            exporter.Start(file, printerId);
+        }
+    }
+
+    public void CancelTimelapseExport() => _exporter?.Cancel();
+
+    public async Task CreateTimelapseFromRecordingAsync(string printerId)
+    {
+        ArgumentNullException.ThrowIfNull(printerId);
+        if (_maker is not { } maker || maker.Status.IsRunning)
+        {
+            return;
+        }
+
+        string? file = await PickAsync(printerId, Resources.Strings.TimelapseFromRecordingPickerTitle, Resources.Strings.TimelapseFromRecordingPickerFilter, RecordingFilePatterns).ConfigureAwait(true);
+        if (file is not null)
+        {
+            // User decision 2026-11-04: the interval of the live timelapse, no dialog of its own. False when a job started
+            // meanwhile (never from this menu): that one goes on.
+            maker.Start(file, _service.TimelapseInterval, printerId);
+        }
+    }
+
+    public void CancelTimelapseFromRecording() => _maker?.Cancel();
+
+    /// <summary>The names of timelapses (<see cref="CameraRecordingFolders.TimelapseFileName"/>, also with <c>-2</c> …), for the filter of the dialog.</summary>
+    internal static IReadOnlyList<string> TimelapseFilePatterns { get; } = ["*_timelapse" + CameraRecordingFolders.Extension, "*_timelapse-*" + CameraRecordingFolders.Extension];
+
+    /// <summary>
+    /// The recordings (T-164), for the filter of the dialog: every MP4 (a pattern cannot leave the timelapses out; the maker
+    /// refuses them and other files).
+    /// </summary>
+    internal static IReadOnlyList<string> RecordingFilePatterns { get; } = ["*" + CameraRecordingFolders.Extension];
+
+    /// <summary>
+    /// UI thread: the open dialog for a file in the printer's recordings folder; <see langword="null"/> when the user chose
+    /// none, the dialog is missing or another one is open.
+    /// </summary>
+    private async Task<string?> PickAsync(string printerId, string title, string filterName, IReadOnlyList<string> patterns)
+    {
+        if (_picker is not { } picker || _picking)
+        {
+            return null;
         }
 
         _picking = true;
@@ -220,29 +306,15 @@ internal sealed class CameraRecordings : ICameraRecordings
         {
             // Asking the disk can take a moment (a network share): off the UI thread, the dialog then on it again.
             string? start = await Task.Run(() => PickerStartFolder(printerId)).ConfigureAwait(true);
-            string? file = await picker.PickAsync(new RecordingFilePickRequest(
-                Resources.Strings.TimelapseExportPickerTitle,
-                Resources.Strings.TimelapseExportPickerFilter,
-                TimelapseFilePatterns,
-                TimelapseExtension,
-                start)).ConfigureAwait(true);
-            // An empty answer is no choice (Start would throw, and nothing observes this task).
-            if (!string.IsNullOrWhiteSpace(file))
-            {
-                // False when an export started meanwhile (never from this menu): that one goes on.
-                exporter.Start(file, printerId);
-            }
+            string? file = await picker.PickAsync(new RecordingFilePickRequest(title, filterName, patterns, TimelapseExtension, start)).ConfigureAwait(true);
+            // An empty answer is no choice (Start would throw, and nothing observes the caller's task).
+            return string.IsNullOrWhiteSpace(file) ? null : file;
         }
         finally
         {
             _picking = false;
         }
     }
-
-    public void CancelTimelapseExport() => _exporter?.Cancel();
-
-    /// <summary>The names of timelapses (<see cref="CameraRecordingFolders.TimelapseFileName"/>, also with <c>-2</c> …), for the filter of the dialog.</summary>
-    internal static IReadOnlyList<string> TimelapseFilePatterns { get; } = ["*_timelapse" + CameraRecordingFolders.Extension, "*_timelapse-*" + CameraRecordingFolders.Extension];
 
     /// <summary>The printer's recordings folder when it exists, else the root when it exists, else none (the OS chooses).</summary>
     private string? PickerStartFolder(string printerId)
@@ -278,6 +350,31 @@ internal readonly record struct TimelapseExportControlState(bool IsAvailable, Ca
     public string? ToolTip => IsRunning
         ? Format(Resources.Strings.TimelapseExportRunning, Path.GetFileName(Status.SourceFile))
         : IsAvailable ? null : Resources.Strings.TimelapseExportUnavailable;
+
+    private static string Format(string format, object? value) => string.Format(CultureInfo.CurrentCulture, format, value);
+}
+
+/// <summary>
+/// What the item "Create timelapse from recording… (experimental)" of a printer's submenu shows (T-164): that text while no
+/// timelapse is made from a recording, "Cancel timelapse from recording (42 %)" while one is made (for every printer: one at
+/// a time), disabled with the reason when this build cannot make one. Like <see cref="TimelapseExportControlState"/>.
+/// </summary>
+internal readonly record struct TimelapseFromRecordingControlState(bool IsAvailable, CameraTimelapseFromRecordingStatus Status)
+{
+    /// <summary>A timelapse is made: the item cancels it.</summary>
+    public bool IsRunning => Status.IsRunning;
+
+    public bool IsEnabled => IsRunning || IsAvailable;
+
+    /// <summary>The text with its access key; the progress while it runs.</summary>
+    public string Text => IsRunning
+        ? Format(Resources.Strings.MenuCancelTimelapseFromRecording, Status.Percent)
+        : Resources.Strings.MenuCreateTimelapseFromRecording;
+
+    /// <summary>The tip: which recording is read, or why the item is disabled; <see langword="null"/> otherwise.</summary>
+    public string? ToolTip => IsRunning
+        ? Format(Resources.Strings.TimelapseFromRecordingRunning, Path.GetFileName(Status.SourceFile))
+        : IsAvailable ? null : Resources.Strings.TimelapseFromRecordingUnavailable;
 
     private static string Format(string format, object? value) => string.Format(CultureInfo.CurrentCulture, format, value);
 }

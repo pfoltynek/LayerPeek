@@ -10,7 +10,9 @@ namespace LayerPeek.App.Notifications;
 /// The notification about a finished JPEG export of a timelapse (T-165), the same on every OS and short (user decision
 /// 2026-11-04): the printer name as the title (the app name without one), "Timelapse exported to JPEG" with the number of
 /// frames, or "Timelapse export to JPEG failed" with the reason by <see cref="CameraTimelapseExportProblem"/>, all in one
-/// given language. No launch argument (a click opens nothing of its own) and no tag.
+/// given language. A timelapse from a recording (T-164, <see cref="TimelapseExportKind.FromRecording"/>) says "Timelapse
+/// created from recording" with the number of frames, or "Creating a timelapse from the recording failed" with the reason.
+/// No launch argument (a click opens nothing of its own) and no tag.
 /// </summary>
 internal static class TimelapseExportNotificationText
 {
@@ -25,6 +27,16 @@ internal static class TimelapseExportNotificationText
         string title = !string.IsNullOrWhiteSpace(notification.PrinterName) ? notification.PrinterName
             : !string.IsNullOrWhiteSpace(notification.PrinterId) ? notification.PrinterId
             : AppName;
+        if (notification.Kind == TimelapseExportKind.FromRecording)
+        {
+            return notification.Succeeded
+                ? new NotificationLines(
+                    title,
+                    Text(nameof(Strings.NotificationTimelapseFromRecordingDone), textCulture),
+                    string.Format(textCulture, Text(nameof(Strings.NotificationTimelapseFromRecordingFrames), textCulture), notification.Frames))
+                : new NotificationLines(title, Text(nameof(Strings.NotificationTimelapseFromRecordingFailed), textCulture), FromRecordingReason(notification.Problem, textCulture));
+        }
+
         return notification.Succeeded
             ? new NotificationLines(
                 title,
@@ -32,6 +44,17 @@ internal static class TimelapseExportNotificationText
                 string.Format(textCulture, Text(nameof(Strings.NotificationTimelapseExportFrames), textCulture), notification.Frames))
             : new NotificationLines(title, Text(nameof(Strings.NotificationTimelapseExportFailed), textCulture), Reason(notification.Problem, textCulture));
     }
+
+    /// <summary>The reason line of a failed timelapse from a recording (T-164); an unknown problem has the generic one.</summary>
+    internal static string FromRecordingReason(CameraTimelapseExportProblem problem, CultureInfo culture) => problem switch
+    {
+        CameraTimelapseExportProblem.NotARecording => Text(nameof(Strings.NotificationTimelapseFromRecordingNotARecording), culture),
+        CameraTimelapseExportProblem.Unreadable => Text(nameof(Strings.NotificationTimelapseFromRecordingUnreadable), culture),
+        CameraTimelapseExportProblem.Unavailable => Text(nameof(Strings.NotificationTimelapseFromRecordingUnavailable), culture),
+        CameraTimelapseExportProblem.WriteFailed => Text(nameof(Strings.NotificationTimelapseFromRecordingWriteFailed), culture),
+        CameraTimelapseExportProblem.DiskFull => Text(nameof(Strings.NotificationRecordingDiskFull), culture),
+        _ => Text(nameof(Strings.NotificationTimelapseExportError), culture),
+    };
 
     /// <summary>The reason line of a failure; an unknown problem has the generic one.</summary>
     internal static string Reason(CameraTimelapseExportProblem problem, CultureInfo culture) => problem switch

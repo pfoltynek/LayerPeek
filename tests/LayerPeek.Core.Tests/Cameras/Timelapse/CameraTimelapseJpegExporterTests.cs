@@ -366,6 +366,23 @@ public sealed class CameraTimelapseJpegExporterTests : IDisposable
         Assert.Equal(Path.Combine(_folder, CameraRecordingFolders.JpegExportFolderName(name)), result.OutputFolder);
     }
 
+    [Theory]
+    [InlineData("Benchy #2", "a.mp4")]
+    [InlineData("50%20off", "a.mp4")]
+    [InlineData("Tiskárna #1 %20", "a.mp4")]
+    [InlineData("MK4", "Benchy #2 %41 ž.mp4")]
+    [InlineData("100% #", "x%2541#.mp4")]
+    public void TheFileAddressGivesThePathBackAlsoWithAHashAndAnEscapeSequence(string folderName, string name)
+    {
+        string path = Path.Combine(_folder, folderName, name);
+
+        Uri? uri = CameraTimelapseJpegExporter.FileUri(path);
+
+        Assert.NotNull(uri);
+        Assert.True(uri.IsFile);
+        Assert.Equal(path, uri.LocalPath);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
