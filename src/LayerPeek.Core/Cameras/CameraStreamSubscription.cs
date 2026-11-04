@@ -362,6 +362,12 @@ public sealed class CameraPacketSubscriptionOptions
         }
     } = DefaultQueueCapacity;
 
+    /// <summary>
+    /// Only key frames are queued (timelapse, T-158): the other packets are skipped on the streaming thread before they are
+    /// copied, so the reader is not woken for them. Stream descriptions are queued as always.
+    /// </summary>
+    public bool KeyFramesOnly { get; init; }
+
     /// <inheritdoc cref="CameraFrameSubscriptionOptions.Status"/>
     public IProgress<CameraStatus>? Status { get; init; }
 
@@ -380,12 +386,14 @@ public sealed class CameraPacketSubscriptionOptions
 public sealed class CameraPacketSubscription : CameraStreamSubscription
 {
     private readonly PacketQueue _queue;
+    private readonly bool _keyFramesOnly;
     private int _reading;
 
     internal CameraPacketSubscription(CameraStreamHub? hub, string printerId, CameraPacketSubscriptionOptions options)
         : base(hub, printerId, options.Status, options.Ended)
     {
         _queue = new PacketQueue(options.QueueCapacity);
+        _keyFramesOnly = options.KeyFramesOnly;
     }
 
     /// <summary>
@@ -407,9 +415,12 @@ public sealed class CameraPacketSubscription : CameraStreamSubscription
     /// <returns><see langword="false"/> when the queue is full.</returns>
     internal bool TryEnqueue(CameraStreamInfo info) => _queue.TryWrite(info, default) || IsEnded;
 
-    /// <summary>Streaming thread: copies <paramref name="packet"/> (borrowed) into a pooled buffer and queues it.</summary>
+    /// <summary>
+    /// Streaming thread: copies <paramref name="packet"/> (borrowed) into a pooled buffer and queues it; a packet this
+    /// subscriber does not take (<see cref="CameraPacketSubscriptionOptions.KeyFramesOnly"/>) is skipped.
+    /// </summary>
     /// <returns><see langword="false"/> when the queue is full (the packet was not queued).</returns>
-    internal bool TryEnqueue(in CameraPacket packet) => _queue.TryWrite(null, packet) || IsEnded;
+    internal bool TryEnqueue(in CameraPacket packet) => (_keyFramesOnly && !packet.IsKeyFrame) || _queue.TryWrite(null, packet) || IsEnded;
 
     private protected override void OnEnded()
     {
