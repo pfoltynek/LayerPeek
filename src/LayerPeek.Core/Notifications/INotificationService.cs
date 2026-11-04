@@ -15,6 +15,15 @@ public interface INotificationService
     void Show(PrintNotification notification);
 
     /// <summary>
+    /// Shows a suspected print failure (T-153; texts, the snapshot in the notification and its "False alarm" action come
+    /// with T-154). The same rules as <see cref="Show"/>: thread-safe, returns quickly, may throw. Sound follows
+    /// <see cref="Detection.PrintFailureNotification.PlaySound"/>. Default: not shown (platforms without notifications).
+    /// </summary>
+    void ShowPrintFailure(Detection.PrintFailureNotification notification)
+    {
+    }
+
+    /// <summary>
     /// Shows that a new version is available (T-058), once per version (the caller remembers which). The same rules as
     /// <see cref="Show"/>: thread-safe, returns quickly, may throw. Its click starts the update action of the app (the release
     /// page, or the update of a Velopack installation). Default: not shown (platforms without notifications).

@@ -60,7 +60,67 @@ internal sealed class SettingsDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? Recording { get; set; }
 
+    /// <summary>
+    /// Global settings of the print failure detection (T-153): a <see cref="DetectionDocument"/> object; missing in older
+    /// files and not written while all are the defaults. Read leniently by <see cref="DetectionSettingsMapper"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Detection { get; set; }
+
     public List<PrinterDocument?>? Printers { get; set; }
+}
+
+/// <summary><see cref="SettingsDocument.Detection"/> as written: only the values that differ from the defaults.</summary>
+internal sealed class DetectionDocument
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Enabled { get; set; }
+
+    /// <summary><see cref="Detection.PrintFailureAlarmRepeat"/> name.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AlarmRepeat { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SaveSnapshots { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? SampleIntervalSeconds { get; set; }
+}
+
+/// <summary><see cref="PrinterDocument.Detection"/> as written: only the values that differ from the defaults.</summary>
+internal sealed class PrinterDetectionDocument
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Enabled { get; set; }
+
+    /// <summary>Not written while the user never set a region (the printer's default region applies).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DetectionRegionDocument? Region { get; set; }
+
+    /// <summary>By detector id; only detectors whose settings differ from the defaults.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, DetectorDocument>? Detectors { get; set; }
+}
+
+/// <summary>A <see cref="Detection.DetectionRegion"/>: fractions of the frame.</summary>
+internal sealed class DetectionRegionDocument
+{
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    public double Width { get; set; }
+
+    public double Height { get; set; }
+}
+
+internal sealed class DetectorDocument
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Enabled { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Sensitivity { get; set; }
 }
 
 /// <summary><see cref="SettingsDocument.Recording"/> as written: only the values that differ from the defaults.</summary>
@@ -162,6 +222,13 @@ internal sealed class PrinterDocument
     [JsonPropertyName("cooldownThresholdCelsius")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? LegacyCooldownThresholdCelsius { get; set; }
+
+    /// <summary>
+    /// Print failure detection of the printer (T-153): a <see cref="PrinterDetectionDocument"/> object; missing in older
+    /// files and not written while it is the default (off). Read leniently by <see cref="DetectionSettingsMapper"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Detection { get; set; }
 }
 
 /// <summary>Missing or invalid values mean the automatic image (invalid ones with a warning).</summary>
@@ -352,5 +419,7 @@ internal sealed class CameraWindowLayoutDocument
 [JsonSerializable(typeof(List<OverlayWidgetDocument>))]
 [JsonSerializable(typeof(CameraMiniStripDocument))]
 [JsonSerializable(typeof(RecordingDocument))]
+[JsonSerializable(typeof(DetectionDocument))]
+[JsonSerializable(typeof(PrinterDetectionDocument))]
 [JsonSerializable(typeof(bool))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext;

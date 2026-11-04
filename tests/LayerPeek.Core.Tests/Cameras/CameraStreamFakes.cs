@@ -9,8 +9,9 @@ namespace LayerPeek.Core.Tests.Cameras;
 
 /// <summary>
 /// Scriptable feed with packets (T-143): yields a stream description first, then what the test pushes, filtered by the
-/// demand like a real decoder (packets only while wanted, frames only while wanted; a skipped frame counts as not decoded).
-/// Packet and frame buffers are reused, so they are only valid until the next read.
+/// demand like a real decoder (packets only while wanted, frames only while wanted, a key frame also while one is due,
+/// T-153; a skipped frame counts as not decoded). Packet and frame buffers are reused, so they are only valid until the
+/// next read.
 /// </summary>
 internal sealed class FakeItemFeed : ICameraFeed
 {
@@ -39,7 +40,10 @@ internal sealed class FakeItemFeed : ICameraFeed
     /// <summary>Items the consumer finished with (it asked for the next one).</summary>
     public int Consumed => Volatile.Read(ref _consumed);
 
-    public void PushFrame(byte fill, int width = 4, int height = 2) => _steps.Writer.TryWrite(new Step(StepKind.Frame, fill, width, height, KeyFrame: false, null));
+    public void PushFrame(byte fill, int width = 4, int height = 2, bool keyFrame = false) => _steps.Writer.TryWrite(new Step(StepKind.Frame, fill, width, height, keyFrame, null));
+
+    /// <summary>A frame with the test's own BGRA pixels (rows packed), e.g. a pattern.</summary>
+    public void PushImage(byte[] pixels, int width, int height, bool keyFrame = true) => _steps.Writer.TryWrite(new Step(StepKind.Frame, 0, width, height, keyFrame, null, pixels));
 
     public void PushPacket(byte fill, bool keyFrame = false, int length = 16) => _steps.Writer.TryWrite(new Step(StepKind.Packet, fill, length, 0, keyFrame, null));
 
@@ -71,10 +75,14 @@ internal sealed class FakeItemFeed : ICameraFeed
                     yield return CameraStreamItem.FromPacket(new CameraPacket(_packetBuffer.AsMemory(0, step.A), pts, pts, 4500, step.KeyFrame, CameraTimeBase.Rtp90kHz));
                     Interlocked.Increment(ref _consumed);
                     break;
-                case StepKind.Frame when demand.Frames:
+                case StepKind.Frame when demand.Frames || (step.KeyFrame && demand.KeyFrameDue):
                     int stride = step.A * CameraFrame.BytesPerPixel;
-                    Memory<byte> pixels = _frameBuffer.AsMemory(0, stride * step.B);
-                    pixels.Span.Fill(step.Fill);
+                    Memory<byte> pixels = step.Pixels ?? _frameBuffer.AsMemory(0, stride * step.B);
+                    if (step.Pixels is null)
+                    {
+                        pixels.Span.Fill(step.Fill);
+                    }
+
                     Interlocked.Increment(ref _decoded);
                     yield return CameraStreamItem.FromFrame(new CameraFrame(step.A, step.B, stride, pixels));
                     Interlocked.Increment(ref _consumed);
@@ -109,7 +117,7 @@ internal sealed class FakeItemFeed : ICameraFeed
         End,
     }
 
-    private sealed record Step(StepKind Kind, byte Fill, int A, int B, bool KeyFrame, Exception? Error);
+    private sealed record Step(StepKind Kind, byte Fill, int A, int B, bool KeyFrame, Exception? Error, byte[]? Pixels = null);
 }
 
 /// <summary>Creates a <see cref="FakeItemFeed"/> per connection and lets the test wait for the n-th one.</summary>

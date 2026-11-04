@@ -10,6 +10,9 @@ internal static class TestFixtures
 
     public const int Buddy3DFrameCount = 71;
 
+    /// <summary>Key frames (IDR) of the fixture (<c>ffprobe -show_entries frame=key_frame</c>), T-153.</summary>
+    public const int Buddy3DKeyFrameCount = 2;
+
     public const int Buddy3DWidth = 1280;
 
     public const int Buddy3DHeight = 720;

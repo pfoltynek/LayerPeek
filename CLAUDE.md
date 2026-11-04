@@ -55,6 +55,7 @@ src/
   LayerPeek.PrusaLink      PrusaLink REST client (implements Core abstractions)
   LayerPeek.PrusaConnect   Prusa Connect cloud client (implements Core abstractions)
   LayerPeek.Camera.FFmpeg  RTSP/H.264 camera feed via FFmpeg (implements ICameraFeedFactory); native LGPL FFmpeg DLLs from build/FFmpeg.targets
+  LayerPeek.Detection      print failure detectors (implement Core's IPrintFailureDetector, T-153); pure C#, no UI, FFmpeg or HTTP
   LayerPeek.App            Avalonia tray app, composition root, platform specifics
 tests/
   <Project>.Tests          one xUnit v3 project per src library
@@ -71,7 +72,7 @@ tasks/                     task backlog (Czech), see tasks/README.md
 .claude/agents/            subagent definitions
 ```
 
-Dependency direction: `App -> PrusaLink, PrusaConnect, Camera.FFmpeg -> Core`. Core must never reference Avalonia, concrete HTTP clients or FFmpeg.
+Dependency direction: `App -> PrusaLink, PrusaConnect, Camera.FFmpeg, Detection -> Core`. Core must never reference Avalonia, concrete HTTP clients, FFmpeg or Detection; Detection must never reference Avalonia, FFmpeg or HTTP clients.
 
 ## Commands
 

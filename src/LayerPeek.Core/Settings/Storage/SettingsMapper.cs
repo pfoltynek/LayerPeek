@@ -48,6 +48,7 @@ internal static class SettingsMapper
                 : new CameraOverlaySettingsDocument { BackgroundOpacityPercent = settings.CameraOverlayOpacityPercent },
             CameraWindowAutoClose = settings.CameraWindowAutoClose ? null : false,
             Recording = ToDocument(settings.Recording),
+            Detection = DetectionSettingsMapper.ToDocument(settings.Detection),
             Printers = [.. settings.Printers.Select(static printer => new PrinterDocument
             {
                 Id = printer.Id,
@@ -68,6 +69,7 @@ internal static class SettingsMapper
                 Image = ToDocument(printer.Image),
                 CooldownNozzleThresholdCelsius = printer.CooldownThresholds.NozzleCelsius == CooldownThreshold.DefaultNozzleCelsius ? null : printer.CooldownThresholds.NozzleCelsius,
                 CooldownBedThresholdCelsius = printer.CooldownThresholds.BedCelsius == CooldownThreshold.DefaultBedCelsius ? null : printer.CooldownThresholds.BedCelsius,
+                Detection = DetectionSettingsMapper.ToDocument(printer.Detection),
             })],
         };
     }
@@ -94,6 +96,7 @@ internal static class SettingsMapper
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
             CameraWindowAutoClose = document.CameraWindowAutoClose ?? true,
             Recording = ToRecording(document.Recording, warnings),
+            Detection = DetectionSettingsMapper.ToSettings(document.Detection, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays, ref discardedThresholds),
         };
@@ -427,6 +430,12 @@ internal static class SettingsMapper
                 if (thresholds != CooldownThresholds.Default)
                 {
                     printer = printer with { CooldownThresholds = thresholds };
+                }
+
+                Detection.PrinterDetectionSettings detection = DetectionSettingsMapper.ToPrinterSettings(documents[i]!.Detection, Shorten(printer.Id) ?? "", warnings);
+                if (!ReferenceEquals(detection, Detection.PrinterDetectionSettings.Default))
+                {
+                    printer = printer with { Detection = detection };
                 }
 
                 if (documents[i]!.LegacyCooldownThresholdCelsius is { ValueKind: not JsonValueKind.Null })

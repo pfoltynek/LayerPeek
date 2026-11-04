@@ -378,6 +378,7 @@ display) are collected in one walk-through in [docs/macos-manual-testing.md](doc
 | `src/LayerPeek.PrusaLink` | PrusaLink REST client and the local web proxy |
 | `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (not developed further: Prusa Connect has no public API) |
 | `src/LayerPeek.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
+| `src/LayerPeek.Detection` | print failure detectors from the camera image (pure C#; the feature is in development) |
 | `src/LayerPeek.App` | Avalonia tray app, windows, platform specifics |
 | `tests/` | xUnit v3 unit, UI (Avalonia headless) and E2E tests |
 | `tools/` | developer tools, e.g. the PrusaLink printer and camera simulator |

@@ -4,7 +4,8 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// Keeps the recordings of a root within the size limit (T-145, user decision 2026-11-03: delete the oldest). Only files
 /// found by <see cref="ICameraRecordingStorage.FindRecordings"/> (LayerPeek's names in LayerPeek's marked folders) are
 /// considered, and never a file of a running recording. Empty recordings left by a crash before their first fragment are
-/// removed as well once they are old enough not to belong to a recording that is just starting.
+/// removed as well once they are old enough not to belong to a recording that is just starting. Alarm snapshots of the
+/// print failure detection (T-153) count and go oldest first like the recordings.
 /// </summary>
 internal static class CameraRecordingRotation
 {
@@ -87,9 +88,9 @@ internal static class CameraRecordingRotation
         HashSet<string> gone = new(deleted, StringComparer.OrdinalIgnoreCase);
         foreach (CameraRecordingFile file in stored)
         {
-            if (!gone.Contains(file.Path))
+            if (!gone.Contains(file.Path) && CameraRecordingFolders.IsRecordingFileName(Path.GetFileName(file.Path)))
             {
-                // Sorted oldest first: the last one per folder wins.
+                // Sorted oldest first: the last one per folder wins. Snapshots are no recordings to play.
                 newest[file.FolderName] = file.Path;
             }
         }
@@ -120,7 +121,7 @@ internal static class CameraRecordingRotation
 /// <param name="OverLimit">Still above the limit: everything that could go is gone, the running recordings alone are too big.</param>
 /// <param name="Deleted">Deleted files (full paths).</param>
 /// <param name="FailedDeletes">Files that should have gone but could not be deleted.</param>
-/// <param name="NewestByFolder">The newest remaining recording of every printer folder (by folder name, case-insensitive).</param>
+/// <param name="NewestByFolder">The newest remaining recording of every printer folder (by folder name, case-insensitive; never a snapshot).</param>
 internal sealed record CameraRecordingRotationResult(
     long StoredBytes,
     bool OverLimit,

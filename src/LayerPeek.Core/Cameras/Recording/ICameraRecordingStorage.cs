@@ -30,8 +30,9 @@ public interface ICameraRecordingStorage
 
     /// <summary>
     /// The recordings in <paramref name="root"/>: files named by <see cref="CameraRecordingFolders.IsRecordingFileName"/>
-    /// directly in subfolders that carry the marker; nothing else (no files of the root itself, no deeper levels, no
-    /// unmarked folders). Missing or unreadable folders give no files (never throws).
+    /// or <see cref="CameraRecordingFolders.IsSnapshotFileName"/> (alarm snapshots, T-153) directly in subfolders that carry
+    /// the marker; nothing else (no files of the root itself, no deeper levels, no unmarked folders). Missing or unreadable
+    /// folders give no files (never throws).
     /// </summary>
     IReadOnlyList<CameraRecordingFile> FindRecordings(string root);
 
@@ -45,7 +46,8 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
     private const string MarkerText =
         "LayerPeek stores the camera recordings of one printer in this folder.\n"
         + "When all recordings together exceed the size limit set in LayerPeek, the oldest recordings in this folder\n"
-        + "(files named yyyy-MM-dd_HH-mm-ss….mp4) are deleted. Other files are never touched.\n";
+        + "(files named yyyy-MM-dd_HH-mm-ss….mp4, and alarm snapshots yyyy-MM-dd_HH-mm-ss_alarm-….jpg) are deleted.\n"
+        + "Other files are never touched.\n";
 
     public static CameraRecordingStorage Instance { get; } = new();
 
@@ -128,9 +130,9 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
                         continue;
                     }
 
-                    foreach (FileInfo file in folder.EnumerateFiles("*" + CameraRecordingFolders.Extension, options))
+                    foreach (FileInfo file in folder.EnumerateFiles("*", options))
                     {
-                        if (CameraRecordingFolders.IsRecordingFileName(file.Name))
+                        if (CameraRecordingFolders.IsRecordingFileName(file.Name) || CameraRecordingFolders.IsSnapshotFileName(file.Name))
                         {
                             files.Add(new CameraRecordingFile(file.FullName, folder.Name, file.Length, file.LastWriteTimeUtc));
                         }

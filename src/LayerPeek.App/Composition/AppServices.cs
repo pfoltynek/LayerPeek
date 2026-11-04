@@ -7,6 +7,7 @@ using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Layout;
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Cooldown;
+using LayerPeek.App.Detection;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
 using LayerPeek.App.Installer;
@@ -28,6 +29,7 @@ using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.Detection;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Monitoring;
@@ -262,6 +264,8 @@ internal static partial class AppServices
                 // Before MonitoredPrinters: the hub knows a new camera address before the open camera windows hear of it.
                 sp.GetRequiredService<CameraStreamHubObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
+                // T-153: after the hub, so that a new camera address is known before detection takes its lease.
+                sp.GetRequiredService<PrintFailureDetectionObserver>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
                 // T-058: automatic checks, pre-releases and the notification switches of the update check.
                 sp.GetRequiredService<UpdateOffer>(),
@@ -685,6 +689,31 @@ internal static partial class AppServices
         ? new CameraRecordingServiceOptions { DefaultRoot = Path.Combine(environment.DataDirectory(), "Recordings") }
         : CameraRecordingServiceOptions.Default;
 
+    /// <summary>
+    /// Print failure detection (T-153): the detectors of LayerPeek.Detection (an explicit list, T-155 adds the first), the
+    /// orchestration over the camera hub and its files. Off by default; idle (no lease, no work) unless a watched printer prints.
+    /// Alarm snapshots go into the recording folders and count in their size limit; false alarm records into the data folder.
+    /// </summary>
+    private static void AddPrintFailureDetection(ServiceCollection services)
+    {
+        services.AddSingleton(static sp => new PrintFailureAlarmFiles(
+            CameraRecordingStorage.Instance,
+            Path.Combine(sp.GetRequiredService<AppEnvironment>().DataDirectory(), "detection", "false-alarms"),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrintFailureAlarmFiles>>()));
+        services.AddSingleton(static sp => new PrintFailureDetectionService(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<CameraStreamHub>(),
+            LayerPeek.Detection.PrintFailureDetectors.All,
+            sp.GetRequiredService<CameraRecordingService>(),
+            sp.GetRequiredService<PrintFailureAlarmFiles>(),
+            AvaloniaJpegEncoder.Instance,
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrintFailureDetectionService>>()));
+        services.AddSingleton(static sp => new PrintFailureDetectionObserver(sp.GetRequiredService<PrintFailureDetectionService>()));
+    }
+
     /// <summary>Camera windows and the camera test of the settings window (T-014), on top of <paramref name="cameraFeedFactory"/>.</summary>
 
     private static void AddCameras(
@@ -731,6 +760,7 @@ internal static partial class AppServices
             sp.GetRequiredService<ILogger<CameraRecordingService>>(),
             CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>())));
         services.AddSingleton(static sp => new CameraRecordingObserver(sp.GetRequiredService<CameraRecordingService>()));
+        AddPrintFailureDetection(services);
         // T-143 decision 3: an unsaved address is tested over a connection of its own, the saved camera through the hub.
         services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
             sp.GetRequiredService<ICameraFeedFactory>(),

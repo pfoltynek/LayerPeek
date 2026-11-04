@@ -102,6 +102,20 @@ public sealed record AppSettings
         }
     } = Cameras.Recording.CameraRecordingSettings.Default;
 
+    /// <summary>
+    /// Global settings of the print failure detection (T-153): master switch (off by default), alarm repeat, alarm snapshots
+    /// and sampling interval; whether a printer is watched is <see cref="PrinterDefinition.Detection"/>.
+    /// </summary>
+    public Detection.PrintFailureDetectionSettings Detection
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = Core.Detection.PrintFailureDetectionSettings.Default;
+
     public NotificationSettings Notifications
     {
         get;

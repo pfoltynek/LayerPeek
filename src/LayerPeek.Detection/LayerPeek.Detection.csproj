@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Print failure detectors (T-153, user decision 2026-11-04): classic computer vision in pure C#, no third-party package.
+    References Core only; never Avalonia, FFmpeg or HTTP clients (checked by LayerPeek.Detection.Tests). AOT compatible
+    through src/Directory.Build.props.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="LayerPeek.Detection.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LayerPeek.Core\LayerPeek.Core.csproj" />
+  </ItemGroup>
+</Project>

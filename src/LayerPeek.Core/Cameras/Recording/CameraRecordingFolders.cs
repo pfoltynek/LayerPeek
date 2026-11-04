@@ -10,7 +10,9 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// <summary>
 /// Where recordings go and how they are named (T-145): <c>&lt;root&gt;/&lt;printer folder&gt;/&lt;yyyy-MM-dd_HH-mm-ss&gt;[_&lt;print title&gt;].mp4</c>.
 /// The root is the user's folder or <see cref="DefaultRoot"/>; every printer folder carries <see cref="MarkerFileName"/>,
-/// and only files of marked folders that follow <see cref="IsRecordingFileName"/> are ever deleted by the rotation.
+/// and only files of marked folders that follow <see cref="IsRecordingFileName"/> or <see cref="IsSnapshotFileName"/> are
+/// ever deleted by the rotation. Alarm snapshots of the print failure detection (T-153) are JPEG files next to the
+/// recordings, named and rotated like them (<see cref="SnapshotFileName"/>).
 /// Names use only characters that are valid on Windows and macOS, sort by time and never collide (the recorder adds
 /// <c>-2</c>, <c>-3</c> … for a taken name and after a stream restart, T-144).
 /// </summary>
@@ -18,6 +20,9 @@ public static class CameraRecordingFolders
 {
     /// <summary>Extension of every recording (fragmented MP4, T-144).</summary>
     public const string Extension = ".mp4";
+
+    /// <summary>Extension of the alarm snapshots (T-153).</summary>
+    public const string SnapshotExtension = ".jpg";
 
     /// <summary>
     /// Marks a printer folder as LayerPeek's (a small text file that explains itself): the rotation deletes nothing in a
@@ -107,19 +112,35 @@ public static class CameraRecordingFolders
     }
 
     /// <summary>
+    /// The file name of the snapshot of a print failure alarm (T-153) taken at <paramref name="time"/> (local time of the
+    /// user): <c>2026-11-04_14-05-09_alarm-bed-change.jpg</c>. <paramref name="detectorId"/> is a valid detector id
+    /// (lower-case letters, digits, dashes), so the name is valid everywhere.
+    /// </summary>
+    public static string SnapshotFileName(DateTimeOffset time, string detectorId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(detectorId);
+        return $"{time.ToString(TimestampFormat, CultureInfo.InvariantCulture)}_alarm-{SafeName(detectorId, MaxTitleLength, "detector")}{SnapshotExtension}";
+    }
+
+    /// <summary>
     /// Whether <paramref name="fileName"/> follows the pattern of <see cref="FileName"/> (also with the recorder's
     /// <c>-2</c>, <c>-3</c> … suffix): a valid <c>yyyy-MM-dd_HH-mm-ss</c> timestamp at the start, then nothing, <c>_</c> or
     /// <c>-</c> and anything, and <see cref="Extension"/> (any case).
     /// </summary>
-    public static bool IsRecordingFileName(string? fileName)
+    public static bool IsRecordingFileName(string? fileName) => IsTimestampedFileName(fileName, Extension);
+
+    /// <summary>Whether <paramref name="fileName"/> is an alarm snapshot: the pattern of <see cref="IsRecordingFileName"/> with <see cref="SnapshotExtension"/>.</summary>
+    public static bool IsSnapshotFileName(string? fileName) => IsTimestampedFileName(fileName, SnapshotExtension);
+
+    private static bool IsTimestampedFileName(string? fileName, string extension)
     {
-        if (fileName is null || fileName.Length < TimestampLength + Extension.Length
-            || !fileName.EndsWith(Extension, StringComparison.OrdinalIgnoreCase))
+        if (fileName is null || fileName.Length < TimestampLength + extension.Length
+            || !fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        ReadOnlySpan<char> name = fileName.AsSpan(0, fileName.Length - Extension.Length);
+        ReadOnlySpan<char> name = fileName.AsSpan(0, fileName.Length - extension.Length);
         if (!DateTime.TryParseExact(name[..TimestampLength], TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
         {
             return false;

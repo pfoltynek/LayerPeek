@@ -80,6 +80,62 @@ public sealed class CameraStreamHubAllocationTests
         return minimum;
     }
 
+    [Fact]
+    public async Task GrayscaleKeyFrameSamplesDoNotAllocate()
+    {
+        long allocated = await Task.Run(MeasureSamplesAsync, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, allocated);
+    }
+
+    /// <summary>
+    /// T-153: the sample lease of print failure detection (key frames only, downscaled to grayscale while copying) and the
+    /// key frame scheduling after every sample allocate nothing.
+    /// </summary>
+    private static async Task<long> MeasureSamplesAsync()
+    {
+        LockstepFeed feed = new(packets: false);
+        await using CameraStreamHub hub = new(new ReconnectingCameraFeed(new SingleFeedFactory(feed), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance), TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
+        using Stopper stopper = new(feed);
+        int notified = 0;
+        using CameraFrameSubscription samples = hub.SubscribeFrames("mk4", StreamUri, new CameraFrameSubscriptionOptions
+        {
+            KeyFramesOnly = true,
+            Grayscale = new CameraGrayscaleSize(320, 180),
+            FrameAvailable = () => Interlocked.Increment(ref notified),
+        });
+        await feed.Started.WaitAsync(TestContext.Current.CancellationToken);
+
+        void Step()
+        {
+            feed.Produce();
+            while (samples.TakeLatest() is null)
+            {
+                Thread.Yield();
+            }
+        }
+
+        for (int i = 0; i < WarmUp; i++)
+        {
+            Step();
+        }
+
+        long minimum = long.MaxValue;
+        for (int pass = 0; pass < 4 && minimum > 0; pass++)
+        {
+            long before = GC.GetTotalAllocatedBytes(precise: true);
+            for (int i = 0; i < Measured; i++)
+            {
+                Step();
+            }
+
+            minimum = Math.Min(minimum, GC.GetTotalAllocatedBytes(precise: true) - before);
+        }
+
+        Assert.True(notified > 0);
+        return minimum;
+    }
+
     private static async Task<long> MeasurePacketsAsync()
     {
         LockstepFeed feed = new(packets: true);
@@ -123,12 +179,12 @@ public sealed class CameraStreamHubAllocationTests
         }
     }
 
-    private sealed class Stopper(LockstepFeed feed) : IDisposable
+    internal sealed class Stopper(LockstepFeed feed) : IDisposable
     {
         public void Dispose() => feed.Dispose();
     }
 
-    private sealed class SingleFeedFactory(ICameraFeed feed) : ICameraFeedFactory
+    internal sealed class SingleFeedFactory(ICameraFeed feed) : ICameraFeedFactory
     {
         public ICameraFeed Create(Uri streamUri) => feed;
     }
@@ -137,7 +193,7 @@ public sealed class CameraStreamHubAllocationTests
     /// Yields the description, then one item per <see cref="Produce"/>, each completed by its own producer thread through a
     /// reusable value task source (the fake itself allocates nothing per item).
     /// </summary>
-    private sealed class LockstepFeed : ICameraFeed, IAsyncEnumerable<CameraStreamItem>, IAsyncEnumerator<CameraStreamItem>, IValueTaskSource<bool>, IDisposable
+    internal sealed class LockstepFeed : ICameraFeed, IAsyncEnumerable<CameraStreamItem>, IAsyncEnumerator<CameraStreamItem>, IValueTaskSource<bool>, IDisposable
     {
         private static readonly CameraStreamInfo Info = new(CameraVideoCodec.H264, 4, 2, CameraTimeBase.Rtp90kHz, default);
 

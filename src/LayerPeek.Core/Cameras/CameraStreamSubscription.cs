@@ -185,8 +185,8 @@ public sealed class CameraFrameSubscriptionOptions
     public Action<CameraStreamSubscription>? Ended { get; init; }
 
     /// <summary>
-    /// Frames closer together than this are skipped (not copied), e.g. ~1 s for print failure detection (T-153);
-    /// <see cref="TimeSpan.Zero"/>: every frame (camera window).
+    /// Frames closer together than this are skipped (not copied), e.g. the sampling interval of print failure detection
+    /// (T-153, 2–5 s); <see cref="TimeSpan.Zero"/>: every frame (camera window).
     /// </summary>
     public TimeSpan MinFrameInterval
     {
@@ -194,6 +194,33 @@ public sealed class CameraFrameSubscriptionOptions
         init
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero);
+            field = value;
+        }
+    }
+
+    /// <summary>
+    /// Only key frames, at most one per <see cref="MinFrameInterval"/> (T-153: print failure detection and its alarm
+    /// snapshot). This subscriber never makes the hub decode every frame: while no other subscriber of the printer needs
+    /// every frame, the decoder decodes only the first key frame after the interval and nothing in between (the frames of
+    /// the other key frames are not decoded either). While another subscriber (the camera window) has every frame decoded
+    /// anyway, this one gets the first decoded frame after its interval, which need not be a key frame.
+    /// </summary>
+    public bool KeyFramesOnly { get; init; }
+
+    /// <summary>
+    /// 8-bit grayscale copies of this size instead of BGRA copies (T-153), converted while copying (see
+    /// <see cref="CameraGrayscaleSize"/>); <see langword="null"/> (the default): BGRA as decoded.
+    /// </summary>
+    public CameraGrayscaleSize? Grayscale
+    {
+        get;
+        init
+        {
+            if (value is { IsValid: false })
+            {
+                throw new ArgumentException("The grayscale size is empty.", nameof(value));
+            }
+
             field = value;
         }
     }
@@ -206,14 +233,16 @@ public sealed class CameraFrameSubscriptionOptions
 /// </summary>
 public sealed class CameraFrameSubscription : CameraStreamSubscription
 {
-    private readonly CameraFrameExchange _exchange = new();
+    /// <summary><see cref="_lastPublished"/> before the first frame.</summary>
+    private const long NeverPublished = long.MinValue;
+
+    private readonly CameraFrameExchange _exchange;
     private readonly Action? _frameAvailable;
     private readonly long _minInterval;
     private readonly Lock _gate = new();
 
-    // Streaming thread only.
-    private long _lastPublished;
-    private bool _published;
+    // Written by the streaming thread; read by the hub under its lock (NextKeyFrameDue).
+    private long _lastPublished = NeverPublished;
 
     // Written under _gate, read without it on the streaming thread.
     private volatile bool _hasFrame;
@@ -226,10 +255,25 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
         _minInterval = options.MinFrameInterval == TimeSpan.Zero
             ? 0
             : (long)(options.MinFrameInterval.TotalSeconds * timeProvider.TimestampFrequency);
+        KeyFramesOnly = options.KeyFramesOnly;
+        _exchange = options.Grayscale is { } grayscale ? new CameraFrameExchange(grayscale) : new CameraFrameExchange();
     }
 
     /// <summary>Frames replaced before the consumer took them.</summary>
     public long DroppedFrames => _exchange.DroppedFrames;
+
+    /// <summary>See <see cref="CameraFrameSubscriptionOptions.KeyFramesOnly"/>.</summary>
+    internal bool KeyFramesOnly { get; }
+
+    /// <summary>When this subscriber wants its next frame (a timestamp of the hub's clock); <see cref="long.MinValue"/>: now.</summary>
+    internal long NextFrameDue
+    {
+        get
+        {
+            long last = Interlocked.Read(ref _lastPublished);
+            return last == NeverPublished ? NeverPublished : last + _minInterval;
+        }
+    }
 
     /// <summary>
     /// Consumer thread: the newest frame since the last call, or <see langword="null"/>. The buffer is owned by the
@@ -256,24 +300,22 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
     }
 
     /// <summary>Streaming thread: copies <paramref name="frame"/> (borrowed, valid only now) unless it is skipped.</summary>
-    internal void Publish(in CameraFrame frame, long timestamp)
+    /// <returns>Whether the frame was taken (not skipped).</returns>
+    internal bool Publish(in CameraFrame frame, long timestamp)
     {
         if (IsEnded)
         {
             // Removed meanwhile; the stream still had it in its list.
-            return;
+            return false;
         }
 
-        if (_minInterval > 0)
+        long last = Interlocked.Read(ref _lastPublished);
+        if (_minInterval > 0 && last != NeverPublished && timestamp - last < _minInterval)
         {
-            if (_published && timestamp - _lastPublished < _minInterval)
-            {
-                return;
-            }
-
-            _published = true;
-            _lastPublished = timestamp;
+            return false;
         }
+
+        Interlocked.Exchange(ref _lastPublished, timestamp);
 
         bool notify = _exchange.Publish(frame);
         if (!_hasFrame)
@@ -295,6 +337,8 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
         {
             _frameAvailable?.Invoke();
         }
+
+        return true;
     }
 }
 

@@ -30,7 +30,7 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// any thread (subscribers marshal themselves; a failing subscriber is logged). Never throws for runtime conditions.
 /// </para>
 /// </summary>
-public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposable
+public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IAsyncDisposable, IDisposable
 {
     private readonly IPrinterMonitor _monitor;
     private readonly ICameraRecorder _recorder;
@@ -852,6 +852,18 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
         LogStoppingWithError(entry.Printer.Id, problem);
         Track(recording.StopAsync());
         RaiseChanged(entry.Printer.Id);
+    }
+
+    /// <inheritdoc/>
+    void ICameraRecordingsFolder.RequestRotation()
+    {
+        lock (_gate)
+        {
+            if (_configured && !_stopping)
+            {
+                RequestRotation();
+            }
+        }
     }
 
     /// <summary>Runs the rotation on the thread pool, one at a time (a request meanwhile runs it once more); under <see cref="_gate"/>.</summary>
