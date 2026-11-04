@@ -40,7 +40,7 @@ Po spuštění simulátor vypíše, co zadat v aplikaci, například:
 | `--no-previews` | – | soubory úloh bez náhledu G-code: `/thumb/s` i `/thumb/l` vrací `404` (jako soubor jen s QOI náhledy) |
 | `--no-camera` | – | bez kamery |
 | `--camera-port <n>` | 8554 | port RTSP kamery (`0` = libovolný volný) |
-| `--clip <soubor>` | nahraný úsek z Buddy3D | vlastní klip H.264 (Annex B, `.h264`) přehrávaný ve smyčce |
+| `--camera-clip <soubor>` | nahraný úsek z Buddy3D | vlastní klip přehrávaný ve smyčce: surový H.264 (Annex B, `.h264`) nebo MP4 s H.264, např. nahrávka nebo uložený dashcam z LayerPeek (T-155); starší název `--clip` funguje dál |
 | `--fps <x>` | 25 | snímková frekvence kamery |
 
 ## Modely
@@ -102,6 +102,22 @@ Skripty a testy mohou tiskárnu ovládat i přes HTTP (odpovídá i offline): `G
 
 Pro víc tiskáren opakuj kroky 1–6 s dalšími adresami (`:8081`, `:8082`…).
 
+### Vlastní klip kamery (T-155)
+
+`--camera-clip <soubor>` přehraje místo vestavěného úseku z Buddy3D vlastní záznam, např. nahrávku tisku nebo uložený
+dashcam z LayerPeek (fragmentovaný MP4, T-144 / T-148), libovolné MP4 s H.264 nebo surový H.264 (`.h264`). Formát se pozná
+podle obsahu, ne podle přípony. Z MP4 se vezme první stopa H.264 (`avc1` / `avc3`) se svými SPS a PPS a snímky v pořadí
+dekódování; zvuk, časování ani editační seznamy se nečtou. Snímková frekvence je dál `--fps` (Buddy3D nahrává ~21,8 fps).
+Hodí se k ověření detekce chyb tisku (T-155) na záznamu skutečného nebo inscenovaného selhání:
+
+```bash
+dotnet run --project tools/PrusaSimulator -- --camera-clip ~/LayerPeek-samples/clips/coreone-20261103-1905-60s.mp4 --fps 21.8
+```
+
+Klip se přehrává od začátku pro každé nové spojení a ve smyčce. Smyčka začíná prvním snímkem IDR, takže první snímky
+klipu před ním se nepošlou. Na konci smyčky se obraz vrátí na začátek, což detektor „Změna na podložce“ může vyhodnotit
+jako změnu. Pro opakovatelný test detekce se proto hodí klip, ve kterém se selhání objeví až po rozjezdu detektoru (2 min).
+
 ## Co simulátor napodobuje
 
 - **PrusaLink API** jako firmware Buddy 6.x (viz `docs/api/prusalink.md`): `GET /api/version`, `/api/v1/info`, `/api/v1/status`, `/api/v1/job` (bez úlohy `204`). Tvar JSON i formát čísel odpovídají fixture z `tests/LayerPeek.PrusaLink.Tests/Fixtures/firmware`. Neznámé cesty API vrací `404`, jiné metody než GET `405` (ovládání tisku se nesimuluje).
@@ -118,7 +134,8 @@ Pro víc tiskáren opakuj kroky 1–6 s dalšími adresami (`:8081`, `:8082`…)
 ## Testy
 
 - `tests/PrusaSimulator.Tests` – časový model scénářů (falešné hodiny), HTTP a Digest serveru, tvar JSON proti fixture, RTSP kamera přes vlastního jednoduchého klienta (smyčka, sekvence a časová razítka, tempo 25 snímků/s, více klientů, offline), náhledy G-code (`SimulatedPreviewTests`), volby příkazové řádky. Klient PrusaLink a monitor aplikace se proti simulátoru připojují beze změn (registrace `AddPrusaLink()` jako v aplikaci), včetně stažení náhledu přes `PrintPreviewCache` a jeho držení po skončení tisku.
-- `tests/LayerPeek.Camera.FFmpeg.Tests` – kameru simulátoru používají i testy FFmpeg (dřívější `FakeRtspCamera` z T-014). `SimulatedCameraTests` přehrají přes FFmpeg víc než dvě smyčky bez výpadku, dva diváky najednou a obnovu po výpadku kamery.
+- `tests/LayerPeek.Camera.FFmpeg.Tests` – kameru simulátoru používají i testy FFmpeg (dřívější `FakeRtspCamera` z T-014). `SimulatedCameraTests` přehrají přes FFmpeg víc než dvě smyčky bez výpadku, dva diváky najednou a obnovu po výpadku kamery. `BedChangeAlarmSimulatorTests` (T-155) pustí simulátor s `--camera-clip`: klip vznikne v testu z fixture Core One (H.264 z nekomprimovaných makrobloků I_PCM, `PcmH264Writer`) a po 20 s se v něm na podložce objeví hrouda filamentu. Skutečný detektor, orchestrace, hub a FFmpeg ji poznají a poplach projde celou cestou (dashcam, snímek, notifikace, „falešný poplach“). `FFmpegRecordingTests` ověří, že nahrávka LayerPeek (fragmentovaný MP4) jde přehrát jako klip.
+- `tests/PrusaSimulator.Tests/Mp4ClipTests` – MP4 se stopou H.264 (fragmentovaný i se sample table, zapsaný v testu z vestavěného klipu) dá stejné snímky jako surový klip, volba `--camera-clip` i starší `--clip`.
 - Testy používají porty přidělené systémem (`0`) a po sobě nic nenechávají.
 
 Simulátor jde použít i přímo z testů (např. E2E, T-044): `await SimulatorHost.StartAsync(new SimulatorOptions { FirstPort = 0, CameraPort = 0, … }, ct)`, nebo jednotlivě `SimulatedPrinter.StartAsync(...)` a `new RtspCamera(...)`.

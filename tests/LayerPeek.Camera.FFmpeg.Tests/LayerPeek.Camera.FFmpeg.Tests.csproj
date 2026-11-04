@@ -12,17 +12,22 @@
     <Compile Include="..\Shared\AllocationProbe.cs" Link="Shared\AllocationProbe.cs" />
     <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
     <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+    <!-- The Core One fixtures and synthetic failures of the detector tests (T-155), for the end-to-end alarm. -->
+    <Compile Include="..\Shared\Detection\*.cs" Link="Shared\Detection\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\LayerPeek.Detection.Tests\Fixtures\coreone\*.gray" Link="Fixtures\coreone\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <!-- The FFmpeg DLLs come with this reference (build/FFmpeg.targets). -->
     <ProjectReference Include="..\..\src\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" />
     <!-- The simulated Buddy3D camera (T-045), shared with tools/PrusaSimulator instead of a test-only copy. -->
     <ProjectReference Include="..\..\tools\PrusaSimulator\PrusaSimulator.csproj" />
+    <!-- The real bed-change detector for the end-to-end alarm through the simulated camera (T-155). -->
+    <ProjectReference Include="..\..\src\LayerPeek.Detection\LayerPeek.Detection.csproj" />
   </ItemGroup>
 </Project>
