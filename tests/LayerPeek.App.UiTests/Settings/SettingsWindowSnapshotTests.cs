@@ -4,6 +4,7 @@ using LayerPeek.App.Tests.Cameras;
 using LayerPeek.App.Tests.Settings;
 using LayerPeek.App.UiTests.Infrastructure;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Printers;
 
 using static LayerPeek.App.Tests.Settings.SettingsTestData;
 
@@ -253,6 +254,42 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             Assert.True(ui.Find<Avalonia.Controls.TabItem>("SettingsTabRecording").IsSelected);
             Assert.Equal(LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings.FixedDefaultFolder, ui.ViewModel.RecordingFolderText);
             SnapshotAssert.Matches(ui.Window, "settings-recording");
+        });
+
+    [Fact]
+    public Task DetectionSubTabOfACoreOneWithItsLastFrame() =>
+        session.RunAsync(static async scope =>
+        {
+            // T-154: the Core One region over a 16:9 frame (four colours), the caption of the last saved frame, the three buttons.
+            CameraImage image = TestCameraImages.Quadrants(1280, 720, 0xFFE05A1E, 0xFF2E7D32, 0xFF1565C0, 0xFFF9A825);
+            FakeLastCameraFrames frames = new() { Frame = _ => BitmapCameraPreviewRenderer.Instance.Render(image) };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "Core One") with
+                {
+                    Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")),
+                    Image = PrinterImageChoice.ForModel(PrinterModel.CoreOne),
+                    Detection = new LayerPeek.Core.Detection.PrinterDetectionSettings { Enabled = true },
+                }),
+                lastFrames: frames);
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.DetectionPrinterTab;
+            await Ui.UntilAsync(() => ui.ViewModel.SelectedPrinter!.HasRegionEditorImage, "the last frame is shown");
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-detection");
+        });
+
+    [Fact]
+    public Task DetectionSubTabWithTheCameraOffInFrench() =>
+        session.RunAsync(static async scope =>
+        {
+            // French has the longest texts: the reason, the detector description and its limitation; no frame yet.
+            new UiLanguage().Apply("fr");
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.DetectionPrinterTab;
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-detection-camera-off-fr");
         });
 
     [Fact]

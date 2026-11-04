@@ -96,6 +96,16 @@ internal sealed class AppEnvironment
     internal const string TestLogFolderName = "logs";
 
     /// <summary>
+    /// The folder of caches (T-154: the images of print failure notifications, the last camera frames of the bed region
+    /// editor): the standard cache folder of the OS, in the test mode the <c>cache</c> folder in the test data folder.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The OS does not provide a per-user cache folder.</exception>
+    public string CacheDirectory() => _dataDirectory is null ? AppDataPaths.GetDefaultCacheDirectory() : Path.Combine(_dataDirectory, TestCacheFolderName);
+
+    /// <summary>The cache folder inside the test data folder.</summary>
+    internal const string TestCacheFolderName = "cache";
+
+    /// <summary>
     /// The autostart shortcut (T-017, Windows): <c>LayerPeek.lnk</c> in the user's Startup folder, in the test mode in the
     /// <see cref="TestStartupFolderName"/> folder of the test data folder, so that a test never makes the user's login start
     /// a test build.
@@ -233,6 +243,12 @@ internal sealed class AppEnvironment
     public const string TestCameraOpenAfterVariable = "LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS";
 
     /// <summary>
+    /// Debug builds only (T-154): <c>1</c> adds the detector of the end-to-end tests (<c>e2e-alarm</c>, it reports a failure
+    /// in every sample of a lit camera), so that a print of the simulator raises a print failure alarm with its notification.
+    /// </summary>
+    public const string TestFakeDetectorVariable = "LAYERPEEK_TEST_FAKE_DETECTOR";
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
     /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
@@ -330,6 +346,9 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestCameraOpenAfterVariable"/>: the online delay of the camera windows; otherwise <see langword="null"/>.</summary>
     public TimeSpan? TestCameraOpenAfter { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestFakeDetectorVariable"/>: the detector of the end-to-end tests is registered.</summary>
+    public bool TestFakeDetector { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -341,6 +360,7 @@ internal sealed class AppEnvironment
     /// <param name="updateSource">The update feed of the test (T-058).</param>
     /// <param name="cameraCloseAfter">The offline delay of the automatic close of the camera windows (T-151).</param>
     /// <param name="cameraOpenAfter">The online delay of their automatic reopen (T-151).</param>
+    /// <param name="fakeDetector">The detector of the end-to-end tests (T-154).</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
     public static AppEnvironment ForTests(
         string dataDirectory,
@@ -350,7 +370,8 @@ internal sealed class AppEnvironment
         TimeSpan noDisplay = default,
         Installer.UpdateSource? updateSource = null,
         TimeSpan? cameraCloseAfter = null,
-        TimeSpan? cameraOpenAfter = null)
+        TimeSpan? cameraOpenAfter = null,
+        bool fakeDetector = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -390,6 +411,7 @@ internal sealed class AppEnvironment
             TestStartDelay = startDelay,
             TestNoDisplay = noDisplay,
             TestUpdateSource = updateSource,
+            TestFakeDetector = fakeDetector,
         };
     }
 
@@ -409,10 +431,11 @@ internal sealed class AppEnvironment
         string? updateSource = read(TestUpdateSourceVariable);
         string? cameraCloseAfter = read(TestCameraCloseAfterVariable);
         string? cameraOpenAfter = read(TestCameraOpenAfterVariable);
+        string? fakeDetector = read(TestFakeDetectorVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter), (TestFakeDetectorVariable, fakeDetector) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -431,7 +454,8 @@ internal sealed class AppEnvironment
             noDisplay: ParseMilliseconds(noDisplay, TestNoDisplayVariable, MaxTestNoDisplayMilliseconds),
             updateSource: ParseUpdateSource(updateSource),
             cameraCloseAfter: string.IsNullOrEmpty(cameraCloseAfter) ? null : ParseMilliseconds(cameraCloseAfter, TestCameraCloseAfterVariable, MaxTestCameraAutoDelayMilliseconds),
-            cameraOpenAfter: string.IsNullOrEmpty(cameraOpenAfter) ? null : ParseMilliseconds(cameraOpenAfter, TestCameraOpenAfterVariable, MaxTestCameraAutoDelayMilliseconds));
+            cameraOpenAfter: string.IsNullOrEmpty(cameraOpenAfter) ? null : ParseMilliseconds(cameraOpenAfter, TestCameraOpenAfterVariable, MaxTestCameraAutoDelayMilliseconds),
+            fakeDetector: fakeDetector == "1");
     }
 
     /// <summary>Only the loopback or an existing local folder; anything else refuses the start (never GitHub, never another host).</summary>

@@ -254,8 +254,13 @@ public sealed class SettingsLayoutTests : IDisposable
         Assert.Equal(SettingsViewModel.CameraPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
         Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
+        // T-154: the Detection sub-tab is the last one.
+        Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
+        Assert.Equal(SettingsViewModel.DetectionPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
         Assert.Equal(SettingsViewModel.ConnectionPrinterTab, vm.SelectedPrinterTabIndex);
+        Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
+        Assert.Equal(SettingsViewModel.DetectionPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
         Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: false));

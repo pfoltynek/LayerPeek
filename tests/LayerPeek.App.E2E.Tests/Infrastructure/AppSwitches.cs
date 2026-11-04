@@ -86,6 +86,9 @@ internal static class AppSwitches
     /// <summary>An automatically closed camera window opens again after this many milliseconds online, 0 to 120000 (T-151; default 10 s).</summary>
     public const string TestCameraOpenAfterVariable = "LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS";
 
+    /// <summary><c>1</c>: the detector of the end-to-end tests raises a print failure alarm during every print (T-154).</summary>
+    public const string TestFakeDetectorVariable = "LAYERPEEK_TEST_FAKE_DETECTOR";
+
     /// <summary>
     /// Command line mode of the exe (T-067): removes the toasts of the test app and its Start menu shortcut, starts nothing
     /// else, exits with 0 (otherwise 1 and the reason on stderr).

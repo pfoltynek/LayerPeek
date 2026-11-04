@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.App.Detection;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
@@ -31,6 +32,12 @@ namespace LayerPeek.App.Notifications;
 /// T-058: a click on the notification about a new version (<see cref="ToastLaunchArgument.Update"/>) starts the update action
 /// the UI attaches (<see cref="AttachUpdateOpener"/>), held the same way until it is attached.
 /// </para>
+/// <para>
+/// T-154: a click on the notification of a suspected print failure (<see cref="ToastLaunchArgument.TryForCamera"/>) opens the
+/// camera window of its printer through the opener the UI attaches (<see cref="AttachCameraOpener"/>), held like the settings
+/// until it is attached, and only for a printer that is still configured. Its "False alarm" button
+/// (<see cref="ToastLaunchArgument.ForFalseAlarm"/>) is handed to the <see cref="IFalseAlarmReporter"/> (a local record only).
+/// </para>
 /// </summary>
 internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisposable
 {
@@ -54,17 +61,23 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     private SettingsPage? _settingsPending;
     private Action? _updateOpener;
     private bool _updatePending;
+    private Action<string>? _cameraOpener;
+    private string? _cameraPending;
+
+    private readonly IFalseAlarmReporter? _falseAlarms;
 
     // Replaced as a whole, never mutated after publishing.
     private volatile Dictionary<string, PrinterDefinition> _printers = new(StringComparer.OrdinalIgnoreCase);
 
-    public ToastActivationRouter(PrinterWebOpener webOpener, ILogger<ToastActivationRouter> logger, TimeProvider? time = null)
+    /// <param name="falseAlarms">Records the "False alarm" button of a print failure notification (T-154); <see langword="null"/>: ignored.</param>
+    public ToastActivationRouter(PrinterWebOpener webOpener, ILogger<ToastActivationRouter> logger, TimeProvider? time = null, IFalseAlarmReporter? falseAlarms = null)
     {
         ArgumentNullException.ThrowIfNull(webOpener);
         ArgumentNullException.ThrowIfNull(logger);
         _webOpener = webOpener;
         _logger = logger;
         _time = time ?? TimeProvider.System;
+        _falseAlarms = falseAlarms;
     }
 
     /// <summary>
@@ -86,7 +99,12 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             return OpenUpdate(argument);
         }
 
-        if (!ToastLaunchArgument.TryGetPrinterId(argument, out string? printerId))
+        if (ToastLaunchArgument.TryGetFalseAlarmId(argument, out string? alarmId))
+        {
+            return await ReportFalseAlarmAsync(argument, alarmId).ConfigureAwait(false);
+        }
+
+        if (!TryGetTarget(argument, out bool camera, out string? printerId))
         {
             LogMalformedArgument();
             return false;
@@ -98,18 +116,9 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             return false;
         }
 
-        if (!_firstSettings.Task.IsCompleted)
+        if (!await WaitForPrintersAsync().ConfigureAwait(false))
         {
-            try
-            {
-                // Ends early when the app quits.
-                await Task.WhenAny(_firstSettings.Task, _stopped.Task).WaitAsync(SettingsWait, _time).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
-                LogNoSettings(SettingsWait);
-                return false;
-            }
+            return false;
         }
 
         if (_stopped.Task.IsCompleted)
@@ -123,6 +132,11 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             // Removed since the notification was shown; nothing to open.
             LogUnknownPrinter(printerId);
             return false;
+        }
+
+        if (camera)
+        {
+            return OpenCamera(printer.Id);
         }
 
         Uri? address = PrinterWebAddress.For(printer);
@@ -211,6 +225,34 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
         }
     }
 
+    /// <summary>
+    /// The UI runs (T-154): <paramref name="open"/> opens (or brings to the front) the camera window of a printer (it posts to
+    /// the UI thread itself; called on any thread, never throws). A click that waited for it is handled now (the last one).
+    /// Attach once.
+    /// </summary>
+    public void AttachCameraOpener(Action<string> open)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+        string? pending;
+        lock (_recentLock)
+        {
+            if (_cameraOpener is not null)
+            {
+                throw new InvalidOperationException("The camera opener is already attached.");
+            }
+
+            _cameraOpener = open;
+            pending = _stopped.Task.IsCompleted ? null : _cameraPending;
+            _cameraPending = null;
+        }
+
+        if (pending is not null)
+        {
+            LogCameraClickHonoured(pending);
+            Invoke(open, pending);
+        }
+    }
+
     /// <summary>The app quits: waiting clicks end without opening anything, later ones open nothing. Safe to repeat.</summary>
     public void Dispose() => _stopped.TrySetResult();
 
@@ -274,6 +316,98 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
 
         Invoke(open);
         return true;
+    }
+
+    /// <summary>The printer of a printer argument (its web) or of a camera argument (its camera window, T-154).</summary>
+    private static bool TryGetTarget([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? argument, out bool camera, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? printerId)
+    {
+        camera = ToastLaunchArgument.TryGetCameraPrinterId(argument, out printerId);
+        return camera || ToastLaunchArgument.TryGetPrinterId(argument, out printerId);
+    }
+
+    /// <summary>
+    /// Waits for the printers of the first monitoring run (the click may have started the app), at most
+    /// <see cref="SettingsWait"/>; ends early when the app quits.
+    /// </summary>
+    /// <returns><see langword="false"/> when they did not come in time.</returns>
+    private async Task<bool> WaitForPrintersAsync()
+    {
+        if (_firstSettings.Task.IsCompleted)
+        {
+            return true;
+        }
+
+        try
+        {
+            await Task.WhenAny(_firstSettings.Task, _stopped.Task).WaitAsync(SettingsWait, _time).ConfigureAwait(false);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            LogNoSettings(SettingsWait);
+            return false;
+        }
+    }
+
+    /// <summary>A click on a print failure notification: the camera window, now or once the UI attached its opener.</summary>
+    private bool OpenCamera(string printerId)
+    {
+        Action<string>? open;
+        lock (_recentLock)
+        {
+            if (_stopped.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            open = _cameraOpener;
+            if (open is null)
+            {
+                _cameraPending = printerId;
+                LogCameraClickHeld(printerId);
+                return true;
+            }
+        }
+
+        Invoke(open, printerId);
+        return true;
+    }
+
+    /// <summary>The "False alarm" button: a local record of the alarm (T-153), when this run still knows it.</summary>
+    private async Task<bool> ReportFalseAlarmAsync(string argument, string alarmId)
+    {
+        if (IsRepeated(argument))
+        {
+            LogFalseAlarmRepeated(alarmId);
+            return false;
+        }
+
+        if (_falseAlarms is null || _stopped.Task.IsCompleted)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await _falseAlarms.ReportAsync(alarmId, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogFalseAlarmFailed(ex, alarmId);
+            return false;
+        }
+    }
+
+    private void Invoke(Action<string> open, string printerId)
+    {
+        try
+        {
+            open(printerId);
+        }
+        catch (Exception ex)
+        {
+            LogCameraFailed(ex, printerId);
+        }
     }
 
     private void Invoke(Action<SettingsPage> open, SettingsPage page)
@@ -340,6 +474,21 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "A click on the update notification reported again; the update started once.")]
     private partial void LogUpdateRepeated();
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A click on a print failure notification of printer '{PrinterId}' waits for the UI; its camera window opens once it runs.")]
+    private partial void LogCameraClickHeld(string printerId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The UI runs: the camera window of printer '{PrinterId}' opens for a click on a print failure notification that waited.")]
+    private partial void LogCameraClickHonoured(string printerId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Opening the camera window of printer '{PrinterId}' for a click on a print failure notification failed.")]
+    private partial void LogCameraFailed(Exception exception, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "The \"False alarm\" button of alarm {AlarmId} reported again; recorded once.")]
+    private partial void LogFalseAlarmRepeated(string alarmId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Recording the false alarm {AlarmId} failed.")]
+    private partial void LogFalseAlarmFailed(Exception exception, string alarmId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ignored a notification click with an unrecognized argument.")]
     private partial void LogMalformedArgument();

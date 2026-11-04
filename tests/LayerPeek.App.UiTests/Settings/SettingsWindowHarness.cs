@@ -77,7 +77,9 @@ internal sealed class SettingsWindowHarness
         Func<CancellationToken, Task<LayerPeek.Core.Updates.UpdateCheckResult>>? checkForUpdatesNow = null,
         bool showsMoveToApplications = false,
         LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings? recordings = null,
-        IRecordingFolderPicker? recordingFolderPicker = null)
+        IRecordingFolderPicker? recordingFolderPicker = null,
+        IReadOnlyList<LayerPeek.Core.Detection.PrintFailureDetectorRegistration>? detectors = null,
+        ILastCameraFrames? lastFrames = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
@@ -92,6 +94,9 @@ internal sealed class SettingsWindowHarness
             ShowsMoveToApplications = showsMoveToApplications,
             // T-146: the recordings with a fixed default folder (snapshots never show the user name of the machine).
             Recordings = recordings ?? new LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings(),
+            // T-154: by default the first detector of the app ("bed-change", its texts), so every layout shows one.
+            DetectorRegistrations = detectors ?? [LayerPeek.App.Tests.Settings.DetectionFakes.BedChange],
+            LastFrames = lastFrames,
         };
         // Like SettingsWindowFactory: the folder dialog of the recordings (T-146); by default the user cancels it.
         viewModel.RecordingFolderPicker = recordingFolderPicker ?? new LayerPeek.App.Tests.Cameras.Recording.FakeRecordingFolderPicker();

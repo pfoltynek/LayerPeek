@@ -236,6 +236,8 @@ public partial class App : Application, ITrayAppCommands
         // waiting for a display, T-099) is handled now.
         AvaloniaUiDispatcher settingsDispatcher = new();
         host.AttachSettingsOpener(page => settingsDispatcher.Post(() => ShowSettings(addPrinter: false, page)));
+        // T-154: a click on a print failure notification opens (or brings to the front) the camera window of its printer.
+        host.AttachCameraOpener(printerId => settingsDispatcher.Post(() => ShowCameraFromNotification(printerId)));
         // T-058: the update of a Velopack installation quits through the normal quit of the Quit item from now on (a click on
         // the update notification reaches the update with the services, ServiceHost).
         host.UpdateOffer.AttachQuit(() => _quit?.QuitAsync() ?? Task.CompletedTask);
@@ -334,6 +336,18 @@ public partial class App : Application, ITrayAppCommands
         }
 
         CameraWindowsFor(host).Toggle(printerId);
+    }
+
+    /// <summary>UI thread: a click on a print failure notification (T-154): the printer's camera window, opened or to the front.</summary>
+    private void ShowCameraFromNotification(string printerId)
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        // Restores a minimized window, opens a closed one.
+        CameraWindowsFor(host).BringToFront(printerId);
     }
 
     void ITrayAppCommands.BringCameraToFront(string printerId)

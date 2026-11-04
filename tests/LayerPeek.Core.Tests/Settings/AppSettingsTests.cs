@@ -132,6 +132,18 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void TheDetectionSettingsArePartOfEquality()
+    {
+        // T-154: the settings window compares with the saved settings; a changed global detection is a change to save.
+        AppSettings detection = new() { Detection = new LayerPeek.Core.Detection.PrintFailureDetectionSettings { Enabled = true } };
+
+        Assert.NotEqual(new AppSettings(), detection);
+        Assert.Equal(detection, new AppSettings { Detection = new LayerPeek.Core.Detection.PrintFailureDetectionSettings { Enabled = true } });
+        Assert.Equal(detection.GetHashCode(), new AppSettings { Detection = new LayerPeek.Core.Detection.PrintFailureDetectionSettings { Enabled = true } }.GetHashCode());
+        Assert.NotEqual(new AppSettings(), new AppSettings { Detection = new LayerPeek.Core.Detection.PrintFailureDetectionSettings { SampleInterval = TimeSpan.FromSeconds(3) } });
+    }
+
+    [Fact]
     public void TheUpdateCheckIsOnByDefaultAndPartOfEquality()
     {
         Assert.True(AppSettings.Default.CheckForUpdates);

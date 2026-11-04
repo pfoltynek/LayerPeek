@@ -65,6 +65,11 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Margin" Value="0,16,0,4" />
     </Style>
+    <!-- T-154: a known limitation of a detector, marked (semi-bold, the colour of the text stays readable). -->
+    <Style Selector="TextBlock.hint.limitation">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Opacity" Value="0.85" />
+    </Style>
     <Style Selector="TextBlock.marker">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
       <Setter Property="FontWeight" Value="Bold" />
@@ -695,6 +700,126 @@
                 </StackPanel>
               </ScrollViewer>
             </TabItem>
+            <!--
+              T-154 Detection: print failure detection of this printer (design docs/design/print-failure-detection-ui.md). The
+              switch with one hint (camera off / globally off / when it runs), then two columns: the bed region editor
+              (256 × 144, 16:9 like the camera; "Load frame" next to its label, "Whole frame" and, for a Core One, "Default
+              for Core One" under it) and the detector kinds (on / off, sensitivity, what each detects and a known limitation). Disabled while the
+              camera is off (values kept). No field can be invalid: no error marker.
+            -->
+            <TabItem AutomationProperties.AutomationId="PrinterTabDetection"
+                     AutomationProperties.Name="{Binding [SettingsPrinterTabDetection], Source={x:Static loc:LocalizedStrings.Instance}}"
+                     Header="{Binding [SettingsPrinterTabDetection], Source={x:Static loc:LocalizedStrings.Instance}}">
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+                <ContentControl Content="{Binding SelectedPrinter}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                      <StackPanel>
+                        <CheckBox AutomationProperties.AutomationId="PrinterDetectionEnabled"
+                                  Content="{Binding [SettingsDetectionPrinterEnabled], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                  IsChecked="{Binding DetectionEnabled}"
+                                  IsEnabled="{Binding CameraEnabled}" />
+                        <TextBlock AutomationProperties.AutomationId="PrinterDetectionCameraOff" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionCameraOff], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionCameraOff}" />
+                        <TextBlock AutomationProperties.AutomationId="PrinterDetectionGloballyOff" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionGloballyOff], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionGloballyOff}" />
+                        <TextBlock AutomationProperties.AutomationId="PrinterDetectionRunsHint" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionRunsHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionRunsHint}" />
+
+                        <Grid ColumnDefinitions="256,16,*" Margin="0,12,0,0" IsEnabled="{Binding CameraEnabled}">
+                          <StackPanel>
+                            <!-- The label with "Load frame" on its right (a camera test, its progress before it). -->
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,4">
+                              <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding [SettingsDetectionRegion], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="32" MinWidth="32" Margin="8,0" VerticalAlignment="Center" IsVisible="{Binding IsTestingCamera}" />
+                              <Button Grid.Column="2"
+                                      AutomationProperties.AutomationId="PrinterDetectionLoadFrame"
+                                      Content="{Binding [SettingsDetectionLoadFrame], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      ToolTip.Tip="{Binding [SettingsDetectionLoadFrameHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      AutomationProperties.HelpText="{Binding [SettingsDetectionLoadFrameHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      Command="{Binding TestCameraCommand}" />
+                            </Grid>
+                            <!--
+                              256 × 144 (16:9 like the cameras). The notes about the frame (the last saved one, a failed
+                              "Load frame") lie over its top, which is the printer rather than the bed; they let the pointer
+                              through.
+                            -->
+                            <Panel Width="256" Height="144" HorizontalAlignment="Left">
+                              <vm:DetectionRegionEditor AutomationProperties.AutomationId="PrinterDetectionRegion"
+                                                        AutomationProperties.Name="{Binding DetectionRegionName}"
+                                                        AutomationProperties.HelpText="{Binding [SettingsDetectionRegionHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                                        ToolTip.Tip="{Binding [SettingsDetectionRegionHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                                        Source="{Binding RegionEditorImage}"
+                                                        Region="{Binding DetectionRegion}" />
+                              <TextBlock AutomationProperties.AutomationId="PrinterDetectionNoFrame"
+                                         IsHitTestVisible="False"
+                                         Foreground="White"
+                                         FontSize="12"
+                                         Margin="16,0"
+                                         TextWrapping="Wrap"
+                                         TextAlignment="Center"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"
+                                         Text="{Binding [SettingsDetectionNoFrame], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                         IsVisible="{Binding !HasRegionEditorImage}" />
+                              <Border VerticalAlignment="Top" Background="#B0000000" Padding="6,3" IsHitTestVisible="False">
+                                <Border.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                    <Binding Path="ShowsLastSavedFrame" />
+                                    <Binding Path="CameraTestFailed" />
+                                  </MultiBinding>
+                                </Border.IsVisible>
+                                <StackPanel>
+                                  <TextBlock AutomationProperties.AutomationId="PrinterDetectionLastFrame" Foreground="White" FontSize="12" TextWrapping="Wrap" Text="{Binding [SettingsDetectionLastFrame], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsLastSavedFrame}" />
+                                  <TextBlock AutomationProperties.AutomationId="PrinterDetectionLoadFrameFailed" Foreground="#FF99A4" FontSize="12" TextWrapping="Wrap" Text="{Binding CameraTestResultText}" IsVisible="{Binding CameraTestFailed}" />
+                                </StackPanel>
+                              </Border>
+                            </Panel>
+                            <WrapPanel Margin="0,8,0,0" ItemSpacing="8" LineSpacing="8">
+                              <Button AutomationProperties.AutomationId="PrinterDetectionFullFrame" Content="{Binding [SettingsDetectionRegionFull], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding DetectionFullFrameCommand}" />
+                              <Button AutomationProperties.AutomationId="PrinterDetectionCoreOne" Content="{Binding [SettingsDetectionRegionCoreOne], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding DetectionCoreOneCommand}" IsVisible="{Binding IsCoreOne}" />
+                            </WrapPanel>
+                          </StackPanel>
+
+                          <StackPanel Grid.Column="2">
+                            <TextBlock Classes="label" Text="{Binding [SettingsDetectionDetectors], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterDetectionNoDetectors" Classes="hint" Margin="0" Text="{Binding [SettingsDetectionNoDetectors], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding !HasDetectors}" />
+                            <ItemsControl AutomationProperties.AutomationId="PrinterDetectionDetectors" ItemsSource="{Binding Detectors}">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                  <StackPanel Spacing="12" />
+                                </ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DetectorSettingsViewModel">
+                                  <StackPanel>
+                                    <CheckBox AutomationProperties.AutomationId="{Binding Id, StringFormat='PrinterDetector-{0}'}" Content="{Binding Name}" IsChecked="{Binding Enabled}" />
+                                    <Grid ColumnDefinitions="*,8,Auto" RowDefinitions="Auto,Auto" Margin="28,0,0,0" IsEnabled="{Binding Enabled}">
+                                      <TextBlock Classes="hint" Margin="0" Text="{Binding [SettingsDetectionSensitivity], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                                      <Slider Grid.Row="1"
+                                              AutomationProperties.AutomationId="{Binding Id, StringFormat='PrinterDetectorSensitivity-{0}'}"
+                                              AutomationProperties.Name="{Binding SensitivityName}"
+                                              AutomationProperties.HelpText="{Binding [SettingsDetectionSensitivityHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                              ToolTip.Tip="{Binding [SettingsDetectionSensitivityHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                              Minimum="{x:Static vm:DetectorSettingsViewModel.MinSensitivity}"
+                                              Maximum="{x:Static vm:DetectorSettingsViewModel.MaxSensitivity}"
+                                              SmallChange="1"
+                                              LargeChange="10"
+                                              Margin="0,-4"
+                                              Value="{Binding Sensitivity}" />
+                                      <TextBlock Grid.Row="1" Grid.Column="2" MinWidth="24" TextAlignment="Right" VerticalAlignment="Center" Text="{Binding SensitivityText}" />
+                                    </Grid>
+                                    <TextBlock Classes="hint" Margin="28,2,0,0" Text="{Binding Description}" IsVisible="{Binding HasDescription}" />
+                                    <TextBlock Classes="hint limitation" Margin="28,4,0,0" Text="{Binding Limitation}" IsVisible="{Binding HasLimitation}" />
+                                  </StackPanel>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+                        </Grid>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+              </ScrollViewer>
+            </TabItem>
           </TabControl>
         </Grid>
       </TabItem>
@@ -1166,7 +1291,7 @@
       -->
       <TabItem AutomationProperties.AutomationId="SettingsTabRecording" Header="{Binding [SettingsTabRecording], Source={x:Static loc:LocalizedStrings.Instance}}">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
-          <StackPanel Spacing="12">
+          <StackPanel Spacing="8">
             <!--
               T-146 "Recording": like the notifications of the General tab, the heading row holds "Open recordings folder" on
               its right. Two columns below: the folder (read-only, "Change…" opens the system's folder dialog, "Default" the
@@ -1175,7 +1300,7 @@
             -->
             <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto,Auto">
               <Grid Grid.ColumnSpan="3" ColumnDefinitions="Auto,*,Auto">
-                <!-- The stack panel spaces the sections by 12 DIP: the heading and the button need less of their own (fit, T-033). -->
+                <!-- The stack panel spaces the sections by 8 DIP (12 before T-154): the heading and the button need less of their own (fit, T-033). -->
                 <TextBlock Classes="section" Margin="0,4,0,4" VerticalAlignment="Center" Text="{Binding [SettingsRecording], Source={x:Static loc:LocalizedStrings.Instance}}" />
                 <Button Grid.Column="2"
                         AutomationProperties.AutomationId="SettingsRecordingOpenFolder"
@@ -1257,14 +1382,70 @@
                                HorizontalAlignment="Left" />
                 <TextBlock AutomationProperties.AutomationId="SettingsDashcamMinutesHint" Classes="hint" Text="{Binding DashcamMinutesHint}" IsVisible="{Binding ShowsDashcamMinutesHint}" />
                 <TextBlock AutomationProperties.AutomationId="SettingsDashcamMinutesError" Classes="error" Text="{Binding DashcamMinutesError}" IsVisible="{Binding HasDashcamMinutesError}" />
+                <!-- T-154: under the length, where the column has room; the triggers' column needs the height for the detection section. -->
+                <TextBlock AutomationProperties.AutomationId="SettingsDashcamTriggersHint" Classes="hint" Text="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
               </StackPanel>
               <StackPanel Grid.Row="2" Grid.Column="2">
                 <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnError" Content="{Binding [SettingsDashcamOnError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnError}" />
                 <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnAttention" Content="{Binding [SettingsDashcamOnAttention], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnAttention}" />
                 <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnStopped" Content="{Binding [SettingsDashcamOnStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnStopped}" />
                 <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnFailureDetection" Content="{Binding [SettingsDashcamOnFailureDetection], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnFailureDetection}" />
-                <TextBlock AutomationProperties.AutomationId="SettingsDashcamTriggersHint" Classes="hint" Text="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
               </StackPanel>
+            </Grid>
+            <!--
+              T-154 "Print failure detection" (user decisions 2026-11-04): the same two columns. Left the global switch (off
+              after installation) and "Save a snapshot of every alarm" (on); right how often an alarm repeats and the sampling
+              interval 2–5 s. The hints are tooltips and help texts (no room for hint lines, T-033 fit); an invalid interval
+              shows its error below it. Whether a printer is watched, its region and the sensitivities are on its Detection sub-tab.
+            -->
+            <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto">
+              <TextBlock Grid.ColumnSpan="3" Classes="section" Margin="0,4,0,4" Text="{Binding [SettingsDetection], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <StackPanel Grid.Row="1">
+                <CheckBox AutomationProperties.AutomationId="SettingsDetectionEnabled"
+                          Content="{Binding [SettingsDetectionEnabled], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          ToolTip.Tip="{Binding [SettingsDetectionEnabledHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          AutomationProperties.HelpText="{Binding [SettingsDetectionEnabledHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          IsChecked="{Binding DetectionGloballyEnabled}" />
+                <CheckBox AutomationProperties.AutomationId="SettingsDetectionSaveSnapshots"
+                          Content="{Binding [SettingsDetectionSaveSnapshots], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          ToolTip.Tip="{Binding [SettingsDetectionSaveSnapshotsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          AutomationProperties.HelpText="{Binding [SettingsDetectionSaveSnapshotsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          IsChecked="{Binding DetectionSaveSnapshots}" />
+              </StackPanel>
+              <!-- One grid per row: the long label of the interval must not narrow the combo box of the alarm. -->
+              <StackPanel Grid.Row="1" Grid.Column="2">
+                <Grid ColumnDefinitions="Auto,8,*">
+                  <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsDetectionRepeat], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                  <ComboBox Grid.Column="2"
+                            AutomationProperties.AutomationId="SettingsDetectionRepeat"
+                            AutomationProperties.Name="{Binding [SettingsDetectionRepeat], Source={x:Static loc:LocalizedStrings.Instance}}"
+                            ItemsSource="{Binding AlarmRepeatOptions}"
+                            SelectedItem="{Binding SelectedAlarmRepeat}"
+                            HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:AlarmRepeatOption">
+                        <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </Grid>
+                <Grid ColumnDefinitions="Auto,8,Auto">
+                  <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsDetectionInterval], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                  <NumericUpDown Grid.Column="2"
+                                 AutomationProperties.AutomationId="SettingsDetectionInterval"
+                                 AutomationProperties.Name="{Binding [SettingsDetectionInterval], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                 AutomationProperties.HelpText="{Binding DetectionIntervalHelpText}"
+                                 ToolTip.Tip="{Binding DetectionIntervalHint}"
+                                 Classes.invalid="{Binding HasDetectionIntervalError}"
+                                 Value="{Binding DetectionIntervalSeconds}"
+                                 Minimum="{x:Static vm:SettingsViewModel.MinDetectionIntervalSeconds}"
+                                 Maximum="{x:Static vm:SettingsViewModel.MaxDetectionIntervalSeconds}"
+                                 Increment="1"
+                                 FormatString="0.#"
+                                 Width="120" />
+                </Grid>
+              </StackPanel>
+              <TextBlock Grid.Row="2" Grid.Column="2" AutomationProperties.AutomationId="SettingsDetectionIntervalError" Classes="error" Text="{Binding DetectionIntervalError}" IsVisible="{Binding HasDetectionIntervalError}" />
             </Grid>
           </StackPanel>
         </ScrollViewer>

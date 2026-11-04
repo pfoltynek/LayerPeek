@@ -1639,4 +1639,112 @@
   <data name="NotificationDashcamFailed" xml:space="preserve">
     <value>Speichern der letzten Minuten fehlgeschlagen</value>
   </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Möglicher Druckfehler – {0}</value>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>Fehlalarm</value>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Veränderung auf dem Druckbett</value>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Erkennt ein verschwundenes oder verschobenes Teil und neues Material auf dem Druckbett. Erkennt weder die Qualität der ersten Schicht noch Probleme an der Düse oder Fehler im Inneren des Teils.</value>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Bekannte Einschränkung: Bei dunklem Filament auf einer schwarzen Druckplatte weniger zuverlässig.</value>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Detektor {0}</value>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Erkennung</value>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Drucke dieses Druckers mit der Kamera überwachen</value>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Läuft nur während des Drucks und bei eingeschalteter Kammerbeleuchtung. Das Kamerabild bleibt auf diesem Computer.</value>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Die Erkennung braucht die Kamera des Druckers: Schalten Sie sie im Unterreiter Kamera ein.</value>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Die Erkennung von Druckfehlern ist für alle Drucker aus: Schalten Sie sie im Reiter Aufnahme ein.</value>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Bereich des Druckbetts</value>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Ziehen Sie außerhalb des Rechtecks, um ein neues zu zeichnen, innerhalb, um es zu verschieben, an einer Ecke, um die Größe zu ändern. Tastatur: Pfeiltasten verschieben, Umschalt+Pfeiltasten ändern die Größe.</value>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Bereich des Druckbetts: {0}&#160;% von links, {1}&#160;% von oben, {2}&#160;% breit, {3}&#160;% hoch</value>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Ganzes Bild</value>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Standard für Core One</value>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Bild laden</value>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Holt ein neues Bild von der Kamera (wie Kamera testen im Unterreiter Kamera) und behält es für das nächste Mal.</value>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>Noch kein Bild. Laden Sie eines von der Kamera.</value>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Zuletzt gespeichertes Bild – die Kamera kann sich seitdem bewegt haben.</value>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>Was erkannt wird</value>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>Diese Version von LayerPeek hat noch keine Detektoren.</value>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Empfindlichkeit</value>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Empfindlichkeit – {0}</value>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Höher: mehr Alarme, auch Fehlalarme. Niedriger: weniger Alarme, ein Fehler kann übersehen werden.</value>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Erkennung von Druckfehlern</value>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Druckfehler im Kamerabild suchen</value>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Schalten Sie sie auch für jeden Drucker in dessen Unterreiter Erkennung ein.</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Bild jedes Alarms speichern</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>In den Aufnahmeordner des Druckers, zählt zur Größenbegrenzung der Aufnahmen.</value>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Alarm</value>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Einmal pro Druck und Fehlerart</value>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Alle {0} Min. erneut, solange er anhält</value>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Kamera prüfen alle (s)</value>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Kürzer erkennt einen Fehler früher, länger belastet den Prozessor weniger.</value>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Geben Sie eine Zahl von {0} bis {1} ein.</value>
+  </data>
 </root>

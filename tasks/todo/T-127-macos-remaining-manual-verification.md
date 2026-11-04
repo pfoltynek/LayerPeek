@@ -83,6 +83,21 @@ a kritérium.
       roste paměť během tisku jen o ~17 MB a po konci tisku se vrátí. Záložka „Nahrávání“ má pod nahráváním sekci „Poslední
       minuty tisku (dashcam)“, nic se neuřízne se systémovým písmem.
 
+- [ ] **T-154** (krit. „Poplach zobrazí notifikaci podle návrhu (macOS)“ a „Falešný poplach funguje“, ruční část macOS;
+      sezení agenta nemělo aktivní displej): aplikace v `LayerPeek.app` (notifikace jen v bundlu), simulátor s kamerou,
+      tiskárna se zapnutou detekcí (Nahrávání › „Hledat chyby tisku v obraze kamery“ + podzáložka Detekce), v testovacím
+      režimu `LAYERPEEK_TEST_FAKE_DETECTOR=1` (Debug, testovací bundle `….E2E`) nebo s detektorem T-155. Notifikace má titulek
+      = název tiskárny, text „Možná chyba tisku – …“, **přílohu se snímkem** (náhled vpravo, po rozbalení velký) a tlačítko
+      „Falešný poplach“ (po najetí / rozbalení notifikace; už u **prvního** poplachu po startu – kategorie se registruje
+      těsně před ním, zapsat, jestli tlačítko chybí). Tlačítko uloží `~/Library/Application Support/LayerPeek/detection/false-alarms/*.json`
+      a aplikaci do popředí nepřenese; klik na notifikaci otevře okno kamery (i z centra oznámení). Uložený snímek zůstane ve
+      `~/Movies/LayerPeek/<tiskárna>` (příloha je kopie, macOS ji přesune do svého úložiště), ve složce
+      `~/Library/Caches/LayerPeek/notification-images` nezůstávají soubory. Zvuk jako u chyby tisku. Editor výřezu: tažení myší, šipky,
+      ⌘+šipky o 10 %, VoiceOver přečte „Výřez podložky: … % zleva …“; záhlaví čtyř podzáložek na jednom řádku se systémovým písmem.
+- [ ] **T-154** (krit. „Design spec schválený uživatelem“): uživatel prohlédne `docs/design/print-failure-detection-ui.md`
+      a snímky `tests/LayerPeek.App.UiTests/Snapshots/macOS/settings-detection.png`, `settings-detection-camera-off-fr.png`,
+      `settings-recording.png` (odpovědi 2026-11-04 jsou v T-154, neblokující otázky 11–15 tamtéž); změny = nový úkol.
+
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`
       proběhl celý interaktivně včetně ručních kontrol níže; nalezené chyby skriptu zapsané (nový úkol). Zapsat odpověď

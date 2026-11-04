@@ -48,6 +48,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         ("Printer", SettingsViewModel.PrintersTab, SettingsViewModel.ConnectionPrinterTab),
         ("Camera", SettingsViewModel.PrintersTab, SettingsViewModel.CameraPrinterTab),
         ("Camera window", SettingsViewModel.PrintersTab, SettingsViewModel.CameraWindowPrinterTab),
+        ("Detection", SettingsViewModel.PrintersTab, SettingsViewModel.DetectionPrinterTab),
         ("Widgets", SettingsViewModel.WidgetsTab, SettingsViewModel.ConnectionPrinterTab),
         ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
         ("Startup and updates", SettingsViewModel.StartupUpdatesTab, SettingsViewModel.ConnectionPrinterTab),
@@ -419,6 +420,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                     recording.ViewModel.RecordingLimitGigabytes = 0;
                     // T-148: the dashcam length is invalid as well (its error replaces its hint).
                     recording.ViewModel.DashcamMinutes = 11;
+                    // T-154: and the sampling interval of the detection (its error appears under it).
+                    recording.ViewModel.DetectionIntervalSeconds = 9;
                     recording.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
                     await recording.ViewModel.SaveCommand.ExecuteAsync(null);
                     Assert.Equal(SettingsViewModel.RecordingTab, recording.ViewModel.SelectedTabIndex);
@@ -431,10 +434,72 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingLimitError").IsEffectivelyVisible);
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsDashcamMinutesError").IsEffectivelyVisible);
                 Assert.True(recording.Find<TextBlock>("SettingsDashcamTriggersHint").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsDetectionIntervalError").IsEffectivelyVisible);
+                // T-154: every choice of "Alarm" fits its combo box (it trims, so CutTexts would not notice).
+                ComboBox repeat = recording.Find<ComboBox>("SettingsDetectionRepeat");
+                foreach (AlarmRepeatOption option in recording.ViewModel.AlarmRepeatOptions)
+                {
+                    TextBlock probe = new() { Text = option.Text, FontSize = repeat.FontSize, FontFamily = repeat.FontFamily };
+                    probe.Measure(Size.Infinity);
+                    // The padding and the chevron of the Fluent combo box take about 44 DIP.
+                    if (probe.DesiredSize.Width > repeat.Bounds.Width - 44)
+                    {
+                        problems.Add($"{context}: '{option.Text}' needs {probe.DesiredSize.Width:0.#} DIP in a combo box of {repeat.Bounds.Width:0.#}.");
+                    }
+                }
                 problems.AddRange(ScrollingViewers(recording.Window, context));
                 problems.AddRange(CutTexts(recording.Window, context));
                 problems.AddRange(HeadersNotOnOneRow(recording.Window, context));
                 recording.Window.Close();
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-154: the Detection sub-tab in its fullest states fits in every language: a Core One (three buttons under the
+    /// editor), the caption of the last saved frame and the longest failed "Load frame"; the camera turned off (disabled with
+    /// its reason); the global switch on (the hint when it runs). Nothing scrolls, nothing is cut, the sub-tab headers stay on
+    /// one row.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task DetectionSubTabFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            PrinterDefinition coreOne = LinkPrinter("a", "Alpha") with { Camera = WorkingCamera, Image = PrinterImageChoice.ForModel(PrinterModel.CoreOne) };
+            foreach (string state in (string[])["last frame + failed load", "camera off", "globally on"])
+            {
+                FakeLastCameraFrames frames = new() { Frame = static _ => new Avalonia.Media.Imaging.WriteableBitmap(new PixelSize(64, 36), new Vector(96, 96), Avalonia.Platform.PixelFormat.Bgra8888, Avalonia.Platform.AlphaFormat.Opaque) };
+                PrinterDefinition printer = state == "camera off" ? coreOne with { Camera = CameraSettings.Disabled } : coreOne;
+                SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                    scope,
+                    SettingsWindowHarness.StoreWith(printer),
+                    cameraTester: new FakeCameraTester { Immediate = LongestCameraFailure() },
+                    lastFrames: frames);
+                ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.DetectionPrinterTab;
+                await Ui.UntilAsync(() => ui.ViewModel.SelectedPrinter!.HasRegionEditorImage, "the last frame is shown");
+                if (state == "last frame + failed load")
+                {
+                    await ui.ViewModel.SelectedPrinter!.TestCameraCommand.ExecuteAsync(null);
+                    ui.Window.Settle();
+                    Assert.True(ui.Window.IsShown<TextBlock>("PrinterDetectionLoadFrameFailed"));
+                    Assert.True(ui.Window.IsShown<TextBlock>("PrinterDetectionLastFrame"));
+                    Assert.True(ui.Window.IsShown<Button>("PrinterDetectionCoreOne"));
+                }
+                else if (state == "globally on")
+                {
+                    ui.ViewModel.DetectionGloballyEnabled = true;
+                }
+
+                ui.Window.Settle();
+                string context = $"{language} / detection: {state}";
+                problems.AddRange(ScrollingViewers(ui.Window, context));
+                problems.AddRange(CutTexts(ui.Window, context));
+                problems.AddRange(HeadersNotOnOneRow(ui.Window, context));
+                ui.Window.Close();
             }
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
@@ -988,9 +1053,10 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabConnectionMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraWindowMarker"));
-            // Three headers (Printer | Camera | Camera window; the Overlay sub-tab gave way to the Widgets tab, T-092).
+            // Four headers (Printer | Camera | Camera window | Detection, T-154; the Overlay sub-tab gave way to the Widgets
+            // tab, T-092). Detection has no marker: none of its fields can be invalid.
             Assert.Equal(SettingsViewModel.PrinterTabCount, ui.Find<TabControl>("SettingsPrinterTabs").ItemCount);
-            Assert.Equal(3, SettingsViewModel.PrinterTabCount);
+            Assert.Equal(4, SettingsViewModel.PrinterTabCount);
             List<string> problems = [.. HeadersNotOnOneRow(ui.Window, language), .. CutTexts(ui.Window, language)];
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });

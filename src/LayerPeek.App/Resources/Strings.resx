@@ -1750,4 +1750,148 @@
   <data name="NotificationDashcamFailed" xml:space="preserve">
     <value>Saving the last minutes failed</value>
   </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Possible print failure – {0}</value>
+    <comment>T-154: body line of the notification of a suspected print failure; {0} = the detector name (DetectorBedChange...).</comment>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>False alarm</value>
+    <comment>T-154: button of the print failure notification; records the alarm locally as a false alarm (nothing else changes). Short: a toast button.</comment>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Change on the bed</value>
+    <comment>T-154: name of the detector 'bed-change' (T-155) in the settings and the notification.</comment>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Notices a part that vanished or moved and new material on the bed. Does not notice the quality of the first layer, problems at the nozzle or defects inside the part.</value>
+    <comment>T-154: what the detector 'bed-change' detects and what not (from the T-152 spike).</comment>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Known limitation: less reliable with dark filament on a black sheet.</value>
+    <comment>T-154: known limitation of 'bed-change', shown marked under its description (T-163 may fix it later).</comment>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Detector {0}</value>
+    <comment>T-154: name of a detector this version has no texts for; {0} = its id.</comment>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Detection</value>
+    <comment>T-154: printer sub-tab with the print failure detection (after 'Camera window').</comment>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Watch the prints of this printer with the camera</value>
+    <comment>T-154: check box on the Detection sub-tab (off by default).</comment>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Runs only while printing, with the chamber light on. The camera image stays on this computer.</value>
+    <comment>T-154: hint under SettingsDetectionPrinterEnabled while the camera and the global switch are on.</comment>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Detection needs the printer's camera: turn it on on the Camera sub-tab.</value>
+    <comment>T-154: hint on the Detection sub-tab while the printer's camera is off (the fields are disabled).</comment>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Print failure detection is off for all printers: turn it on on the Recording tab.</value>
+    <comment>T-154: hint on the Detection sub-tab while the global switch of the Recording tab is off.</comment>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Bed region</value>
+    <comment>T-154: label above the bed region editor.</comment>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Drag outside the rectangle to draw a new one, inside it to move it, at a corner to change its size. Keyboard: arrows move it, Shift+arrows change its size.</value>
+    <comment>T-154: tooltip and screen reader help of the bed region editor.</comment>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Bed region: {0}&#160;% from the left, {1}&#160;% from the top, {2}&#160;% wide, {3}&#160;% high</value>
+    <comment>T-154: screen reader name of the bed region editor; {0}–{3} = whole percent of the frame.</comment>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Whole frame</value>
+    <comment>T-154: button under the bed region editor: the whole frame.</comment>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Default for Core One</value>
+    <comment>T-154: button under the bed region editor, only for a Core One: the region of its standard camera mount.</comment>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Load frame</value>
+    <comment>T-154: button under the bed region editor; takes a new frame from the camera.</comment>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Takes a new frame from the camera (like Test camera on the Camera sub-tab) and keeps it for next time.</value>
+    <comment>T-154: tooltip and screen reader help of SettingsDetectionLoadFrame.</comment>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>No frame yet. Load one from the camera.</value>
+    <comment>T-154: shown inside the black bed region editor while there is no frame.</comment>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Last saved frame – the camera may have moved since.</value>
+    <comment>T-154: caption under the bed region editor while it shows the last saved frame (the camera is not connected).</comment>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>What to detect</value>
+    <comment>T-154: heading of the detector list on the Detection sub-tab.</comment>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>This version of LayerPeek has no detectors yet.</value>
+    <comment>T-154: in place of the detector list while this build has none.</comment>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Sensitivity</value>
+    <comment>T-154: label of the sensitivity slider of a detector.</comment>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Sensitivity – {0}</value>
+    <comment>T-154: screen reader name of a sensitivity slider; {0} = the detector name.</comment>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Higher: more alarms, also false ones. Lower: fewer alarms, a failure may be missed.</value>
+    <comment>T-154: tooltip and screen reader help of a sensitivity slider.</comment>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Print failure detection</value>
+    <comment>T-154: heading of the print failure detection section on the Recording tab.</comment>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Look for print failures in the camera image</value>
+    <comment>T-154: the global switch of the detection (off after installation).</comment>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Turn it on for each printer too, on its Detection sub-tab.</value>
+    <comment>T-154: hint under SettingsDetectionEnabled.</comment>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Save a snapshot of every alarm</value>
+    <comment>T-154: check box (on by default).</comment>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>Into the printer's recordings folder, counted in the size limit of the recordings.</value>
+    <comment>T-154: hint under SettingsDetectionSaveSnapshots.</comment>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Alarm</value>
+    <comment>T-154: label of the combo box SettingsDetectionRepeatOnce / SettingsDetectionRepeatWhile.</comment>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Once per print and kind of failure</value>
+    <comment>T-154: item of SettingsDetectionRepeat (the default).</comment>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Again every {0}&#160;min while it lasts</value>
+    <comment>T-154: item of SettingsDetectionRepeat; {0} = minutes (10).</comment>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Check the camera every (s)</value>
+    <comment>T-154: label of the sampling interval in seconds (2–5).</comment>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Shorter notices a failure sooner, longer uses less CPU.</value>
+    <comment>T-154: hint under SettingsDetectionInterval; {0}, {1} = the bounds in seconds.</comment>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Enter a number from {0} to {1}.</value>
+    <comment>T-154: error of SettingsDetectionInterval; {0}, {1} = the bounds in seconds (decimals allowed).</comment>
+  </data>
 </root>

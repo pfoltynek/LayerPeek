@@ -175,16 +175,29 @@ internal static partial class AppServices
         // T-133: the stand-in for Windows' notification setting of the test app, only read by the toasts of the test mode.
         services.AddSingleton(static sp => new PretendedToastSetting(sp.GetRequiredService<ILogger<PretendedToastSetting>>()));
 #endif
+        // T-154: the "False alarm" button of a print failure notification; the detection service is resolved at the first
+        // click (it depends on the notifications, whose clicks come through the router).
+        services.AddSingleton(static sp => new FalseAlarmReporter(
+            sp.GetRequiredService<PrintFailureDetectionService>,
+            sp.GetRequiredService<ILogger<FalseAlarmReporter>>()));
         services.AddSingleton(static sp => new ToastActivationRouter(
             sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<ILogger<ToastActivationRouter>>(),
-            sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<FalseAlarmReporter>()));
+        // T-154: the image files of print failure notifications (a file is all a toast or an attachment takes), at most a few.
+        services.AddSingleton(static sp => new AlarmNotificationImages(
+            Path.Combine(sp.GetRequiredService<AppEnvironment>().CacheDirectory(), "notification-images"),
+            sp.GetRequiredService<ILogger<AlarmNotificationImages>>()));
         // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written; with the
         // Debug switch of T-067 toasts of the test app with a shortcut of its own.
         // macOS (T-020): the notification center Program.Main opened for exactly the allowed bundle, or none.
         IUserNotificationCenter? userNotifications = !windows && OperatingSystem.IsMacOS() ? macNotifications ?? (OperatingSystem.IsMacOS() ? MacUserNotificationCenter.Shared : null) : null;
         services.AddSingleton(sp => userNotifications is not null
             ? new UserNotificationService(userNotifications, UiLanguage.CurrentTextCulture, sp.GetRequiredService<ILogger<UserNotificationService>>())
+            {
+                AlarmImages = sp.GetRequiredService<AlarmNotificationImages>(),
+            }
             : CreateNotificationService(sp, windows, env));
         // The warning "turned off in macOS / Windows" of the settings window, its button and the test notification (T-020,
         // T-101); the test mode never opens System Settings or Settings. Windows: only with the toasts of this run (none in the
@@ -418,6 +431,7 @@ internal static partial class AppServices
             UiLanguage.CurrentTextCulture,
             services.GetRequiredService<ILogger<ToastNotificationService>>())
         {
+            AlarmImages = services.GetRequiredService<AlarmNotificationImages>(),
 #if DEBUG
             // T-133: the end-to-end test pretends that Windows switched the test app's notifications off (never in production).
             Pretended = environment.IsIsolated ? services.GetRequiredService<PretendedToastSetting>() : null,
@@ -713,7 +727,7 @@ internal static partial class AppServices
         services.AddSingleton(static sp => new PrintFailureDetectionService(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<CameraStreamHub>(),
-            LayerPeek.Detection.PrintFailureDetectors.All,
+            Detectors(sp.GetRequiredService<AppEnvironment>()),
             sp.GetRequiredService<CameraRecordingService>(),
             sp.GetRequiredService<PrintFailureAlarmFiles>(),
             AvaloniaJpegEncoder.Instance,
@@ -721,6 +735,28 @@ internal static partial class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<PrintFailureDetectionService>>()));
         services.AddSingleton(static sp => new PrintFailureDetectionObserver(sp.GetRequiredService<PrintFailureDetectionService>()));
+        // T-154: one small last camera frame per printer for the bed region editor, written and read only by the settings window.
+        services.AddSingleton<ILastCameraFrames>(static sp => new LastCameraFrameStore(
+            Path.Combine(sp.GetRequiredService<AppEnvironment>().CacheDirectory(), "last-frames"),
+            sp.GetRequiredService<ILogger<LastCameraFrameStore>>()));
+    }
+
+    /// <summary>
+    /// The detectors of LayerPeek.Detection; in the Debug test mode with <see cref="AppEnvironment.TestFakeDetectorVariable"/>
+    /// also the detector of the end-to-end tests (T-154), never in Release builds.
+    /// </summary>
+    private static IReadOnlyList<PrintFailureDetectorRegistration> Detectors(AppEnvironment environment)
+    {
+#if DEBUG
+        if (environment.IsIsolated && environment.TestFakeDetector)
+        {
+            return [.. LayerPeek.Detection.PrintFailureDetectors.All, TestAlarmDetector.Registration];
+        }
+#else
+        _ = environment;
+#endif
+
+        return LayerPeek.Detection.PrintFailureDetectors.All;
     }
 
     /// <summary>Camera windows and the camera test of the settings window (T-014), on top of <paramref name="cameraFeedFactory"/>.</summary>
@@ -986,6 +1022,9 @@ internal static partial class AppServices
             ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,
             // T-146: the default folder, whether this build can record and "Open recordings folder".
             Recordings = services.GetRequiredService<ICameraRecordings>(),
+            // T-154: the detector kinds of this version and the last frames of the bed region editor.
+            DetectorRegistrations = services.GetRequiredService<PrintFailureDetectionService>().Detectors,
+            LastFrames = services.GetRequiredService<ILastCameraFrames>(),
         };
     }
 
