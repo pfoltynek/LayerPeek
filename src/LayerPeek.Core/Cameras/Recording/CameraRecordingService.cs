@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.Core.Cameras.Timelapse;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
 
@@ -21,6 +22,9 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// full disk).</item>
 /// <item><b>Dashcam</b> (printers with <see cref="CameraSettings.Dashcam"/>, T-148): during a print that is not recorded as a
 /// whole, the last minutes are held in memory and saved on an event (see <c>CameraRecordingService.Dashcam.cs</c>).</item>
+/// <item><b>Timelapse</b> (T-160, manual or for printers with <see cref="CameraSettings.TimelapsePrints"/>): a key frame every
+/// interval into a file of its own, independently of the recording (see <c>CameraRecordingService.Timelapse.cs</c>). It
+/// follows the same prints as the automatic recording.</item>
 /// <item>Files: <see cref="CameraRecordingFolders"/>; before a start the folder is prepared and the free space checked
 /// (<see cref="CameraRecordingServiceOptions.MinFreeBytes"/>); while something records, free space and the size limit are
 /// checked every <see cref="CameraRecordingServiceOptions.DiskCheckInterval"/>. The rotation
@@ -28,7 +32,7 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// after every recording and when the limit is exceeded.</item>
 /// </list>
 /// <para>
-/// Idle costs nothing: no timer and no task exists while nothing records and no recorded print is about to end. Thread-safe:
+/// Idle costs nothing: no timer and no task exists while nothing records and no followed print is about to end. Thread-safe:
 /// snapshots arrive concurrently from the monitor, commands from the UI thread; the state is kept under one lock, file work
 /// and recordings run on the thread pool, and <see cref="Changed"/> / <see cref="Failed"/> are raised outside the lock on
 /// any thread (subscribers marshal themselves; a failing subscriber is logged). Never throws for runtime conditions.
@@ -38,6 +42,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
 {
     private readonly IPrinterMonitor _monitor;
     private readonly ICameraRecorder _recorder;
+    private readonly ICameraTimelapseRecorder? _timelapses;
     private readonly ICameraRecordingStorage _storage;
     private readonly TimeProvider _time;
     private readonly ILogger<CameraRecordingService> _logger;
@@ -57,14 +62,17 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
     private bool _rotationPending;
     private long _storedBytes;
     private IReadOnlyDictionary<string, string> _newestByFolder = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, string> _newestTimelapseByFolder = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+    /// <param name="timelapseRecorder">Writes the timelapses (T-158); <see langword="null"/>: this service takes none.</param>
     public CameraRecordingService(
         IPrinterMonitor monitor,
         ICameraRecorder recorder,
         ICameraRecordingStorage storage,
         TimeProvider timeProvider,
         ILogger<CameraRecordingService> logger,
-        CameraRecordingServiceOptions? options = null)
+        CameraRecordingServiceOptions? options = null,
+        ICameraTimelapseRecorder? timelapseRecorder = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(recorder);
@@ -73,6 +81,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         ArgumentNullException.ThrowIfNull(logger);
         _monitor = monitor;
         _recorder = recorder;
+        _timelapses = timelapseRecorder;
         _storage = storage;
         _time = timeProvider;
         _logger = logger;
@@ -145,18 +154,28 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                     bool recordedPrints = entry.RecordsPrints;
                     bool couldRecord = entry.CanRecord;
                     bool usedDashcam = entry.UsesDashcam;
+                    bool timelapsedPrints = entry.TimelapsesPrints;
                     entry.Printer = printer;
                     entry.FolderName = folders[printer.Id];
                     if (!entry.CanRecord)
                     {
                         entry.ManualWanted = false;
+                        entry.Timelapse.ManualWanted = false;
                     }
 
                     if (!entry.RecordsPrints)
                     {
-                        CancelPrintTimers(entry);
-                        entry.Printing = false;
                         entry.Suppressed = false;
+                    }
+
+                    if (!entry.TimelapsesPrints)
+                    {
+                        entry.Timelapse.Suppressed = false;
+                    }
+
+                    if (!entry.FollowsPrints)
+                    {
+                        StopFollowingPrints(entry);
                     }
 
                     if (!entry.UsesDashcam)
@@ -165,7 +184,9 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                     }
 
                     if (recordedPrints != entry.RecordsPrints || couldRecord != entry.CanRecord || usedDashcam != entry.UsesDashcam
-                        || (entry.UsesDashcam && settings.DashcamMinutes != _settings.DashcamMinutes))
+                        || timelapsedPrints != entry.TimelapsesPrints
+                        || (entry.UsesDashcam && settings.DashcamMinutes != _settings.DashcamMinutes)
+                        || settings.TimelapseIntervalSeconds != _settings.TimelapseIntervalSeconds)
                     {
                         changed.Add(printer.Id);
                     }
@@ -184,10 +205,10 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                 if (!entries.TryGetValue(previous.Printer.Id, out Entry? current) || !ReferenceEquals(current, previous))
                 {
                     previous.Removed = true;
-                    CancelPrintTimers(previous);
+                    StopFollowingPrints(previous);
                     ResetDashcamPrint(previous);
                     ReconcileIfNeeded(previous);
-                    if (previous.Activity != CameraRecordingActivity.Idle || previous.Dashcam is not null)
+                    if (previous.Activity != CameraRecordingActivity.Idle || previous.Dashcam is not null || previous.Timelapse.Activity != CameraRecordingActivity.Idle)
                     {
                         changed.Add(previous.Printer.Id);
                     }
@@ -197,7 +218,13 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
             _entries = entries;
             string root = NormalizeRoot(settings.Folder ?? _options.DefaultRoot);
             bool rotate = !_configured || !string.Equals(root, _root, StringComparison.Ordinal) || settings.SizeLimitGigabytes != _settings.SizeLimitGigabytes;
+            bool newInterval = settings.TimelapseIntervalSeconds != _settings.TimelapseIntervalSeconds;
             _settings = settings;
+            if (newInterval)
+            {
+                ReplaceTimelapseTriggers();
+            }
+
             _root = root;
             _configured = true;
             if (rotate)
@@ -251,6 +278,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                 Dashcam = DashcamActivityOf(entry),
                 DashcamMinutes = _settings.DashcamMinutes,
                 DashcamBuffered = entry.Dashcam is { } dashcam && entry.DashcamEnd == DashcamEnd.None ? dashcam.BufferedDuration : TimeSpan.Zero,
+                Timelapse = TimelapseStatusOf(entry),
             };
         }
     }
@@ -326,12 +354,18 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
             _diskTimer = null;
             List<ICameraRecording> recordings = [];
             List<ICameraDashcam> dashcams = [];
+            List<ICameraTimelapse> timelapses = [];
             foreach (Entry entry in _entries.Values)
             {
                 CancelPrintTimers(entry);
                 ResetDashcamPrint(entry);
                 entry.ManualWanted = false;
                 entry.DashcamSave = null;
+                if (StopTimelapseForQuit(entry) is { } timelapse)
+                {
+                    timelapses.Add(timelapse);
+                }
+
                 if (entry.Recording is { } recording && !entry.StopRequested)
                 {
                     entry.StopRequested = true;
@@ -348,7 +382,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
             }
 
             // Off this thread: nothing of a recording's stop runs under the lock.
-            _stopped = Task.Run(() => StopAllCoreAsync(recordings, dashcams), CancellationToken.None);
+            _stopped = Task.Run(() => StopAllCoreAsync(recordings, dashcams, timelapses), CancellationToken.None);
             return _stopped;
         }
     }
@@ -369,16 +403,22 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         _ = StopAllAsync();
     }
 
-    private async Task StopAllCoreAsync(List<ICameraRecording> recordings, List<ICameraDashcam> dashcams)
+    private async Task StopAllCoreAsync(List<ICameraRecording> recordings, List<ICameraDashcam> dashcams, List<ICameraTimelapse> timelapses)
     {
         foreach (ICameraRecording recording in recordings)
         {
             LogStoppingForQuit(recording.PrinterId);
         }
 
-        // StopAsync never throws (T-144, T-148); each completes its file.
+        foreach (ICameraTimelapse timelapse in timelapses)
+        {
+            LogTimelapseStoppingForQuit(timelapse.PrinterId);
+        }
+
+        // StopAsync never throws (T-144, T-148, T-158); each completes its file.
         await Task.WhenAll(recordings.Select(static recording => recording.StopAsync())
-            .Concat(dashcams.Select(static dashcam => dashcam.StopAsync()))).ConfigureAwait(false);
+            .Concat(dashcams.Select(static dashcam => dashcam.StopAsync()))
+            .Concat(timelapses.Select(static timelapse => timelapse.StopAsync()))).ConfigureAwait(false);
 
         // Starts in progress (they see _stopping and stop what they started), their observers and rotations.
         while (true)
@@ -406,6 +446,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
             return;
         }
 
+        bool changed;
         lock (_gate)
         {
             // Snapshots of printers that are not (or no longer) configured are ignored.
@@ -421,23 +462,30 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
 
             PrinterState previous = entry.LastState;
             entry.LastState = snapshot.State;
+            entry.LastJob = snapshot.Job;
             ApplyState(entry, snapshot.State, snapshot.Job);
             ApplyDashcamState(entry, previous, snapshot.State, snapshot.Job);
+            changed = ApplyTimelapseState(entry, previous, snapshot);
             ReconcileIfNeeded(entry);
+        }
+
+        if (changed)
+        {
+            RaiseChanged(snapshot.PrinterId);
         }
     }
 
-    /// <summary>The print rules of the automatic recording (see the class); under <see cref="_gate"/>.</summary>
+    /// <summary>
+    /// The print rules of the automatic recording (see the class), shared by the automatic and manual timelapse (T-160);
+    /// under <see cref="_gate"/>.
+    /// </summary>
     private void ApplyState(Entry entry, PrinterState state, PrintJob? job)
     {
-        if (!entry.RecordsPrints)
+        if (!entry.FollowsPrints)
         {
-            // Prints are only followed for printers that record them: no timers for the others. Switched on mid-print,
-            // the next snapshot of the print starts it.
-            CancelPrintTimers(entry);
-            entry.Printing = false;
-            entry.Suppressed = false;
-            entry.PrintTerminated = false;
+            // Prints are only followed for printers that record them or take timelapses of them: no timers for the others.
+            // Switched on mid-print, the next snapshot of the print starts it.
+            StopFollowingPrints(entry);
             return;
         }
 
@@ -445,7 +493,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         {
             case PrinterState.Printing or PrinterState.Paused:
                 CancelPrintTimers(entry);
-                if (!entry.Printing && !entry.Suppressed)
+                if (!entry.Printing && !entry.Suppressed && !entry.Timelapse.Suppressed)
                 {
                     entry.PrintIdentity = new JobIdentity(job?.Id, job?.FileName);
                     // A new print is named after its own job, or after none rather than the previous one.
@@ -464,6 +512,12 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
 
                 entry.PrintTerminated = false;
                 entry.Printing = true;
+                if (entry.Timelapse.ManualWanted)
+                {
+                    // A manual timelapse ends with the print it saw (T-160).
+                    entry.Timelapse.ManualSawPrint = true;
+                }
+
                 break;
 
             case PrinterState.Attention:
@@ -489,6 +543,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                 {
                     // The print ended: a manual Stop no longer holds back the next one.
                     entry.Suppressed = false;
+                    entry.Timelapse.Suppressed = false;
                 }
 
                 break;
@@ -519,6 +574,8 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
             entry.NextFile = true;
             LogNextPrint(entry.Printer.Id);
         }
+
+        StartNextTimelapsePrint(entry);
     }
 
     private ITimer CreatePrintTimer(Entry entry, TimeSpan due, bool end)
@@ -546,12 +603,14 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
             if (state.End)
             {
                 entry.Suppressed = false;
+                entry.Timelapse.Suppressed = false;
             }
             else
             {
                 LogOfflineEnded(entry.Printer.Id);
             }
 
+            EndManualTimelapseWithPrint(entry);
             ReconcileIfNeeded(entry);
         }
     }
@@ -560,6 +619,17 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
     {
         DisposeTimer(ref entry.EndTimer);
         DisposeTimer(ref entry.OfflineTimer);
+    }
+
+    /// <summary>Forgets the followed print (nothing follows prints any more, removed); under <see cref="_gate"/>.</summary>
+    private static void StopFollowingPrints(Entry entry)
+    {
+        CancelPrintTimers(entry);
+        entry.Printing = false;
+        entry.Suppressed = false;
+        entry.Timelapse.Suppressed = false;
+        entry.Timelapse.ManualSawPrint = false;
+        entry.PrintTerminated = false;
     }
 
     private static void DisposeTimer(ref ITimer? timer)
@@ -581,6 +651,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
     {
         ReconcileRecordingIfNeeded(entry);
         ReconcileDashcamIfNeeded(entry);
+        ReconcileTimelapseIfNeeded(entry);
     }
 
     /// <summary>Starts the entry's recording worker when what should be differs from what is; under <see cref="_gate"/>.</summary>
@@ -672,26 +743,9 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
             return;
         }
 
-        try
+        if (PrepareToWrite(plan.Folder) is { } problem)
         {
-            _storage.PrepareFolder(plan.Folder);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            bool full = ex is IOException && CameraRecording.IsDiskFull(ex);
-            FailStart(
-                entry,
-                plan,
-                full ? CameraRecordingProblem.DiskFull : CameraRecordingProblem.FolderUnavailable,
-                full ? "The disk of the recording folder is full."
-                    : ex is ForeignRecordingFolderException ? ex.Message
-                    : ex is UnauthorizedAccessException ? "The recording folder cannot be written to." : $"The recording folder cannot be created ({ex.GetType().Name}).");
-            return;
-        }
-
-        if (_storage.GetAvailableFreeSpace(plan.Folder) is { } free && free < _options.MinFreeBytes)
-        {
-            FailStart(entry, plan, CameraRecordingProblem.DiskSpaceLow, $"Less than {FormatGigabytes(_options.MinFreeBytes)} GB free on the disk of the recording folder.");
+            FailStart(entry, plan, problem.Problem, problem.Message);
             return;
         }
 
@@ -733,6 +787,36 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         }
 
     }
+
+    /// <summary>
+    /// Prepares <paramref name="folder"/> (created, marked) and checks its free space before anything is written into it;
+    /// off the lock. The problem when it cannot be written into, <see langword="null"/> when it can.
+    /// </summary>
+    private (CameraRecordingProblem Problem, string Message)? PrepareToWrite(string folder)
+    {
+        try
+        {
+            _storage.PrepareFolder(folder);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            bool full = ex is IOException && CameraRecording.IsDiskFull(ex);
+            return (
+                full ? CameraRecordingProblem.DiskFull : CameraRecordingProblem.FolderUnavailable,
+                full ? "The disk of the recording folder is full."
+                    : ex is ForeignRecordingFolderException ? ex.Message
+                    : ex is UnauthorizedAccessException ? "The recording folder cannot be written to." : $"The recording folder cannot be created ({ex.GetType().Name}).");
+        }
+
+        if (_storage.GetAvailableFreeSpace(folder) is { } free && free < _options.MinFreeBytes)
+        {
+            return (CameraRecordingProblem.DiskSpaceLow, LowSpaceMessage());
+        }
+
+        return null;
+    }
+
+    private string LowSpaceMessage() => $"Less than {FormatGigabytes(_options.MinFreeBytes)} GB free on the disk of the recording folder.";
 
     private void FailStart(Entry entry, StartPlan plan, CameraRecordingProblem problem, string message)
     {
@@ -830,12 +914,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                 entry.LastError = error;
             }
 
-            if (!AnyRecording())
-            {
-                _diskTimer?.Dispose();
-                _diskTimer = null;
-            }
-
+            DisposeDiskTimerWhenIdle();
             ReconcileIfNeeded(entry);
             if (!_stopping)
             {
@@ -868,17 +947,28 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         _ => CameraRecordingProblem.WriteFailed,
     };
 
+    /// <summary>Whether a recording or a timelapse runs (the disk check runs meanwhile); under <see cref="_gate"/>.</summary>
     private bool AnyRecording()
     {
         foreach (Entry entry in _entries.Values)
         {
-            if (entry.Recording is not null)
+            if (entry.Recording is not null || entry.Timelapse.Current is not null)
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>Ends the disk check once nothing records any more; under <see cref="_gate"/>.</summary>
+    private void DisposeDiskTimerWhenIdle()
+    {
+        if (!AnyRecording())
+        {
+            _diskTimer?.Dispose();
+            _diskTimer = null;
+        }
     }
 
     /// <summary>The periodic disk check exists only while something records; under <see cref="_gate"/>.</summary>
@@ -890,10 +980,14 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         }
     }
 
-    /// <summary>Free space of every running recording's folder, and the size limit by the bytes written (no file enumeration).</summary>
+    /// <summary>
+    /// Free space of every running recording's and timelapse's folder, and the size limit by the bytes written (no file
+    /// enumeration).
+    /// </summary>
     internal void CheckDisk()
     {
         List<(Entry Entry, ICameraRecording Recording, string Folder)> running = [];
+        List<(Entry Entry, ICameraTimelapse Timelapse, string Folder)> timelapses = [];
         long activeBytes = 0;
         long limit;
         lock (_gate)
@@ -913,6 +1007,15 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                         activeBytes += recording.BytesWritten;
                     }
                 }
+
+                if (entry.Timelapse is { Current: { } timelapse, Root: { } timelapseRoot, StopRequested: false })
+                {
+                    timelapses.Add((entry, timelapse, Path.Combine(timelapseRoot, entry.FolderName)));
+                    if (string.Equals(timelapseRoot, _root, StringComparison.Ordinal))
+                    {
+                        activeBytes += timelapse.BytesWritten;
+                    }
+                }
             }
 
             limit = _settings.SizeLimitBytes;
@@ -926,7 +1029,15 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         {
             if (_storage.GetAvailableFreeSpace(folder) is { } free && free < _options.MinFreeBytes)
             {
-                StopWithError(entry, recording, CameraRecordingProblem.DiskSpaceLow, $"Less than {FormatGigabytes(_options.MinFreeBytes)} GB free on the disk of the recording folder.");
+                StopWithError(entry, recording, CameraRecordingProblem.DiskSpaceLow, LowSpaceMessage());
+            }
+        }
+
+        foreach ((Entry entry, ICameraTimelapse timelapse, string folder) in timelapses)
+        {
+            if (_storage.GetAvailableFreeSpace(folder) is { } free && free < _options.MinFreeBytes)
+            {
+                StopTimelapseWithError(entry, timelapse, CameraRecordingProblem.DiskSpaceLow, LowSpaceMessage());
             }
         }
     }
@@ -1008,6 +1119,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
 
             List<string> changed = [];
             List<(Entry, ICameraRecording)> tooBig = [];
+            List<(Entry, ICameraTimelapse)> tooBigTimelapses = [];
             bool done;
             lock (_gate)
             {
@@ -1016,14 +1128,22 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                     HashSet<string> deleted = new(result.Deleted, StringComparer.OrdinalIgnoreCase);
                     foreach (Entry entry in _entries.Values)
                     {
+                        TimelapseSlot timelapse = entry.Timelapse;
                         string? before = entry.LastFile ?? _newestByFolder.GetValueOrDefault(entry.FolderName);
+                        string? beforeTimelapse = timelapse.LastFile ?? _newestTimelapseByFolder.GetValueOrDefault(entry.FolderName);
                         if (entry.LastFile is { } last && deleted.Contains(last))
                         {
                             entry.LastFile = null;
                         }
 
+                        if (timelapse.LastFile is { } lastTimelapse && deleted.Contains(lastTimelapse))
+                        {
+                            timelapse.LastFile = null;
+                        }
+
                         string? after = entry.LastFile ?? result.NewestByFolder.GetValueOrDefault(entry.FolderName);
-                        if (!string.Equals(before, after, StringComparison.Ordinal))
+                        string? afterTimelapse = timelapse.LastFile ?? result.NewestTimelapseByFolder.GetValueOrDefault(entry.FolderName);
+                        if (!string.Equals(before, after, StringComparison.Ordinal) || !string.Equals(beforeTimelapse, afterTimelapse, StringComparison.Ordinal))
                         {
                             changed.Add(entry.Printer.Id);
                         }
@@ -1032,10 +1152,16 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                         {
                             tooBig.Add((entry, recording));
                         }
+
+                        if (result.OverLimit && timelapse is { Current: { } running, StopRequested: false } && string.Equals(timelapse.Root, root, StringComparison.Ordinal))
+                        {
+                            tooBigTimelapses.Add((entry, running));
+                        }
                     }
 
                     _storedBytes = result.StoredBytes;
                     _newestByFolder = result.NewestByFolder;
+                    _newestTimelapseByFolder = result.NewestTimelapseByFolder;
                 }
 
                 done = !_rotationPending || _stopping;
@@ -1059,6 +1185,11 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                 StopWithError(entry, recording, CameraRecordingProblem.SizeLimitReached, "The running recording alone exceeds the size limit of the recordings.");
             }
 
+            foreach ((Entry entry, ICameraTimelapse timelapse) in tooBigTimelapses)
+            {
+                StopTimelapseWithError(entry, timelapse, CameraRecordingProblem.SizeLimitReached, "The running recordings alone exceed the size limit of the recordings.");
+            }
+
             if (done)
             {
                 return;
@@ -1074,6 +1205,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         }
 
         CollectActiveDashcam(entry, root, files, ref bytes);
+        CollectActiveTimelapse(entry, root, files, ref bytes);
 
         if (entry.Recording is not { } recording)
         {
@@ -1258,13 +1390,16 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         public PrinterDefinition Printer = printer;
         public string FolderName = folderName;
 
-        // The print (automatic recording).
+        // The print (automatic recording, timelapse).
         public bool Printing;
         public bool Suppressed;
         public ITimer? EndTimer;
         public ITimer? OfflineTimer;
         public string? JobFileName;
         public PrinterState LastState;
+
+        /// <summary>The job of the newest snapshot (a manual timelapse starts following the print it is started in).</summary>
+        public PrintJob? LastJob;
 
         /// <summary>The identity of the followed print (while <see cref="Printing"/> or <see cref="Suppressed"/>).</summary>
         public JobIdentity PrintIdentity;
@@ -1313,10 +1448,21 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         public Task? DashcamWorker;
         public bool DashcamDirty;
 
+        /// <summary>The timelapse (T-160, CameraRecordingService.Timelapse.cs).</summary>
+        public readonly TimelapseSlot Timelapse = new();
+
         public bool CanRecord => Printer.Camera.Enabled;
 
         public bool RecordsPrints => Printer.Camera.Enabled && Printer.Camera.RecordPrints;
 
         public bool UsesDashcam => Printer.Camera.Enabled && Printer.Camera.Dashcam;
+
+        public bool TimelapsesPrints => Printer.Camera.Enabled && Printer.Camera.TimelapsePrints;
+
+        /// <summary>
+        /// Whether the prints are followed (<see cref="Printing"/>, the end and offline timers): for the automatic recording,
+        /// the automatic timelapse and a manual timelapse (which ends with the print, T-160).
+        /// </summary>
+        public bool FollowsPrints => RecordsPrints || TimelapsesPrints || (CanRecord && Timelapse.ManualWanted);
     }
 }

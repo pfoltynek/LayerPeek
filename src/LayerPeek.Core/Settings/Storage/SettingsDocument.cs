@@ -150,6 +150,10 @@ internal sealed class RecordingDocument
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? DashcamOnFailureDetection { get; set; }
+
+    /// <summary>Seconds between two timelapse frames (T-160); not written while it is the default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TimelapseIntervalSeconds { get; set; }
 }
 
 internal sealed class CameraOverlaySettingsDocument
@@ -303,6 +307,12 @@ internal sealed class CameraDocument
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? Dashcam { get; set; }
+
+    /// <summary>
+    /// "Timelapse of every print" (T-160); written only when on, missing = off. Raw JSON like <see cref="RecordPrints"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? TimelapsePrints { get; set; }
 }
 
 /// <summary>

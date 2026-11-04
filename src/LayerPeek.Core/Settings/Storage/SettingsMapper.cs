@@ -65,6 +65,7 @@ internal static class SettingsMapper
                     MiniStrip = ToDocument(printer.Camera.MiniStrip),
                     RecordPrints = printer.Camera.RecordPrints ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
                     Dashcam = printer.Camera.Dashcam ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
+                    TimelapsePrints = printer.Camera.TimelapsePrints ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
                 },
                 DetectedModel = printer.DetectedModel?.ToString(),
                 Image = ToDocument(printer.Image),
@@ -139,13 +140,15 @@ internal static class SettingsMapper
             DashcamOnAttention = recording.DashcamOnAttention ? null : false,
             DashcamOnStopped = recording.DashcamOnStopped ? null : false,
             DashcamOnFailureDetection = recording.DashcamOnFailureDetection ? null : false,
+            TimelapseIntervalSeconds = recording.TimelapseIntervalSeconds == CameraRecordingSettings.DefaultTimelapseIntervalSeconds ? null : recording.TimelapseIntervalSeconds,
         };
         return JsonSerializer.SerializeToElement(document, SettingsJsonContext.Default.RecordingDocument);
     }
 
     /// <summary>
-    /// The recording section read leniently (T-145, T-148): a missing section or value is the default; an invalid value (a
-    /// folder that is no absolute path, a limit or a dashcam length that is no whole number in range, a trigger that is no
+    /// The recording section read leniently (T-145, T-148, T-160): a missing section or value is the default; an invalid
+    /// value (a folder that is no absolute path, a limit, a dashcam length or a timelapse interval that is no whole number in
+    /// range, a trigger that is no
     /// boolean, a value of the wrong type) is its default with one warning that never echoes the value (the folder may
     /// contain the user name). Property names are matched case-insensitively and the last of duplicates wins; unknown names
     /// (a newer version) are ignored.
@@ -171,6 +174,7 @@ internal static class SettingsMapper
         JsonElement? onAttention = null;
         JsonElement? onStopped = null;
         JsonElement? onFailure = null;
+        JsonElement? timelapseInterval = null;
         foreach (JsonProperty property in value.EnumerateObject())
         {
             if (string.Equals(property.Name, "folder", StringComparison.OrdinalIgnoreCase))
@@ -200,6 +204,10 @@ internal static class SettingsMapper
             else if (string.Equals(property.Name, "dashcamOnFailureDetection", StringComparison.OrdinalIgnoreCase))
             {
                 onFailure = property.Value;
+            }
+            else if (string.Equals(property.Name, "timelapseIntervalSeconds", StringComparison.OrdinalIgnoreCase))
+            {
+                timelapseInterval = property.Value;
             }
         }
 
@@ -244,6 +252,20 @@ internal static class SettingsMapper
             }
         }
 
+        int interval = CameraRecordingSettings.DefaultTimelapseIntervalSeconds;
+        if (IsPresent(timelapseInterval))
+        {
+            if (TryGetWholeNumber(timelapseInterval!.Value, CameraRecordingSettings.MinTimelapseIntervalSeconds, CameraRecordingSettings.MaxTimelapseIntervalSeconds, out int whole))
+            {
+                interval = whole;
+            }
+            else
+            {
+                warnings.Add(
+                    $"Timelapse interval is invalid (whole number {CameraRecordingSettings.MinTimelapseIntervalSeconds}–{CameraRecordingSettings.MaxTimelapseIntervalSeconds} seconds); {CameraRecordingSettings.DefaultTimelapseIntervalSeconds} seconds are used.");
+            }
+        }
+
         CameraRecordingSettings settings = new()
         {
             Folder = folderPath,
@@ -253,6 +275,7 @@ internal static class SettingsMapper
             DashcamOnAttention = ToDashcamTrigger(onAttention, "attention", warnings),
             DashcamOnStopped = ToDashcamTrigger(onStopped, "stopped print", warnings),
             DashcamOnFailureDetection = ToDashcamTrigger(onFailure, "detected print failure", warnings),
+            TimelapseIntervalSeconds = interval,
         };
         return settings == CameraRecordingSettings.Default ? CameraRecordingSettings.Default : settings;
     }
@@ -296,6 +319,10 @@ internal static class SettingsMapper
     /// <summary>Missing = off; a value that is not a JSON boolean is off with a warning (T-148).</summary>
     private static bool ToDashcam(JsonElement? value, string printerId, List<string> warnings) =>
         ToCameraOption(value, printerId, "keeping the last minutes of a print", warnings);
+
+    /// <summary>Missing = off; a value that is not a JSON boolean is off with a warning (T-160).</summary>
+    private static bool ToTimelapsePrints(JsonElement? value, string printerId, List<string> warnings) =>
+        ToCameraOption(value, printerId, "timelapse of every print", warnings);
 
     private static bool ToCameraOption(JsonElement? value, string printerId, string option, List<string> warnings)
     {
@@ -500,6 +527,11 @@ internal static class SettingsMapper
                 if (ToDashcam(documents[i]!.Camera?.Dashcam, printer.Id, warnings))
                 {
                     camera = camera with { Dashcam = true };
+                }
+
+                if (ToTimelapsePrints(documents[i]!.Camera?.TimelapsePrints, printer.Id, warnings))
+                {
+                    camera = camera with { TimelapsePrints = true };
                 }
 
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.

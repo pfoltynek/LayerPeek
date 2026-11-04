@@ -328,24 +328,7 @@ public sealed partial class CameraRecordingService
             return;
         }
 
-        (CameraRecordingProblem Problem, string Message)? problem = null;
-        try
-        {
-            _storage.PrepareFolder(step.Folder!);
-            if (_storage.GetAvailableFreeSpace(step.Folder!) is { } free && free < _options.MinFreeBytes)
-            {
-                problem = (CameraRecordingProblem.DiskSpaceLow, $"Less than {FormatGigabytes(_options.MinFreeBytes)} GB free on the disk of the recording folder.");
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            bool full = ex is IOException && CameraRecording.IsDiskFull(ex);
-            problem = (
-                full ? CameraRecordingProblem.DiskFull : CameraRecordingProblem.FolderUnavailable,
-                full ? "The disk of the recording folder is full."
-                    : ex is ForeignRecordingFolderException ? ex.Message
-                    : ex is UnauthorizedAccessException ? "The recording folder cannot be written to." : $"The recording folder cannot be created ({ex.GetType().Name}).");
-        }
+        (CameraRecordingProblem Problem, string Message)? problem = PrepareToWrite(step.Folder!);
 
         if (problem is null)
         {

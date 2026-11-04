@@ -52,6 +52,25 @@ public sealed class CameraRecordingRotationTests : IDisposable
     }
 
     [Fact]
+    public void TimelapsesCountAndGoOldestFirstLikeRecordingsAndAreToldApart()
+    {
+        string oldTimelapse = Write(_printer, "2026-11-01_08-00-00_Benchy_timelapse.mp4", 100);
+        string recording = Write(_printer, "2026-11-01_09-00-00_Benchy.mp4", 100);
+        string timelapse = Write(_printer, "2026-11-02_08-00-00_Cube_timelapse.mp4", 100);
+        string nextFile = Write(_printer, "2026-11-02_08-00-00_Cube_timelapse-2.mp4", 100, Now.AddMinutes(-30));
+        string foreign = Write(_printer, "timelapse.mp4", 1000);
+
+        CameraRecordingRotationResult result = Rotate(_root, limit: 300);
+
+        Assert.Equal([oldTimelapse], result.Deleted);
+        Assert.True(File.Exists(foreign));
+        Assert.Equal(300, result.StoredBytes);
+        Assert.Equal(recording, result.NewestByFolder["MK4"]);
+        Assert.Equal(nextFile, result.NewestTimelapseByFolder["MK4"]);
+        Assert.True(File.Exists(timelapse));
+    }
+
+    [Fact]
     public void TheOldestAcrossAllPrintersGoesFirst()
     {
         string xl = Path.Combine(_root, "XL");
@@ -251,6 +270,24 @@ public sealed class CameraRecordingRotationTests : IDisposable
 
         Assert.Equal("kept", File.ReadAllText(marker));
         Assert.Contains("LayerPeek", File.ReadAllText(Path.Combine(fresh, CameraRecordingFolders.MarkerFileName)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PreparingANewFolderFromSeveralWritersAtOnceNeverTakesItForAForeignOne()
+    {
+        // T-160: a recording and a timelapse that start with the same print prepare the same new folder together; each
+        // writes its file right after (which must not make the other one see a folder of the user's).
+        for (int round = 0; round < 50; round++)
+        {
+            string folder = Path.Combine(_root, $"new-{round}");
+            Task[] writers = [.. Enumerable.Range(0, 4).Select(i => Task.Run(() =>
+            {
+                CameraRecordingStorage.Instance.PrepareFolder(folder);
+                File.WriteAllBytes(Path.Combine(folder, $"2026-11-04_08-00-0{i}.mp4"), [1]);
+            }, TestContext.Current.CancellationToken))];
+
+            await Task.WhenAll(writers);
+        }
     }
 
     [Fact]

@@ -29,6 +29,7 @@ using LayerPeek.App.Windows;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Recording;
+using LayerPeek.Core.Cameras.Timelapse;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Detection;
 using LayerPeek.Core.History;
@@ -797,7 +798,13 @@ internal static partial class AppServices
             sp.GetRequiredService<ICameraRecordingWriterFactory>(),
             sp.GetRequiredService<ILogger<CameraRecorder>>(),
             sp.GetRequiredService<TimeProvider>()));
-        // T-145: when and where to record (manual, automatic during prints), the folder, the size limit and the rotation.
+        // T-158: timelapses take key frames of the hub's packets (a lease of key frames only, no decoder) into MP4 at 30 fps.
+        services.AddSingleton<ICameraTimelapseRecorder>(static sp => new CameraTimelapseRecorder(
+            sp.GetRequiredService<CameraStreamHub>(),
+            sp.GetRequiredService<ICameraRecordingWriterFactory>(),
+            sp.GetRequiredService<ILogger<CameraTimelapseRecorder>>()));
+        // T-145: when and where to record (manual, automatic during prints), the folder, the size limit and the rotation;
+        // T-160: the same for the timelapses (manual, automatic during prints, a frame every interval).
         // Idle without recordings; quitting waits for running recordings to complete their files (ServiceHost).
         services.AddSingleton(static sp => new CameraRecordingService(
             sp.GetRequiredService<IPrinterMonitor>(),
@@ -805,7 +812,8 @@ internal static partial class AppServices
             CameraRecordingStorage.Instance,
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CameraRecordingService>>(),
-            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>())));
+            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>()),
+            sp.GetRequiredService<ICameraTimelapseRecorder>()));
         services.AddSingleton(static sp => new CameraRecordingObserver(sp.GetRequiredService<CameraRecordingService>()));
         // T-146: what the tray menu, the tooltip, the camera window and the settings window use of the recordings.
         services.AddSingleton<ICameraRecordings>(static sp => new CameraRecordings(

@@ -47,6 +47,21 @@ jako **experimentální**.
 
 ## Otevřené otázky
 - (žádné – otázky 2–6 v T-149 rozhodnuté 2026-11-04)
+- **Z T-160 (k potvrzení uživatelem, nebrání implementaci):** interval timelapse je v T-160 globální
+  (`recording.timelapseIntervalSeconds`, jako délka dashcamu), automatický timelapse je volba u tiskárny
+  (`camera.timelapsePrints`). Má být interval místo toho u každé tiskárny zvlášť? Výchozí bez rozhodnutí: globální.
+
+## Podklady z T-160
+- Služba: `CameraRecordingService.StartTimelapse(id)` / `StopTimelapse(id)` (vrací `false`, když to nejde vůbec zkusit),
+  `TimelapseAvailability` (bez muxeru zakázat s důvodem), stav `GetStatus(id).Timelapse` (`CameraTimelapseStatus`:
+  `Activity`, `IsActive`, `Mode`, `IsCapturing` – `false` během `Paused` / `Attention`, `FrameCount`, `Duration`,
+  `LastFile`, `LastError`, `TimelapsePrints`, `Interval`); `Changed` přijde i při pauze / obnovení.
+- Chyby timelapse chodí stejnou událostí `Failed` s `CameraRecordingError.IsTimelapse = true` (`Mode` = ruční /
+  automatický). `RecordingNotificationObserver` je zatím ukazuje jako chybu nahrávání – T-161 je musí odlišit (vlastní texty).
+- „Přehrát poslední nahrávku“ timelapse nevybere (`CameraRecordingStatus.LastFile` je jen nahrávka / dashcam);
+  „Přehrát poslední timelapse“ = `CameraTimelapseStatus.LastFile`.
+- Editor nastavení zatím hodnoty timelapse jen přenáší beze změny (`PrinterEditorViewModel._timelapsePrints`,
+  `SettingsViewModel._timelapseIntervalSeconds`); T-161 z nich udělá ovládací prvky.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

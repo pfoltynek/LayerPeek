@@ -103,6 +103,13 @@ a kritérium.
       `t158-coreone-clip-25-keyframes.mp4` (25 klíčových snímků skutečné Buddy3D, 0,83 s při 30 fps); přehrají se bez
       rozpadlých snímků, krokování šipkami projde všechny snímky.
 
+- [ ] **T-160** (krit. „Měření na skutečné kameře (relay): CPU a velikost souboru za ≥ 10 min, s nahráváním i bez něj“;
+      kamera byla při implementaci vypnutá, agent změřil simulátor se skutečným klipem: 0,28 % jádra bez nahrávání,
+      0,60 % s nahráváním, ~75 kB na snímek): se zapnutou Buddy3D spustit relay `~/LayerPeek-samples/tools/ncrelay.sh 8556
+      192.168.0.227` a měřicí program z T-160 (hub + `CameraRecordingService` s timelapse, 10 min, interval 30 s; postup
+      v poznámkách T-160) jednou jen s timelapse a jednou i s nahráváním; zapsat CPU procesu, alokace a velikost souboru
+      do T-160. Zároveň přehrát vzniklý `…_timelapse.mp4` v QuickTime Playeru (20 snímků, bez rozpadlých snímků).
+
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`
       proběhl celý interaktivně včetně ručních kontrol níže; nalezené chyby skriptu zapsané (nový úkol). Zapsat odpověď
