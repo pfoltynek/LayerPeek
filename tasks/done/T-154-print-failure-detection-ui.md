@@ -195,3 +195,16 @@ nedělitelná mezera.
 - Uzavřeno 2026-11-04: zbývající ruční ověření přesunuto do T-125 (Windows: E2E, obrázek toastu, snímky, `win-x64`) a T-127
   (macOS: notifikace s přílohou a tlačítkem, editor na obrazovce, prohlédnutí návrhu uživatelem).
 
+
+## Review
+Revize qa-reviewer 2026-11-04 (macOS arm64): bez blokujících nálezů. Opraveno přímo na větvi (s testy):
+- **Klik do editoru výřezu mimo obdélník** (bez tažení) zmenšil výřez na nejmenší velikost 1 % a označil nastavení jako
+  změněné – klik jen pro fokus klávesnice tak výřez zničil. Kreslení teď začne až po posunu o 3 DIP
+  (`DetectionRegionEditor.DrawThreshold`); test `SettingsWindowDetectionUiTests.AClickOutsideTheRegionFocusesTheEditorAndKeepsTheRegion`.
+- **Poslední snímek nové tiskárny, která se nikdy neuložila** (test kamery, pak okno zavřené bez uložení) zůstával
+  v mezipaměti navždy. Okno si pamatuje tiskárny, kterým snímek zapsalo, a při zavření smaže snímky těch, které nejsou
+  v uloženém nastavení; testy `SettingsDetectionTests.TheFrameOfANewPrinterThatWasNeverSavedIsDeletedWhenTheWindowCloses`
+  a `TheFrameOfANewPrinterIsKeptOnceItIsSaved`.
+- **Argumenty kliku `camera=` / `printer=`** se na přímé cestě kliku (událost toastu na Windows, bez `IsWellFormed`)
+  dekódovaly bez kontroly znaků; teď stejně přísně jako `IsWellFormed` (jen nerezervované znaky a `%`). Dopad byl nízký
+  (vyhledání jen mezi nakonfigurovanými tiskárnami); test `PrintFailureActivationTests.AClickWithAnArgumentOfAnotherFormOpensNothingEvenWhenItWouldDecodeToAPrinter`.

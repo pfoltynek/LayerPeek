@@ -47,7 +47,8 @@ Výřez podložky          [Načíst snímek]     Co hledat
   - Myš: tažení mimo výřez nakreslí nový, uvnitř ho přesune, za roh (do 8 DIP) změní velikost proti protějšímu rohu;
     kurzor podle místa (kříž, přesun, rohy). Tažení přes protější roh obdélník převrátí, mimo snímek se zastaví na
     okraji, nejmenší velikost 1 % snímku. Esc během tažení ho zruší. Hodnota se zapíše až po uvolnění tlačítka
-    (ne při každém pohybu).
+    (ne při každém pohybu). Klik mimo výřez bez tažení (posun pod 3 DIP) nic nekreslí, jen editoru dá fokus pro
+    klávesnici (oprava z revize T-154).
   - Klávesnice: editor je v pořadí Tab; šipky posouvají o 1 % snímku, Shift + šipky mění šířku a výšku (pravý a dolní
     okraj), s Ctrl (macOS ⌘) o 10 %. Šipky z editoru neodcházejí (nepřepínají podzáložku).
   - Přístupnost: název pro čtečky „Výřez podložky: 15 % zleva, 55 % shora, šířka 70 %, výška 45 %“ (celá procenta,
@@ -120,6 +121,7 @@ Stejné texty na Windows i macOS (`PrintFailureNotificationText`, `ToastContentB
 - Zapisuje se jen tehdy, když okno nastavení snímek stejně dostalo: úspěšný test kamery na podzáložce Kamera nebo
   „Načíst snímek“. Čte se jednou za život okna, když se podzáložka Detekce poprvé ukáže pro danou tiskárnu (dekódování
   mimo UI vlákno). Žádná práce na pozadí, žádný časovač, nic, když je okno zavřené. Smaže se, když se uloží nastavení
-  bez dané tiskárny.
+  bez dané tiskárny, a při zavření okna, když tiskárna nikdy uložená nebyla (nová tiskárna s testem kamery, okno zavřené
+  bez uložení).
 - Editor se **sám ke kameře nepřipojuje** (nejkonzervativnější volba, viz Otevřené otázky T-154): ukáže snímek z testu
   kamery v tomto okně, jinak poslední uložený snímek, jinak černou plochu.

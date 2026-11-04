@@ -32,7 +32,15 @@ internal sealed class DetectionRegionEditor : Control
     private static readonly IPen FocusedInnerPen = new ImmutablePen(Brushes.White, 2.5);
     private static readonly IPen HandlePen = new ImmutablePen(Brushes.Black, 1);
 
+    /// <summary>
+    /// A press outside the region draws a new one only once the pointer moved this far (DIPs): a plain click (for example
+    /// to focus the editor for the keyboard) keeps the region instead of shrinking it to the smallest size.
+    /// </summary>
+    internal const double DrawThreshold = 3;
+
     private RegionDragKind? _drag;
+    private Point _pressPoint;
+    private bool _drawStarted;
     private (double X, double Y) _dragStart;
     private DetectionRegion _dragOriginal;
     private DetectionRegion _preview;
@@ -118,6 +126,8 @@ internal sealed class DetectionRegionEditor : Control
         _dragOriginal = Shown;
         _drag = DetectionRegionGeometry.HitTest(_dragOriginal, image, point.X, point.Y);
         _dragStart = DetectionRegionGeometry.ToFrame(point.X, point.Y, image);
+        _pressPoint = point;
+        _drawStarted = false;
         _preview = _dragOriginal;
         e.Pointer.Capture(this);
         e.Handled = true;
@@ -130,6 +140,18 @@ internal sealed class DetectionRegionEditor : Control
         ViewRect image = ImageRect;
         if (_drag is { } kind)
         {
+            if (kind == RegionDragKind.Draw && !_drawStarted)
+            {
+                Vector moved = point - _pressPoint;
+                if (Math.Abs(moved.X) < DrawThreshold && Math.Abs(moved.Y) < DrawThreshold)
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                _drawStarted = true;
+            }
+
             DetectionRegion next = DetectionRegionGeometry.Drag(kind, _dragOriginal, _dragStart, DetectionRegionGeometry.ToFrame(point.X, point.Y, image));
             if (next != _preview)
             {

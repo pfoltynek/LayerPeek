@@ -89,6 +89,28 @@ public sealed class PrintFailureActivationTests : IDisposable
         Assert.False(ToastLaunchArgument.TryGetFalseAlarmId(argument, out _) && ToastLaunchArgument.IsWellFormed(argument));
     }
 
+    [Theory]
+    [InlineData("camera=a b")]
+    [InlineData("camera=<a>")]
+    [InlineData("camera=core&false-alarm=0123")]
+    [InlineData("camera=core\n")]
+    [InlineData("printer=a b")]
+    [InlineData("printer=core?x=1")]
+    public async Task AClickWithAnArgumentOfAnotherFormOpensNothingEvenWhenItWouldDecodeToAPrinter(string argument)
+    {
+        // The direct click path (Windows' toast event) does not ask IsWellFormed first: decoding must be just as strict.
+        Assert.False(ToastLaunchArgument.TryGetCameraPrinterId(argument, out _));
+        Assert.False(ToastLaunchArgument.TryGetPrinterId(argument, out _));
+        List<string> opened = [];
+        _router.AttachCameraOpener(opened.Add);
+        Apply(Definition(id: "a b"), Definition(id: "<a>"), Definition(id: "core&false-alarm=0123"), Definition(id: "core?x=1"));
+
+        Assert.False(await _router.ActivateAsync(argument));
+
+        Assert.Empty(opened);
+        Assert.Empty(_launcher.Opened);
+    }
+
     [Fact]
     public void TooLongArgumentsAreRejected()
     {

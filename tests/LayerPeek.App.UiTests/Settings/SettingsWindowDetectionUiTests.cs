@@ -164,6 +164,27 @@ public sealed class SettingsWindowDetectionUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task AClickOutsideTheRegionFocusesTheEditorAndKeepsTheRegion() =>
+        session.RunAsync(static async scope =>
+        {
+            (SettingsWindowHarness ui, DetectionRegionEditor editor) = await OpenAsync(scope, CoreOne());
+            Point point = At(editor, ui.Window, 0.05, 0.05);
+            Point jitter = point + new Point(DetectionRegionEditor.DrawThreshold / 2, DetectionRegionEditor.DrawThreshold / 2);
+
+            // A click (with a jitter below the threshold) draws nothing: it only focuses the editor for the keyboard.
+            ui.Window.MouseMove(point);
+            ui.Window.MouseDown(point, MouseButton.Left);
+            ui.Window.MouseMove(jitter, RawInputModifiers.LeftMouseButton);
+            ui.Window.MouseUp(jitter, MouseButton.Left);
+            ui.Window.Settle();
+
+            Assert.True(editor.IsFocused);
+            Assert.False(editor.IsDragging);
+            Assert.Equal(DetectionRegion.CoreOneBed, ui.ViewModel.SelectedPrinter!.DetectionRegion);
+            Assert.False(ui.ViewModel.IsDirty);
+        });
+
+    [Fact]
     public Task TheButtonsSetTheWholeFrameOrTheCoreOneRegionAndTheSettingsAreSaved() =>
         session.RunAsync(static async scope =>
         {

@@ -29,6 +29,9 @@ public sealed partial class SettingsViewModel
     private decimal? _detectionIntervalSeconds = (decimal)PrintFailureDetectionSettings.DefaultSampleInterval.TotalSeconds;
     private string? _detectionIntervalError;
 
+    // Printers whose last frame this window wrote (UI thread): those never saved lose it when the window closes.
+    private readonly HashSet<string> _lastFramesWritten = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>The detector kinds of this version, in display order (T-153 registrations); default: none.</summary>
     internal IReadOnlyList<PrintFailureDetectorRegistration> DetectorRegistrations { get; init; } = [];
 
@@ -191,6 +194,31 @@ public sealed partial class SettingsViewModel
                 frames.Delete(printer.Id);
             }
         }
+    }
+
+    /// <summary>UI thread: <paramref name="printerId"/> got a new last frame (a successful camera test in this window).</summary>
+    internal void OnLastFrameWritten(string printerId) => _lastFramesWritten.Add(printerId);
+
+    /// <summary>
+    /// The window closes: the last frames written for printers that were never saved (a new printer tested, then cancelled
+    /// or removed before Save) are deleted, so no frame of an unknown printer stays in the cache.
+    /// </summary>
+    private void ForgetLastFramesOfUnsavedPrinters()
+    {
+        if (LastFrames is not { } frames || _lastFramesWritten.Count == 0)
+        {
+            return;
+        }
+
+        foreach (string printerId in _lastFramesWritten)
+        {
+            if (!_baseline.Printers.Any(p => string.Equals(p.Id, printerId, StringComparison.OrdinalIgnoreCase)))
+            {
+                frames.Delete(printerId);
+            }
+        }
+
+        _lastFramesWritten.Clear();
     }
 
     /// <summary>The Detection sub-tab of the selected printer may have become visible: its last frame is read once.</summary>

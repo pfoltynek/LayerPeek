@@ -178,8 +178,16 @@ internal static class ToastLaunchArgument
         TryDecode(PrinterPrefix, argument, out printerId);
 
     /// <summary>The prefix, then only unreserved characters and percent escapes, at most <see cref="MaxLength"/>, naming an id.</summary>
-    private static bool IsEncodedId(string prefix, [NotNullWhen(true)] string? argument)
+    private static bool IsEncodedId(string prefix, [NotNullWhen(true)] string? argument) => TryDecode(prefix, argument, out _);
+
+    /// <summary>
+    /// The id of an argument of exactly the form <see cref="TryEncode"/> creates (the prefix, then only unreserved characters
+    /// and percent escapes, at most <see cref="MaxLength"/>); anything else is rejected before it is decoded, also on the
+    /// click path that does not ask <see cref="IsWellFormed"/> first.
+    /// </summary>
+    private static bool TryDecode(string prefix, [NotNullWhen(true)] string? argument, [NotNullWhen(true)] out string? id)
     {
+        id = null;
         if (argument is null || argument.Length > MaxLength || !argument.StartsWith(prefix, StringComparison.Ordinal))
         {
             return false;
@@ -191,17 +199,6 @@ internal static class ToastLaunchArgument
             {
                 return false;
             }
-        }
-
-        return TryDecode(prefix, argument, out _);
-    }
-
-    private static bool TryDecode(string prefix, [NotNullWhen(true)] string? argument, [NotNullWhen(true)] out string? id)
-    {
-        id = null;
-        if (argument is null || argument.Length > MaxLength || !argument.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return false;
         }
 
         string decoded = Uri.UnescapeDataString(argument[prefix.Length..]);

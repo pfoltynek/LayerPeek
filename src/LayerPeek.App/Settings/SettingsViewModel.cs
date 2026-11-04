@@ -886,6 +886,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
         _disposed = true;
         _lifetime.Cancel();
+        // T-154: no last frame of a printer that was never saved stays in the cache.
+        ForgetLastFramesOfUnsavedPrinters();
         DisposeWidgets();
         DisposeTopmost();
         foreach (PrinterEditorViewModel printer in Printers)

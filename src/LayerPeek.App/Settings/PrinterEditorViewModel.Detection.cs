@@ -210,6 +210,7 @@ public sealed partial class PrinterEditorViewModel
         if (_owner.LastFrames is { } frames)
         {
             frames.Save(Id, image);
+            _owner.OnLastFrameWritten(Id);
         }
     }
 

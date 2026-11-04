@@ -347,6 +347,47 @@ public sealed class SettingsDetectionTests : IDisposable
         Assert.Equal(["b"], _frames.Deleted);
     }
 
+    [Fact]
+    public async Task TheFrameOfANewPrinterThatWasNeverSavedIsDeletedWhenTheWindowCloses()
+    {
+        CameraImage image = TestCameraImages.Quadrants(64, 36, 0xFFE05A1E, 0xFF2E7D32, 0xFF1565C0, 0xFFF9A825);
+        FakeCameraTester tester = new() { Immediate = new CameraTestResult(CameraTestOutcome.Success, 64, 36, Image: image) };
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [Printer("a")] }, tester);
+        await vm.Printers[0].TestCameraCommand.ExecuteAsync(null);
+        vm.AddPrinterCommand.Execute(null);
+        PrinterEditorViewModel added = vm.Printers[^1];
+        added.CameraEnabled = true;
+        added.CameraUrl = "rtsp://192.168.0.228/live";
+        await added.TestCameraCommand.ExecuteAsync(null);
+        Assert.Equal(["a", added.Id], _frames.Saved.Select(static s => s.PrinterId));
+
+        // Closed without saving: the new printer does not exist, its frame goes; the saved printer keeps its own.
+        vm.Dispose();
+
+        Assert.Equal([added.Id], _frames.Deleted);
+    }
+
+    [Fact]
+    public async Task TheFrameOfANewPrinterIsKeptOnceItIsSaved()
+    {
+        CameraImage image = TestCameraImages.Quadrants(64, 36, 0xFFE05A1E, 0xFF2E7D32, 0xFF1565C0, 0xFFF9A825);
+        FakeCameraTester tester = new() { Immediate = new CameraTestResult(CameraTestOutcome.Success, 64, 36, Image: image) };
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [Printer("a")] }, tester);
+        vm.AddPrinterCommand.Execute(null);
+        PrinterEditorViewModel added = vm.Printers[^1];
+        added.Name = "New";
+        added.Address = "192.168.0.50";
+        added.CameraEnabled = true;
+        added.CameraUrl = "rtsp://192.168.0.228/live";
+        await added.TestCameraCommand.ExecuteAsync(null);
+        AppSettings saved = await SaveAsync(vm);
+        Assert.Contains(saved.Printers, p => p.Id == added.Id);
+
+        vm.Dispose();
+
+        Assert.Empty(_frames.Deleted);
+    }
+
     private sealed class FakePreviewRenderer : ICameraPreviewRenderer
     {
         public Avalonia.Media.IImage Render(CameraImage image) => new FakeImage();
