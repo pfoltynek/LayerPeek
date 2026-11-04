@@ -27,6 +27,10 @@ První skutečný detektor v `LayerPeek.Detection` nad infrastrukturou z T-153 (
 - **Testovací data (rozhodnutí uživatele 2026-11-04):** práh a ověření spolehlivosti **nesmí záviset na nahrávkách selhání od uživatele**. Pozitivní případy se tvoří synteticky nebo inscenovaně, zdroj vybere uživatel (otázka 3). Negativní případy jsou úspěšné tisky: fixture `tests/LayerPeek.Detection.Tests/Fixtures/coreone/` (10 snímků) a lokálně celá série 214 snímků z `~/LayerPeek-samples/coreone-frames/` (test, který bez složky skončí jako přeskočený, data mimo repozitář). Synteticky generované varianty vznikají v testovacím kódu za běhu z existujících fixture (žádné nové soubory v repozitáři, limit ~10 snímků z rozhodnutí 2026-11-03 platí). Měřítka přesnosti (podíl odhalených syntetických selhání, falešné poplachy na hodinu úspěšného tisku) zapsat do poznámek. Test na celé sérii úspěšného tisku = žádný poplach při výchozí citlivosti.
 - Výkon: CPU a paměť na win-x64 a osx-arm64 (macOS → T-127, pokud nejde ověřit na Windows).
 
+- **Dashcam (T-148, hotovo):** detektor po rozpoznání chyby zavolá `CameraRecordingService.SaveDashcam(printerId,
+  CameraDashcamTrigger.FailureDetected)` – uloží posledních N minut a 30 s po události (vrátí `false`, když spouštěč vypnul
+  uživatel v nastavení `recording.dashcamOnFailureDetection` nebo dashcam tiskárny nic nedrží). Žádná další závislost.
+
 ## Akceptační kritéria
 - [ ] Detektor odhalí syntetická / inscenovaná selhání z testovací sady a při výchozí citlivosti nehlásí poplach na úspěšných tiscích ze sady (cíle podle otázky 1).
 - [ ] Detektor funguje při intervalu vzorkování 2 s i 5 s (stejná sada, časové parametry nezávislé na intervalu) a s výchozím výřezem celého snímku i s výřezem Core One (testy).

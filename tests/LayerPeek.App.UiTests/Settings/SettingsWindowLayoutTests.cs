@@ -394,7 +394,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
     /// <summary>
     /// T-146 (user decision 2026-11-04): the Recording tab with the longest error of the folder (in place of its hint) and of
     /// the limit, and a build without the recorder (the reason in place of the hint of the folder), in every language; Save
-    /// with an invalid limit shows this tab.
+    /// with an invalid limit shows this tab. T-148: with the dashcam section below (its length invalid too).
     /// </summary>
     [Theory]
     [MemberData(nameof(Languages))]
@@ -417,6 +417,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 {
                     await recording.ViewModel.ChooseRecordingFolderCommand.ExecuteAsync(null);
                     recording.ViewModel.RecordingLimitGigabytes = 0;
+                    // T-148: the dashcam length is invalid as well (its error replaces its hint).
+                    recording.ViewModel.DashcamMinutes = 11;
                     recording.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
                     await recording.ViewModel.SaveCommand.ExecuteAsync(null);
                     Assert.Equal(SettingsViewModel.RecordingTab, recording.ViewModel.SelectedTabIndex);
@@ -427,6 +429,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 Assert.Equal(!available, recording.Find<TextBlock>("SettingsRecordingUnavailable").IsEffectivelyVisible);
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingFolderError").IsEffectivelyVisible);
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingLimitError").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsDashcamMinutesError").IsEffectivelyVisible);
+                Assert.True(recording.Find<TextBlock>("SettingsDashcamTriggersHint").IsEffectivelyVisible);
                 problems.AddRange(ScrollingViewers(recording.Window, context));
                 problems.AddRange(CutTexts(recording.Window, context));
                 problems.AddRange(HeadersNotOnOneRow(recording.Window, context));

@@ -73,6 +73,23 @@ internal sealed class RecordingDocument
     /// <summary>Size limit in whole gigabytes; not written while it is the default.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? SizeLimitGigabytes { get; set; }
+
+    /// <summary>Minutes the dashcam holds (T-148); not written while it is the default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? DashcamMinutes { get; set; }
+
+    /// <summary>The dashcam triggers (T-148): written only when off (<see langword="false"/>), missing = on.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DashcamOnError { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DashcamOnAttention { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DashcamOnStopped { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DashcamOnFailureDetection { get; set; }
 }
 
 internal sealed class CameraOverlaySettingsDocument
@@ -212,6 +229,13 @@ internal sealed class CameraDocument
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? RecordPrints { get; set; }
+
+    /// <summary>
+    /// "Keep the last minutes of a print" (T-148); written only when on, missing = off. Raw JSON like
+    /// <see cref="RecordPrints"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Dashcam { get; set; }
 }
 
 /// <summary>

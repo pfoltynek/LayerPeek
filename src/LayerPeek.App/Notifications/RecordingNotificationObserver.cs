@@ -106,7 +106,8 @@ internal sealed partial class RecordingNotificationObserver : IMonitoringObserve
                 error.Problem,
                 _sizeLimitGigabytes,
                 _minFreeGigabytes,
-                _settings.ShouldPlaySound(NotificationSeverity.ActionRequired));
+                _settings.ShouldPlaySound(NotificationSeverity.ActionRequired),
+                IsDashcam: error.Mode == CameraRecordingMode.Dashcam);
         }
 
         try

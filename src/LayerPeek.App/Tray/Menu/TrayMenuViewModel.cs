@@ -308,6 +308,9 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             case TrayMenuCommand.OpenRecordingsFolder when entry.PrinterId is { } id:
                 _ = recordings.OpenPrinterFolderAsync(id);
                 break;
+            case TrayMenuCommand.SaveDashcam when entry.PrinterId is { } id:
+                recordings.SaveDashcam(id);
+                break;
         }
     }
 
@@ -587,7 +590,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     /// <summary>
     /// T-146 (user decisions 2026-11-03): after a separator, "Start recording" / "Stop recording" with one access key in both
-    /// states (disabled with the reason while it starts or stops, or when this build cannot record), "Play last recording"
+    /// states (disabled with the reason while it starts or stops, or when this build cannot record), "Save the last N min"
+    /// of a printer with a dashcam (T-148, disabled with the reason while it does not buffer), "Play last recording"
     /// (disabled until the printer has a recording) and "Open recordings folder".
     /// </summary>
     private static void AddRecordingEntries(List<TrayMenuEntry> items, ICameraRecordings recordings, string printerId)
@@ -604,6 +608,16 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         {
             HasAccessKey = true,
         });
+        // T-148: "Save the last N min" right below, only for a printer with a dashcam.
+        DashcamControlState dashcam = new(status.Dashcam, status.IsActive, status.DashcamMinutes);
+        if (dashcam.IsShown)
+        {
+            items.Add(new TrayMenuEntry(TrayMenuCommand.SaveDashcam, dashcam.Text, dashcam.IsEnabled, dashcam.DisabledReason, PrinterId: printerId)
+            {
+                HasAccessKey = true,
+            });
+        }
+
         bool hasLast = status.LastFile is not null;
         items.Add(new TrayMenuEntry(TrayMenuCommand.PlayLastRecording, Strings.MenuPlayLastRecording, hasLast, hasLast ? null : Strings.MenuNoRecordingYet, PrinterId: printerId)
         {

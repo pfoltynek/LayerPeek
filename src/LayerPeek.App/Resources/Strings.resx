@@ -1702,4 +1702,52 @@
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Records from the start of a print until a minute after its end, also without an open camera window.</value>
   </data>
+  <data name="MenuSaveDashcam" xml:space="preserve">
+    <value>_Save the last {0}&#160;min</value>
+  </data>
+  <data name="DashcamNotPrinting" xml:space="preserve">
+    <value>The last minutes are kept only during a print.</value>
+  </data>
+  <data name="DashcamWholePrintRecorded" xml:space="preserve">
+    <value>The whole print is being recorded.</value>
+  </data>
+  <data name="DashcamSaving" xml:space="preserve">
+    <value>The last minutes are being saved…</value>
+  </data>
+  <data name="SettingsDashcam" xml:space="preserve">
+    <value>Last minutes of a print (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamMinutes" xml:space="preserve">
+    <value>Length (minutes)</value>
+  </data>
+  <data name="SettingsDashcamMinutesHint" xml:space="preserve">
+    <value>Kept in memory during a print (about 8&#160;MB per minute and printer) and saved with {0}&#160;s after the event.</value>
+  </data>
+  <data name="SettingsDashcamTriggers" xml:space="preserve">
+    <value>Save automatically</value>
+  </data>
+  <data name="SettingsDashcamOnError" xml:space="preserve">
+    <value>On a print error</value>
+  </data>
+  <data name="SettingsDashcamOnAttention" xml:space="preserve">
+    <value>When the printer needs attention</value>
+  </data>
+  <data name="SettingsDashcamOnStopped" xml:space="preserve">
+    <value>When the print is stopped</value>
+  </data>
+  <data name="SettingsDashcamOnFailureDetection" xml:space="preserve">
+    <value>When the camera detects a print failure</value>
+  </data>
+  <data name="SettingsDashcamTriggersHint" xml:space="preserve">
+    <value>Saving by hand always works: in the printer's menu or in the menu of the camera window.</value>
+  </data>
+  <data name="SettingsDashcamPrinter" xml:space="preserve">
+    <value>Keep the last minutes (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamPrinterHint" xml:space="preserve">
+    <value>During a print, keeps the last minutes of the camera in memory and saves them when something goes wrong (Recording tab). Idle while the whole print is recorded.</value>
+  </data>
+  <data name="NotificationDashcamFailed" xml:space="preserve">
+    <value>Saving the last minutes failed</value>
+  </data>
 </root>

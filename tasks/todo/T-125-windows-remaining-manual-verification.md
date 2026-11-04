@@ -152,6 +152,25 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       jejíž disk se odpojí, přijde toast „Nahrávání kamery selhalo“ s důvodem a klik na něj otevře nastavení rovnou na
       záložce „Nahrávání“ (i když je okno nastavení už otevřené na jiné záložce; rozhodnutí 2026-11-04).
 
+### 2f. Dashcam – posledních N minut (z T-148, implementováno na Macu 2026-11-04)
+- [ ] **T-148** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez chyb
+      (nové `CameraDashcam*`, `DashcamBufferTests`, `SettingsMapperDashcamTests` v Core, `FFmpegRecordingTests
+      .TheDashcamSavesAPlayableFileWithTheTimeBeforeAndAfterTheEvent` s BtbN, `SettingsDashcamTests`, `TrayMenuRecordingTests`,
+      `CameraWindowDashcamUiTests`); `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
+- [ ] **T-148** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+      a zkontrolovat změněné `settings-recording.png` (sekce „Poslední minuty tisku (dashcam)“) a `settings-camera.png`,
+      `settings-camera-preview.png`, `settings-camera-preview-4x3-de.png`, `settings-camera-notice.png` (vedle
+      „Automaticky nahrávat tisk“ nově „Uchovávat poslední minuty (dashcam)“ v tomtéž řádku) v
+      `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová).
+- [ ] **T-148** (krit. „Uložení po spouštěči vytvoří přehratelný soubor …“, ruční část Windows): simulátor s kamerou
+      (`--speed 20`), tiskárna se zapnutým „Uchovávat poslední minuty (dashcam)“ a bez „Automaticky nahrávat tisk“; během tisku
+      je v podmenu tiskárny „Uložit posledních 2 min“ (mimo tisk zakázané s tipem „Poslední minuty se uchovávají jen během
+      tisku.“) a v místní nabídce okna kamery totéž; klik → za ~30 s soubor `…_dashcam-manual.mp4` v
+      `%USERPROFILE%\Videos\LayerPeek\<tiskárna>`, přehraje se ve Filmech a TV celý (začíná obrazem, ne šedou); v konzoli simulátoru
+      `1 error` / `1 attention` / `1 stopped` během tisku → soubory `…_dashcam-error.mp4` / `…-attention` / `…-stopped`; „Přehrát poslední
+      nahrávku“ otevře nejnovější z nich. Ve Správci úloh roste paměť procesu během tisku jen o ~16 MB na tiskárnu (2 min)
+      a po konci tisku se vrátí.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

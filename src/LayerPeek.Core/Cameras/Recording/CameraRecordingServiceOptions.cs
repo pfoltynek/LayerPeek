@@ -33,6 +33,17 @@ public sealed record CameraRecordingServiceOptions
     /// <summary>Below this many free bytes a recording does not start, and a running one stops with an error.</summary>
     public long MinFreeBytes { get; init; } = 5_000_000_000;
 
+    /// <summary>A dashcam save goes on this long after the event (T-148, user decision 2026-11-04: 30 s).</summary>
+    public TimeSpan DashcamPostEventDuration
+    {
+        get;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero);
+            field = value;
+        }
+    } = CameraDashcamOptions.DefaultPostEventDuration;
+
     /// <summary>How often free space and the size limit are checked while something records (never per packet).</summary>
     public TimeSpan DiskCheckInterval
     {

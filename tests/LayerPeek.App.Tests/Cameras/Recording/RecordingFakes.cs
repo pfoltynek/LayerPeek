@@ -24,6 +24,11 @@ internal sealed class FakeCameraRecordings : ICameraRecordings
 
     public long MinFreeBytes { get; set; } = 5_000_000_000;
 
+    public TimeSpan DashcamPostEventDuration { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>The printers whose dashcam was asked to save (T-148).</summary>
+    public List<string> DashcamSaves { get; } = [];
+
     public List<string> Started { get; } = [];
 
     public List<string> Stopped { get; } = [];
@@ -80,6 +85,24 @@ internal sealed class FakeCameraRecordings : ICameraRecordings
     }
 
     public void Stop(string printerId) => Stopped.Add(printerId);
+
+    public bool SaveDashcam(string printerId)
+    {
+        DashcamSaves.Add(printerId);
+        return GetStatus(printerId).Dashcam == CameraDashcamActivity.Buffering;
+    }
+
+    /// <summary>The dashcam of <paramref name="printerId"/> (T-148) does <paramref name="activity"/>; the recording stays as it was.</summary>
+    public void SetDashcam(string printerId, CameraDashcamActivity activity, int minutes = 2, bool raise = true)
+    {
+        CameraRecordingStatus status;
+        lock (_gate)
+        {
+            status = (_statuses.GetValueOrDefault(printerId) ?? new CameraRecordingStatus { CanRecord = true }) with { Dashcam = activity, DashcamMinutes = minutes };
+        }
+
+        SetStatus(printerId, status, raise);
+    }
 
     public Task<bool> OpenFolderAsync(string? folder = null)
     {

@@ -164,7 +164,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-144 | Nahrávání kamery – zápis streamu do souboru bez překódování (Camera.FFmpeg + abstrakce v Core) (hotovo; Windows v T-125) | all | core-dev | P2 | T-143 |
 | T-145 | Nahrávání kamery – služba v Core (ruční a automatické nahrávání při tisku, složka, limit, rotace) (hotovo; Windows v T-125) | all | core-dev | P2 | T-144, T-009 |
 | T-146 | Nahrávání kamery – UI (tray menu, okno kamery, nastavení) a E2E (hotovo; Windows v T-125, ruční macOS v T-127) | all | ui-designer + ui-dev | P2 | T-145, T-033, T-092 |
-| T-148 | Nahrávání kamery fáze 2 – „dashcam“ (kruhový buffer, uložení při chybě tisku) | all | core-dev + ui-dev | P3 | T-145, T-146 |
+| T-148 | Nahrávání kamery fáze 2 – „dashcam“ (kruhový buffer, uložení při chybě tisku) (hotovo; Windows v T-125, ruční macOS v T-127) | all | core-dev + ui-dev | P3 | T-145, T-146 |
 | T-149 | Timelapse tisku – průzkum (spike): způsob, licence, AOT (hotovo, rozhodnuto 2026-11-04) | all | architect | P3 | T-144 |
 | T-150 | Okno kamery – automatické zavření při vypnuté tiskárně a znovuotevření (logika v Core) | all | core-dev | P2 | T-035, T-006 |
 | T-151 | Okno kamery – automatické zavření a znovuotevření (App, nastavení, E2E) | all | ui-dev | P2 | T-150 |

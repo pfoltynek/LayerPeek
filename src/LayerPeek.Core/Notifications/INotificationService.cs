@@ -51,10 +51,12 @@ public sealed record UpdateNotification(string Version, bool PlaySound);
 /// <param name="SizeLimitGigabytes">The size limit of the recordings, for <see cref="CameraRecordingProblem.SizeLimitReached"/>.</param>
 /// <param name="MinFreeGigabytes">The free space the recordings need, for <see cref="CameraRecordingProblem.DiskSpaceLow"/>.</param>
 /// <param name="PlaySound">Whether it plays a sound (decided by the sound setting like a printer error).</param>
+/// <param name="IsDashcam">The dashcam failed to save the last minutes (T-148), not a recording.</param>
 public sealed record RecordingNotification(
     string PrinterId,
     string PrinterName,
     CameraRecordingProblem Problem,
     int SizeLimitGigabytes,
     int MinFreeGigabytes,
-    bool PlaySound);
+    bool PlaySound,
+    bool IsDashcam = false);

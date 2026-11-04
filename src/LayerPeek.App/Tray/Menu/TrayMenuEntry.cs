@@ -52,6 +52,9 @@ public enum TrayMenuCommand
 
     /// <summary>"Open recordings folder" (T-146): the printer's recordings folder in Explorer / Finder (the root while it has none).</summary>
     OpenRecordingsFolder,
+
+    /// <summary>"Save the last N min" (T-148): the dashcam of <see cref="TrayMenuEntry.PrinterId"/> saves the last minutes now.</summary>
+    SaveDashcam,
     About,
 
     /// <summary>

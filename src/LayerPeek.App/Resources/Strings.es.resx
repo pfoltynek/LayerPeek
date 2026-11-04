@@ -1591,4 +1591,52 @@
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Graba desde el inicio de una impresión hasta un minuto después de su fin, también sin la ventana de la cámara abierta.</value>
   </data>
+  <data name="MenuSaveDashcam" xml:space="preserve">
+    <value>Guar_dar los últimos {0}&#160;min</value>
+  </data>
+  <data name="DashcamNotPrinting" xml:space="preserve">
+    <value>Los últimos minutos solo se conservan durante una impresión.</value>
+  </data>
+  <data name="DashcamWholePrintRecorded" xml:space="preserve">
+    <value>Se está grabando toda la impresión.</value>
+  </data>
+  <data name="DashcamSaving" xml:space="preserve">
+    <value>Guardando los últimos minutos…</value>
+  </data>
+  <data name="SettingsDashcam" xml:space="preserve">
+    <value>Últimos minutos de una impresión (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamMinutes" xml:space="preserve">
+    <value>Duración (minutos)</value>
+  </data>
+  <data name="SettingsDashcamMinutesHint" xml:space="preserve">
+    <value>Se conservan en memoria durante la impresión (unos 8&#160;MB por minuto e impresora) y se guardan con {0}&#160;s después del evento.</value>
+  </data>
+  <data name="SettingsDashcamTriggers" xml:space="preserve">
+    <value>Guardar automáticamente</value>
+  </data>
+  <data name="SettingsDashcamOnError" xml:space="preserve">
+    <value>Ante un error de impresión</value>
+  </data>
+  <data name="SettingsDashcamOnAttention" xml:space="preserve">
+    <value>Cuando la impresora requiere atención</value>
+  </data>
+  <data name="SettingsDashcamOnStopped" xml:space="preserve">
+    <value>Cuando se detiene la impresión</value>
+  </data>
+  <data name="SettingsDashcamOnFailureDetection" xml:space="preserve">
+    <value>Cuando la cámara detecta un fallo de impresión</value>
+  </data>
+  <data name="SettingsDashcamTriggersHint" xml:space="preserve">
+    <value>Guardar a mano siempre es posible: en el menú de la impresora o en el menú de la ventana de la cámara.</value>
+  </data>
+  <data name="SettingsDashcamPrinter" xml:space="preserve">
+    <value>Conservar los últimos minutos (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamPrinterHint" xml:space="preserve">
+    <value>Durante una impresión mantiene en memoria los últimos minutos de la cámara y los guarda si algo sale mal (pestaña Grabación). Inactivo mientras se graba toda la impresión.</value>
+  </data>
+  <data name="NotificationDashcamFailed" xml:space="preserve">
+    <value>No se pudieron guardar los últimos minutos</value>
+  </data>
 </root>

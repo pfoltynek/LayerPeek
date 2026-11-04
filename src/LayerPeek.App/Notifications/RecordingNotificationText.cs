@@ -8,7 +8,8 @@ namespace LayerPeek.App.Notifications;
 
 /// <summary>
 /// The notification about a failed camera recording (T-146), the same on every OS: the printer name as the title, "Camera
-/// recording failed" and the reason by <see cref="CameraRecordingProblem"/>, all in one given language. A click opens the
+/// recording failed" ("Saving the last minutes failed" for the dashcam, T-148) and the reason by
+/// <see cref="CameraRecordingProblem"/>, all in one given language. A click opens the
 /// settings window on its Recording tab (<see cref="ToastLaunchArgument.RecordingSettings"/>, user decision 2026-11-04: the
 /// folder and the limit are there); no tag, so two failures of different printers are two notifications.
 /// </summary>
@@ -20,7 +21,8 @@ internal static class RecordingNotificationText
         ArgumentNullException.ThrowIfNull(notification);
         ArgumentNullException.ThrowIfNull(textCulture);
         string title = string.IsNullOrWhiteSpace(notification.PrinterName) ? notification.PrinterId : notification.PrinterName;
-        return new NotificationLines(title, Text(nameof(Strings.NotificationRecordingFailed), textCulture), Reason(notification, textCulture));
+        string headline = Text(notification.IsDashcam ? nameof(Strings.NotificationDashcamFailed) : nameof(Strings.NotificationRecordingFailed), textCulture);
+        return new NotificationLines(title, headline, Reason(notification, textCulture));
     }
 
     /// <summary>The reason line; an unknown problem has the generic one.</summary>

@@ -19,6 +19,8 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// <item>One recording per printer: Start during an automatic recording does nothing; Stop ends it, and the automatic
 /// recording does not start again before that print ended. A recording that fails is not restarted either (no loop on a
 /// full disk).</item>
+/// <item><b>Dashcam</b> (printers with <see cref="CameraSettings.Dashcam"/>, T-148): during a print that is not recorded as a
+/// whole, the last minutes are held in memory and saved on an event (see <c>CameraRecordingService.Dashcam.cs</c>).</item>
 /// <item>Files: <see cref="CameraRecordingFolders"/>; before a start the folder is prepared and the free space checked
 /// (<see cref="CameraRecordingServiceOptions.MinFreeBytes"/>); while something records, free space and the size limit are
 /// checked every <see cref="CameraRecordingServiceOptions.DiskCheckInterval"/>. The rotation
@@ -142,6 +144,7 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                 {
                     bool recordedPrints = entry.RecordsPrints;
                     bool couldRecord = entry.CanRecord;
+                    bool usedDashcam = entry.UsesDashcam;
                     entry.Printer = printer;
                     entry.FolderName = folders[printer.Id];
                     if (!entry.CanRecord)
@@ -156,7 +159,13 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                         entry.Suppressed = false;
                     }
 
-                    if (recordedPrints != entry.RecordsPrints || couldRecord != entry.CanRecord)
+                    if (!entry.UsesDashcam)
+                    {
+                        ResetDashcamPrint(entry);
+                    }
+
+                    if (recordedPrints != entry.RecordsPrints || couldRecord != entry.CanRecord || usedDashcam != entry.UsesDashcam
+                        || (entry.UsesDashcam && settings.DashcamMinutes != _settings.DashcamMinutes))
                     {
                         changed.Add(printer.Id);
                     }
@@ -176,8 +185,9 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                 {
                     previous.Removed = true;
                     CancelPrintTimers(previous);
+                    ResetDashcamPrint(previous);
                     ReconcileIfNeeded(previous);
-                    if (previous.Activity != CameraRecordingActivity.Idle)
+                    if (previous.Activity != CameraRecordingActivity.Idle || previous.Dashcam is not null)
                     {
                         changed.Add(previous.Printer.Id);
                     }
@@ -238,6 +248,9 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                 LastError = entry.LastError,
                 RecordsPrints = entry.RecordsPrints,
                 CanRecord = entry.CanRecord,
+                Dashcam = DashcamActivityOf(entry),
+                DashcamMinutes = _settings.DashcamMinutes,
+                DashcamBuffered = entry.Dashcam is { } dashcam && entry.DashcamEnd == DashcamEnd.None ? dashcam.BufferedDuration : TimeSpan.Zero,
             };
         }
     }
@@ -312,20 +325,30 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
             _diskTimer?.Dispose();
             _diskTimer = null;
             List<ICameraRecording> recordings = [];
+            List<ICameraDashcam> dashcams = [];
             foreach (Entry entry in _entries.Values)
             {
                 CancelPrintTimers(entry);
+                ResetDashcamPrint(entry);
                 entry.ManualWanted = false;
+                entry.DashcamSave = null;
                 if (entry.Recording is { } recording && !entry.StopRequested)
                 {
                     entry.StopRequested = true;
                     entry.Activity = CameraRecordingActivity.Stopping;
                     recordings.Add(recording);
                 }
+
+                if (entry.Dashcam is { } dashcam && entry.DashcamEnd != DashcamEnd.Now)
+                {
+                    // A running save completes its file with what it has.
+                    entry.DashcamEnd = DashcamEnd.Now;
+                    dashcams.Add(dashcam);
+                }
             }
 
             // Off this thread: nothing of a recording's stop runs under the lock.
-            _stopped = Task.Run(() => StopAllCoreAsync(recordings), CancellationToken.None);
+            _stopped = Task.Run(() => StopAllCoreAsync(recordings, dashcams), CancellationToken.None);
             return _stopped;
         }
     }
@@ -346,15 +369,16 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
         _ = StopAllAsync();
     }
 
-    private async Task StopAllCoreAsync(List<ICameraRecording> recordings)
+    private async Task StopAllCoreAsync(List<ICameraRecording> recordings, List<ICameraDashcam> dashcams)
     {
         foreach (ICameraRecording recording in recordings)
         {
             LogStoppingForQuit(recording.PrinterId);
         }
 
-        // StopAsync never throws (T-144); each completes its file.
-        await Task.WhenAll(recordings.Select(static recording => recording.StopAsync())).ConfigureAwait(false);
+        // StopAsync never throws (T-144, T-148); each completes its file.
+        await Task.WhenAll(recordings.Select(static recording => recording.StopAsync())
+            .Concat(dashcams.Select(static dashcam => dashcam.StopAsync()))).ConfigureAwait(false);
 
         // Starts in progress (they see _stopping and stop what they started), their observers and rotations.
         while (true)
@@ -395,8 +419,10 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                 entry.JobFileName = fileName;
             }
 
+            PrinterState previous = entry.LastState;
             entry.LastState = snapshot.State;
             ApplyState(entry, snapshot.State, snapshot.Job);
+            ApplyDashcamState(entry, previous, snapshot.State, snapshot.Job);
             ReconcileIfNeeded(entry);
         }
     }
@@ -547,8 +573,18 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
         !_stopping && !entry.Removed && entry.CanRecord
         && (entry.ManualWanted || (entry.Printing && entry.RecordsPrints && !entry.Suppressed));
 
-    /// <summary>Starts the entry's worker when what should be differs from what is; under <see cref="_gate"/>.</summary>
+    /// <summary>
+    /// Starts the entry's workers (recording, dashcam) when what should be differs from what is; under <see cref="_gate"/>.
+    /// The dashcam follows the recording (it waits while the whole print is recorded), so it is looked at after it.
+    /// </summary>
     private void ReconcileIfNeeded(Entry entry)
+    {
+        ReconcileRecordingIfNeeded(entry);
+        ReconcileDashcamIfNeeded(entry);
+    }
+
+    /// <summary>Starts the entry's recording worker when what should be differs from what is; under <see cref="_gate"/>.</summary>
+    private void ReconcileRecordingIfNeeded(Entry entry)
     {
         bool running = entry.Activity is CameraRecordingActivity.Starting or CameraRecordingActivity.Recording;
         if (IsWanted(entry) == running && !(running && entry.NextFile))
@@ -707,6 +743,8 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
             entry.PlannedFile = null;
             HoldBack(entry);
             entry.LastError = error;
+            // The whole print is not recorded after all: the dashcam may hold the last minutes instead.
+            ReconcileDashcamIfNeeded(entry);
         }
 
         LogStartFailed(plan.PrinterId, problem, message);
@@ -1023,6 +1061,8 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
             files.Add(planned);
         }
 
+        CollectActiveDashcam(entry, root, files, ref bytes);
+
         if (entry.Recording is not { } recording)
         {
             return;
@@ -1241,8 +1281,30 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
         public Task? Worker;
         public bool Dirty;
 
+        // The dashcam (T-148, CameraRecordingService.Dashcam.cs).
+
+        /// <summary>The printer prints (or is unreachable within the grace time since): the dashcam may buffer.</summary>
+        public bool DashcamPrinting;
+        public ITimer? DashcamOfflineTimer;
+
+        /// <summary>The file name of the print the dashcam follows (for the name of a save).</summary>
+        public string? DashcamJob;
+
+        /// <summary>The dashcam ended by itself during this print (failed): not started again before the next print.</summary>
+        public bool DashcamHeldBack;
+        public ICameraDashcam? Dashcam;
+        public DashcamEnd DashcamEnd;
+        public DashcamSaveRequest? DashcamSave;
+
+        /// <summary>The file of the newest save (protected from the rotation until the next save or the end of the dashcam).</summary>
+        public string? DashcamPlannedFile;
+        public Task? DashcamWorker;
+        public bool DashcamDirty;
+
         public bool CanRecord => Printer.Camera.Enabled;
 
         public bool RecordsPrints => Printer.Camera.Enabled && Printer.Camera.RecordPrints;
+
+        public bool UsesDashcam => Printer.Camera.Enabled && Printer.Camera.Dashcam;
     }
 }

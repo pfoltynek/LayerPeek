@@ -16,38 +16,21 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// </remarks>
 internal sealed partial class CameraRecording : ICameraRecording
 {
-    /// <summary>Upper bound of suffixes tried for a free file name.</summary>
-    private const int MaxSegments = 10_000;
-
     private readonly CameraPacketSubscription? _packets;
-    private readonly ICameraRecordingWriterFactory? _writers;
+    private readonly RecordingFiles? _files;
     private readonly Action<ICameraRecording>? _changed;
     private readonly ILogger _logger;
-    private readonly string _folder;
-    private readonly string _name;
-    private readonly string _extension;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
     private Task _completion = Task.CompletedTask;
 
     // Guarded by _gate.
-    private string[] _files = [];
     private CameraRecordingState _state;
     private CameraRecordingFailure _failure;
     private string? _failureMessage;
 
-    // Written by the recording task, read anywhere.
-    private long _bytes;
-    private long _durationTicks;
-
     // Recording task only.
     private CameraStreamInfo? _info;
-    private ICameraRecordingWriter? _writer;
-    private string _fileName = "";
-    private RecordingClock _clock;
-    private long _closedBytes;
-    private TimeSpan _closedDuration;
-    private int _nextSegment = 1;
 
     private CameraRecording(
         string printerId,
@@ -59,12 +42,9 @@ internal sealed partial class CameraRecording : ICameraRecording
     {
         PrinterId = printerId;
         _packets = packets;
-        _writers = writers;
+        _files = writers is null ? null : new RecordingFiles(printerId, filePath, writers, logger);
         _changed = changed;
         _logger = logger;
-        _folder = Path.GetDirectoryName(filePath) ?? throw new ArgumentException("The recording path needs a folder.", nameof(filePath));
-        _name = Path.GetFileNameWithoutExtension(filePath);
-        _extension = Path.GetExtension(filePath);
     }
 
     public string PrinterId { get; }
@@ -102,20 +82,11 @@ internal sealed partial class CameraRecording : ICameraRecording
         }
     }
 
-    public IReadOnlyList<string> Files
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _files;
-            }
-        }
-    }
+    public IReadOnlyList<string> Files => _files?.Files ?? [];
 
-    public long BytesWritten => Volatile.Read(ref _bytes);
+    public long BytesWritten => _files?.BytesWritten ?? 0;
 
-    public TimeSpan Duration => TimeSpan.FromTicks(Volatile.Read(ref _durationTicks));
+    public TimeSpan Duration => _files?.Duration ?? TimeSpan.Zero;
 
     public Task Completion => _completion;
 
@@ -179,7 +150,7 @@ internal sealed partial class CameraRecording : ICameraRecording
                 if (item.Kind == CameraStreamItemKind.StreamStarted)
                 {
                     // A new connection: the file of the previous one is complete, the next starts at a key frame.
-                    CloseFile();
+                    _files!.Close();
                     _info = item.Info;
                 }
                 else if (item.Kind == CameraStreamItemKind.Packet && _info is not null)
@@ -217,7 +188,7 @@ internal sealed partial class CameraRecording : ICameraRecording
 
         try
         {
-            CloseFile();
+            _files!.Close();
         }
         catch (CameraRecordingException ex) when (failure == CameraRecordingFailure.None)
         {
@@ -243,7 +214,7 @@ internal sealed partial class CameraRecording : ICameraRecording
 
         if (failure == CameraRecordingFailure.None)
         {
-            LogCompleted(PrinterId, _files.Length);
+            LogCompleted(PrinterId, _files!.Files.Count);
         }
         else
         {
@@ -255,110 +226,16 @@ internal sealed partial class CameraRecording : ICameraRecording
 
     private void Write(in CameraPacket packet)
     {
-        if (_writer is null)
+        if (_files!.Write(_info!, packet))
         {
-            if (!packet.IsKeyFrame)
+            // The first packet of a file (a key frame): the recording writes.
+            lock (_gate)
             {
-                return;
+                _state = CameraRecordingState.Recording;
             }
 
-            OpenFile(packet.Data.Span);
+            NotifyChanged();
         }
-
-        _clock.Next(packet, out long pts, out long dts, out long duration);
-        _writer!.Write(packet.Data.Span, pts, dts, duration, packet.IsKeyFrame);
-        Volatile.Write(ref _bytes, _closedBytes + _writer.BytesWritten);
-        Volatile.Write(ref _durationTicks, (_closedDuration + _clock.Elapsed).Ticks);
-    }
-
-    private void OpenFile(ReadOnlySpan<byte> firstKeyFrame)
-    {
-        CameraStreamInfo info = _info!;
-        string path = ReserveFile();
-        try
-        {
-            _writer = _writers!.Create(path, info, firstKeyFrame);
-        }
-        catch
-        {
-            // Nothing was recorded into it: the reserved empty file goes.
-            TryDelete(path);
-            throw;
-        }
-
-        string fileName = Path.GetFileName(path);
-        _fileName = fileName;
-        _clock = new RecordingClock(info.TimeBase);
-        lock (_gate)
-        {
-            _files = [.. _files, path];
-            _state = CameraRecordingState.Recording;
-        }
-
-        LogFileStarted(PrinterId, fileName);
-        NotifyChanged();
-    }
-
-    /// <summary>Completes the current file, if any.</summary>
-    private void CloseFile()
-    {
-        if (_writer is not { } writer)
-        {
-            return;
-        }
-
-        _writer = null;
-        try
-        {
-            writer.Complete();
-        }
-        finally
-        {
-            writer.Dispose();
-            _closedBytes += writer.BytesWritten;
-            _closedDuration += _clock.Elapsed;
-            Volatile.Write(ref _bytes, _closedBytes);
-            Volatile.Write(ref _durationTicks, _closedDuration.Ticks);
-            LogFileCompleted(PrinterId, _fileName);
-        }
-    }
-
-    /// <summary>
-    /// Creates the next file of this recording empty (never overwriting one): <c>name.ext</c>, then <c>name-2.ext</c>,
-    /// <c>name-3.ext</c> …; a taken name is skipped.
-    /// </summary>
-    private string ReserveFile()
-    {
-        for (int attempt = 0; attempt < MaxSegments; attempt++)
-        {
-            int segment = _nextSegment++;
-            string fileName = segment == 1
-                ? _name + _extension
-                : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{_name}-{segment}{_extension}");
-            string path = Path.Combine(_folder, fileName);
-            try
-            {
-                new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete).Dispose();
-                return path;
-            }
-            catch (IOException) when (File.Exists(path) || Directory.Exists(path))
-            {
-                // Taken: the next suffix.
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                throw new CameraRecordingException(
-                    IsDiskFull(ex) ? CameraRecordingFailure.DiskFull : CameraRecordingFailure.WriteFailed,
-                    ex is DirectoryNotFoundException
-                        ? "The recording folder does not exist."
-                        : ex is UnauthorizedAccessException
-                            ? "The recording folder cannot be written to."
-                            : $"The recording file cannot be created ({ex.GetType().Name}).",
-                    ex);
-            }
-        }
-
-        throw new CameraRecordingException("No free file name for the recording.");
     }
 
     /// <summary>
@@ -369,19 +246,6 @@ internal sealed partial class CameraRecording : ICameraRecording
         exception is IOException && (OperatingSystem.IsWindows()
             ? (exception.HResult & 0xFFFF) is 0x70 or 0x27
             : exception.HResult == 28);
-
-    private void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            string fileName = Path.GetFileName(path);
-            LogDeleteFailed(PrinterId, fileName);
-        }
-    }
 
     private void NotifyChanged()
     {
@@ -398,12 +262,6 @@ internal sealed partial class CameraRecording : ICameraRecording
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording the camera of printer '{PrinterId}' into '{FileName}'.")]
     private partial void LogStarting(string printerId, string fileName);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Recording of printer '{PrinterId}' writes '{FileName}'.")]
-    private partial void LogFileStarted(string printerId, string fileName);
-
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Recording of printer '{PrinterId}' completed '{FileName}'.")]
-    private partial void LogFileCompleted(string printerId, string fileName);
-
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording of printer '{PrinterId}' ended ({Files} file(s)).")]
     private partial void LogCompleted(string printerId, int files);
 
@@ -412,9 +270,6 @@ internal sealed partial class CameraRecording : ICameraRecording
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Recording of printer '{PrinterId}' could not complete its file after the failure either ({Failure}): {Reason}")]
     private partial void LogCloseAfterFailureFailed(string printerId, CameraRecordingFailure failure, string reason);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Recording of printer '{PrinterId}' could not delete its empty file '{FileName}'.")]
-    private partial void LogDeleteFailed(string printerId, string fileName);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Recording of printer '{PrinterId}' failed unexpectedly.")]
     private partial void LogUnexpected(Exception exception, string printerId);
