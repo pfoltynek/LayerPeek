@@ -170,7 +170,7 @@ public sealed partial class SettingsViewModel
     }
 
     /// <summary>A field of the Recording tab is invalid: a failed save shows that tab.</summary>
-    internal bool HasRecordingTabError => _recordingLimitError is not null || _dashcamMinutesError is not null;
+    internal bool HasRecordingTabError => _recordingLimitError is not null || _dashcamMinutesError is not null || _detectionIntervalError is not null;
 
     /// <summary>Opens the folder dialog; the chosen folder is checked before it is taken.</summary>
     public IAsyncRelayCommand ChooseRecordingFolderCommand => _chooseRecordingFolderCommand ??= new AsyncRelayCommand(

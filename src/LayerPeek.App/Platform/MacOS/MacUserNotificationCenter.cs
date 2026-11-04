@@ -35,6 +35,15 @@ internal sealed partial class MacUserNotificationCenter : IUserNotificationCente
     /// <summary>The class of the delegate object, registered once per process.</summary>
     public const string DelegateClassName = "LayerPeekUserNotificationCenterDelegate";
 
+    /// <summary>The key of the argument of a notification's button (<see cref="UserNotificationRequest.Action"/>) in its <c>userInfo</c>.</summary>
+    public const string ActionArgumentKey = "layerpeek.action";
+
+    /// <summary>The identifier of the button of a notification (T-154: "False alarm"); one button per notification.</summary>
+    public const string ActionIdentifier = "layerpeek.action";
+
+    /// <summary>The category of notifications with that button.</summary>
+    public const string ActionCategoryIdentifier = "layerpeek.with-action";
+
     /// <summary>The action of a click on the notification itself (<c>UNNotificationDefaultActionIdentifier</c>).</summary>
     private const string DefaultActionIdentifier = "com.apple.UNNotificationDefaultActionIdentifier";
 
@@ -60,6 +69,10 @@ internal sealed partial class MacUserNotificationCenter : IUserNotificationCente
     private static readonly NativeReply<long> DeliveredReply = new();
 
     private static readonly Lazy<Blocks> CompletionBlocks = new(static () => new Blocks());
+
+    // The title the category of the button was registered with (a language switch registers it again); guarded by CategoryGate.
+    private static readonly Lock CategoryGate = new();
+    private static string? s_categoryTitle;
 
     private static MacUserNotificationCenter? s_shared;
     private static Action<string?>? s_clicked;
@@ -240,14 +253,32 @@ internal sealed partial class MacUserNotificationCenter : IUserNotificationCente
                     ObjCRuntime.Send(content, ObjCRuntime.Selector("setSound:"), ObjCRuntime.Send(RequiredClass("UNNotificationSound"), ObjCRuntime.Selector("defaultSound")));
                 }
 
-                if (request.LaunchArgument is { } argument)
+                if (request.LaunchArgument is not null || request.Action is not null)
                 {
-                    nint userInfo = ObjCRuntime.Send(
-                        RequiredClass("NSDictionary"),
-                        ObjCRuntime.Selector("dictionaryWithObject:forKey:"),
-                        ObjCRuntime.NSString(argument),
-                        ObjCRuntime.NSString(LaunchArgumentKey));
+                    // Autoreleased; the content copies it.
+                    nint userInfo = ObjCRuntime.Send(RequiredClass("NSMutableDictionary"), ObjCRuntime.Selector("dictionary"));
+                    if (request.LaunchArgument is { } argument)
+                    {
+                        ObjCRuntime.Send(userInfo, ObjCRuntime.Selector("setObject:forKey:"), ObjCRuntime.NSString(argument), ObjCRuntime.NSString(LaunchArgumentKey));
+                    }
+
+                    if (request.Action is { } button)
+                    {
+                        ObjCRuntime.Send(userInfo, ObjCRuntime.Selector("setObject:forKey:"), ObjCRuntime.NSString(button.Argument), ObjCRuntime.NSString(ActionArgumentKey));
+                    }
+
                     ObjCRuntime.Send(content, ObjCRuntime.Selector("setUserInfo:"), userInfo);
+                }
+
+                if (request.Action is { } action)
+                {
+                    EnsureActionCategory(action.Title);
+                    ObjCRuntime.Send(content, ObjCRuntime.Selector("setCategoryIdentifier:"), ObjCRuntime.NSString(ActionCategoryIdentifier));
+                }
+
+                if (request.AttachmentPath is { } attachmentPath && Attachment(attachmentPath) is { } attachment)
+                {
+                    ObjCRuntime.Send(content, ObjCRuntime.Selector("setAttachments:"), ObjCRuntime.Send(RequiredClass("NSArray"), ObjCRuntime.Selector("arrayWithObject:"), attachment));
                 }
 
                 // No trigger: delivered right away.
@@ -289,6 +320,70 @@ internal sealed partial class MacUserNotificationCenter : IUserNotificationCente
             ReplyTimeout,
             cancellationToken).ConfigureAwait(false);
         return count < 0 ? throw new InvalidOperationException("The notification center did not list its notifications.") : (int)Math.Min(count, int.MaxValue);
+    }
+
+    /// <summary>
+    /// In an autorelease pool: registers the only category of the app, with one button titled <paramref name="title"/>
+    /// (<c>UNNotificationActionOptionNone</c>: chosen without bringing the app to the front), unless it already is with that
+    /// title. <c>setNotificationCategories:</c> replaces the categories as a whole.
+    /// </summary>
+    private void EnsureActionCategory(string title)
+    {
+        lock (CategoryGate)
+        {
+            if (string.Equals(s_categoryTitle, title, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            nint action = ObjCRuntime.Send(
+                RequiredClass("UNNotificationAction"),
+                ObjCRuntime.Selector("actionWithIdentifier:title:options:"),
+                ObjCRuntime.NSString(ActionIdentifier),
+                ObjCRuntime.NSString(title),
+                0);
+            nint actions = ObjCRuntime.Send(RequiredClass("NSArray"), ObjCRuntime.Selector("arrayWithObject:"), action);
+            nint none = ObjCRuntime.Send(RequiredClass("NSArray"), ObjCRuntime.Selector("array"));
+            nint category = ObjCRuntime.Send(
+                RequiredClass("UNNotificationCategory"),
+                ObjCRuntime.Selector("categoryWithIdentifier:actions:intentIdentifiers:options:"),
+                ObjCRuntime.NSString(ActionCategoryIdentifier),
+                actions,
+                none,
+                0);
+            if (action == 0 || category == 0)
+            {
+                throw new InvalidOperationException("The notification button could not be created.");
+            }
+
+            ObjCRuntime.Send(_center, ObjCRuntime.Selector("setNotificationCategories:"), ObjCRuntime.Send(RequiredClass("NSSet"), ObjCRuntime.Selector("setWithObject:"), category));
+            s_categoryTitle = title;
+        }
+    }
+
+    /// <summary>
+    /// In an autorelease pool: <c>UNNotificationAttachment</c> of the image file (the OS moves it into its store when the
+    /// request is added); <see langword="null"/> when the OS refuses it (logged, the notification is shown without it).
+    /// </summary>
+    private unsafe nint? Attachment(string path)
+    {
+        nint url = ObjCRuntime.Send(RequiredClass("NSURL"), ObjCRuntime.Selector("fileURLWithPath:"), ObjCRuntime.NSString(path));
+        nint error = 0;
+        nint attachment = url == 0 ? 0 : ObjCRuntime.Send(
+            RequiredClass("UNNotificationAttachment"),
+            ObjCRuntime.Selector("attachmentWithIdentifier:URL:options:error:"),
+            ObjCRuntime.NSString("snapshot"),
+            url,
+            0,
+            (nint)(&error));
+        if (attachment != 0)
+        {
+            return attachment;
+        }
+
+        (long code, string? description) = error == 0 ? (0, null) : ObjCRuntime.Describe(error);
+        LogAttachmentRefused(_logger, code, description ?? "no description");
+        return null;
     }
 
     private static nint RequiredClass(string name)
@@ -414,7 +509,17 @@ internal sealed partial class MacUserNotificationCenter : IUserNotificationCente
         }
 
         string? action = ObjCRuntime.ToText(ObjCRuntime.Send(response, ObjCRuntime.Selector("actionIdentifier")));
-        if (!string.Equals(action, DefaultActionIdentifier, StringComparison.Ordinal))
+        string key;
+        if (string.Equals(action, DefaultActionIdentifier, StringComparison.Ordinal))
+        {
+            key = LaunchArgumentKey;
+        }
+        else if (string.Equals(action, ActionIdentifier, StringComparison.Ordinal))
+        {
+            // The button (T-154): its argument, checked by the router like any launch argument.
+            key = ActionArgumentKey;
+        }
+        else
         {
             // Dismissed (only reported for categories that ask for it) or another action: nothing to open.
             return (false, null);
@@ -424,7 +529,7 @@ internal sealed partial class MacUserNotificationCenter : IUserNotificationCente
         nint request = notification == 0 ? 0 : ObjCRuntime.Send(notification, ObjCRuntime.Selector("request"));
         nint content = request == 0 ? 0 : ObjCRuntime.Send(request, ObjCRuntime.Selector("content"));
         nint userInfo = content == 0 ? 0 : ObjCRuntime.Send(content, ObjCRuntime.Selector("userInfo"));
-        nint value = userInfo == 0 ? 0 : ObjCRuntime.Send(userInfo, ObjCRuntime.Selector("objectForKey:"), ObjCRuntime.NSString(LaunchArgumentKey));
+        nint value = userInfo == 0 ? 0 : ObjCRuntime.Send(userInfo, ObjCRuntime.Selector("objectForKey:"), ObjCRuntime.NSString(key));
         return (true, ObjCRuntime.IsKindOf(value, "NSString") ? ObjCRuntime.ToText(value) : null);
     }
 
@@ -433,6 +538,9 @@ internal sealed partial class MacUserNotificationCenter : IUserNotificationCente
 
     [LoggerMessage(Level = LogLevel.Error, Message = "macOS did not show a notification (code {Code}): {Description}")]
     private static partial void LogPostFailed(ILogger logger, long code, string description);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "macOS refused the image of a notification (code {Code}): {Description}. The notification is shown without it.")]
+    private static partial void LogAttachmentRefused(ILogger logger, long code, string description);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Reading a click on a notification failed.")]
     private static partial void LogClickFailed(ILogger logger, Exception exception);

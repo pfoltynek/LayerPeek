@@ -279,9 +279,14 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").IsSelected);
             Assert.Equal("PrinterTabCameraWindow", FocusedId(ui.Window));
 
+            // T-154: Detection is the last sub-tab.
+            Press(ui, PhysicalKey.PageDown);
+            Assert.True(ui.Find<TabItem>("PrinterTabDetection").IsSelected);
             Press(ui, PhysicalKey.PageDown);
             Assert.True(ui.Find<TabItem>("PrinterTabConnection").IsSelected);
 
+            Press(ui, PhysicalKey.PageUp);
+            Assert.True(ui.Find<TabItem>("PrinterTabDetection").IsSelected);
             Press(ui, PhysicalKey.PageUp);
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").IsSelected);
             Press(ui, PhysicalKey.PageUp);

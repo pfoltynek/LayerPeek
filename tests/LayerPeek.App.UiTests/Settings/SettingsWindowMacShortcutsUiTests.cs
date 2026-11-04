@@ -62,6 +62,9 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
             Assert.Equal("PrinterTabCamera", FocusedId(window));
             Press(window, Key.Left, PhysicalKey.ArrowLeft, Command | RawInputModifiers.Alt);
             Press(window, Key.Left, PhysicalKey.ArrowLeft, Command | RawInputModifiers.Alt);
+            // T-154: the last sub-tab is Detection.
+            Assert.True(ui.Find<TabItem>("PrinterTabDetection").IsSelected);
+            Press(window, Key.Left, PhysicalKey.ArrowLeft, Command | RawInputModifiers.Alt);
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").IsSelected);
 
             // ⌘⇧] on a US layout: the logical key is the bracket (⇧ makes it "}").

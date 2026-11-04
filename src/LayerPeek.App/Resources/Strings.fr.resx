@@ -1639,4 +1639,112 @@
   <data name="NotificationDashcamFailed" xml:space="preserve">
     <value>La sauvegarde des dernières minutes a échoué</value>
   </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Échec d'impression possible – {0}</value>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>Fausse alerte</value>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Changement sur le plateau</value>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Repère une pièce disparue ou déplacée et de la nouvelle matière sur le plateau. Ne repère pas la qualité de la première couche, les problèmes de buse ni les défauts à l'intérieur de la pièce.</value>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Limite connue&#160;: moins fiable avec un filament sombre sur une plaque noire.</value>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Détecteur {0}</value>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Détection</value>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Surveiller les impressions de cette imprimante avec la caméra</value>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Ne fonctionne que pendant l'impression, avec l'éclairage de la chambre allumé. L'image de la caméra reste sur cet ordinateur.</value>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>La détection a besoin de la caméra de l'imprimante&#160;: activez-la dans le sous-onglet Caméra.</value>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>La détection des échecs d'impression est désactivée pour toutes les imprimantes&#160;: activez-la dans l'onglet Enregistrement.</value>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Zone du plateau</value>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Faites glisser hors du rectangle pour en tracer un nouveau, à l'intérieur pour le déplacer, depuis un coin pour le redimensionner. Clavier&#160;: les flèches le déplacent, Maj+flèches changent sa taille.</value>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Zone du plateau&#160;: {0}&#160;% depuis la gauche, {1}&#160;% depuis le haut, {2}&#160;% de largeur, {3}&#160;% de hauteur</value>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Image entière</value>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Par défaut pour Core One</value>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Charger l'image</value>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Prend une nouvelle image de la caméra (comme Tester la caméra dans le sous-onglet Caméra) et la garde pour la prochaine fois.</value>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>Pas encore d'image. Chargez-en une depuis la caméra.</value>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Dernière image enregistrée – la caméra a pu bouger depuis.</value>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>Quoi détecter</value>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>Cette version de LayerPeek n'a pas encore de détecteur.</value>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Sensibilité</value>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Sensibilité – {0}</value>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Plus élevée&#160;: plus d'alertes, fausses comprises. Plus basse&#160;: moins d'alertes, un échec peut passer inaperçu.</value>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Détection des échecs d'impression</value>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Rechercher les échecs d'impression dans l'image de la caméra</value>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Activez-la aussi pour chaque imprimante dans son sous-onglet Détection.</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Enregistrer une image de chaque alerte</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>Dans le dossier des enregistrements de l'imprimante, compté dans la limite de taille des enregistrements.</value>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Alerte</value>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Une fois par impression et type d'échec</value>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Toutes les {0}&#160;min tant qu'il dure</value>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Vérifier la caméra toutes les (s)</value>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Plus court repère un échec plus tôt, plus long sollicite moins le processeur.</value>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Saisissez un nombre de {0} à {1}.</value>
+  </data>
 </root>

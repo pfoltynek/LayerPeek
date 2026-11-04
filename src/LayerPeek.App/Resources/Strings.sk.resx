@@ -1639,4 +1639,112 @@
   <data name="NotificationDashcamFailed" xml:space="preserve">
     <value>Uloženie posledných minút zlyhalo</value>
   </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Možná chyba tlače – {0}</value>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>Falošný poplach</value>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Zmena na podložke</value>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Spozná zmiznutie alebo posun dielu a novú hmotu na podložke. Nespozná kvalitu prvej vrstvy, problémy na tryske ani chyby vo vnútri dielu.</value>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Známe obmedzenie: pri tmavom filamente na čiernom pláte je menej spoľahlivý.</value>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Detektor {0}</value>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Detekcia</value>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Strážiť tlač tejto tlačiarne kamerou</value>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Beží len počas tlače a so svietiacim osvetlením komory. Obraz kamery zostáva v tomto počítači.</value>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Detekcia potrebuje kameru tlačiarne: zapnite ju na podzáložke Kamera.</value>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Detekcia chýb tlače je vypnutá pre všetky tlačiarne: zapnite ju na záložke Nahrávanie.</value>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Výrez podložky</value>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Ťahaním mimo obdĺžnika nakreslíte nový, vnútri ho presuniete, za roh zmeníte jeho veľkosť. Klávesnica: šípky ho posúvajú, Shift+šípky menia veľkosť.</value>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Výrez podložky: {0}&#160;% zľava, {1}&#160;% zhora, šírka {2}&#160;%, výška {3}&#160;%</value>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Celá snímka</value>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Predvolený pre Core One</value>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Načítať snímku</value>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Vezme novú snímku z kamery (ako Otestovať kameru na podzáložke Kamera) a ponechá si ju na budúce.</value>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>Zatiaľ žiadna snímka. Načítajte ju z kamery.</value>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Posledná uložená snímka – kamera sa mohla medzitým pohnúť.</value>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>Čo hľadať</value>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>Táto verzia LayerPeeku zatiaľ nemá žiadny detektor.</value>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Citlivosť</value>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Citlivosť – {0}</value>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Vyššia: viac poplachov, aj falošných. Nižšia: menej poplachov, chyba môže uniknúť.</value>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Detekcia chýb tlače</value>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Hľadať chyby tlače v obraze kamery</value>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Zapnite ju aj pri jednotlivých tlačiarňach na podzáložke Detekcia.</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Ukladať snímku každého poplachu</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>Do priečinka s nahrávkami tlačiarne, počíta sa do limitu veľkosti nahrávok.</value>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Poplach</value>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Raz za tlač a druh chyby</value>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Znova každých {0}&#160;min, kým trvá</value>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Kontrolovať kameru každých (s)</value>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Kratší spozná chybu skôr, dlhší menej zaťaží procesor.</value>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Zadajte číslo od {0} do {1}.</value>
+  </data>
 </root>

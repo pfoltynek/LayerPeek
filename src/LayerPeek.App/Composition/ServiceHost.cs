@@ -209,6 +209,12 @@ internal sealed partial class ServiceHost
     /// </summary>
     public void AttachSettingsOpener(Action<SettingsPage> open) => Services.GetRequiredService<ToastActivationRouter>().AttachSettingsOpener(open);
 
+    /// <summary>
+    /// The UI runs (T-154): a click on a print failure notification opens the camera window of its printer through
+    /// <paramref name="open"/> (any thread; it posts to the UI thread itself); one that came earlier is handled now. Once.
+    /// </summary>
+    public void AttachCameraOpener(Action<string> open) => Services.GetRequiredService<ToastActivationRouter>().AttachCameraOpener(open);
+
     /// <summary>The update the app offers (T-058): the menu item, the notification and the settings window.</summary>
     public Updates.UpdateOffer UpdateOffer => Services.GetRequiredService<Updates.UpdateOffer>();
 

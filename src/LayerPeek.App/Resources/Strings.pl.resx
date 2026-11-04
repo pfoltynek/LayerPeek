@@ -1639,4 +1639,112 @@
   <data name="NotificationDashcamFailed" xml:space="preserve">
     <value>Nie udało się zapisać ostatnich minut</value>
   </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Możliwy błąd wydruku – {0}</value>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>Fałszywy alarm</value>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Zmiana na stole</value>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Wykrywa część, która zniknęła lub się przesunęła, oraz nowy materiał na stole. Nie wykrywa jakości pierwszej warstwy, problemów z dyszą ani wad wewnątrz części.</value>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Znane ograniczenie: mniej niezawodny przy ciemnym filamencie na czarnej płycie.</value>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Detektor {0}</value>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Wykrywanie</value>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Pilnuj wydruków tej drukarki kamerą</value>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Działa tylko podczas drukowania i przy włączonym oświetleniu komory. Obraz z kamery pozostaje na tym komputerze.</value>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Wykrywanie wymaga kamery drukarki: włącz ją w podkarcie Kamera.</value>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Wykrywanie błędów wydruku jest wyłączone dla wszystkich drukarek: włącz je na karcie Nagrywanie.</value>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Obszar stołu</value>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Przeciągnij poza prostokątem, aby narysować nowy, wewnątrz, aby go przesunąć, za róg, aby zmienić rozmiar. Klawiatura: strzałki przesuwają, Shift+strzałki zmieniają rozmiar.</value>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Obszar stołu: {0}&#160;% od lewej, {1}&#160;% od góry, szerokość {2}&#160;%, wysokość {3}&#160;%</value>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Cały obraz</value>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Domyślny dla Core One</value>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Wczytaj obraz</value>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Pobiera nowy obraz z kamery (jak Testuj kamerę w podkarcie Kamera) i zachowuje go na następny raz.</value>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>Brak obrazu. Wczytaj go z kamery.</value>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Ostatni zapisany obraz – kamera mogła się od tego czasu przesunąć.</value>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>Co wykrywać</value>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>Ta wersja LayerPeek nie ma jeszcze żadnych detektorów.</value>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Czułość</value>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Czułość – {0}</value>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Wyższa: więcej alarmów, także fałszywych. Niższa: mniej alarmów, błąd może zostać przeoczony.</value>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Wykrywanie błędów wydruku</value>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Szukaj błędów wydruku w obrazie z kamery</value>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Włącz je też dla każdej drukarki w jej podkarcie Wykrywanie.</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Zapisuj obraz każdego alarmu</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>Do folderu nagrań drukarki, wliczany do limitu rozmiaru nagrań.</value>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Alarm</value>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Raz na wydruk i rodzaj błędu</value>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Ponownie co {0}&#160;min, dopóki trwa</value>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Sprawdzaj kamerę co (s)</value>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Krótszy wykrywa błąd wcześniej, dłuższy mniej obciąża procesor.</value>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Wpisz liczbę od {0} do {1}.</value>
+  </data>
 </root>

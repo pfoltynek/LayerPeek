@@ -212,6 +212,21 @@ public sealed class TestModeSwitchesTests
     }
 
     [Fact]
+    public void TheFakeDetectorIsOnlyForTheTestModeWithItsSwitch()
+    {
+        // T-154: "1" only; anything else, or outside the test mode, leaves the detectors of the app alone.
+        Assert.Equal("LAYERPEEK_TEST_FAKE_DETECTOR", AppEnvironment.TestFakeDetectorVariable);
+        Assert.True(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFakeDetectorVariable, "1")).TestFakeDetector);
+        Assert.False(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFakeDetectorVariable, "yes")).TestFakeDetector);
+        Assert.False(Read((AppEnvironment.DataDirectoryVariable, Folder)).TestFakeDetector);
+
+        AppEnvironment outside = Read((AppEnvironment.TestFakeDetectorVariable, "1"));
+        Assert.False(outside.IsIsolated);
+        Assert.False(outside.TestFakeDetector);
+        Assert.Equal([AppEnvironment.TestFakeDetectorVariable], outside.IgnoredTestSwitches);
+    }
+
+    [Fact]
     public void WithoutAnyVariableTheProcessIsProduction()
     {
         Assert.Same(AppEnvironment.Production, Read());
