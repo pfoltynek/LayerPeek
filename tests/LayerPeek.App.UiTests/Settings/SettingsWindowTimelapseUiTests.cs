@@ -121,6 +121,8 @@ public sealed class SettingsWindowTimelapseUiTests(HeadlessSession session)
         TextBlock text = Assert.IsType<TextBlock>(badge.Child);
         Assert.Equal(Strings.SettingsExperimental, text.Text);
         Assert.Equal(Strings.SettingsExperimentalHint, ToolTip.GetTip(badge));
+        // The tip is mouse-only (the badge takes no focus): screen readers get its meaning as the help text.
+        Assert.Equal(Strings.SettingsExperimentalHint, AutomationProperties.GetHelpText(badge));
         Assert.True(Bounds(badge, window).Right <= window.ClientSize.Width);
     }
 

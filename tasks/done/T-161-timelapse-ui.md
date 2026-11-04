@@ -148,3 +148,12 @@ notifikace a přehrávač na skutečné obrazovce neověřeny → T-127. Žádn�
 
 Uzavřeno 2026-11-04: ruční ověření na skutečné obrazovce (macOS → T-127, Windows → T-125), E2E, testy a sada snímků
 Windows a AOT `win-x64` přesunuty do T-125 (rozhodnutí uživatele, sběrné úkoly).
+
+## Review
+Revize 2026-11-04 (qa-reviewer, macOS arm64): bez blokujících nálezů. Doplněno: štítek „Experimentální“ má i
+`AutomationProperties.HelpText` (tip se k němu z klávesnice nedostane, tvrzení návrhu „tip a nápověda pro čtečky“ teď
+platí; test v `SettingsWindowTimelapseUiTests`), test, že změna intervalu zachová všechny ostatní hodnoty nahrávání,
+dashcamu, detekce (T-154) a kamery tiskárny (`SettingsTimelapseTests.ChangingTheIntervalKeepsEvery…`), komentář
+překladu `SettingsErrorRecordingLimit` (sdílený pro GB, minuty a sekundy). Zápis publikované (Release) aplikace do
+skutečného `~/Library/Logs/LayerPeek` není chyba: testovací režim (`LAYERPEEK_TEST_DATA_DIR`) existuje jen v Debug
+(`AppEnvironment.FromProcess`, `docs/architecture.md`, T-095); v Debug log přesměruje `AppEnvironment.LogDirectory`.

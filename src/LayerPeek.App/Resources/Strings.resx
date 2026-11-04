@@ -1694,7 +1694,7 @@
   </data>
   <data name="SettingsErrorRecordingLimit" xml:space="preserve">
     <value>Enter a whole number from {0} to {1}.</value>
-    <comment>{0} = minimum, {1} = maximum in GB.</comment>
+    <comment>{0} = minimum, {1} = maximum; shared by the size limit (GB), the dashcam length (minutes) and the timelapse interval (seconds).</comment>
   </data>
   <data name="SettingsRecordPrints" xml:space="preserve">
     <value>Record prints automatically</value>

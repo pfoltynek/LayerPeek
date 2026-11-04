@@ -105,6 +105,53 @@ public sealed class SettingsTimelapseTests : IDisposable
         Assert.True(saved.Printers[0].Camera.Dashcam);
     }
 
+    [Fact]
+    public async Task ChangingTheIntervalKeepsEveryOtherRecordingDashcamAndDetectionValue()
+    {
+        // Review of T-161: the compacted Recording tab and the new controls must not lose any value of T-146, T-148, T-154.
+        CameraRecordingSettings recording = new()
+        {
+            Folder = Path.Combine(Path.GetTempPath(), "LayerPeekReviewRecordings"),
+            SizeLimitGigabytes = 7,
+            DashcamMinutes = 9,
+            DashcamOnError = false,
+            DashcamOnAttention = false,
+            DashcamOnStopped = false,
+            DashcamOnFailureDetection = false,
+            TimelapseIntervalSeconds = 15,
+        };
+        LayerPeek.Core.Detection.PrintFailureDetectionSettings detection = new()
+        {
+            Enabled = true,
+            SaveSnapshots = false,
+            AlarmRepeat = LayerPeek.Core.Detection.PrintFailureAlarmRepeat.WhilePersisting,
+            SampleInterval = TimeSpan.FromSeconds(4),
+        };
+        CameraSettings camera = Camera with { RecordPrints = true, Dashcam = true, TimelapsePrints = true };
+        LayerPeek.Core.Detection.PrinterDetectionSettings printerDetection = new()
+        {
+            Enabled = true,
+            Region = new LayerPeek.Core.Detection.DetectionRegion(0.1, 0.2, 0.5, 0.4),
+        };
+        AppSettings settings = new()
+        {
+            Recording = recording,
+            Detection = detection,
+            Printers = [Printer(camera) with { Detection = printerDetection }],
+        };
+        SettingsViewModel vm = await LoadAsync(settings);
+        Assert.False(vm.IsDirty);
+
+        vm.TimelapseIntervalSeconds = 45;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        AppSettings saved = Assert.Single(_store.Saves).Updated;
+        Assert.Equal(recording with { TimelapseIntervalSeconds = 45 }, saved.Recording);
+        Assert.Equal(detection, saved.Detection);
+        Assert.Equal(camera, saved.Printers[0].Camera);
+        Assert.Equal(printerDetection, saved.Printers[0].Detection);
+    }
+
     [Theory]
     [InlineData(4)]
     [InlineData(601)]

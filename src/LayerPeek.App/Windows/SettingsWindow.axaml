@@ -489,6 +489,7 @@
                                     AutomationProperties.HelpText="{Binding TimelapsePrintsHint}" />
                           <Border Classes="badge"
                                   AutomationProperties.AutomationId="PrinterTimelapseExperimental"
+                                  AutomationProperties.HelpText="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
                                   ToolTip.Tip="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
                             <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
                           </Border>
@@ -1450,6 +1451,7 @@
                 <TextBlock Classes="section" Margin="0" VerticalAlignment="Center" Text="{Binding [SettingsTimelapse], Source={x:Static loc:LocalizedStrings.Instance}}" />
                 <Border Classes="badge"
                         AutomationProperties.AutomationId="SettingsTimelapseExperimental"
+                        AutomationProperties.HelpText="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
                         ToolTip.Tip="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
                   <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
                 </Border>
