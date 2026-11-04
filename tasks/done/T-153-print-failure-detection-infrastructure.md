@@ -1,7 +1,7 @@
 ---
 id: T-153
 title: Detekce chyb tisku – infrastruktura (projekt LayerPeek.Detection, vzorkování snímků, kontext tisku, události)
-status: todo
+status: in-progress
 owner: core-dev
 priority: P2
 platform: all
