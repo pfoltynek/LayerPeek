@@ -121,6 +121,58 @@ public sealed class CameraTimelapseRecorderTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task AKeyFrameSubscriptionNextToAFullOneChangesNothingForItAndOverflowsOnlyOnKeyFrames()
+    {
+        // The recorder's and the dashcam's kind of subscription next to a timelapse's one.
+        await using CameraPacketSubscription all = _hub.SubscribePackets("mk4");
+        await using CameraPacketSubscription keyFrames = _hub.SubscribePackets("mk4", options: new CameraPacketSubscriptionOptions { KeyFramesOnly = true, QueueCapacity = 3 });
+        FakeItemFeed feed = await _factory.FeedAsync(1);
+        await Eventually.TrueAsync(() => feed.Consumed >= 1, "stream described");
+
+        byte[] fills = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        foreach (byte fill in fills)
+        {
+            feed.PushPacket(fill, keyFrame: fill is 1 or 5);
+        }
+
+        Assert.Equal(fills, await ReadPacketsAsync(all, fills.Length));
+        // The key-frame one queued the description and both key frames (3 = its capacity), no P-frame.
+        Assert.Equal([1, 5], await ReadPacketsAsync(keyFrames, 2));
+        Assert.False(keyFrames.IsEnded);
+
+        // Unread, it overflows on its fourth queued key frame only; the other subscription goes on.
+        byte[] more = [10, 11, 12, 13, 14, 15, 16, 17];
+        foreach (byte fill in more)
+        {
+            feed.PushPacket(fill, keyFrame: fill % 2 == 0);
+        }
+
+        Assert.Equal(more, await ReadPacketsAsync(all, more.Length));
+        Assert.True(keyFrames.IsEnded);
+        Assert.Equal(CameraStreamEndReason.Overflow, keyFrames.EndReason);
+        Assert.False(all.IsEnded);
+    }
+
+    /// <summary>The first byte of the next <paramref name="count"/> packets of <paramref name="packets"/>.</summary>
+    private static async Task<byte[]> ReadPacketsAsync(CameraPacketSubscription packets, int count)
+    {
+        List<byte> fills = [];
+        await foreach (CameraStreamItem item in packets.ReadAsync(Ct))
+        {
+            if (item.Kind == CameraStreamItemKind.Packet)
+            {
+                fills.Add(item.Packet.Data.Span[0]);
+                if (fills.Count == count)
+                {
+                    break;
+                }
+            }
+        }
+
+        return [.. fills];
+    }
+
+    [Fact]
     public async Task APrinterWithoutCameraFailsWithoutAnException()
     {
         ICameraTimelapse timelapse = new CameraTimelapseRecorder(_hub, new FakeRecordingWriterFactory(), _logger).Start("xl", FilePath);

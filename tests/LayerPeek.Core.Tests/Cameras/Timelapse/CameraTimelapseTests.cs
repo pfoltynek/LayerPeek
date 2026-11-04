@@ -260,6 +260,30 @@ public sealed class CameraTimelapseTests : IDisposable
         Assert.Empty(H264ParameterSets.Extract([1, 2, 3]));
         Assert.Empty(H264ParameterSets.Extract([]));
         Assert.Empty(H264ParameterSets.Extract([0, 0, 1]));
+        // Start codes back to back, a parameter set's header as the very last byte, only zeros.
+        Assert.Equal([0x67, 0x68], H264ParameterSets.Extract([0, 0, 1, 0, 0, 1, 0x67, 0, 0, 1, 0x68]));
+        Assert.Empty(H264ParameterSets.Extract(new byte[64]));
+    }
+
+    [Fact]
+    public void TheParameterSetsOfAnyBytesAreFoundWithoutThrowingOrReadingPastThem()
+    {
+        // The camera's bitstream is untrusted: random bytes dense with start codes and parameter set headers.
+        Random random = new(158);
+        byte[] alphabet = [0, 0, 0, 1, 0x67, 0x68, 0x65, 0x41, 0xFF];
+        for (int round = 0; round < 2000; round++)
+        {
+            byte[] data = new byte[random.Next(0, 48)];
+            for (int i = 0; i < data.Length; i++)
+            {
+                data[i] = alphabet[random.Next(alphabet.Length)];
+            }
+
+            byte[] sets = H264ParameterSets.Extract(data);
+
+            Assert.True(sets.Length <= data.Length);
+            Assert.Equal(sets, H264ParameterSets.Extract(data));
+        }
     }
 
     /// <summary>An IDR access unit with in-band SPS/PPS of <paramref name="length"/> bytes (the length tells frames apart).</summary>
