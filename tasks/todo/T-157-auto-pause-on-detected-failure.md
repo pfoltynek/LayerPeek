@@ -15,6 +15,8 @@ Ve fázi 1 detekce chyb jen upozorňuje (T-153 / T-154). Tento úkol přidá **v
 - Specifikace PrusaLink (`spec/openapi.yaml` v https://github.com/prusa3d/Prusa-Link-Web/blob/master/spec/openapi.yaml) obsahuje `PUT /api/v1/job/{id}/pause` (odpovědi 204, 401, 404, 409), `PUT /api/v1/job/{id}/resume` a `DELETE /api/v1/job/{id}` (zastavení). Kdy firmware vrací 409, specifikace neuvádí – ověřit ve firmwaru Buddy (`lib/WUI/link_content/`, https://github.com/prusa3d/Prusa-Firmware-Buddy) a na skutečné tiskárně / v simulátoru.
 - Id úlohy už klient zná (`PrintJob.Id` z `GET /api/v1/job`).
 
+Rozhodnutí uživatele k T-152 (2026-11-04) tento úkol nemění: detekce běží jen ve stavu `Printing`, takže poplach (a tedy i pozastavení) přichází jen během tisku. Otázky 1–4 zůstávají otevřené.
+
 ## Rozsah
 - **core-dev:** zápisové volání v `LayerPeek.PrusaLink` (`PauseJobAsync(jobId)`) za novou abstrakcí v Core (např. `IPrinterJobControl`, aby Core neznal HTTP), Digest autentizace jako u čtení, srozumitelné chyby (409 = úloha neběží / jiný stav). Dokumentace v `docs/api/prusalink.md`.
   - Pozastavuje se jen úloha, u které detektor poplach vyhlásil (stejné `job.id`), jen ve stavu `Printing`, nejvýš jednou na poplach.
