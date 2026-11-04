@@ -69,9 +69,12 @@ internal sealed record BedChangeOptions
 
     /// <summary>
     /// Gray levels by which the background of a pixel (its 3×3 mean) must lie outside the reference of its neighbourhood
-    /// to count as changed (T-152: 25, above the H.264 noise).
+    /// to count as changed. T-166: 14 (T-152/T-155: 25) finds dim filament on the sheet (luma 105–130 on ~90–120 at the front) that 25
+    /// missed; the background is a running median and the 3×3 mean averages the H.264 noise out, so the real Core One
+    /// series stays ~9× below the default threshold (at 12 and below the bed's own changes start to count, see the task).
+    /// Twice this level is also the band of pixels that agree when the light is re-estimated.
     /// </summary>
-    public int ChangeLevel { get; init; } = 25;
+    public int ChangeLevel { get; init; } = 14;
 
     /// <summary>
     /// Gray levels by which a pixel must differ from the previous sample to count as moving (the head or the X bridge
@@ -82,9 +85,10 @@ internal sealed record BedChangeOptions
     /// <summary>
     /// How long a pixel must have been still before its change counts (0: always): where the head and the X bridge pass
     /// over and over, the running median flips between them and the bed, which is no failure. Mass that stays counts
-    /// this long after it came to rest.
+    /// this long after it came to rest. T-166: 60 s (T-155: 45 s); at a sample every 5 s a place the head covers only now
+    /// and then can look still for 45 s by chance (the head is elsewhere in every sample taken), 12 samples make that rare.
     /// </summary>
-    public TimeSpan Quiet { get; init; } = TimeSpan.FromSeconds(45);
+    public TimeSpan Quiet { get; init; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
     /// The area the changed pixels are measured against, as a share of the frame: the score is changed pixels divided by

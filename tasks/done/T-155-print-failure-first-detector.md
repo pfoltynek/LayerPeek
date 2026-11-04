@@ -79,7 +79,7 @@ První skutečný detektor v `LayerPeek.Detection` nad infrastrukturou z T-153 (
    ~80 → ~116), takže pauza při tmě z T-153 (`DarkBrightness` 12) nezabere a náhlá změna celého obrazu by během tisku vyvolala
    falešný poplach. V datech se to stalo jen po konci tisku. Řešit (např. rozpoznat skokovou změnu celého obrazu a začít
    znovu se učit), nebo zatím jen zdokumentovat? Práh tmy 12 jsem neměnil (ve vzorcích není tmavý snímek).
-7. **Přesnost na jiných semínkách (neblokuje, zjištěno při review 2026-11-04):** sada `SyntheticSets.Failures(seed: 7)`
+7. *(Řeší T-166: ladění na 30 semínkách, `ChangeLevel` 14 a `Quiet` 60 s.)* **Přesnost na jiných semínkách (neblokuje, zjištěno při review 2026-11-04):** sada `SyntheticSets.Failures(seed: 7)`
    dává 95 %, stejně vygenerované sady se semínky 11, 23, 31 a 47 dávají 48–51 z 56 (86–91 %); neodhalené jsou hlavně
    hroudy r 5–9 px a špagety s jasem 105–130 (skóre 0,0–0,29 %, pod výchozím prahem 0,3 %). Cíl ≥ 90 % je tedy splněný na
    commitnuté sadě, ne s rezervou. Ve výřezu celého snímku při 5 s vyšly ve dvou z těchto běhů po jednom potvrzeném
