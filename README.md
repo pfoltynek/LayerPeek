@@ -65,7 +65,11 @@ firmware. Your camera picture and print data stay on your network: no cloud serv
 
 - 🎥 **Live camera, not snapshots.** Real-time RTSP/H.264 stream from the Prusa Buddy3D camera (or any RTSP camera),
   decoded locally with FFmpeg.
-- 🧩 **Widgets you arrange yourself.** Status, times, temperatures with a chart, print name with the G-code preview
+- 📼 **Recordings when you need them.** Record a print, keep the last minutes like a dashcam and save them when
+  something goes wrong, or take a timelapse (experimental). Everything stays on your disk, within a size limit.
+- 🕵️ **An extra pair of eyes.** Optional print failure detection watches the bed through the camera and warns you
+  with a snapshot when a part vanishes or spaghetti appears. It runs locally, without any cloud.
+- 🧩 **Widgets you arrange yourself. Status, times, temperatures with a chart, print name with the G-code preview
   and cool-down, each in three sizes, placed by drag and drop right in the camera window, per printer.
 - 🔔 **You hear about it when it matters.** Native notifications on Windows and macOS, plus a reminder a few minutes
   before the print ends.
@@ -118,8 +122,8 @@ chart. One click switches between them.
 
 ### Settings
 
-Everything is set in one window: printers and cameras, widgets per printer, notifications, polling, language, start
-at sign-in and updates.
+Everything is set in one window: printers and cameras, widgets per printer, recording and print failure detection,
+notifications, polling, language, start at sign-in and updates.
 
 | Widgets | Printers |
 |---|---|
@@ -144,7 +148,8 @@ Buddy3D camera recording and simulated printer data), see [docs/readme-screensho
 
 - The icon shows the printer state: idle, printing (the icon fills up as the print progresses), paused, finished,
   needs attention, error, offline. The tooltip shows the details: progress, time left and file name.
-- The menu has a submenu for each printer: show or hide the camera, open the diagnostics, open the PrusaLink web.
+- The menu has a submenu for each printer: show or hide the camera, recording, dashcam and timelapse, open the
+  diagnostics, open the PrusaLink web.
 
 ### Camera window
 
@@ -157,6 +162,26 @@ Buddy3D camera recording and simulated printer data), see [docs/readme-screensho
 - A pin in the window shows whether it stays on top and switches it with one click; the mini preview has a thin
   outline, so it stands out even over dark windows.
 - Reconnects automatically when the camera or Wi-Fi drops out.
+- Closes by itself when the printer is switched off and opens again at the same place when it is back (can be
+  switched off).
+
+### Recording and timelapse
+
+- **Recording** of the camera to MP4 without re-encoding, by hand or automatically for every print (also without an
+  open camera window). One folder per printer, a total size limit (50 GB by default) and the oldest recordings are
+  deleted first.
+- **Dashcam:** during a print the last minutes (2 by default) are kept in memory and saved when the print fails, needs
+  attention or is stopped, when a print failure is detected, or by hand.
+- **Timelapse** *(experimental)*: one frame every 30 s by default, live during the print or afterwards from a
+  recording; the frames can also be exported as JPEG files.
+
+### Print failure detection
+
+- Optional (off by default), per printer, only while printing. The detector "Change on the bed" notices a part that
+  vanished or moved and new material on the bed, inside a bed region you set in the settings.
+- The alarm is a notification with a snapshot of the camera and a "False alarm" button; it can save the dashcam.
+- Known limitations: it does not judge the first layer or the nozzle, and dark filament on a black sheet is harder to
+  see.
 
 ### Notifications
 
@@ -378,7 +403,7 @@ display) are collected in one walk-through in [docs/macos-manual-testing.md](doc
 | `src/LayerPeek.PrusaLink` | PrusaLink REST client and the local web proxy |
 | `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (not developed further: Prusa Connect has no public API) |
 | `src/LayerPeek.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
-| `src/LayerPeek.Detection` | print failure detectors from the camera image (pure C#; the feature is in development) |
+| `src/LayerPeek.Detection` | print failure detectors from the camera image (pure C#) |
 | `src/LayerPeek.App` | Avalonia tray app, windows, platform specifics |
 | `tests/` | xUnit v3 unit, UI (Avalonia headless) and E2E tests |
 | `tools/` | developer tools, e.g. the PrusaLink printer and camera simulator |

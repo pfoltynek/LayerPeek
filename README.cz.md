@@ -64,7 +64,11 @@ z kamery i údaje o tisku zůstávají ve tvé síti: žádná cloudová služba
 
 - 🎥 **Živá kamera, ne jednotlivé snímky.** Stream RTSP/H.264 v reálném čase z kamery Prusa Buddy3D (nebo jiné RTSP
   kamery), dekódovaný lokálně přes FFmpeg.
-- 🧩 **Widgety si rozmístíš sám.** Stav, časy, teploty s grafem, název tisku s náhledem z G-code a chladnutí, každý ve
+- 📼 **Záznam, když ho potřebuješ.** Nahraj tisk, nech si poslední minuty jako v autokameře a ulož je, když se něco
+  pokazí, nebo pořiď timelapse (experimentální). Všechno zůstává na tvém disku v rámci limitu velikosti.
+- 🕵️ **Oko navíc.** Volitelná detekce chyb tisku hlídá kamerou podložku a se snímkem dá vědět, když díl zmizí nebo se
+  objeví špagety. Běží lokálně, bez cloudu.
+- 🧩 **Widgety si rozmístíš sám. Stav, časy, teploty s grafem, název tisku s náhledem z G-code a chladnutí, každý ve
   třech velikostech, rozmístěné přetažením přímo v okně kamery, pro každou tiskárnu zvlášť.
 - 🔔 **Dozvíš se to, když na tom záleží.** Nativní notifikace na Windows i macOS a připomínka pár minut před koncem
   tisku.
@@ -118,8 +122,8 @@ přepneš jedním kliknutím.
 
 ### Nastavení
 
-Všechno nastavíš v jednom okně: tiskárny a kamery, widgety pro každou tiskárnu, notifikace, interval dotazování,
-jazyk, spuštění po přihlášení a aktualizace.
+Všechno nastavíš v jednom okně: tiskárny a kamery, widgety pro každou tiskárnu, nahrávání a detekci chyb tisku,
+notifikace, interval dotazování, jazyk, spuštění po přihlášení a aktualizace.
 
 | Widgety | Tiskárny |
 |---|---|
@@ -143,7 +147,8 @@ záznamu kamery Buddy3D a simulovaná data tiskárny), viz [docs/readme-screensh
 
 - Ikona ukazuje stav tiskárny: nečinná, tiskne (ikona se s průběhem tisku postupně plní), pozastaveno, hotovo,
   vyžaduje zásah, chyba, offline. Podrobnosti jsou v tooltipu: průběh, zbývající čas a název souboru.
-- Menu má podmenu pro každou tiskárnu: zobrazení a skrytí kamery, diagnostika, web PrusaLink.
+- Menu má podmenu pro každou tiskárnu: zobrazení a skrytí kamery, nahrávání, dashcam a timelapse, diagnostika, web
+  PrusaLink.
 
 ### Okno kamery
 
@@ -157,6 +162,23 @@ záznamu kamery Buddy3D a simulovaná data tiskárny), viz [docs/readme-screensh
 - Špendlík v okně ukazuje, zda zůstává navrchu, a jedním kliknutím to přepne; malý náhled má tenký obrys, takže je
   vidět i nad tmavými okny.
 - Po výpadku kamery nebo Wi-Fi se samo znovu připojí.
+- Když tiskárnu vypneš, okno se samo zavře, a až ji zapneš, otevře se na stejném místě (jde vypnout).
+
+### Nahrávání a timelapse
+
+- **Nahrávání** kamery do MP4 bez překódování, ručně nebo automaticky u každého tisku (i bez otevřeného okna kamery).
+  Každá tiskárna má vlastní složku, celkový limit velikosti (výchozí 50 GB) a nejdřív se mažou nejstarší nahrávky.
+- **Dashcam:** během tisku drží v paměti poslední minuty (výchozí 2) a uloží je, když tisk skončí chybou, vyžaduje
+  zásah nebo je zastaven, když detekce najde chybu tisku, nebo ručně.
+- **Timelapse** *(experimentální)*: ve výchozím stavu jeden snímek za 30 s, živě během tisku nebo dodatečně z nahrávky;
+  snímky jde exportovat i jako soubory JPEG.
+
+### Detekce chyb tisku
+
+- Volitelná (ve výchozím stavu vypnutá), pro každou tiskárnu zvlášť, jen během tisku. Detektor „Změna na podložce“
+  pozná zmizení nebo posun dílu a novou hmotu na podložce ve výřezu podložky, který nastavíš v nastavení.
+- Poplach je notifikace se snímkem z kamery a tlačítkem „Falešný poplach“; umí uložit dashcam.
+- Známá omezení: nehodnotí první vrstvu ani trysku a tmavý filament na černém plátu je hůř vidět.
 
 ### Notifikace
 
@@ -377,7 +399,7 @@ displej), jsou v jednom postupu v [docs/macos-manual-testing.md](docs/macos-manu
 | `src/LayerPeek.PrusaLink` | klient PrusaLink REST API a lokální proxy webu |
 | `src/LayerPeek.PrusaConnect` | klient Prusa Connect (dál se nevyvíjí: Prusa Connect nemá veřejné API) |
 | `src/LayerPeek.Camera.FFmpeg` | kamera RTSP/H.264 přes FFmpeg |
-| `src/LayerPeek.Detection` | detektory chyb tisku z obrazu kamery (čisté C#; funkce je ve vývoji) |
+| `src/LayerPeek.Detection` | detektory chyb tisku z obrazu kamery (čisté C#) |
 | `src/LayerPeek.App` | Avalonia tray aplikace, okna, platformní kód |
 | `tests/` | unit, UI (Avalonia headless) a E2E testy v xUnit v3 |
 | `tools/` | vývojové nástroje, např. simulátor tiskárny PrusaLink a kamery |

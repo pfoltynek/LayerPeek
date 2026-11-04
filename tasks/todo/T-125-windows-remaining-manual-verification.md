@@ -8,6 +8,27 @@ platform: windows
 depends_on: [T-017, T-055, T-058, T-101, T-105, T-107, T-114, T-117, T-118]
 ---
 
+## Před vydáním 0.5.0 – doporučené pořadí
+Doplněno 2026-11-04 (architekt). Všechny funkce od 0.4.0 (T-143 až T-166) vznikly na Macu a na Windows se zatím
+nepřeložily ani neotestovaly. `scripts/release-build.ps1` spouští celý `dotnet test`, takže soubory Windows pro 0.5.0
+jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrtávají tam. Co blokuje vydání, rozhodne uživatel.
+
+1. **Build a testy (blokuje build vydání):** 2d · **T-162** (prázdná cache FFmpeg, nový build BtbN) → `dotnet test` na
+   Windows (testovací body 2c–2m: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165).
+2. **Snímky UI sady Windows (blokuje build vydání; bez nich selžou snímkové testy nastavení):** jeden běh
+   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154 a 2k · T-161 a kontrola souborů
+   vyjmenovaných u těchto bodů.
+3. **Native AOT `win-x64`:** jeden `dotnet publish src/LayerPeek.App -c Release -r win-x64` uzavře body AOT v 2b–2m.
+4. **E2E:** 2b · **T-151** (`CameraWindowAutoCloseTests`, `*Camera*`), 2e · **T-146** (`*CameraRecording*`,
+   `*TrayMenu*`, `*CameraTaskbarAndModeSwitch*`), 2g · **T-154** (`*PrintFailureAlarm*`), 2k · **T-161**
+   (`CameraTimelapseTests`).
+5. **Ručně se simulátorem (nejvyšší priorita: dialogy souborů a toasty dosud nikdo neviděl):** 2l · **T-165** a 2m ·
+   **T-164** (dialog Otevřít bez okna aplikace, v popředí) → 2e · **T-146** („Změnit…“, toast chyby nahrávání) → 2g ·
+   **T-154** (obrázek toastu a editor výřezu) → 2f · **T-148** → 2k · **T-161** → 2d · **T-144** a 2h · **T-158**
+   (přehrání ve Filmech a TV).
+6. **Když zbývá čas:** 2b · T-151 (probuzení, celá obrazovka), 2c · T-143 (ruční), 2i · T-155 (měření CPU), 2d · T-145
+   (OneDrive), 3 · T-107, potom zbytek oddílů 1–2.
+
 ## Cíl
 Sběrný úkol se zbytkem ověření na Windows mimo instalátor: celý interaktivní běh `tools/windows-verify.ps1` (T-105),
 zkušební upozornění (T-101), nepovinné subjektivní kontroly okna kamery (T-117, T-118), instalátor `win-arm64` (T-017;
