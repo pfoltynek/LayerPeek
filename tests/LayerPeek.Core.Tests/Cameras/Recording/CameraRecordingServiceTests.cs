@@ -498,6 +498,67 @@ public sealed class CameraRecordingServiceTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task APrintAfterTheMinuteIsNotNamedAfterThePreviousOne()
+    {
+        FakeRecording first = await FirstPrintEndedAsync(PrinterState.Finished);
+        Clock.Advance(TimeSpan.FromMinutes(1));
+        await StatusAsync("mk4", CameraRecordingActivity.Idle);
+        Assert.True(first.IsEnded);
+
+        // The next print's name is not known yet (e.g. its details failed this poll).
+        RaiseJob(PrinterState.Printing, 2, null);
+        FakeRecording second = await RecordingAsync(2);
+
+        Assert.Equal(Path.Combine(_root, "Workshop MK4", "2026-11-03_14-06-29.mp4"), second.Path);
+    }
+
+    [Fact]
+    public async Task AThirdJobWhileThePreviousFileIsStillEndingRecordsOnlyTheLatestOne()
+    {
+        FakeRecording first = await FirstPrintEndedAsync(PrinterState.Finished);
+        TaskCompletionSource stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        first.StopDelay = stopped.Task;
+
+        RaiseJob(PrinterState.Printing, 2, Cube);
+        await StatusAsync("mk4", CameraRecordingActivity.Stopping);
+
+        // Cube ends and the plate starts before Benchy's file is complete: one stop, then one file for the latest job.
+        RaiseJob(PrinterState.Finished, 2, Cube);
+        RaiseJob(PrinterState.Printing, 3, "plate_0.4n_0.2mm_PLA_MK4S_2h.bgcode");
+        await SettleAsync();
+        Assert.Single(_recorder.Started);
+        Assert.Equal(1, first.StopCalls);
+
+        stopped.SetResult();
+        FakeRecording second = await RecordingAsync(2);
+        Assert.EndsWith("_Plate.mp4", second.Path, StringComparison.Ordinal);
+        await SettleAsync();
+        Assert.Equal(2, _recorder.Started.Length);
+        Assert.Empty(_failed);
+    }
+
+    [Fact]
+    public async Task QuittingWhileAnotherJobSwitchesTheFileStartsNoNewOne()
+    {
+        FakeRecording first = await FirstPrintEndedAsync(PrinterState.Finished);
+        TaskCompletionSource stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        first.StopDelay = stopped.Task;
+        RaiseJob(PrinterState.Printing, 2, Cube);
+        await StatusAsync("mk4", CameraRecordingActivity.Stopping);
+
+        Task quit = _service.StopAllAsync();
+        Assert.False(quit.IsCompleted, "Quitting waits for the file being completed.");
+        stopped.SetResult();
+        await quit.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+
+        await SettleAsync();
+        Assert.Single(_recorder.Started);
+        Assert.Equal(1, first.StopCalls);
+        Assert.Equal(CameraRecordingActivity.Idle, _service.GetStatus("mk4").Activity);
+        Assert.Empty(_failed);
+    }
+
+    [Fact]
     public async Task AutomaticRecordingIsOffByDefault()
     {
         Assert.False(CameraSettings.Disabled.RecordPrints);

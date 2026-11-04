@@ -408,6 +408,8 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                 if (!entry.Printing && !entry.Suppressed)
                 {
                     entry.PrintIdentity = new JobIdentity(job?.Id, job?.FileName);
+                    // A new print is named after its own job, or after none rather than the previous one.
+                    entry.JobFileName = job?.FileName;
                 }
                 else if (entry.PrintIdentity.IsOther(job, entry.PrintTerminated))
                 {

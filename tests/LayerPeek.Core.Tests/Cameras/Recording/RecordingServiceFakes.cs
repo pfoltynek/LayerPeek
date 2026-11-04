@@ -41,6 +41,7 @@ internal sealed class FakeRecording(string printerId, string path, Action<ICamer
     private string[] _files = [];
     private long _bytes;
     private int _stops;
+    private Task? _stopDelay;
 
     public string PrinterId { get; } = printerId;
 
@@ -137,11 +138,30 @@ internal sealed class FakeRecording(string printerId, string path, Action<ICamer
         _done.TrySetResult();
     }
 
+    /// <summary>When set, <see cref="StopAsync"/> completes the file only once this task completes (a slow last fragment).</summary>
+    public Task? StopDelay
+    {
+        get => Volatile.Read(ref _stopDelay);
+        set => Volatile.Write(ref _stopDelay, value);
+    }
+
     public Task StopAsync()
     {
         Interlocked.Increment(ref _stops);
+        if (StopDelay is { } delay)
+        {
+            return EndAfterAsync(delay);
+        }
+
         End(CameraRecordingFailure.None);
         return _done.Task;
+    }
+
+    private async Task EndAfterAsync(Task delay)
+    {
+        await delay.ConfigureAwait(false);
+        End(CameraRecordingFailure.None);
+        await _done.Task.ConfigureAwait(false);
     }
 
     public ValueTask DisposeAsync() => new(StopAsync());
