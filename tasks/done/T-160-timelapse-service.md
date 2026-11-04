@@ -136,3 +136,16 @@ dosavadní testy nahrávání a dashcamu beze změny prochází; služby nahráv
 nástrojů Xcode: dsymutil, `ModuleCache`, `xcodebuild`).
 
 Uzavřeno 2026-11-04: měření se skutečnou kamerou přesunuto do T-127, část Windows (testy, AOT `win-x64`) do T-125.
+
+**Oprava po uzavření (2026-11-04, žádný snímek po začátku pauzy):** při `Paused` / `Attention` spouštěč zastavil časovač,
+ale požadavek z `RequestFrame()`, který ještě čekal na další klíčový snímek (u Buddy3D až ~2,4 s), zůstal, takže se po
+začátku pauzy mohl zapsat jeden snímek (např. zaparkovaná hlava). Nově `ICameraTimelapse.CancelFrameRequest()` požadavek
+odvolá (zápis příznaku, 0 alokací; čtenář ho bere `Interlocked.Exchange`, takže buď klíčový snímek zahodí, nebo už ho
+zapisuje) a `CameraTimelapseTimeTrigger.SetCapturing(false)` ho volá po zastavení časovače. Tik časovače a `SetCapturing`
+sdílí malý zámek (`Lock`, bez soupeření, bez alokací), takže tik, který už běžel ve chvíli pauzy, buď požádal před odvoláním,
+nebo pauzu vidí a nežádá. Zaručeno: po návratu `SetCapturing(false)` se zapíše nejvýš ten jeden klíčový snímek, který se
+právě zapisoval, a žádný další až do obnovení; obnovení dál bere snímek hned. Smlouva zapsaná i v `ICameraTimelapseTrigger`
+(pro spouštěč po vrstvě T-159). Testy: `CameraTimelapseTests` (odvolaný požadavek, pauza s čekajícím požadavkem → klíčový
+snímek bez zápisu → obnovení = snímek hned, pauza během zápisu = nejvýš ten snímek), `CameraTimelapseTimeTriggerTests`
+(pauza odvolá požadavek, opožděný tik po pauze nežádá, pauza hned po tiku; 0 B na tik dál platí), v `CameraTimelapseServiceTests`
+pauza nenechá čekající požadavek.

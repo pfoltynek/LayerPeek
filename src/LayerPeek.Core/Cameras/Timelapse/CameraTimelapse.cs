@@ -155,6 +155,13 @@ internal sealed partial class CameraTimelapse : ICameraTimelapse
         return true;
     }
 
+    /// <remarks>
+    /// The reader takes a request with <see cref="Interlocked.Exchange(ref int, int)"/>, so the two are ordered: either the
+    /// exchange sees this write and the key frame is dropped, or the reader took the request first and that key frame,
+    /// already being written, is the only one written after the call.
+    /// </remarks>
+    public void CancelFrameRequest() => Volatile.Write(ref _requested, 0);
+
     public async Task StopAsync()
     {
         Volatile.Write(ref _ended, 1);

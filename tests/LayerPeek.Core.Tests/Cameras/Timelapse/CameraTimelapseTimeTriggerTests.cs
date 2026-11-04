@@ -63,6 +63,54 @@ public sealed class CameraTimelapseTimeTriggerTests : IAsyncDisposable
     }
 
     [Fact]
+    public void APauseWithdrawsTheRequestWaitingForItsKeyFrameAndTheResumeAsksAgainAtOnce()
+    {
+        using CameraTimelapseTimeTrigger trigger = new(_timelapse, Interval, _time);
+        trigger.SetCapturing(true);
+        _time.Timer!.Fire();
+        Assert.True(_timelapse.IsRequestPending);
+
+        trigger.SetCapturing(false);
+        Assert.False(_timelapse.IsRequestPending);
+        Assert.Equal(1, _timelapse.CancelCalls);
+        // Every snapshot of the pause repeats the value: nothing more to withdraw.
+        trigger.SetCapturing(false);
+        Assert.Equal(1, _timelapse.CancelCalls);
+
+        trigger.SetCapturing(true);
+        Assert.True(_timelapse.IsRequestPending);
+        Assert.Equal(3, _timelapse.Requests);
+    }
+
+    [Fact]
+    public void ATickStillRunningWhenThePauseStartsAsksForNoFrame()
+    {
+        using CameraTimelapseTimeTrigger trigger = new(_timelapse, Interval, _time);
+        trigger.SetCapturing(true);
+        trigger.SetCapturing(false);
+
+        // The timer's callback was already on its way when the timer stopped.
+        _time.Timer!.Fire();
+
+        Assert.Equal(1, _timelapse.Requests);
+        Assert.False(_timelapse.IsRequestPending);
+    }
+
+    [Fact]
+    public void APauseRightAfterATickAskedForAFrameWithdrawsThatRequest()
+    {
+        using CameraTimelapseTimeTrigger trigger = new(_timelapse, Interval, _time);
+        trigger.SetCapturing(true);
+        _timelapse.OnRequest = () => trigger.SetCapturing(false);
+
+        _time.Timer!.Fire();
+
+        Assert.Equal(2, _timelapse.Requests);
+        Assert.False(_timelapse.IsRequestPending);
+        Assert.Equal((Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan), _time.Timer.Last);
+    }
+
+    [Fact]
     public void ADisposedTriggerDisposesItsTimerAndAsksForNothing()
     {
         CameraTimelapseTimeTrigger trigger = new(_timelapse, Interval, _time);

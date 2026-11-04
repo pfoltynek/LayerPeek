@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Time.Testing;
+
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cameras.Timelapse;
@@ -215,6 +217,96 @@ public sealed class CameraTimelapseTests : IDisposable
         FakeRecordingWriter writer = Assert.Single(writers.Writers);
         Assert.True(writer.IsCompleted && writer.IsDisposed);
         Assert.True(_packets.Subscription.IsEnded);
+    }
+
+    [Fact]
+    public async Task AWithdrawnRequestTakesNoKeyFrameAndTheNextRequestDoes()
+    {
+        FakeRecordingWriterFactory writers = new();
+        CameraTimelapse timelapse = Start(writers);
+        _packets.Started();
+
+        Assert.True(timelapse.RequestFrame());
+        timelapse.CancelFrameRequest();
+        _packets.Packet(1, keyFrame: true);
+        await ReadAsync(2);
+        Assert.Equal(0, timelapse.FrameCount);
+        Assert.Empty(writers.Writers);
+
+        // Withdrawing nothing is harmless.
+        timelapse.CancelFrameRequest();
+        Assert.True(timelapse.RequestFrame());
+        _packets.Packet(2, keyFrame: true);
+        await Eventually.TrueAsync(() => timelapse.FrameCount == 1, "frame after the new request");
+        await timelapse.StopAsync().WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal([2], Assert.Single(writers.Writers).Packets.Select(static p => p.Fill));
+        // After the end it does nothing either.
+        timelapse.CancelFrameRequest();
+    }
+
+    [Fact]
+    public async Task APauseWhileARequestWaitsForItsKeyFrameWritesNoFrameAndTheResumeTakesOneAtOnce()
+    {
+        // The real time trigger with the real timelapse (the service calls SetCapturing like this on Paused / Printing).
+        FakeTimeProvider time = new();
+        FakeRecordingWriterFactory writers = new();
+        CameraTimelapse timelapse = Start(writers);
+        using CameraTimelapseTimeTrigger trigger = new(timelapse, TimeSpan.FromSeconds(30), time);
+        _packets.Started();
+
+        trigger.SetCapturing(true);
+        _packets.Packet(1, keyFrame: true);
+        await Eventually.TrueAsync(() => timelapse.FrameCount == 1, "first frame");
+        // The next tick asks for a frame; the printer pauses before the camera's next key frame (e.g. the parked head).
+        time.Advance(TimeSpan.FromSeconds(30));
+        trigger.SetCapturing(false);
+        _packets.Packet(2, keyFrame: true);
+        // Paused for long: the stopped timer asks for nothing.
+        time.Advance(TimeSpan.FromMinutes(5));
+        _packets.Packet(3, keyFrame: true);
+        await ReadAsync(4);
+        Assert.Equal(1, timelapse.FrameCount);
+
+        // Resumed: a frame at once (the next key frame), not an interval later.
+        trigger.SetCapturing(true);
+        _packets.Packet(4, keyFrame: true);
+        await Eventually.TrueAsync(() => timelapse.FrameCount == 2, "frame after the resume");
+        await timelapse.StopAsync().WaitAsync(TestTimeouts.Wait, Ct);
+
+        FakeRecordingWriter writer = Assert.Single(writers.Writers);
+        Assert.Equal([1, 4], writer.Packets.Select(static p => p.Fill));
+        // The pause leaves no gap in the video: the frame after it follows the one before.
+        Assert.Equal([0L, 3000L], writer.Packets.Select(static p => p.Dts));
+    }
+
+    [Fact]
+    public async Task APauseWhileAKeyFrameIsBeingWrittenWritesAtMostThatFrame()
+    {
+        CameraTimelapse? timelapse = null;
+        // The reader already took the request and writes key frame 1 when a tick asks again and the printer pauses.
+        FakeRecordingWriterFactory writers = new()
+        {
+            Written = fill =>
+            {
+                if (fill == 1)
+                {
+                    timelapse!.RequestFrame();
+                    timelapse.CancelFrameRequest();
+                }
+            },
+        };
+        timelapse = Start(writers);
+        _packets.Started();
+
+        Assert.True(timelapse.RequestFrame());
+        _packets.Packet(1, keyFrame: true);
+        _packets.Packet(2, keyFrame: true);
+        await ReadAsync(3);
+        await timelapse.StopAsync().WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal([1], Assert.Single(writers.Writers).Packets.Select(static p => p.Fill));
+        Assert.Equal(1, timelapse.FrameCount);
     }
 
     [Fact]

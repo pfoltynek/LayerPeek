@@ -39,6 +39,8 @@ internal sealed class FakeTimelapse(string printerId, string path, Action<ICamer
     private string[] _files = [];
     private long _bytes;
     private int _requests;
+    private int _pending;
+    private int _cancels;
     private int _stops;
 
     public string PrinterId { get; } = printerId;
@@ -105,6 +107,14 @@ internal sealed class FakeTimelapse(string printerId, string path, Action<ICamer
     /// <summary>How often a frame was asked for while it ran.</summary>
     public int Requests => Volatile.Read(ref _requests);
 
+    /// <summary>Whether a request is pending (not withdrawn by <see cref="CancelFrameRequest"/>).</summary>
+    public bool IsRequestPending => Volatile.Read(ref _pending) != 0;
+
+    public int CancelCalls => Volatile.Read(ref _cancels);
+
+    /// <summary>Runs inside <see cref="RequestFrame"/> after the request is set (tests: something racing with a request).</summary>
+    public Action? OnRequest { get; set; }
+
     public int StopCalls => Volatile.Read(ref _stops);
 
     public bool IsEnded => _done.Task.IsCompleted;
@@ -117,7 +127,15 @@ internal sealed class FakeTimelapse(string printerId, string path, Action<ICamer
         }
 
         Interlocked.Increment(ref _requests);
+        Volatile.Write(ref _pending, 1);
+        OnRequest?.Invoke();
         return true;
+    }
+
+    public void CancelFrameRequest()
+    {
+        Interlocked.Increment(ref _cancels);
+        Volatile.Write(ref _pending, 0);
     }
 
     /// <summary>The first key frame arrived: the file exists (with a few bytes) and the state is Recording.</summary>
