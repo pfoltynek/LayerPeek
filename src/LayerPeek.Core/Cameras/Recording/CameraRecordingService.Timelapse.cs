@@ -21,7 +21,8 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// <item><b>Frames:</b> a trigger (<see cref="ICameraTimelapseTrigger"/>, T-160 the time trigger, one timer per running
 /// timelapse) asks for a key frame every <see cref="CameraRecordingSettings.TimelapseIntervalSeconds"/>; none while the
 /// printer is <see cref="PrinterState.Paused"/> or <see cref="PrinterState.Attention"/> (the file stays open, the camera
-/// connection too).</item>
+/// connection too; a request still waiting for its key frame is withdrawn, so at most a frame already being written lands
+/// after the pause started).</item>
 /// <item><b>Independent</b> of the recording and the dashcam: each has its own packet lease of the same connection (T-143),
 /// and stopping one never touches the other.</item>
 /// <item><b>Files:</b> the printer's folder (<see cref="CameraRecordingFolders.TimelapseFileName"/>), prepared and checked

@@ -71,6 +71,13 @@ public interface ICameraTimelapse : IAsyncDisposable
     /// <returns><see langword="false"/> when the timelapse has ended (nothing will be written).</returns>
     bool RequestFrame();
 
+    /// <summary>
+    /// Withdraws a pending <see cref="RequestFrame"/> (capturing paused): the next key frame is not written unless a frame is
+    /// requested again. A key frame the reader had already taken for the request is still written (at most that one frame,
+    /// already being written at the call); no other. Never blocks, never throws, allocates nothing; any thread.
+    /// </summary>
+    void CancelFrameRequest();
+
     /// <summary>Stops and completes the current file; idempotent, never throws. Same as disposing.</summary>
     Task StopAsync();
 }

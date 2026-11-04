@@ -20,7 +20,9 @@ public interface ICameraTimelapseTrigger : IDisposable
     /// Whether frames are taken now: <see langword="false"/> while the printer is paused or waits for the user
     /// (<see cref="PrinterState.Paused"/>, <see cref="PrinterState.Attention"/>; user decision 2026-11-04),
     /// <see langword="true"/> otherwise. A new trigger is not capturing; the service sets it right after creating it and on
-    /// every snapshot (also with an unchanged value).
+    /// every snapshot (also with an unchanged value). On a change to <see langword="false"/> the trigger requests nothing more
+    /// and withdraws a request still waiting for its key frame (<see cref="ICameraTimelapse.CancelFrameRequest"/>), so no
+    /// frame shows the paused print.
     /// </summary>
     void SetCapturing(bool capturing);
 

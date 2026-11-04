@@ -168,8 +168,11 @@ public sealed class CameraTimelapseServiceTests : IAsyncDisposable
         Raise(pause);
         Assert.False(Status().IsCapturing);
         Assert.Contains("mk4", _changed);
+        // The last tick's request may still wait for its key frame: the pause withdraws it.
+        Assert.False(timelapse.IsRequestPending);
         Clock.Advance(TimeSpan.FromMinutes(10));
         Assert.Equal(2, timelapse.Requests);
+        Assert.False(timelapse.IsRequestPending);
         Assert.False(timelapse.IsEnded);
 
         _changed.Clear();
