@@ -47,7 +47,7 @@ detektoru `bed-change`, aby cíl platil spolehlivě na mnoha semínkách ve vý�
    za 112 h (0,45 / 10 h, cíl ≤ 1 / 10 h splněný). Možnosti: a) nechat `Quiet` 60 s (zvoleno); b) `Quiet` 90 s: celý snímek
    při 5 s 0 falešných poplachů a ≥ 51/56 na všech 30 semínkách, ale poplach později (výřez Core One 2 s medián 71 → 77 s,
    90 % do 130 → 153 s) a hmota pod hlavou se počítá až po 90 s klidu (`Quiet` 75 s: 1 falešný poplach, minimum stále 50/56).
-   Rozhodne uživatel.
+   Rozhodne uživatel. **Rozhodnuto (uživatel 2026-11-04): a) `Quiet` zůstává 60 s.**
 2. **Celý snímek na skutečné sérii Core One (neblokuje, souvisí s otázkou 4 v T-155):** vyšší citlivost zhoršila poplachy od
    mostu X v celém snímku: 42 z 526 snímků nad výchozím prahem (dřív 13), nejvyšší skóre 4,03 % (dřív 2,11 %). Výchozí
    výřez Core One je dál bez poplachu. Výchozí výřez ostatních tiskáren je celý snímek; záběry z nich nemáme. Řešení
