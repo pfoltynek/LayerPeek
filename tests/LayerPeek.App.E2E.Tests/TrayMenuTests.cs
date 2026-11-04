@@ -72,8 +72,11 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         await app.WaitForWindowAsync(AppWindowKind.Settings);
     }
 
-    /// <summary>The recording items of a printer with a camera (T-146), after a separator, which is no menu item.</summary>
-    private static readonly string[] RecordingItems = ["Start recording", "Play last recording", "Open recordings folder"];
+    /// <summary>
+    /// The recording items of a printer with a camera (T-146), after a separator, which is no menu item; T-161: with the
+    /// timelapse (experimental).
+    /// </summary>
+    private static readonly string[] RecordingItems = ["Start recording", "Start timelapse (experimental)", "Play last recording", "Play last timelapse", "Open recordings folder"];
 
     /// <summary>The camera item of a submenu: a plain item (no toggle state "on"), named <paramref name="name"/>.</summary>
     private static AutomationElement CameraItem(AutomationElement[] submenu, string name)

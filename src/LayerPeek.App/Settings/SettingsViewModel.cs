@@ -64,7 +64,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     /// <summary>
     /// Main tab of the camera recordings (T-146, user decision 2026-11-04: a tab of its own, as the General tab has no room
-    /// left within 780 × 532, T-094); the sections of the timelapse and the print failure detection follow on it later.
+    /// left within 780 × 532, T-094), with the sections of the dashcam (T-148), the timelapse (T-161) and the print failure
+    /// detection (T-154).
     /// </summary>
     public const int RecordingTab = 4;
 

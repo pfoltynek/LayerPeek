@@ -105,8 +105,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private bool _recordPrints;
     private bool _dashcam;
 
-    /// <summary>"Timelapse of every print" (T-160): kept as saved until T-161 adds its control.</summary>
-    private readonly bool _timelapsePrints;
+    private bool _timelapsePrints;
     private bool _savedCameraEnabled;
 
     // Removed or the window closed: nothing loaded later is kept (T-154, the last frame).
@@ -433,6 +432,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 // T-146: recording needs the camera.
                 OnPropertyChanged(nameof(CanEditRecordPrints));
                 OnPropertyChanged(nameof(CanEditDashcam));
+                OnPropertyChanged(nameof(CanEditTimelapsePrints));
                 // T-154: so does the detection.
                 OnDetectionStateChanged();
                 _owner.OnPrinterEdited(nameChanged: false);
@@ -483,6 +483,29 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>The tip (and help text) of "Keep the last minutes of a print": what it does, or why it is disabled.</summary>
     public string DashcamHint => _owner.IsRecordingAvailable ? Strings.SettingsDashcamPrinterHint : Strings.RecordingUnavailable;
+
+    /// <summary>
+    /// "Take a timelapse of prints" (T-160, T-161; experimental, off by default, user decision 2026-11-04): from the start of a
+    /// print to a minute after its end, like "Record prints automatically". Kept while the camera is off (the check box is
+    /// disabled).
+    /// </summary>
+    public bool TimelapsePrints
+    {
+        get => _timelapsePrints;
+        set
+        {
+            if (SetProperty(ref _timelapsePrints, value))
+            {
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>The check box can be switched: the camera is on and this build can take timelapses (otherwise disabled with the reason).</summary>
+    public bool CanEditTimelapsePrints => _cameraEnabled && _owner.IsTimelapseAvailable;
+
+    /// <summary>The tip (and help text) of "Take a timelapse of prints": what it does, or why it is disabled.</summary>
+    public string TimelapsePrintsHint => _owner.IsTimelapseAvailable ? Strings.SettingsTimelapsePrintsHint : Strings.TimelapseUnavailable;
 
     /// <summary>RTSP address of the stream (an invalid address loaded from the file is shown here for correction).</summary>
     public string CameraUrl
@@ -1089,6 +1112,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(RecordPrintsHint));
         OnPropertyChanged(nameof(DashcamHint));
+        OnPropertyChanged(nameof(TimelapsePrintsHint));
         ValidateAddress();
         ValidateUserName();
         ValidatePassword();

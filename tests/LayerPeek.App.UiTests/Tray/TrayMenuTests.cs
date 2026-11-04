@@ -339,11 +339,52 @@ public sealed class TrayMenuTests(HeadlessSession session)
             return Task.CompletedTask;
         });
 
+    /// <summary>
+    /// T-161: the tray menu and the camera window of the same printer act on the same timelapse and show the same state:
+    /// started in the window, the menu offers "Stop timelapse"; stopped from the menu, the window's indicator goes.
+    /// </summary>
+    [Fact]
+    public Task TheTrayMenuAndTheCameraWindowShowTheSameTimelapse() =>
+        session.RunAsync(static async scope =>
+        {
+            LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings recordings = new();
+            TrayMenu tray = TrayMenu.Create(scope, recordings: recordings);
+            tray.ViewModel.SetPrinters([TestPrinters.Definition("a", "Alpha") with { Camera = new LayerPeek.Core.Cameras.CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }]);
+            Dispatcher.UIThread.RunJobs();
+            await using LayerPeek.App.UiTests.Cameras.CameraHarness harness = new(recordings: recordings);
+            LayerPeek.App.Windows.CameraWindow window = harness.Open();
+            window.Settle();
+            NativeMenu submenu = tray.Item(0).Menu!;
+            NativeMenuItem item = Assert.Single(submenu.Items.OfType<NativeMenuItem>(), static i => i.Header == Strings.MenuStartTimelapse);
+            Button button = window.Find<Button>("CameraTimelapseButton");
+            Assert.Equal(Strings.TimelapseStart, ToolTip.GetTip(button));
+
+            window.Click(button);
+            Assert.Equal(["a"], recordings.TimelapsesStarted);
+            // The service reports it (any thread): both follow.
+            await Task.Run(() => recordings.SetTimelapse("a", LayerPeek.Core.Cameras.Recording.CameraRecordingActivity.Recording));
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+            Assert.Equal(Strings.MenuStopTimelapse, item.Header);
+            Assert.Equal(Strings.TimelapseStop, ToolTip.GetTip(button));
+            Assert.True(window.Find<TextBlock>("CameraTimelapseIndicator").IsEffectivelyVisible);
+
+            TrayMenu.ClickLikeThePlatform(item);
+            Assert.Equal(["a"], recordings.TimelapsesStopped);
+            await Task.Run(() => recordings.SetTimelapse("a", LayerPeek.Core.Cameras.Recording.CameraRecordingActivity.Idle));
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+            Assert.Equal(Strings.MenuStartTimelapse, item.Header);
+            Assert.Equal(Strings.TimelapseStart, ToolTip.GetTip(button));
+            Assert.False(window.Find<TextBlock>("CameraTimelapseIndicator").IsVisible);
+        });
+
     [Fact]
     public Task RecordingItemsAreAGroupOfTheirOwnAndFollowTheRecordingInPlace() =>
         session.RunAsync(static scope =>
         {
             // T-146: start / stop, play the last recording and open the folder, after a separator, in the native menu.
+            // T-161: the timelapse (experimental) below the recording, "Play last timelapse" below "Play last recording".
             LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings recordings = new();
             TrayMenu tray = TrayMenu.Create(scope, recordings: recordings);
             tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4") with { Camera = new LayerPeek.Core.Cameras.CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }]);
@@ -351,14 +392,22 @@ public sealed class TrayMenuTests(HeadlessSession session)
             NativeMenu submenu = tray.Item(0).Menu!;
             string?[] Headers() => [.. submenu.Items.Select(static item => item is NativeMenuItemSeparator ? "-" : ((NativeMenuItem)item).Header)];
 
-            Assert.Equal([Strings.MenuOpenPrusaLink, Strings.MenuShowCamera, "-", Strings.MenuStartRecording, Strings.MenuPlayLastRecording, Strings.MenuOpenRecordingsFolder], Headers());
+            Assert.Equal(
+                [Strings.MenuOpenPrusaLink, Strings.MenuShowCamera, "-", Strings.MenuStartRecording, Strings.MenuStartTimelapse, Strings.MenuPlayLastRecording, Strings.MenuPlayLastTimelapse, Strings.MenuOpenRecordingsFolder],
+                Headers());
             NativeMenuItem record = (NativeMenuItem)submenu.Items[3];
-            NativeMenuItem play = (NativeMenuItem)submenu.Items[4];
+            NativeMenuItem timelapse = (NativeMenuItem)submenu.Items[4];
+            NativeMenuItem play = (NativeMenuItem)submenu.Items[5];
+            NativeMenuItem playTimelapse = (NativeMenuItem)submenu.Items[6];
             Assert.False(play.IsEnabled);
             Assert.Equal(Strings.MenuNoRecordingYet, play.ToolTip);
+            Assert.False(playTimelapse.IsEnabled);
+            Assert.Equal(Strings.MenuNoTimelapseYet, playTimelapse.ToolTip);
 
             TrayMenu.ClickLikeThePlatform(record);
+            TrayMenu.ClickLikeThePlatform(timelapse);
             Assert.Equal(["mk4"], recordings.Started);
+            Assert.Equal(["mk4"], recordings.TimelapsesStarted);
 
             // The service reports the recording from another thread: the same platform items, in place.
             Task.Run(() => recordings.SetActivity("mk4", LayerPeek.Core.Cameras.Recording.CameraRecordingActivity.Recording, lastFile: "/rec/MK4/2026-11-03_10-00-00.mp4")).Wait(TestContext.Current.CancellationToken);
@@ -366,13 +415,25 @@ public sealed class TrayMenuTests(HeadlessSession session)
             Assert.Same(submenu, tray.Item(0).Menu);
             Assert.Same(record, submenu.Items[3]);
             Assert.Equal(Strings.MenuStopRecording, record.Header);
+            Assert.Equal(Strings.MenuStartTimelapse, timelapse.Header);
             Assert.True(play.IsEnabled);
 
+            // And the timelapse, in place too.
+            Task.Run(() => recordings.SetTimelapse("mk4", LayerPeek.Core.Cameras.Recording.CameraRecordingActivity.Recording, lastFile: "/rec/MK4/2026-11-03_09-00-00_timelapse.mp4")).Wait(TestContext.Current.CancellationToken);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(timelapse, submenu.Items[4]);
+            Assert.Equal(Strings.MenuStopTimelapse, timelapse.Header);
+            Assert.True(playTimelapse.IsEnabled);
+
             TrayMenu.ClickLikeThePlatform(record);
+            TrayMenu.ClickLikeThePlatform(timelapse);
             TrayMenu.ClickLikeThePlatform(play);
-            TrayMenu.ClickLikeThePlatform((NativeMenuItem)submenu.Items[5]);
+            TrayMenu.ClickLikeThePlatform(playTimelapse);
+            TrayMenu.ClickLikeThePlatform((NativeMenuItem)submenu.Items[7]);
             Assert.Equal(["mk4"], recordings.Stopped);
+            Assert.Equal(["mk4"], recordings.TimelapsesStopped);
             Assert.Equal(["mk4"], recordings.Played);
+            Assert.Equal(["mk4"], recordings.TimelapsesPlayed);
             Assert.Empty(recordings.OpenedFolders);
             Assert.Equal(["mk4"], recordings.OpenedPrinterFolders);
             return Task.CompletedTask;

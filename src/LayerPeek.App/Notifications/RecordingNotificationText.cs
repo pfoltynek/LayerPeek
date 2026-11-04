@@ -8,7 +8,7 @@ namespace LayerPeek.App.Notifications;
 
 /// <summary>
 /// The notification about a failed camera recording (T-146), the same on every OS: the printer name as the title, "Camera
-/// recording failed" ("Saving the last minutes failed" for the dashcam, T-148) and the reason by
+/// recording failed" ("Saving the last minutes failed" for the dashcam, T-148; "Timelapse failed", T-161) and the reason by
 /// <see cref="CameraRecordingProblem"/>, all in one given language. A click opens the
 /// settings window on its Recording tab (<see cref="ToastLaunchArgument.RecordingSettings"/>, user decision 2026-11-04: the
 /// folder and the limit are there); no tag, so two failures of different printers are two notifications.
@@ -21,13 +21,24 @@ internal static class RecordingNotificationText
         ArgumentNullException.ThrowIfNull(notification);
         ArgumentNullException.ThrowIfNull(textCulture);
         string title = string.IsNullOrWhiteSpace(notification.PrinterName) ? notification.PrinterId : notification.PrinterName;
-        string headline = Text(notification.IsDashcam ? nameof(Strings.NotificationDashcamFailed) : nameof(Strings.NotificationRecordingFailed), textCulture);
+        string headline = Text(
+            notification.IsTimelapse ? nameof(Strings.NotificationTimelapseFailed)
+            : notification.IsDashcam ? nameof(Strings.NotificationDashcamFailed)
+            : nameof(Strings.NotificationRecordingFailed),
+            textCulture);
         return new NotificationLines(title, headline, Reason(notification, textCulture));
     }
 
-    /// <summary>The reason line; an unknown problem has the generic one.</summary>
+    /// <summary>
+    /// The reason line; an unknown problem has the generic one. T-161: the reasons that name the recording have a timelapse
+    /// text of their own; the others (camera, folder, drive, stream) are the same for both.
+    /// </summary>
     internal static string Reason(RecordingNotification notification, CultureInfo culture) => notification.Problem switch
     {
+        CameraRecordingProblem.Unavailable when notification.IsTimelapse => Text(nameof(Strings.NotificationTimelapseUnavailable), culture),
+        CameraRecordingProblem.WriteFailed when notification.IsTimelapse => Text(nameof(Strings.NotificationTimelapseWriteFailed), culture),
+        CameraRecordingProblem.SizeLimitReached when notification.IsTimelapse =>
+            Format(culture, Text(nameof(Strings.NotificationTimelapseSizeLimitReached), culture), notification.SizeLimitGigabytes),
         CameraRecordingProblem.Unavailable => Text(nameof(Strings.NotificationRecordingUnavailable), culture),
         CameraRecordingProblem.CameraUnavailable => Text(nameof(Strings.NotificationRecordingCameraUnavailable), culture),
         CameraRecordingProblem.FolderUnavailable => Text(nameof(Strings.NotificationRecordingFolderUnavailable), culture),

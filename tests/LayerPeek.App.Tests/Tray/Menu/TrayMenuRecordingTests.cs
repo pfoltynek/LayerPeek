@@ -60,7 +60,9 @@ public sealed class TrayMenuRecordingTests : IDisposable
             camera => Assert.Equal(TrayMenuCommand.Camera, camera.Command),
             separator => Assert.True(separator.IsSeparator),
             start => Assert.Equal((TrayMenuCommand.StartRecording, "Start _recording", true, null, "mk4"), (start.Command, start.Header, start.IsEnabled, start.ToolTip, start.PrinterId)),
+            timelapse => Assert.Equal((TrayMenuCommand.StartTimelapse, "Start _timelapse (experimental)", true, null, "mk4"), (timelapse.Command, timelapse.Header, timelapse.IsEnabled, timelapse.ToolTip, timelapse.PrinterId)),
             play => Assert.Equal((TrayMenuCommand.PlayLastRecording, "_Play last recording", false, Strings.MenuNoRecordingYet), (play.Command, play.Header, play.IsEnabled, play.ToolTip)),
+            playTimelapse => Assert.Equal((TrayMenuCommand.PlayLastTimelapse, "Play _last timelapse", false, Strings.MenuNoTimelapseYet), (playTimelapse.Command, playTimelapse.Header, playTimelapse.IsEnabled, playTimelapse.ToolTip)),
             folder => Assert.Equal((TrayMenuCommand.OpenRecordingsFolder, "Open recordings fol_der", true), (folder.Command, folder.Header, folder.IsEnabled)));
         Assert.All(submenu.Where(static item => !item.IsSeparator), static item => Assert.True(item.HasAccessKey));
 
@@ -192,22 +194,27 @@ public sealed class TrayMenuRecordingTests : IDisposable
         viewModel.SetCameraWindowOpen("mk4", isOpen: true);
         viewModel.SetCameraWindowOpen("c", isOpen: true);
         char?[] startKeys = [.. Enumerable.Range(0, 2).Select(i => AccessKey(Item(viewModel, TrayMenuCommand.StartRecording, i), info))];
+        char?[] timelapseKeys = [.. Enumerable.Range(0, 2).Select(i => AccessKey(Item(viewModel, TrayMenuCommand.StartTimelapse, i), info))];
 
         _recordings.SetActivity("mk4", CameraRecordingActivity.Recording);
         _recordings.SetActivity("c", CameraRecordingActivity.Recording);
         // T-148: with "Save the last N min" of the dashcam too.
         _recordings.SetDashcam("mk4", CameraDashcamActivity.Waiting, minutes: 10);
         _recordings.SetDashcam("c", CameraDashcamActivity.Waiting, minutes: 10);
+        // T-161: and a running timelapse ("Stop timelapse", same key as "Start timelapse").
+        _recordings.SetTimelapse("mk4", CameraRecordingActivity.Recording);
+        _recordings.SetTimelapse("c", CameraRecordingActivity.Recording);
         _dispatcher.RunAll();
 
         for (int i = 0; i < 2; i++)
         {
             TrayMenuEntryList submenu = viewModel.PrinterItems[i].Submenu!;
-            Assert.Equal(8, submenu.Count);
+            Assert.Equal(10, submenu.Count);
             char?[] keys = [.. submenu.Where(static item => !item.IsSeparator).Select(item => AccessKey(item, info))];
             Assert.All(keys, key => Assert.True(key is { } k && char.IsLetterOrDigit(k), $"{language}: {string.Join(", ", keys)}"));
             Assert.True(keys.Distinct().Count() == keys.Length, $"{language}: access keys {string.Join(", ", keys)} are not unique.");
             Assert.Equal(startKeys[i], AccessKey(Item(viewModel, TrayMenuCommand.StopRecording, i), info));
+            Assert.Equal(timelapseKeys[i], AccessKey(Item(viewModel, TrayMenuCommand.StopTimelapse, i), info));
             Assert.All(submenu.Where(static item => !item.IsSeparator), item => Assert.Equal(1, NativeMenuText.HeaderOf(item).Count(static c => c == '_')));
         }
     }
@@ -265,6 +272,93 @@ public sealed class TrayMenuRecordingTests : IDisposable
 
         Assert.Equal(["mk4"], _recordings.DashcamSaves);
         Assert.Empty(_recordings.Started);
+        Assert.Empty(_logger.Entries);
+    }
+
+    // ---- T-161: timelapse ----
+
+    [Fact]
+    public async Task TheTimelapseItemFollowsTheTimelapseInPlace()
+    {
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()), WithCamera(Definition("b", "Beta")));
+        TrayMenuEntry beta = viewModel.PrinterItems[1];
+        using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
+        _target.Operations.Clear();
+
+        await Task.Run(() => _recordings.SetTimelapse("mk4", CameraRecordingActivity.Recording), TestContext.Current.CancellationToken);
+        _dispatcher.RunAll();
+
+        TrayMenuEntry stop = Item(viewModel, TrayMenuCommand.StopTimelapse);
+        Assert.Equal(("Stop _timelapse (experimental)", true, null), (stop.Header, stop.IsEnabled, stop.ToolTip));
+        // The recording is not touched.
+        Assert.Equal(TrayMenuCommand.StartRecording, Item(viewModel, TrayMenuCommand.StartRecording).Command);
+        Assert.Equal(["update 0"], _target.Operations);
+        Assert.Same(beta, viewModel.PrinterItems[1]);
+
+        // Paused: still "Stop", with the tip that no frames are taken.
+        _recordings.SetTimelapse("mk4", CameraRecordingActivity.Recording, capturing: false);
+        _dispatcher.RunAll();
+        stop = Item(viewModel, TrayMenuCommand.StopTimelapse);
+        Assert.Equal((true, Strings.TimelapsePaused), (stop.IsEnabled, stop.ToolTip));
+
+        _recordings.SetTimelapse("mk4", CameraRecordingActivity.Idle, lastFile: "/rec/mk4/2026-11-04_10-00-00_timelapse.mp4");
+        _dispatcher.RunAll();
+        Assert.Equal(TrayMenuCommand.StartTimelapse, Item(viewModel, TrayMenuCommand.StartTimelapse).Command);
+        TrayMenuEntry play = Item(viewModel, TrayMenuCommand.PlayLastTimelapse);
+        Assert.Equal((true, null), (play.IsEnabled, play.ToolTip));
+        // "Play last recording" does not pick the timelapse (T-160).
+        Assert.False(Item(viewModel, TrayMenuCommand.PlayLastRecording).IsEnabled);
+    }
+
+    [Theory]
+    [InlineData(CameraRecordingActivity.Starting)]
+    [InlineData(CameraRecordingActivity.Stopping)]
+    public void WhileATimelapseStartsOrStopsTheItemIsDisabledWithTheReason(CameraRecordingActivity activity)
+    {
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()));
+
+        _recordings.SetTimelapse("mk4", activity);
+        _dispatcher.RunAll();
+
+        TrayMenuEntry item = Item(viewModel, TrayMenuCommand.StopTimelapse);
+        Assert.False(item.IsEnabled);
+        Assert.Equal(activity == CameraRecordingActivity.Starting ? Strings.TimelapseStarting : Strings.TimelapseStopping, item.ToolTip);
+    }
+
+    [Fact]
+    public void WithoutTheTimelapseRecorderStartIsDisabledWithTheReason()
+    {
+        _recordings.IsTimelapseAvailable = false;
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()));
+
+        TrayMenuEntry start = Item(viewModel, TrayMenuCommand.StartTimelapse);
+        Assert.False(start.IsEnabled);
+        Assert.Equal(Strings.TimelapseUnavailable, start.ToolTip);
+        Assert.True(Item(viewModel, TrayMenuCommand.StartRecording).IsEnabled);
+    }
+
+    [Fact]
+    public void TimelapseClicksActOnWhatTheItemShowed()
+    {
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()));
+        using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
+        TrayMenuEntry start = Item(viewModel, TrayMenuCommand.StartTimelapse);
+
+        _target.Click(start);
+        _recordings.SetTimelapse("mk4", CameraRecordingActivity.Recording, lastFile: "/rec/mk4/a_timelapse.mp4");
+        _dispatcher.RunAll();
+        // A Start of a menu built before the timelapse began starts again (the service ignores it), never stops.
+        _target.Click(start);
+        _target.Click(Item(viewModel, TrayMenuCommand.StopTimelapse));
+        _target.Click(Item(viewModel, TrayMenuCommand.PlayLastTimelapse));
+        viewModel.RunRecordingCommand(Item(viewModel, TrayMenuCommand.StopTimelapse) with { IsEnabled = false });
+
+        Assert.Equal(["mk4", "mk4"], _recordings.TimelapsesStarted);
+        Assert.Equal(["mk4"], _recordings.TimelapsesStopped);
+        Assert.Equal(["mk4"], _recordings.TimelapsesPlayed);
+        Assert.Empty(_recordings.Started);
+        Assert.Empty(_recordings.Stopped);
+        Assert.Empty(_recordings.Played);
         Assert.Empty(_logger.Entries);
     }
 

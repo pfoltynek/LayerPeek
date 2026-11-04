@@ -35,11 +35,13 @@
           <SolidColorBrush x:Key="SettingsErrorBrush" Color="#C42B1C" />
           <SolidColorBrush x:Key="SettingsSuccessBrush" Color="#0F7B0F" />
           <SolidColorBrush x:Key="NoticeBrush" Color="#FFF4E5" />
+          <SolidColorBrush x:Key="ExperimentalBrush" Color="#8A4B00" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <SolidColorBrush x:Key="SettingsErrorBrush" Color="#FF99A4" />
           <SolidColorBrush x:Key="SettingsSuccessBrush" Color="#6CCB5F" />
           <SolidColorBrush x:Key="NoticeBrush" Color="#4A3410" />
+          <SolidColorBrush x:Key="ExperimentalBrush" Color="#FFC56B" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>
@@ -69,6 +71,23 @@
     <Style Selector="TextBlock.hint.limitation">
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Opacity" Value="0.85" />
+    </Style>
+    <!--
+      T-161: the "Experimental" badge next to every timelapse option (user decision 2026-11-04): a small amber pill, the
+      colours of the notice (readable in both theme variants), its meaning as the tip and help text.
+    -->
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="{DynamicResource NoticeBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ExperimentalBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="5,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.badge TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ExperimentalBrush}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="TextBlock.marker">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
@@ -456,13 +475,36 @@
                                     ToolTip.ShowOnDisabled="True"
                                     AutomationProperties.HelpText="{Binding DashcamHint}" />
                         </StackPanel>
-                        <TextBlock Classes="label" Margin="0,8,0,4" Text="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                        <TextBox AutomationProperties.AutomationId="PrinterCameraUrl"
-                                 Text="{Binding CameraUrl}"
-                                 PlaceholderText="rtsp://192.168.0.227/live"
-                                 AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                 AutomationProperties.HelpText="{Binding CameraUrlHelpText}"
-                                 Classes.invalid="{Binding HasCameraUrlError}" />
+                        <!--
+                          T-161: "Take a timelapse of prints" (per printer, experimental: the badge right of it), a row of its
+                          own under the two above with the same rules; its interval is on the Recording tab.
+                        -->
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
+                          <CheckBox AutomationProperties.AutomationId="PrinterTimelapsePrints"
+                                    Content="{Binding [SettingsTimelapsePrints], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    IsChecked="{Binding TimelapsePrints}"
+                                    IsEnabled="{Binding CanEditTimelapsePrints}"
+                                    ToolTip.Tip="{Binding TimelapsePrintsHint}"
+                                    ToolTip.ShowOnDisabled="True"
+                                    AutomationProperties.HelpText="{Binding TimelapsePrintsHint}" />
+                          <Border Classes="badge"
+                                  AutomationProperties.AutomationId="PrinterTimelapseExperimental"
+                                  AutomationProperties.HelpText="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                  ToolTip.Tip="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                            <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                          </Border>
+                        </StackPanel>
+                        <!-- T-161: the label left of the address (not above it) gives the row of the timelapse its room (T-033). -->
+                        <Grid ColumnDefinitions="Auto,8,*" Margin="0,4,0,0">
+                          <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                          <TextBox Grid.Column="2"
+                                   AutomationProperties.AutomationId="PrinterCameraUrl"
+                                   Text="{Binding CameraUrl}"
+                                   PlaceholderText="rtsp://192.168.0.227/live"
+                                   AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                   AutomationProperties.HelpText="{Binding CameraUrlHelpText}"
+                                   Classes.invalid="{Binding HasCameraUrlError}" />
+                        </Grid>
                         <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlHint" Classes="hint" Text="{Binding [SettingsCameraUrlHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsCameraUrlHint}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlError" Classes="error" Text="{Binding CameraUrlError}" IsVisible="{Binding CameraUrlError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
@@ -1286,8 +1328,8 @@
 
       <!--
         T-146: camera recordings, a tab of its own (user decision 2026-11-04: the General tab has no room left within
-        780 × 532, T-094). One section per feature in the stack panel: the timelapse and the print failure detection
-        follow below the recording later. "Record prints automatically" stays with each printer (Camera sub-tab).
+        780 × 532, T-094). One section per feature in the stack panel: the recording, the dashcam, the timelapse and the
+        print failure detection. "Record prints automatically" stays with each printer (Camera sub-tab).
       -->
       <TabItem AutomationProperties.AutomationId="SettingsTabRecording" Header="{Binding [SettingsTabRecording], Source={x:Static loc:LocalizedStrings.Instance}}">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
@@ -1360,16 +1402,17 @@
               </StackPanel>
             </Grid>
             <!--
-              T-148 "Last minutes of a print (dashcam)": the same two columns, the length in whole minutes with its hint (the
-              error replaces it, T-033) and the events that save automatically, with the hint that saving by hand always works.
+              T-148 "Last minutes of a print (dashcam)", compacted by T-161 to make room for the timelapse (the tab has no
+              room for one more section otherwise, T-033): the length in whole minutes in the heading row, its hint in one
+              full-width row below (the error replaces it), then the four events that save automatically in two columns.
               Whether a printer has a dashcam is on its Camera sub-tab. Disabled when this build cannot record.
             -->
             <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto" IsEnabled="{Binding IsRecordingAvailable}">
-              <TextBlock Grid.ColumnSpan="3" Classes="section" Margin="0,4,0,4" Text="{Binding [SettingsDashcam], Source={x:Static loc:LocalizedStrings.Instance}}" />
-              <TextBlock Grid.Row="1" Classes="label" Text="{Binding [SettingsDashcamMinutes], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
-              <TextBlock Grid.Row="1" Grid.Column="2" Classes="label" Text="{Binding [SettingsDashcamTriggers], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
-              <StackPanel Grid.Row="2">
-                <NumericUpDown AutomationProperties.AutomationId="SettingsDashcamMinutes"
+              <TextBlock Classes="section" Margin="0" VerticalAlignment="Center" Text="{Binding [SettingsDashcam], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
+              <Grid Grid.Column="2" ColumnDefinitions="Auto,8,Auto">
+                <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsDashcamMinutes], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <NumericUpDown Grid.Column="2"
+                               AutomationProperties.AutomationId="SettingsDashcamMinutes"
                                AutomationProperties.Name="{Binding [SettingsDashcamMinutes], Source={x:Static loc:LocalizedStrings.Instance}}"
                                AutomationProperties.HelpText="{Binding DashcamMinutesHelpText}"
                                Classes.invalid="{Binding HasDashcamMinutesError}"
@@ -1378,19 +1421,64 @@
                                Maximum="{x:Static vm:SettingsViewModel.MaxDashcamMinutes}"
                                Increment="1"
                                FormatString="0"
-                               Width="160"
-                               HorizontalAlignment="Left" />
-                <TextBlock AutomationProperties.AutomationId="SettingsDashcamMinutesHint" Classes="hint" Text="{Binding DashcamMinutesHint}" IsVisible="{Binding ShowsDashcamMinutesHint}" />
-                <TextBlock AutomationProperties.AutomationId="SettingsDashcamMinutesError" Classes="error" Text="{Binding DashcamMinutesError}" IsVisible="{Binding HasDashcamMinutesError}" />
-                <!-- T-154: under the length, where the column has room; the triggers' column needs the height for the detection section. -->
-                <TextBlock AutomationProperties.AutomationId="SettingsDashcamTriggersHint" Classes="hint" Text="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                               Width="120" />
+              </Grid>
+              <TextBlock Grid.Row="1" Grid.ColumnSpan="3" AutomationProperties.AutomationId="SettingsDashcamMinutesHint" Classes="hint" Text="{Binding DashcamMinutesHint}" IsVisible="{Binding ShowsDashcamMinutesHint}" />
+              <TextBlock Grid.Row="1" Grid.ColumnSpan="3" AutomationProperties.AutomationId="SettingsDashcamMinutesError" Classes="error" Text="{Binding DashcamMinutesError}" IsVisible="{Binding HasDashcamMinutesError}" />
+              <!--
+                The events that save automatically, two per column. "Save automatically" is the accessible name of both
+                columns, that saving by hand always works the tip and help text of each event (no room for their own lines,
+                T-033).
+              -->
+              <StackPanel Grid.Row="2" Margin="0,4,0,0" AutomationProperties.Name="{Binding [SettingsDashcamTriggers], Source={x:Static loc:LocalizedStrings.Instance}}">
+                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnError" Content="{Binding [SettingsDashcamOnError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnError}" ToolTip.Tip="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" AutomationProperties.HelpText="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnAttention" Content="{Binding [SettingsDashcamOnAttention], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnAttention}" ToolTip.Tip="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" AutomationProperties.HelpText="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
               </StackPanel>
-              <StackPanel Grid.Row="2" Grid.Column="2">
-                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnError" Content="{Binding [SettingsDashcamOnError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnError}" />
-                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnAttention" Content="{Binding [SettingsDashcamOnAttention], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnAttention}" />
-                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnStopped" Content="{Binding [SettingsDashcamOnStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnStopped}" />
-                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnFailureDetection" Content="{Binding [SettingsDashcamOnFailureDetection], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnFailureDetection}" />
+              <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,4,0,0" AutomationProperties.Name="{Binding [SettingsDashcamTriggers], Source={x:Static loc:LocalizedStrings.Instance}}">
+                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnStopped" Content="{Binding [SettingsDashcamOnStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnStopped}" ToolTip.Tip="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" AutomationProperties.HelpText="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnFailureDetection" Content="{Binding [SettingsDashcamOnFailureDetection], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnFailureDetection}" ToolTip.Tip="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" AutomationProperties.HelpText="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
               </StackPanel>
+            </Grid>
+            <!--
+              T-161 "Timelapse" (experimental: the badge next to the heading covers the section, user decision 2026-11-04):
+              like the dashcam, the time between frames in whole seconds in the heading row; its hint (no frames during a
+              pause, 30 fps) is its tip and help text, as the tab has no room for one more hint line (T-033, like the
+              detection interval of T-154). An error or, without the recorder, the reason shows in a row below. Global for
+              all printers; whether a printer takes a timelapse of its prints is on its Camera sub-tab.
+            -->
+            <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Classes="section" Margin="0" VerticalAlignment="Center" Text="{Binding [SettingsTimelapse], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <Border Classes="badge"
+                        AutomationProperties.AutomationId="SettingsTimelapseExperimental"
+                        AutomationProperties.HelpText="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        ToolTip.Tip="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                  <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </Border>
+              </StackPanel>
+              <Grid Grid.Column="2" ColumnDefinitions="Auto,8,Auto">
+                <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsTimelapseInterval], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <NumericUpDown Grid.Column="2"
+                               AutomationProperties.AutomationId="SettingsTimelapseInterval"
+                               AutomationProperties.Name="{Binding [SettingsTimelapseInterval], Source={x:Static loc:LocalizedStrings.Instance}}"
+                               AutomationProperties.HelpText="{Binding TimelapseIntervalHelpText}"
+                               IsEnabled="{Binding IsTimelapseAvailable}"
+                               Classes.invalid="{Binding HasTimelapseIntervalError}"
+                               ToolTip.Tip="{Binding TimelapseIntervalHint}"
+                               Value="{Binding TimelapseIntervalSeconds}"
+                               Minimum="{x:Static vm:SettingsViewModel.MinTimelapseIntervalSeconds}"
+                               Maximum="{x:Static vm:SettingsViewModel.MaxTimelapseIntervalSeconds}"
+                               Increment="5"
+                               FormatString="0"
+                               Width="120" />
+              </Grid>
+              <TextBlock Grid.Row="1" Grid.ColumnSpan="3" AutomationProperties.AutomationId="SettingsTimelapseIntervalError" Classes="error" Text="{Binding TimelapseIntervalError}" IsVisible="{Binding HasTimelapseIntervalError}" />
+              <TextBlock Grid.Row="1"
+                         Grid.ColumnSpan="3"
+                         AutomationProperties.AutomationId="SettingsTimelapseUnavailable"
+                         Classes="error"
+                         Text="{Binding [TimelapseUnavailable], Source={x:Static loc:LocalizedStrings.Instance}}"
+                         IsVisible="{Binding ShowsTimelapseUnavailable}" />
             </Grid>
             <!--
               T-154 "Print failure detection" (user decisions 2026-11-04): the same two columns. Left the global switch (off

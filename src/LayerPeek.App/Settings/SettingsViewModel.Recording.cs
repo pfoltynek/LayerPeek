@@ -18,6 +18,12 @@ namespace LayerPeek.App.Settings;
 /// automatically (each on by default); whether a printer has a dashcam is per printer on its Camera sub-tab. Disabled with
 /// the reason like the folder when this build cannot record.
 /// </para>
+/// <para>
+/// T-161 "Timelapse" (experimental, user decision 2026-11-04: the badge is next to the heading): the time between two frames,
+/// global for all printers (5–600 whole seconds, default 30; the video is always 30 fps, no option); whether a printer takes
+/// a timelapse of its prints is on its Camera sub-tab. A free whole number like the other numbers of the tab (presets could
+/// not offer every value the service accepts), validated like them (T-112). Disabled with the reason without the recorder.
+/// </para>
 /// </summary>
 public sealed partial class SettingsViewModel
 {
@@ -36,8 +42,11 @@ public sealed partial class SettingsViewModel
     private bool _dashcamOnStopped = true;
     private bool _dashcamOnFailureDetection = true;
 
-    /// <summary>The timelapse interval (T-160): kept as saved until T-161 adds its control.</summary>
-    private int _timelapseIntervalSeconds = CameraRecordingSettings.DefaultTimelapseIntervalSeconds;
+    private decimal? _timelapseIntervalSeconds = CameraRecordingSettings.DefaultTimelapseIntervalSeconds;
+    private string? _timelapseIntervalError;
+
+    /// <summary>The fixed frame rate of every timelapse video (T-158), told by the hint of the interval.</summary>
+    private readonly int _timelapseFramesPerSecond = LayerPeek.Core.Cameras.Timelapse.ICameraTimelapseRecorder.FramesPerSecond;
 
     /// <summary>The app's recordings (state, default folder, opening the folder); <see langword="null"/>: none (tests).</summary>
     internal ICameraRecordings? Recordings { get; init; }
@@ -172,8 +181,48 @@ public sealed partial class SettingsViewModel
         set => SetGeneral(ref _dashcamOnFailureDetection, value);
     }
 
+    public static decimal MinTimelapseIntervalSeconds => CameraRecordingSettings.MinTimelapseIntervalSeconds;
+
+    public static decimal MaxTimelapseIntervalSeconds => CameraRecordingSettings.MaxTimelapseIntervalSeconds;
+
+    /// <summary>This build can take timelapses (T-160); without the app's recordings (tests) the options are editable.</summary>
+    public bool IsTimelapseAvailable => Recordings?.IsTimelapseAvailable ?? true;
+
+    /// <summary>The time between two timelapse frames in whole seconds (T-161), for all printers.</summary>
+    public decimal? TimelapseIntervalSeconds
+    {
+        get => _timelapseIntervalSeconds;
+        set => SetGeneral(ref _timelapseIntervalSeconds, value);
+    }
+
+    public string? TimelapseIntervalError
+    {
+        get => _timelapseIntervalError;
+        private set
+        {
+            if (SetProperty(ref _timelapseIntervalError, value))
+            {
+                OnPropertyChanged(nameof(HasTimelapseIntervalError));
+                OnPropertyChanged(nameof(ShowsTimelapseUnavailable));
+                OnPropertyChanged(nameof(TimelapseIntervalHelpText));
+            }
+        }
+    }
+
+    public bool HasTimelapseIntervalError => _timelapseIntervalError is not null;
+
+    /// <summary>Without the recorder the reason takes the place of the hint (unless an error does).</summary>
+    public bool ShowsTimelapseUnavailable => _timelapseIntervalError is null && !IsTimelapseAvailable;
+
+    /// <summary>The hint of the interval: no frames during a pause, the fixed frame rate of the video.</summary>
+    public string TimelapseIntervalHint => Format(Strings.SettingsTimelapseIntervalHint, _timelapseFramesPerSecond);
+
+    /// <summary>For screen readers: the error of the interval, else why timelapses are not available, else its hint.</summary>
+    public string TimelapseIntervalHelpText => _timelapseIntervalError ?? (IsTimelapseAvailable ? TimelapseIntervalHint : Strings.TimelapseUnavailable);
+
     /// <summary>A field of the Recording tab is invalid: a failed save shows that tab.</summary>
-    internal bool HasRecordingTabError => _recordingLimitError is not null || _dashcamMinutesError is not null || _detectionIntervalError is not null;
+    internal bool HasRecordingTabError =>
+        _recordingLimitError is not null || _dashcamMinutesError is not null || _timelapseIntervalError is not null || _detectionIntervalError is not null;
 
     /// <summary>Opens the folder dialog; the chosen folder is checked before it is taken.</summary>
     public IAsyncRelayCommand ChooseRecordingFolderCommand => _chooseRecordingFolderCommand ??= new AsyncRelayCommand(
@@ -209,9 +258,13 @@ public sealed partial class SettingsViewModel
         _timelapseIntervalSeconds = recording.TimelapseIntervalSeconds;
     }
 
-    /// <summary>The recording settings as edited; <see langword="null"/> while the limit or the dashcam length is invalid.</summary>
+    /// <summary>
+    /// The recording settings as edited; <see langword="null"/> while the limit, the dashcam length or the timelapse interval
+    /// is invalid.
+    /// </summary>
     private CameraRecordingSettings? BuildRecording() =>
         _recordingLimitGigabytes is { } limit && _recordingLimitError is null && _dashcamMinutes is { } minutes && _dashcamMinutesError is null
+            && _timelapseIntervalSeconds is { } interval && _timelapseIntervalError is null
             ? new CameraRecordingSettings
             {
                 Folder = _recordingFolder,
@@ -221,7 +274,7 @@ public sealed partial class SettingsViewModel
                 DashcamOnAttention = _dashcamOnAttention,
                 DashcamOnStopped = _dashcamOnStopped,
                 DashcamOnFailureDetection = _dashcamOnFailureDetection,
-                TimelapseIntervalSeconds = _timelapseIntervalSeconds,
+                TimelapseIntervalSeconds = (int)interval,
             }
             : null;
 
@@ -234,6 +287,9 @@ public sealed partial class SettingsViewModel
         DashcamMinutesError = IsWholeNumber(_dashcamMinutes, CameraRecordingSettings.MinDashcamMinutes, CameraRecordingSettings.MaxDashcamMinutes)
             ? null
             : Format(Strings.SettingsErrorRecordingLimit, CameraRecordingSettings.MinDashcamMinutes, CameraRecordingSettings.MaxDashcamMinutes);
+        TimelapseIntervalError = IsWholeNumber(_timelapseIntervalSeconds, CameraRecordingSettings.MinTimelapseIntervalSeconds, CameraRecordingSettings.MaxTimelapseIntervalSeconds)
+            ? null
+            : Format(Strings.SettingsErrorRecordingLimit, CameraRecordingSettings.MinTimelapseIntervalSeconds, CameraRecordingSettings.MaxTimelapseIntervalSeconds);
     }
 
     private static bool IsWholeNumber(decimal? value, int min, int max) =>
@@ -248,6 +304,8 @@ public sealed partial class SettingsViewModel
         OnPropertyChanged(nameof(RecordingFolderHelpText));
         OnPropertyChanged(nameof(DashcamMinutesHint));
         OnPropertyChanged(nameof(DashcamMinutesHelpText));
+        OnPropertyChanged(nameof(TimelapseIntervalHint));
+        OnPropertyChanged(nameof(TimelapseIntervalHelpText));
     }
 
     /// <summary>Editing became possible or impossible (loading, saving): the buttons follow.</summary>

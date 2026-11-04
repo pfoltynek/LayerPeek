@@ -1694,7 +1694,7 @@
   </data>
   <data name="SettingsErrorRecordingLimit" xml:space="preserve">
     <value>Enter a whole number from {0} to {1}.</value>
-    <comment>{0} = minimum, {1} = maximum in GB.</comment>
+    <comment>{0} = minimum, {1} = maximum; shared by the size limit (GB), the dashcam length (minutes) and the timelapse interval (seconds).</comment>
   </data>
   <data name="SettingsRecordPrints" xml:space="preserve">
     <value>Record prints automatically</value>
@@ -1893,5 +1893,93 @@
   <data name="SettingsDetectionIntervalError" xml:space="preserve">
     <value>Enter a number from {0} to {1}.</value>
     <comment>T-154: error of SettingsDetectionInterval; {0}, {1} = the bounds in seconds (decimals allowed).</comment>
+  </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>Start _timelapse (experimental)</value>
+    <comment>T-161: item of a printer submenu while no timelapse runs; starts a manual timelapse. The whole feature is experimental (user decision 2026-11-04): keep the label. "_" marks the access key: unique within the submenu and the same as in MenuStopTimelapse.</comment>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>Stop _timelapse (experimental)</value>
+    <comment>T-161: item of a printer submenu while its timelapse runs (manual or automatic); stops it. Same access key as MenuStartTimelapse.</comment>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Play _last timelapse</value>
+    <comment>T-161: item of a printer submenu: opens the newest timelapse of the printer in the system's video player. Access key unique within the submenu.</comment>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>This printer has no timelapse yet.</value>
+    <comment>T-161: tooltip of the disabled MenuPlayLastTimelapse.</comment>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Start timelapse (experimental)</value>
+    <comment>T-161: tooltip and accessible name of the timelapse button of the camera window while no timelapse runs (experimental, user decision 2026-11-04).</comment>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Stop timelapse (experimental)</value>
+    <comment>T-161: tooltip and accessible name of the timelapse button while a timelapse runs.</comment>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>The timelapse is starting…</value>
+    <comment>T-161: tooltip of the disabled timelapse button / menu item while a timelapse waits for its first frame.</comment>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>The timelapse is being finished…</value>
+    <comment>T-161: tooltip of the disabled timelapse button / menu item while a timelapse completes its file.</comment>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>No frames are taken while the print is paused.</value>
+    <comment>T-161: tip of the running timelapse while the printer is paused or waits for the user (no frames are taken, the file stays open).</comment>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>This version of LayerPeek cannot take timelapses.</value>
+    <comment>T-161: shown where the timelapse controls are disabled because this build has no MP4 muxer.</comment>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+    <comment>T-161: the short indicator next to the timelapse symbol in the camera window while a timelapse runs (like REC); keep it 2-4 characters.</comment>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Timelapse failed</value>
+    <comment>T-161: second line of the notification of a failed timelapse (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>This version of LayerPeek cannot take timelapses.</value>
+    <comment>T-161: reason of a failed timelapse: this build has no MP4 muxer.</comment>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>The timelapse file could not be written.</value>
+    <comment>T-161: reason of a failed timelapse: its file could not be written.</comment>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>The timelapse alone is larger than the size limit of all recordings ({0}&#160;GB).</value>
+    <comment>T-161: reason of a failed timelapse: it alone exceeds the size limit. {0} = the size limit of all recordings in GB.</comment>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Timelapse</value>
+    <comment>T-161: heading of the timelapse section on the Recording tab (next to the SettingsExperimental badge).</comment>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Experimental</value>
+    <comment>T-161: the badge next to every timelapse option (user decision 2026-11-04: the whole feature is experimental). Short: one word.</comment>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>An experimental feature: it may change or not always work reliably.</value>
+    <comment>T-161: tooltip and help text of the SettingsExperimental badge.</comment>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Time between frames (seconds)</value>
+    <comment>T-161: label of the time between two timelapse frames (whole seconds, 5-600).</comment>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>One frame per interval, none while the print is paused. The video plays at {0} frames per second.</value>
+    <comment>T-161: hint of the interval. {0} = frames per second of the video (30).</comment>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Take a timelapse of prints</value>
+    <comment>T-161: check box on the Camera sub-tab of a printer (next to the SettingsExperimental badge): a timelapse of every print.</comment>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Takes a timelapse from the start of a print until a minute after its end, also without an open camera window. The time between frames is on the Recording tab.</value>
+    <comment>T-161: tooltip and help text of SettingsTimelapsePrints.</comment>
   </data>
 </root>

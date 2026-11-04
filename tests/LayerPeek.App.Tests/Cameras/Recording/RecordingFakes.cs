@@ -20,6 +20,18 @@ internal sealed class FakeCameraRecordings : ICameraRecordings
 
     public bool IsAvailable { get; set; } = true;
 
+    /// <summary>This build can take timelapses (T-161).</summary>
+    public bool IsTimelapseAvailable { get; set; } = true;
+
+    /// <summary>The printers whose timelapse was started (T-161).</summary>
+    public List<string> TimelapsesStarted { get; } = [];
+
+    /// <summary>The printers whose timelapse was stopped (T-161).</summary>
+    public List<string> TimelapsesStopped { get; } = [];
+
+    /// <summary>The printers whose last timelapse was played (T-161).</summary>
+    public List<string> TimelapsesPlayed { get; } = [];
+
     public string DefaultFolder { get; set; } = FixedDefaultFolder;
 
     public long MinFreeBytes { get; set; } = 5_000_000_000;
@@ -102,6 +114,45 @@ internal sealed class FakeCameraRecordings : ICameraRecordings
         }
 
         SetStatus(printerId, status, raise);
+    }
+
+    /// <summary>
+    /// The timelapse of <paramref name="printerId"/> (T-161) does <paramref name="activity"/> (capturing unless
+    /// <paramref name="capturing"/> says otherwise); the recording and the dashcam stay as they were.
+    /// </summary>
+    public void SetTimelapse(string printerId, CameraRecordingActivity activity, bool capturing = true, string? lastFile = null, bool raise = true)
+    {
+        CameraRecordingStatus status;
+        lock (_gate)
+        {
+            status = _statuses.GetValueOrDefault(printerId) ?? new CameraRecordingStatus { CanRecord = true };
+            status = status with
+            {
+                Timelapse = status.Timelapse with
+                {
+                    Activity = activity,
+                    Mode = activity == CameraRecordingActivity.Idle ? null : CameraRecordingMode.Manual,
+                    IsCapturing = activity != CameraRecordingActivity.Idle && capturing,
+                    LastFile = lastFile,
+                },
+            };
+        }
+
+        SetStatus(printerId, status, raise);
+    }
+
+    public bool StartTimelapse(string printerId)
+    {
+        TimelapsesStarted.Add(printerId);
+        return true;
+    }
+
+    public void StopTimelapse(string printerId) => TimelapsesStopped.Add(printerId);
+
+    public Task<bool> PlayLastTimelapseAsync(string printerId)
+    {
+        TimelapsesPlayed.Add(printerId);
+        return Task.FromResult(true);
     }
 
     public Task<bool> OpenFolderAsync(string? folder = null)

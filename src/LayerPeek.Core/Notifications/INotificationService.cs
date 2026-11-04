@@ -62,6 +62,7 @@ public sealed record UpdateNotification(string Version, bool PlaySound);
 /// <param name="MinFreeGigabytes">The free space the recordings need, for <see cref="CameraRecordingProblem.DiskSpaceLow"/>.</param>
 /// <param name="PlaySound">Whether it plays a sound (decided by the sound setting like a printer error).</param>
 /// <param name="IsDashcam">The dashcam failed to save the last minutes (T-148), not a recording.</param>
+/// <param name="IsTimelapse">A timelapse failed (T-161; <see cref="CameraRecordingError.IsTimelapse"/>), not a recording.</param>
 public sealed record RecordingNotification(
     string PrinterId,
     string PrinterName,
@@ -69,4 +70,5 @@ public sealed record RecordingNotification(
     int SizeLimitGigabytes,
     int MinFreeGigabytes,
     bool PlaySound,
-    bool IsDashcam = false);
+    bool IsDashcam = false,
+    bool IsTimelapse = false);

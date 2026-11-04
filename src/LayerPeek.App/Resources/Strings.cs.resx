@@ -1747,4 +1747,70 @@
   <data name="SettingsDetectionIntervalError" xml:space="preserve">
     <value>Zadejte číslo od {0} do {1}.</value>
   </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>Spustit _timelapse (experimentální)</value>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>Zastavit _timelapse (experimentální)</value>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Přehrát poslední ti_melapse</value>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>Tiskárna zatím nemá žádný timelapse.</value>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Spustit timelapse (experimentální)</value>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Zastavit timelapse (experimentální)</value>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>Timelapse se spouští…</value>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>Timelapse se dokončuje…</value>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>Během pauzy tisku se snímky nepořizují.</value>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>Tato verze LayerPeeku neumí pořizovat timelapse.</value>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Timelapse selhal</value>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>Tato verze LayerPeeku neumí pořizovat timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>Soubor timelapse se nepodařilo zapsat.</value>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>Samotný timelapse je větší než limit velikosti všech nahrávek ({0}&#160;GB).</value>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Timelapse</value>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Experimentální</value>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>Experimentální funkce: může se změnit nebo nemusí vždy fungovat spolehlivě.</value>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Čas mezi snímky (sekundy)</value>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>Jeden snímek za zvolený čas, během pauzy tisku žádný. Video má {0} snímků za sekundu.</value>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Pořizovat timelapse tisku</value>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Pořizuje timelapse od začátku tisku do minuty po jeho konci, i bez otevřeného okna kamery. Čas mezi snímky je na záložce Nahrávání.</value>
+  </data>
 </root>

@@ -231,6 +231,29 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `SettingsMapperTimelapseTests`, `PreparingANewFolderFromSeveralWritersAtOnce…` v Core, `SettingsTimelapseTests` v App);
       `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
 
+### 2k. Timelapse – UI (z T-161, implementováno na Macu 2026-11-04)
+- [ ] **T-161** (krit. „Headless UI testy a E2E prochází; snímky UI přegenerované“ a „`dotnet build` a `dotnet test`“, část
+      Windows): `dotnet test` na Windows bez chyb (nové `TrayMenuRecordingTests` s timelapse, `SettingsTimelapseTests`,
+      `RecordingNotificationTests.AFailedTimelapse…`, `CameraRecordingsTests.PlayLastTimelapse…`, UiTests
+      `CameraWindowTimelapseUiTests`, `SettingsWindowTimelapseUiTests`, `TrayMenuTests.TheTrayMenuAndTheCameraWindowShowTheSameTimelapse`,
+      rozšířené `SettingsWindowLayoutTests`); E2E `CameraTimelapseTests` (ruční timelapse z tray menu → soubor
+      `…_timelapse.mp4`, „TL“ v okně kamery i v malém náhledu, stop z okna kamery; automatický timelapse tisku simulátoru bez
+      okna kamery) a upravené `TrayMenuTests`, `TrayMenuDetailTests` (klávesy O, C, R, T, P, L, D),
+      `CameraTaskbarAndModeSwitchTests` prochází; `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování
+      AOT / trim.
+- [ ] **T-161** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+      a zkontrolovat nové `camera-timelapse.png`, `camera-mini-timelapse.png`, `camera-mini-timelapse-buttons.png` a změněné
+      `camera-mini-recording-buttons.png` (tlačítko timelapse před REC), `settings-recording.png` (dashcam zhuštěný, sekce
+      „Timelapse“ se štítkem), `settings-camera.png`, `settings-camera-preview.png`, `settings-camera-preview-4x3-de.png`,
+      `settings-camera-notice.png` (řádek „Pořizovat timelapse tisku“ + štítek, popisek adresy vlevo od pole) v
+      `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová).
+- [ ] **T-161** (ruční část Windows): simulátor s kamerou (`--speed 20`); v podmenu tiskárny „Spustit timelapse
+      (experimentální)“ → během pár sekund `%USERPROFILE%\Videos\LayerPeek\<tiskárna>\…_timelapse.mp4`, položka se změní na
+      „Zastavit timelapse (experimentální)“, okno kamery i malý náhled ukazují jantarové stopky s „TL“ (bez ukazatele nad
+      oknem), `1 pause` v konzoli simulátoru je ztlumí; stop z okna kamery → „Přehrát poslední timelapse“ otevře soubor ve
+      Filmech a TV. Štítek „Experimentální“ v nastavení (záložka Nahrávání, podzáložka Kamera) se systémovým písmem Segoe UI
+      nic neuřízne a nic se neposouvá. Chyba timelapse (např. složka na odpojeném USB disku) ukáže toast „Timelapse selhal“.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

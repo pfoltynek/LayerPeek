@@ -34,7 +34,8 @@ namespace LayerPeek.App.Tray.Menu;
 /// T-146: with recordings, a printer with a camera also has, after a separator, "Start recording" / "Stop recording"
 /// (disabled with the reason while it starts or stops, or when this build cannot record), "Play last recording" and "Open
 /// recordings folder"; a change of its recording (rare: start, stop, failure) formats only that printer's submenu again,
-/// updated in place.
+/// updated in place. T-161: the same for its timelapse ("Start / Stop timelapse (experimental)", "Play last timelapse"),
+/// which the same change event reports.
 /// <see cref="PrinterItems"/> and <see cref="FixedItems"/> change on the UI thread only.
 /// </summary>
 internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, IDisposable, ILanguageAware
@@ -310,6 +311,15 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
                 break;
             case TrayMenuCommand.SaveDashcam when entry.PrinterId is { } id:
                 recordings.SaveDashcam(id);
+                break;
+            case TrayMenuCommand.StartTimelapse when entry.PrinterId is { } id:
+                recordings.StartTimelapse(id);
+                break;
+            case TrayMenuCommand.StopTimelapse when entry.PrinterId is { } id:
+                recordings.StopTimelapse(id);
+                break;
+            case TrayMenuCommand.PlayLastTimelapse when entry.PrinterId is { } id:
+                _ = recordings.PlayLastTimelapseAsync(id);
                 break;
         }
     }
@@ -592,7 +602,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// T-146 (user decisions 2026-11-03): after a separator, "Start recording" / "Stop recording" with one access key in both
     /// states (disabled with the reason while it starts or stops, or when this build cannot record), "Save the last N min"
     /// of a printer with a dashcam (T-148, disabled with the reason while it does not buffer), "Play last recording"
-    /// (disabled until the printer has a recording) and "Open recordings folder".
+    /// (disabled until the printer has a recording) and "Open recordings folder". T-161: "Start timelapse" / "Stop timelapse"
+    /// (experimental) after the recording controls, "Play last timelapse" after "Play last recording"; the folder is shared.
     /// </summary>
     private static void AddRecordingEntries(List<TrayMenuEntry> items, ICameraRecordings recordings, string printerId)
     {
@@ -618,8 +629,29 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             });
         }
 
+        // T-161: the timelapse (experimental, the label is in the text) below the recording, one access key in both states.
+        TimelapseControlState timelapse = TimelapseControlState.Of(recordings.IsTimelapseAvailable, status.Timelapse);
+        items.Add(new TrayMenuEntry(
+            timelapse.IsActive ? TrayMenuCommand.StopTimelapse : TrayMenuCommand.StartTimelapse,
+            timelapse.IsActive ? Strings.MenuStopTimelapse : Strings.MenuStartTimelapse,
+            timelapse.IsEnabled,
+            timelapse.MenuToolTip,
+            PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
         bool hasLast = status.LastFile is not null;
         items.Add(new TrayMenuEntry(TrayMenuCommand.PlayLastRecording, Strings.MenuPlayLastRecording, hasLast, hasLast ? null : Strings.MenuNoRecordingYet, PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        bool hasLastTimelapse = status.Timelapse.LastFile is not null;
+        items.Add(new TrayMenuEntry(
+            TrayMenuCommand.PlayLastTimelapse,
+            Strings.MenuPlayLastTimelapse,
+            hasLastTimelapse,
+            hasLastTimelapse ? null : Strings.MenuNoTimelapseYet,
+            PrinterId: printerId)
         {
             HasAccessKey = true,
         });

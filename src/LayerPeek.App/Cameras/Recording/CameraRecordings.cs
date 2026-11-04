@@ -2,6 +2,7 @@ using System.Globalization;
 
 using LayerPeek.App.Platform;
 using LayerPeek.Core.Cameras.Recording;
+using LayerPeek.Core.Cameras.Timelapse;
 
 namespace LayerPeek.App.Cameras.Recording;
 
@@ -39,6 +40,21 @@ internal interface ICameraRecordings
     /// <summary>"Save the last minutes" (T-148): the dashcam of <paramref name="printerId"/> saves now (manual trigger).</summary>
     /// <returns><see langword="false"/> when its dashcam does not buffer.</returns>
     bool SaveDashcam(string printerId);
+
+    /// <summary>This build can take timelapses (T-160: the same MP4 muxer); otherwise the timelapse controls are disabled.</summary>
+    bool IsTimelapseAvailable { get; }
+
+    /// <inheritdoc cref="CameraRecordingService.StartTimelapse"/>
+    bool StartTimelapse(string printerId);
+
+    /// <inheritdoc cref="CameraRecordingService.StopTimelapse"/>
+    void StopTimelapse(string printerId);
+
+    /// <summary>
+    /// Opens the newest completed timelapse of <paramref name="printerId"/> (T-161, <see cref="CameraTimelapseStatus.LastFile"/>)
+    /// in the system's default app. Never throws.
+    /// </summary>
+    Task<bool> PlayLastTimelapseAsync(string printerId);
 
     /// <summary>
     /// Shows <paramref name="folder"/> (default: the folder of the running settings) in Explorer / Finder, created when it
@@ -100,6 +116,15 @@ internal sealed class CameraRecordings : ICameraRecordings
 
     public bool SaveDashcam(string printerId) => _service.SaveDashcam(printerId);
 
+    public bool IsTimelapseAvailable => _service.TimelapseAvailability.IsAvailable;
+
+    public bool StartTimelapse(string printerId) => _service.StartTimelapse(printerId);
+
+    public void StopTimelapse(string printerId) => _service.StopTimelapse(printerId);
+
+    public Task<bool> PlayLastTimelapseAsync(string printerId) =>
+        _service.GetStatus(printerId).Timelapse.LastFile is { } file ? _files.OpenAsync(file) : Task.FromResult(false);
+
     public Task<bool> OpenFolderAsync(string? folder = null)
     {
         string target = folder ?? _service.RecordingsFolder;
@@ -131,12 +156,6 @@ internal sealed class CameraRecordings : ICameraRecordings
 /// <remarks>Only printers with an enabled camera have the control, so it does not ask whether the printer can record.</remarks>
 internal readonly record struct RecordingControlState(bool IsAvailable, CameraRecordingActivity Activity)
 {
-    public static RecordingControlState Of(ICameraRecordings recordings, string printerId)
-    {
-        ArgumentNullException.ThrowIfNull(recordings);
-        return new(recordings.IsAvailable, recordings.GetStatus(printerId).Activity);
-    }
-
     /// <summary>Starting, recording or stopping: the REC indicator shows, and the control reads "Stop recording".</summary>
     public bool IsActive => Activity != CameraRecordingActivity.Idle;
 
@@ -171,10 +190,9 @@ internal readonly record struct RecordingControlState(bool IsAvailable, CameraRe
 /// </summary>
 internal readonly record struct DashcamControlState(CameraDashcamActivity Activity, bool WholePrintRecorded, int Minutes)
 {
-    public static DashcamControlState Of(ICameraRecordings recordings, string printerId)
+    public static DashcamControlState Of(CameraRecordingStatus status)
     {
-        ArgumentNullException.ThrowIfNull(recordings);
-        CameraRecordingStatus status = recordings.GetStatus(printerId);
+        ArgumentNullException.ThrowIfNull(status);
         return new(status.Dashcam, status.IsActive, status.DashcamMinutes);
     }
 
@@ -197,4 +215,55 @@ internal readonly record struct DashcamControlState(CameraDashcamActivity Activi
     };
 
     private static string Format(string format, int value) => string.Format(CultureInfo.CurrentCulture, format, value);
+}
+
+/// <summary>
+/// What the Start / Stop control of a printer's timelapse shows (T-161; tray menu item, camera window button): one place for
+/// the rules, so that both say the same. Like <see cref="RecordingControlState"/>: Start while idle, Stop while it runs,
+/// nothing while it starts or stops, disabled without the recorder. The whole feature is experimental (user decision
+/// 2026-11-04), so every text that starts or stops it says so.
+/// </summary>
+/// <param name="IsCapturing">Frames are taken now (<see langword="false"/> while the print is paused or waits for the user).</param>
+internal readonly record struct TimelapseControlState(bool IsAvailable, CameraRecordingActivity Activity, bool IsCapturing)
+{
+    public static TimelapseControlState Of(bool isAvailable, CameraTimelapseStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        return new(isAvailable, status.Activity, status.IsCapturing);
+    }
+
+    /// <summary>Starting, running or stopping: the timelapse indicator shows, and the control reads "Stop timelapse".</summary>
+    public bool IsActive => Activity != CameraRecordingActivity.Idle;
+
+    /// <summary>It runs, but no frames are taken now (the print is paused): the indicator is dimmed.</summary>
+    public bool IsPaused => Activity == CameraRecordingActivity.Recording && !IsCapturing;
+
+    /// <summary>The control can be used now (it starts while idle, stops while running).</summary>
+    public bool IsEnabled => Activity switch
+    {
+        CameraRecordingActivity.Idle => IsAvailable,
+        CameraRecordingActivity.Recording => true,
+        _ => false,
+    };
+
+    /// <summary>
+    /// The tip of the control: why it is disabled, or that no frames are taken while the print is paused;
+    /// <see langword="null"/> otherwise (the menu item needs no tip, the window button has <see cref="ButtonToolTip"/>).
+    /// </summary>
+    public string? MenuToolTip => DisabledReason ?? (IsPaused ? Resources.Strings.TimelapsePaused : null);
+
+    /// <summary>Why the control is disabled; <see langword="null"/> while it is enabled.</summary>
+    public string? DisabledReason => Activity switch
+    {
+        CameraRecordingActivity.Starting => Resources.Strings.TimelapseStarting,
+        CameraRecordingActivity.Stopping => Resources.Strings.TimelapseStopping,
+        CameraRecordingActivity.Idle when !IsAvailable => Resources.Strings.TimelapseUnavailable,
+        _ => null,
+    };
+
+    /// <summary>The tip (and accessible name) of the camera window button: what a click does (with "experimental"), or why it is disabled.</summary>
+    public string ButtonToolTip => DisabledReason
+        ?? (!IsActive ? Resources.Strings.TimelapseStart
+            : IsPaused ? Resources.Strings.TimelapseStop + Environment.NewLine + Resources.Strings.TimelapsePaused
+            : Resources.Strings.TimelapseStop);
 }
