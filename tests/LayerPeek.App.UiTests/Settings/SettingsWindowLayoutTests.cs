@@ -673,6 +673,38 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             slot.Shutdown();
         });
 
+    /// <summary>T-146: a click on a failed recording while no settings window is open opens a new one on the Recording tab.</summary>
+    [Fact]
+    public Task AClickOnTheRecordingNotificationOpensANewWindowOnItsTab() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
+            AuxiliaryWindowSlot slot = new();
+            AuxiliaryWindowFactory windows = new(track: null);
+            List<SettingsViewModel> created = [];
+            SettingsWindow? window = null;
+            (IAuxiliaryWindow, SettingsViewModel) Create() =>
+                windows.Settings(
+                    screens =>
+                    {
+                        SettingsViewModel viewModel = new(store, new FakeConnectionTester(), SettingsWindowHarness.Supported, static () => "p1", new FakeCameraTester(), screens: screens);
+                        created.Add(viewModel);
+                        return viewModel;
+                    },
+                    () => window = scope.Track(new SettingsWindow()));
+
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, SettingsPage.Recording);
+            await created[0].LoadAsync();
+            SettingsWindow shown = Assert.IsType<SettingsWindow>(window);
+            shown.Settle();
+
+            Assert.Equal(SettingsViewModel.RecordingTab, created[0].SelectedTabIndex);
+            TabItem recordingTab = shown.GetVisualDescendants().OfType<TabItem>()
+                .Single(static item => AutomationProperties.GetAutomationId(item) == "SettingsTabRecording");
+            Assert.True(recordingTab.IsSelected);
+            slot.Shutdown();
+        });
+
     /// <summary>The test of the slot finished (it may resume on the UI thread after the fake's continuation).</summary>
     private static async Task WaitForTestAsync(SettingsWindowHarness ui)
     {

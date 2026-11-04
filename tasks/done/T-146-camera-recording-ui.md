@@ -120,8 +120,8 @@ rozhodnutí 2026-11-04 (otázky 6–9).
 - Snímky macOS přegenerované: všechny `settings-*.png` (pátá záložka v záhlaví; `settings-startup-updates*.png` už bez
   sekce nahrávání) + nový `settings-recording.png`. Sada Windows → T-125.
 - `dotnet build` 0 upozornění, `dotnet test` celkem 8975, neúspěšné 0, úspěšné 8775, přeskočeno 200 (macOS arm64).
-  AOT publish po těchto změnách znovu nespuštěn (žádná reflexe, nový balíček ani interop; jen enum, konstanta a XAML se
-  compiled bindings).
+  Review (qa-reviewer, 2026-11-04): Native AOT publish `osx-arm64` Release po těchto změnách bez varování trim/AOT (IL…);
+  doplněn test `AClickOnTheRecordingNotificationOpensANewWindowOnItsTab` (nové okno rovnou na záložce Nahrávání).
 
 **Původní poznámky (2026-11-03):**
 
