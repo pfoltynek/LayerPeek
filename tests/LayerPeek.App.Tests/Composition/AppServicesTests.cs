@@ -432,8 +432,11 @@ public sealed class AppServicesTests
         Assert.True(recordingObserver < hubObserver, "The hub would end the lease of a switched-off camera before the recording stops.");
         Assert.Equal(CameraRecordingFolders.DefaultRoot(), recordings.RecordingsFolder);
 
+#if DEBUG
+        // AppEnvironment.ForTests exists only in Debug builds.
         AppEnvironment isolated = AppEnvironment.ForTests(Path.Combine(Path.GetTempPath(), "LayerPeek-test-data"));
         Assert.Equal(Path.Combine(isolated.DataDirectory(), "Recordings"), AppServices.CameraRecordingOptions(isolated).DefaultRoot);
+#endif
         Assert.Same(CameraRecordingServiceOptions.Default, AppServices.CameraRecordingOptions(AppEnvironment.Production));
     }
 
