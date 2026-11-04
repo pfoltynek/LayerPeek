@@ -13,7 +13,9 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// The root is the user's folder or <see cref="DefaultRoot"/>; every printer folder carries <see cref="MarkerFileName"/>,
 /// and only files of marked folders that follow <see cref="IsRecordingFileName"/> or <see cref="IsSnapshotFileName"/> are
 /// ever deleted by the rotation. Alarm snapshots of the print failure detection (T-153) are JPEG files next to the
-/// recordings, named and rotated like them (<see cref="SnapshotFileName"/>).
+/// recordings, named and rotated like them (<see cref="SnapshotFileName"/>). A JPEG export of a timelapse (T-165) is a
+/// folder next to it (<see cref="JpegExportFolderName"/>) with numbered frames (<see cref="JpegExportFrameFileName"/>); the
+/// rotation counts and deletes it as a whole.
 /// Names use only characters that are valid on Windows and macOS, sort by time and never collide (the recorder adds
 /// <c>-2</c>, <c>-3</c> … for a taken name and after a stream restart, T-144).
 /// </summary>
@@ -47,6 +49,15 @@ public static class CameraRecordingFolders
 
     /// <summary>What ends the name of a timelapse before the extension (T-160).</summary>
     private const string TimelapseMarker = "_timelapse";
+
+    /// <summary>What ends the name of the JPEG export folder of a timelapse (T-165), before a <c>-2</c>, <c>-3</c> … suffix.</summary>
+    private const string JpegExportMarker = "_jpg";
+
+    /// <summary>The name of a JPEG export folder while it is written: a dot before it, this after it (T-165).</summary>
+    private const string UnfinishedSuffix = ".partial";
+
+    /// <summary>Fewest digits of the number of an exported frame (<c>0001.jpg</c>).</summary>
+    private const int MinFrameDigits = 4;
 
     /// <summary>Folder used for a printer whose name has no usable character.</summary>
     private const string FallbackFolderName = "Printer";
@@ -182,6 +193,68 @@ public static class CameraRecordingFolders
     }
 
     /// <summary>
+    /// The folder of the JPEG export (T-165, user decision 2026-11-04) of the timelapse <paramref name="timelapseFileName"/>,
+    /// next to it: its name without the extension and with <see cref="JpegExportMarker"/>, e.g.
+    /// <c>2026-11-04_14-05-09_Benchy_timelapse_jpg</c>. It follows <see cref="IsJpegExportFolderName"/>, so the rotation keeps
+    /// it within the same limit as the recordings.
+    /// </summary>
+    public static string JpegExportFolderName(string timelapseFileName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(timelapseFileName);
+        return string.Concat(Path.GetFileNameWithoutExtension(timelapseFileName.AsSpan()), JpegExportMarker);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="folderName"/> is a JPEG export folder (<see cref="JpegExportFolderName"/>): a valid
+    /// <c>yyyy-MM-dd_HH-mm-ss</c> timestamp at the start, then nothing, <c>_</c> or <c>-</c> and anything, ending with
+    /// <see cref="JpegExportMarker"/>, also with a <c>-2</c>, <c>-3</c> … suffix after it (any case).
+    /// </summary>
+    public static bool IsJpegExportFolderName(string? folderName) => folderName is not null && IsJpegExportFolderName(folderName.AsSpan());
+
+    /// <summary>
+    /// The name an export folder has while it is written (T-165): <c>.&lt;name&gt;.partial</c>, hidden on macOS; it gets its
+    /// final name only when every frame is written, so a cancelled or failed export never leaves a half-written folder.
+    /// </summary>
+    public static string UnfinishedJpegExportFolderName(string folderName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(folderName);
+        return string.Concat(".", folderName, UnfinishedSuffix);
+    }
+
+    /// <summary>Whether <paramref name="folderName"/> is an export folder that is still written, or left by a crash (<see cref="UnfinishedJpegExportFolderName"/>).</summary>
+    public static bool IsUnfinishedJpegExportFolderName(string? folderName) =>
+        folderName is not null && folderName.Length > 1 + UnfinishedSuffix.Length && folderName[0] == '.'
+        && folderName.EndsWith(UnfinishedSuffix, StringComparison.OrdinalIgnoreCase)
+        && IsJpegExportFolderName(folderName.AsSpan(1, folderName.Length - 1 - UnfinishedSuffix.Length));
+
+    /// <summary>
+    /// The file name of frame <paramref name="number"/> (from 1) of a JPEG export of <paramref name="frames"/> frames:
+    /// <c>0001.jpg</c>, with at least four digits and as many as the last frame needs, so that the names sort in order.
+    /// </summary>
+    public static string JpegExportFrameFileName(int number, int frames)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(number);
+        int digits = Math.Max(MinFrameDigits, CountDigits(Math.Max(frames, number)));
+        return string.Create(digits + SnapshotExtension.Length, (number, digits), static (span, state) =>
+        {
+            int value = state.number;
+            for (int i = state.digits - 1; i >= 0; i--)
+            {
+                span[i] = (char)('0' + (value % 10));
+                value /= 10;
+            }
+
+            SnapshotExtension.AsSpan().CopyTo(span[state.digits..]);
+        });
+    }
+
+    /// <summary>Whether <paramref name="fileName"/> is a frame of a JPEG export (<see cref="JpegExportFrameFileName"/>): digits only, then <c>.jpg</c> (any case).</summary>
+    public static bool IsJpegExportFrameFileName(string? fileName) =>
+        fileName is not null && fileName.Length > SnapshotExtension.Length
+        && fileName.EndsWith(SnapshotExtension, StringComparison.OrdinalIgnoreCase)
+        && !fileName.AsSpan(0, fileName.Length - SnapshotExtension.Length).ContainsAnyExceptInRange('0', '9');
+
+    /// <summary>
     /// Whether <paramref name="fileName"/> follows the pattern of <see cref="FileName"/> (also with the recorder's
     /// <c>-2</c>, <c>-3</c> … suffix): a valid <c>yyyy-MM-dd_HH-mm-ss</c> timestamp at the start, then nothing, <c>_</c> or
     /// <c>-</c> and anything, and <see cref="Extension"/> (any case).
@@ -199,13 +272,44 @@ public static class CameraRecordingFolders
             return false;
         }
 
-        ReadOnlySpan<char> name = fileName.AsSpan(0, fileName.Length - extension.Length);
-        if (!DateTime.TryParseExact(name[..TimestampLength], TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+        return StartsWithTimestamp(fileName.AsSpan(0, fileName.Length - extension.Length));
+    }
+
+    /// <summary>A valid timestamp, then the end, <c>_</c> or <c>-</c>.</summary>
+    private static bool StartsWithTimestamp(ReadOnlySpan<char> name)
+    {
+        if (name.Length < TimestampLength
+            || !DateTime.TryParseExact(name[..TimestampLength], TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
         {
             return false;
         }
 
         return name.Length == TimestampLength || name[TimestampLength] is '_' or '-';
+    }
+
+    private static bool IsJpegExportFolderName(ReadOnlySpan<char> name)
+    {
+        // Without the -2, -3 … suffix of a second export of the same timelapse.
+        int dash = name.LastIndexOf('-');
+        if (dash >= 0 && dash < name.Length - 1 && !name[(dash + 1)..].ContainsAnyExceptInRange('0', '9')
+            && name[..dash].EndsWith(JpegExportMarker, StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[..dash];
+        }
+
+        return name.EndsWith(JpegExportMarker, StringComparison.OrdinalIgnoreCase) && StartsWithTimestamp(name[..^JpegExportMarker.Length]);
+    }
+
+    private static int CountDigits(int value)
+    {
+        int digits = 1;
+        while (value >= 10)
+        {
+            value /= 10;
+            digits++;
+        }
+
+        return digits;
     }
 
     /// <summary>

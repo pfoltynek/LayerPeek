@@ -181,6 +181,41 @@ internal static class ToastContentBuilder
     }
 
     /// <summary>
+    /// The toast about a finished JPEG export of a timelapse (T-165) in <paramref name="textCulture"/>: the printer name, done or
+    /// failed and the frames or the reason (<see cref="TimelapseExportNotificationText"/>); no launch argument (a click only
+    /// brings the app to the front).
+    /// </summary>
+    public static string BuildTimelapseExport(TimelapseExportNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = TimelapseExportLines(notification, textCulture);
+        StringBuilder xml = new(512);
+        xml.Append("<toast activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, lines.Title);
+        AppendText(xml, lines.Body);
+        if (lines.Detail is { } detail)
+        {
+            AppendText(xml, detail);
+        }
+
+        xml.Append("</binding></visual>");
+        if (!notification.PlaySound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>The texts of a finished JPEG export (T-165) for every OS, the title cleaned and shortened like in <see cref="Lines"/>; not escaped.</summary>
+    internal static NotificationLines TimelapseExportLines(TimelapseExportNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = TimelapseExportNotificationText.Lines(notification, textCulture);
+        string title = Clean(lines.Title);
+        return lines with { Title = title.Length > 0 ? title : TimelapseExportNotificationText.AppName };
+    }
+
+    /// <summary>
     /// The texts of the recording failure (T-146) for every OS, the printer name cleaned and shortened like in
     /// <see cref="Lines"/> (its id when the name is empty); not escaped.
     /// </summary>

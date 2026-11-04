@@ -149,6 +149,25 @@ internal sealed partial class UserNotificationService : INotificationService, ID
         }
     }
 
+    /// <summary>The notification about a finished JPEG export of a timelapse (T-165), queued like a printer notification, without a launch argument.</summary>
+    public void ShowTimelapseExportFinished(TimelapseExportNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Writer.TryWrite(notification))
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _started = true;
+                _ = Task.Run(RunAsync, CancellationToken.None);
+            }
+        }
+    }
+
     /// <summary>
     /// The notification of a suspected print failure (T-154), queued like a printer notification: the snapshot as an
     /// attachment, the button "False alarm" and the launch argument of the camera window.
@@ -209,6 +228,10 @@ internal sealed partial class UserNotificationService : INotificationService, ID
                     else if (notification is RecordingNotification recording)
                     {
                         await ShowRecordingNowAsync(recording, stop).ConfigureAwait(false);
+                    }
+                    else if (notification is TimelapseExportNotification export)
+                    {
+                        await ShowTimelapseExportNowAsync(export, stop).ConfigureAwait(false);
                     }
                     else if (notification is Core.Detection.PrintFailureNotification failure)
                     {
@@ -326,6 +349,31 @@ internal sealed partial class UserNotificationService : INotificationService, ID
         }
     }
 
+    private async Task ShowTimelapseExportNowAsync(TimelapseExportNotification notification, CancellationToken stop)
+    {
+        if (!await IsAllowedAsync(stop).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            NotificationLines lines = ToastContentBuilder.TimelapseExportLines(notification, _textCulture());
+            string body = lines.Detail is { } detail ? lines.Body + "\n" + detail : lines.Body;
+            stop.ThrowIfCancellationRequested();
+            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, LaunchArgument: null));
+            LogTimelapseExportShown(notification.Problem);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogTimelapseExportShowFailed(ex, notification.Problem);
+        }
+    }
+
     private async Task ShowPrintFailureNowAsync(Core.Detection.PrintFailureNotification notification, CancellationToken stop)
     {
         Core.Detection.PrintFailureAlarm alarm = notification.Alarm;
@@ -363,6 +411,12 @@ internal sealed partial class UserNotificationService : INotificationService, ID
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the suspected print failure ({DetectorId}) of printer '{PrinterId}' could not be shown.")]
     private partial void LogPrintFailureShowFailed(Exception exception, string detectorId, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the JPEG export of a timelapse ({Problem}).")]
+    private partial void LogTimelapseExportShown(Core.Cameras.Timelapse.CameraTimelapseExportProblem problem);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the JPEG export of a timelapse ({Problem}) could not be shown.")]
+    private partial void LogTimelapseExportShowFailed(Exception exception, Core.Cameras.Timelapse.CameraTimelapseExportProblem problem);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the recording failure ({Problem}) of printer '{PrinterId}'.")]
     private partial void LogRecordingShown(Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);

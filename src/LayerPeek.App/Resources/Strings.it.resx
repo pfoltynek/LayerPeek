@@ -1813,4 +1813,46 @@
   <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
     <value>Crea un timelapse dall'inizio di una stampa fino a un minuto dopo la sua fine, anche senza la finestra della telecamera aperta. Il tempo tra i fotogrammi è nella scheda Registrazione.</value>
   </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>_Esporta timelapse in JPEG… (sperimentale)</value>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>Annulla _esportazione JPEG ({0}%)</value>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Esportazione di {0}</value>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>L'esportazione JPEG non è disponibile in questa versione.</value>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Scegli un timelapse da esportare in JPEG (sperimentale)</value>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Timelapse (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Timelapse esportato in JPEG</value>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>{0} fotogrammi in una cartella accanto al timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Esportazione del timelapse in JPEG non riuscita</value>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>Il file non è un timelapse di LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>Impossibile leggere il timelapse (file mancante o danneggiato).</value>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>In questa versione manca il decodificatore video.</value>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>Impossibile scrivere nella cartella accanto al timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>Si è verificato un errore imprevisto, vedi il registro.</value>
+  </data>
 </root>

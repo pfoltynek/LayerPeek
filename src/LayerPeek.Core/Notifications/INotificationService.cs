@@ -44,6 +44,34 @@ public interface INotificationService
     void ShowRecordingFailed(RecordingNotification notification)
     {
     }
+
+    /// <summary>
+    /// Shows that the JPEG export of a timelapse (T-165) is done or failed (a cancelled one is not notified). The same rules as
+    /// <see cref="Show"/>: thread-safe, returns quickly, may throw. A click opens nothing of its own. Default: not shown
+    /// (platforms without notifications).
+    /// </summary>
+    void ShowTimelapseExportFinished(TimelapseExportNotification notification)
+    {
+    }
+}
+
+/// <summary>
+/// What the notification about a finished JPEG export of a timelapse (T-165) shows; texts are localized by the
+/// implementations from <see cref="Problem"/>. Contains no path.
+/// </summary>
+/// <param name="PrinterId">The printer whose menu started it; <see langword="null"/>: none (the title is the app name).</param>
+/// <param name="PrinterName">Its name, the title of the notification (the id when empty).</param>
+/// <param name="Frames">Frames written.</param>
+/// <param name="Problem">Why it failed; <see cref="Cameras.Timelapse.CameraTimelapseExportProblem.None"/> when it succeeded.</param>
+/// <param name="PlaySound">Whether it plays a sound (the "all notifications" sound setting only: it is information).</param>
+public sealed record TimelapseExportNotification(
+    string? PrinterId,
+    string? PrinterName,
+    int Frames,
+    Cameras.Timelapse.CameraTimelapseExportProblem Problem,
+    bool PlaySound)
+{
+    public bool Succeeded => Problem == Cameras.Timelapse.CameraTimelapseExportProblem.None;
 }
 
 /// <summary>What the notification about a new version shows (T-058); texts are localized by the implementations.</summary>

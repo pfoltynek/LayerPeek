@@ -1813,4 +1813,46 @@
   <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
     <value>Tworzy timelapse od początku wydruku do minuty po jego zakończeniu, także bez otwartego okna kamery. Czas między klatkami jest na karcie Nagrywanie.</value>
   </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>_Eksportuj timelapse do JPEG… (eksperymentalny)</value>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>Anuluj _eksport do JPEG ({0}%)</value>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Eksportowanie {0}</value>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>Eksport do JPEG nie jest dostępny w tej wersji.</value>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Wybierz timelapse do eksportu do JPEG (eksperymentalny)</value>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Timelapse (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Timelapse wyeksportowany do JPEG</value>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>Klatki: {0}, w folderze obok timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Eksport timelapse do JPEG nie powiódł się</value>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>Plik nie jest timelapse z LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>Nie można odczytać timelapse (brak pliku lub plik uszkodzony).</value>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>W tej wersji brakuje dekodera wideo.</value>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>Nie można zapisywać w folderze obok timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>Wystąpił nieoczekiwany błąd, szczegóły w dzienniku.</value>
+  </data>
 </root>

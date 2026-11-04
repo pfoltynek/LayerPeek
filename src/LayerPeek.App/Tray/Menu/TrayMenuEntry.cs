@@ -64,6 +64,15 @@ public enum TrayMenuCommand
 
     /// <summary>"Play last timelapse" (T-161): the newest timelapse of <see cref="TrayMenuEntry.PrinterId"/> in the system's default app.</summary>
     PlayLastTimelapse,
+
+    /// <summary>
+    /// "Export timelapse to JPEG… (experimental)" (T-165): the open dialog for a timelapse file (in the recordings folder of
+    /// <see cref="TrayMenuEntry.PrinterId"/>), then its frames as JPEG files next to it.
+    /// </summary>
+    ExportTimelapseJpeg,
+
+    /// <summary>"Cancel JPEG export (42 %)" (T-165), instead of <see cref="ExportTimelapseJpeg"/> while an export runs.</summary>
+    CancelTimelapseJpegExport,
     About,
 
     /// <summary>

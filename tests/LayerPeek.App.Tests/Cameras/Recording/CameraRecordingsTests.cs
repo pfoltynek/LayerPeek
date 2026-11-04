@@ -121,7 +121,7 @@ public sealed class CameraRecordingsTests : IDisposable
         recordings.StopTimelapse("mk4");
     }
 
-    private sealed class NoRecorder : ICameraRecorder
+    internal sealed class NoRecorder : ICameraRecorder
     {
         public CameraRecorderAvailability Availability { get; } = CameraRecorderAvailability.Unavailable("No MP4 muxer in this build.");
 
@@ -132,7 +132,7 @@ public sealed class CameraRecordingsTests : IDisposable
             throw new InvalidOperationException("Never started without the muxer.");
     }
 
-    private sealed class LauncherSpy : IFolderLauncher, IFileLauncher
+    internal sealed class LauncherSpy : IFolderLauncher, IFileLauncher
     {
         public List<string> Folders { get; } = [];
 

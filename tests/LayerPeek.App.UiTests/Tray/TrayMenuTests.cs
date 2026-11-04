@@ -393,7 +393,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             string?[] Headers() => [.. submenu.Items.Select(static item => item is NativeMenuItemSeparator ? "-" : ((NativeMenuItem)item).Header)];
 
             Assert.Equal(
-                [Strings.MenuOpenPrusaLink, Strings.MenuShowCamera, "-", Strings.MenuStartRecording, Strings.MenuStartTimelapse, Strings.MenuPlayLastRecording, Strings.MenuPlayLastTimelapse, Strings.MenuOpenRecordingsFolder],
+                [Strings.MenuOpenPrusaLink, Strings.MenuShowCamera, "-", Strings.MenuStartRecording, Strings.MenuStartTimelapse, Strings.MenuPlayLastRecording, Strings.MenuPlayLastTimelapse, Strings.MenuExportTimelapseJpeg, Strings.MenuOpenRecordingsFolder],
                 Headers());
             NativeMenuItem record = (NativeMenuItem)submenu.Items[3];
             NativeMenuItem timelapse = (NativeMenuItem)submenu.Items[4];
@@ -429,13 +429,54 @@ public sealed class TrayMenuTests(HeadlessSession session)
             TrayMenu.ClickLikeThePlatform(timelapse);
             TrayMenu.ClickLikeThePlatform(play);
             TrayMenu.ClickLikeThePlatform(playTimelapse);
-            TrayMenu.ClickLikeThePlatform((NativeMenuItem)submenu.Items[7]);
+            TrayMenu.ClickLikeThePlatform((NativeMenuItem)submenu.Items[8]);
             Assert.Equal(["mk4"], recordings.Stopped);
             Assert.Equal(["mk4"], recordings.TimelapsesStopped);
             Assert.Equal(["mk4"], recordings.Played);
             Assert.Equal(["mk4"], recordings.TimelapsesPlayed);
             Assert.Empty(recordings.OpenedFolders);
             Assert.Equal(["mk4"], recordings.OpenedPrinterFolders);
+            return Task.CompletedTask;
+        });
+
+    /// <summary>
+    /// T-165: "Export timelapse to JPEG… (experimental)" in the native submenu, with its label and access key: a click asks for
+    /// the file; while an export runs the same platform item reads "Cancel JPEG export (42 %)" (also in another language) and
+    /// cancels it; afterwards it is the export item again.
+    /// </summary>
+    [Fact]
+    public Task TheJpegExportItemStartsTheExportAndShowsItsProgressInPlace() =>
+        session.RunAsync(static scope =>
+        {
+            LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings recordings = new();
+            TrayMenu tray = TrayMenu.Create(scope, recordings: recordings);
+            tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4") with { Camera = new LayerPeek.Core.Cameras.CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }]);
+            Dispatcher.UIThread.RunJobs();
+            NativeMenu submenu = tray.Item(0).Menu!;
+            NativeMenuItem export = Assert.Single(submenu.Items.OfType<NativeMenuItem>(), static i => i.Header == Strings.MenuExportTimelapseJpeg);
+            Assert.Contains("(experimental)", export.Header, StringComparison.Ordinal);
+            Assert.True(export.IsEnabled);
+            // Right after "Play last timelapse".
+            int index = submenu.Items.IndexOf(export);
+            Assert.Equal(Strings.MenuPlayLastTimelapse, ((NativeMenuItem)submenu.Items[index - 1]).Header);
+
+            TrayMenu.ClickLikeThePlatform(export);
+            Assert.Equal(["mk4"], recordings.TimelapseExportsRequested);
+
+            Task.Run(() => recordings.SetTimelapseExport(new LayerPeek.Core.Cameras.Timelapse.CameraTimelapseExportStatus(true, "mk4", "/rec/MK4/2026-11-04_10-00-00_timelapse.mp4", 42, 100))).Wait(TestContext.Current.CancellationToken);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(submenu, tray.Item(0).Menu);
+            Assert.Same(export, submenu.Items[index]);
+            Assert.Equal("Cancel JPEG _export (42%)", export.Header);
+            Assert.Equal("Exporting 2026-11-04_10-00-00_timelapse.mp4", export.ToolTip);
+
+            TrayMenu.ClickLikeThePlatform(export);
+            Assert.Equal(1, recordings.TimelapseExportCancels);
+            Assert.Equal(["mk4"], recordings.TimelapseExportsRequested);
+
+            Task.Run(() => recordings.SetTimelapseExport(LayerPeek.Core.Cameras.Timelapse.CameraTimelapseExportStatus.Idle)).Wait(TestContext.Current.CancellationToken);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(Strings.MenuExportTimelapseJpeg, export.Header);
             return Task.CompletedTask;
         });
 
