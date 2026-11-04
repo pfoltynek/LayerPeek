@@ -227,6 +227,276 @@ public sealed class CameraRecordingServiceTests : IAsyncDisposable
         Assert.True(recording.IsEnded);
     }
 
+    private const string Benchy = "benchy_0.4n_0.2mm_PLA_MK4S_1h2m.bgcode";
+    private const string Cube = "cube_0.4n_0.2mm_PLA_MK4S_30m.bgcode";
+
+    /// <summary>A snapshot whose job identity is given exactly (<see langword="null"/> file name and id = no job).</summary>
+    private void RaiseJob(PrinterState state, long? jobId, string? fileName) =>
+        _monitor.Raise(new PrinterSnapshot
+        {
+            PrinterId = "mk4",
+            State = state,
+            Timestamp = Clock.GetUtcNow(),
+            Job = jobId is null && fileName is null ? null : new PrintJob { Id = jobId, FileName = fileName, ProgressPercent = 10 },
+        });
+
+    /// <summary>Records job 1 (Benchy), ends it with <paramref name="end"/> and lets 20 s of the minute pass.</summary>
+    private async Task<FakeRecording> FirstPrintEndedAsync(PrinterState end, long? jobId = 1, string? fileName = Benchy)
+    {
+        Configure(Printer());
+        RaiseJob(PrinterState.Printing, jobId, fileName);
+        FakeRecording first = await RecordingAsync(1);
+        RaiseJob(end, jobId, fileName);
+        Clock.Advance(TimeSpan.FromSeconds(20));
+        return first;
+    }
+
+    private async Task AssertSameFileAsync(FakeRecording recording)
+    {
+        Clock.Advance(TimeSpan.FromMinutes(5));
+        await SettleAsync();
+        Assert.False(recording.IsEnded, "The same print keeps its recording.");
+        Assert.Single(_recorder.Started);
+        Assert.Equal(CameraRecordingActivity.Recording, _service.GetStatus("mk4").Activity);
+    }
+
+    private async Task<FakeRecording> AssertNewFileAsync(FakeRecording first)
+    {
+        FakeRecording second = await RecordingAsync(2);
+        Assert.True(first.IsEnded, "Another print ends the recording of the previous one at once.");
+        Assert.Equal(1, first.StopCalls);
+        Assert.Equal(CameraRecordingMode.Automatic, _service.GetStatus("mk4").Mode);
+        Assert.Equal(first.Path, _service.GetStatus("mk4").LastFile);
+        Assert.Empty(_failed);
+        return second;
+    }
+
+    [Fact]
+    public async Task AnotherJobWithinTheMinuteRecordsIntoItsOwnFile()
+    {
+        FakeRecording first = await FirstPrintEndedAsync(PrinterState.Finished);
+
+        RaiseJob(PrinterState.Printing, 2, Cube);
+        FakeRecording second = await AssertNewFileAsync(first);
+
+        Assert.Equal(Path.Combine(_root, "Workshop MK4", "2026-11-03_14-05-29_Cube.mp4"), second.Path);
+        Assert.Contains(_logger.Entries, e => e.Message.Contains("prints another job", StringComparison.Ordinal));
+
+        // The new print has its own minute: the end of the old one does not end it.
+        Clock.Advance(TimeSpan.FromMinutes(5));
+        await SettleAsync();
+        Assert.False(second.IsEnded);
+        RaiseJob(PrinterState.Finished, 2, Cube);
+        Clock.Advance(TimeSpan.FromMinutes(1));
+        await StatusAsync("mk4", CameraRecordingActivity.Idle);
+        Assert.True(second.IsEnded);
+        Assert.Equal(2, _recorder.Started.Length);
+    }
+
+    [Fact]
+    public async Task AReprintOfTheSameFileRecordsIntoItsOwnFile()
+    {
+        FakeRecording first = await FirstPrintEndedAsync(PrinterState.Finished);
+
+        RaiseJob(PrinterState.Printing, 2, Benchy);
+        FakeRecording second = await AssertNewFileAsync(first);
+
+        Assert.Equal(Path.Combine(_root, "Workshop MK4", "2026-11-03_14-05-29_Benchy.mp4"), second.Path);
+    }
+
+    [Theory]
+    [InlineData(PrinterState.Busy)]
+    [InlineData(PrinterState.Idle)]
+    [InlineData(PrinterState.Error)]
+    [InlineData(PrinterState.Finished)]
+    public async Task TheSameJobGoingOnWithinTheMinuteKeepsItsFile(PrinterState flicker)
+    {
+        FakeRecording recording = await FirstPrintEndedAsync(flicker);
+
+        // The id decides, also against a Finished that was reported too early.
+        RaiseJob(PrinterState.Printing, 1, Benchy);
+
+        await AssertSameFileAsync(recording);
+    }
+
+    [Fact]
+    public async Task AnotherJobAfterAShortOutageRecordsIntoItsOwnFile()
+    {
+        Configure(Printer());
+        RaiseJob(PrinterState.Printing, 1, Benchy);
+        FakeRecording first = await RecordingAsync(1);
+
+        // Benchy ended and Cube started while the printer was unreachable.
+        RaiseJob(PrinterState.Offline, null, null);
+        Clock.Advance(TimeSpan.FromSeconds(40));
+        RaiseJob(PrinterState.Printing, 2, Cube);
+
+        FakeRecording second = await AssertNewFileAsync(first);
+        Assert.EndsWith("_Cube.mp4", second.Path, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(PrinterState.Paused)]
+    [InlineData(PrinterState.Attention)]
+    [InlineData(PrinterState.Offline)]
+    public async Task TheSameJobResumingKeepsItsFile(PrinterState interruption)
+    {
+        Configure(Printer());
+        RaiseJob(PrinterState.Printing, 1, Benchy);
+        FakeRecording recording = await RecordingAsync(1);
+
+        // An unreachable printer reports no job; pausing and waiting ones report theirs.
+        bool reachable = interruption != PrinterState.Offline;
+        RaiseJob(interruption, reachable ? 1 : null, reachable ? Benchy : null);
+        Clock.Advance(TimeSpan.FromSeconds(45));
+        RaiseJob(PrinterState.Printing, 1, Benchy);
+
+        await AssertSameFileAsync(recording);
+    }
+
+    [Theory]
+    [InlineData(PrinterState.Finished)]
+    [InlineData(PrinterState.Stopped)]
+    public async Task AJobOfUnknownIdentityAfterAFinishedOrStoppedPrintRecordsIntoItsOwnFile(PrinterState end)
+    {
+        FakeRecording first = await FirstPrintEndedAsync(end);
+        RaiseJob(PrinterState.Idle, null, null);
+
+        // Not comparable (no job yet), but a finished or stopped job never resumes.
+        RaiseJob(PrinterState.Printing, null, null);
+        FakeRecording second = await AssertNewFileAsync(first);
+
+        // Named after no job rather than after the previous one.
+        Assert.Equal(Path.Combine(_root, "Workshop MK4", "2026-11-03_14-05-29.mp4"), second.Path);
+
+        // Its id arriving a poll later is the same print.
+        RaiseJob(PrinterState.Printing, 2, Cube);
+        await SettleAsync();
+        Assert.Equal(2, _recorder.Started.Length);
+        Assert.False(second.IsEnded);
+    }
+
+    [Fact]
+    public async Task AReprintWithoutIdsAfterAFinishedPrintRecordsIntoItsOwnFile()
+    {
+        FakeRecording first = await FirstPrintEndedAsync(PrinterState.Finished, jobId: null);
+
+        RaiseJob(PrinterState.Printing, null, Benchy);
+
+        await AssertNewFileAsync(first);
+    }
+
+    [Theory]
+    [InlineData(PrinterState.Busy)]
+    [InlineData(PrinterState.Idle)]
+    [InlineData(PrinterState.Error)]
+    public async Task AJobOfUnknownIdentityAfterAnotherEndKeepsTheFile(PrinterState end)
+    {
+        // These may interrupt a print that goes on: without an identity to compare, missing data never splits a print.
+        FakeRecording recording = await FirstPrintEndedAsync(end);
+
+        RaiseJob(PrinterState.Printing, null, null);
+
+        await AssertSameFileAsync(recording);
+    }
+
+    [Fact]
+    public async Task TheSameFileNameWithoutIdsAfterAnotherEndKeepsTheFile()
+    {
+        FakeRecording recording = await FirstPrintEndedAsync(PrinterState.Busy, jobId: null);
+
+        RaiseJob(PrinterState.Printing, null, Benchy);
+
+        await AssertSameFileAsync(recording);
+    }
+
+    [Theory]
+    [InlineData(null, 2L)]
+    [InlineData(1L, null)]
+    [InlineData(null, null)]
+    public async Task AnotherFileNameIsAnotherJobWhenTheIdsCannotBeCompared(long? firstId, long? secondId)
+    {
+        FakeRecording first = await FirstPrintEndedAsync(PrinterState.Busy, firstId);
+
+        RaiseJob(PrinterState.Printing, secondId, Cube);
+
+        await AssertNewFileAsync(first);
+    }
+
+    [Fact]
+    public async Task AFileNameArrivingLaterIsTheSamePrint()
+    {
+        Configure(Printer());
+        RaiseJob(PrinterState.Printing, null, null);
+        FakeRecording recording = await RecordingAsync(1);
+        RaiseJob(PrinterState.Printing, null, Benchy);
+        RaiseJob(PrinterState.Busy, null, Benchy);
+        RaiseJob(PrinterState.Printing, null, Benchy);
+
+        await AssertSameFileAsync(recording);
+    }
+
+    [Fact]
+    public async Task AnotherJobIsRecordedAfterTheUserStoppedThePreviousOne()
+    {
+        Configure(Printer());
+        RaiseJob(PrinterState.Printing, 1, Benchy);
+        FakeRecording first = await RecordingAsync(1);
+        _service.Stop("mk4");
+        await StatusAsync("mk4", CameraRecordingActivity.Idle);
+
+        // The same print stays held back, also after a long outage; another one is a new print.
+        RaiseJob(PrinterState.Offline, null, null);
+        Clock.Advance(TimeSpan.FromMinutes(2));
+        RaiseJob(PrinterState.Printing, 1, Benchy);
+        await SettleAsync();
+        Assert.Single(_recorder.Started);
+
+        RaiseJob(PrinterState.Printing, 2, Cube);
+        FakeRecording second = await RecordingAsync(2);
+        Assert.True(first.IsEnded);
+        Assert.EndsWith("_Cube.mp4", second.Path, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnotherJobDoesNotSplitAManualRecording()
+    {
+        Configure(Printer());
+        RaiseJob(PrinterState.Idle, null, null);
+        _service.Start("mk4");
+        FakeRecording recording = await RecordingAsync(1);
+
+        RaiseJob(PrinterState.Printing, 1, Benchy);
+        RaiseJob(PrinterState.Finished, 1, Benchy);
+        Clock.Advance(TimeSpan.FromSeconds(20));
+        RaiseJob(PrinterState.Printing, 2, Cube);
+        Clock.Advance(TimeSpan.FromMinutes(5));
+        await SettleAsync();
+
+        Assert.False(recording.IsEnded);
+        Assert.Single(_recorder.Started);
+        Assert.Equal(CameraRecordingMode.Manual, _service.GetStatus("mk4").Mode);
+    }
+
+    [Fact]
+    public async Task AnotherJobWhileTheRecordingStartsRecordsIntoItsOwnFile()
+    {
+        Configure(Printer());
+        RaiseJob(PrinterState.Printing, 1, Benchy);
+        await Eventually.TrueAsync(() => _recorder.Started.Length == 1, "recording 1 started");
+        FakeRecording first = _recorder.Started[0];
+        Assert.Equal(CameraRecordingActivity.Starting, _service.GetStatus("mk4").Activity);
+
+        // Still waiting for its first key frame when the next job is already there.
+        RaiseJob(PrinterState.Stopped, 1, Benchy);
+        RaiseJob(PrinterState.Printing, 2, Cube);
+
+        FakeRecording second = await RecordingAsync(2);
+        Assert.True(first.IsEnded);
+        Assert.EndsWith("_Cube.mp4", second.Path, StringComparison.Ordinal);
+        Assert.Empty(_failed);
+    }
+
     [Fact]
     public async Task AutomaticRecordingIsOffByDefault()
     {

@@ -13,7 +13,9 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// (<see cref="PrinterState.Printing"/> or <see cref="PrinterState.Paused"/>), goes on through <c>Paused</c> /
 /// <c>Attention</c>, and ends <see cref="CameraRecordingServiceOptions.EndDelay"/> after the print ended (any reachable
 /// state other than printing, paused or attention), or after <see cref="CameraRecordingServiceOptions.OfflineGrace"/>
-/// of an unreachable printer. A print that goes on within these times keeps its recording.</item>
+/// of an unreachable printer. A print that goes on within these times keeps its recording; another job that starts
+/// within them ends it at once and records into its own file (user decision 2026-11-04, how jobs are told apart:
+/// <see cref="JobIdentity"/>).</item>
 /// <item>One recording per printer: Start during an automatic recording does nothing; Stop ends it, and the automatic
 /// recording does not start again before that print ended. A recording that fails is not restarted either (no loop on a
 /// full disk).</item>
@@ -380,13 +382,13 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
             }
 
             entry.LastState = snapshot.State;
-            ApplyState(entry, snapshot.State);
+            ApplyState(entry, snapshot.State, snapshot.Job);
             ReconcileIfNeeded(entry);
         }
     }
 
     /// <summary>The print rules of the automatic recording (see the class); under <see cref="_gate"/>.</summary>
-    private void ApplyState(Entry entry, PrinterState state)
+    private void ApplyState(Entry entry, PrinterState state, PrintJob? job)
     {
         if (!entry.RecordsPrints)
         {
@@ -395,6 +397,7 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
             CancelPrintTimers(entry);
             entry.Printing = false;
             entry.Suppressed = false;
+            entry.PrintTerminated = false;
             return;
         }
 
@@ -402,6 +405,22 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
         {
             case PrinterState.Printing or PrinterState.Paused:
                 CancelPrintTimers(entry);
+                if (!entry.Printing && !entry.Suppressed)
+                {
+                    entry.PrintIdentity = new JobIdentity(job?.Id, job?.FileName);
+                }
+                else if (entry.PrintIdentity.IsOther(job, entry.PrintTerminated))
+                {
+                    // Another print than the followed one (user decision 2026-11-04: every print in its own file): the old
+                    // print is over, so a manual Stop of it no longer holds this one back, and its recording ends now.
+                    StartNextPrint(entry, job);
+                }
+                else
+                {
+                    entry.PrintIdentity = entry.PrintIdentity.Merge(job);
+                }
+
+                entry.PrintTerminated = false;
                 entry.Printing = true;
                 break;
 
@@ -420,6 +439,9 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                 {
                     // One more minute (decision 2); a print that goes on within it keeps the recording.
                     entry.EndTimer ??= CreatePrintTimer(entry, _options.EndDelay, end: true);
+
+                    // A finished or stopped job never resumes: what prints next is another job, even of unknown identity.
+                    entry.PrintTerminated |= state is PrinterState.Finished or PrinterState.Stopped;
                 }
                 else
                 {
@@ -437,6 +459,23 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                 }
 
                 break;
+        }
+    }
+
+    /// <summary>
+    /// The printer prints another job than the followed one: follows the new one, and an automatic recording of the old one
+    /// ends now and the new one records into its own file; under <see cref="_gate"/>. A manual recording goes on.
+    /// </summary>
+    private void StartNextPrint(Entry entry, PrintJob? job)
+    {
+        entry.PrintIdentity = new JobIdentity(job?.Id, job?.FileName);
+        // The new file is named after the new job, or after none rather than the old one.
+        entry.JobFileName = job?.FileName;
+        entry.Suppressed = false;
+        if (entry.Mode == CameraRecordingMode.Automatic && entry.Activity is CameraRecordingActivity.Starting or CameraRecordingActivity.Recording)
+        {
+            entry.NextFile = true;
+            LogNextPrint(entry.Printer.Id);
         }
     }
 
@@ -496,7 +535,7 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
     private void ReconcileIfNeeded(Entry entry)
     {
         bool running = entry.Activity is CameraRecordingActivity.Starting or CameraRecordingActivity.Recording;
-        if (IsWanted(entry) == running)
+        if (IsWanted(entry) == running && !(running && entry.NextFile))
         {
             return;
         }
@@ -516,7 +555,10 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
         entry.Worker = Track(Task.Run(() => ReconcileAsync(entry), CancellationToken.None));
     }
 
-    /// <summary>One worker per entry at a time: starts or stops until what is matches what should be.</summary>
+    /// <summary>
+    /// One worker per entry at a time: starts or stops until what is matches what should be. A recording asked for a next
+    /// file (<see cref="Entry.NextFile"/>) is stopped and, once it ended, a new one starts.
+    /// </summary>
     private async Task ReconcileAsync(Entry entry)
     {
         while (true)
@@ -536,6 +578,7 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                 if (wanted && entry.Activity == CameraRecordingActivity.Idle)
                 {
                     entry.Activity = CameraRecordingActivity.Starting;
+                    entry.NextFile = false;
                     entry.Mode = entry.ManualWanted ? CameraRecordingMode.Manual : CameraRecordingMode.Automatic;
                     entry.StartedAt = _time.GetUtcNow();
                     string folder = Path.Combine(_root, entry.FolderName);
@@ -545,7 +588,7 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                     entry.PlannedFile = Path.Combine(folder, fileName);
                     start = new StartPlan(entry.Printer.Id, _root, folder, fileName, entry.Mode);
                 }
-                else if (!wanted && entry.Recording is { } recording && !entry.StopRequested)
+                else if ((!wanted || entry.NextFile) && entry.Recording is { } recording && !entry.StopRequested)
                 {
                     entry.StopRequested = true;
                     entry.Activity = CameraRecordingActivity.Stopping;
@@ -1076,6 +1119,9 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
     [LoggerMessage(Level = LogLevel.Warning, Message = "Stopping the recording of printer '{PrinterId}': {Problem}.")]
     private partial void LogStoppingWithError(string printerId, CameraRecordingProblem problem);
 
+    [LoggerMessage(Level = LogLevel.Information, Message = "Printer '{PrinterId}' prints another job; its automatic recording continues in a new file.")]
+    private partial void LogNextPrint(string printerId);
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Printer '{PrinterId}' stayed unreachable; its automatic recording ends.")]
     private partial void LogOfflineEnded(string printerId);
 
@@ -1090,6 +1136,37 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
 
     [LoggerMessage(Level = LogLevel.Error, Message = "A {EventName} subscriber of the recording service failed for printer '{PrinterId}'.")]
     private partial void LogSubscriberFailed(Exception exception, string eventName, string printerId);
+
+    /// <summary>
+    /// What tells two prints apart (user decision 2026-11-04: every print in its own file), from the most reliable signal
+    /// down: <see cref="PrintJob.Id"/> when both are known (unique per job, a reprint of the same file gets a new one);
+    /// otherwise different file names (a running print never changes its file). When that does not decide (an identity
+    /// unknown on either side, or the same file name without ids), it is another print only after the followed one
+    /// finished or was stopped (<paramref name="terminated"/> of <see cref="IsOther"/>): such a job never resumes, while
+    /// <c>Paused</c>, <c>Attention</c>, <c>Busy</c>, <c>Idle</c>, <c>Error</c> or an outage may be followed by the same
+    /// print. So missing data never splits one print, and two prints merge only when neither the ids nor the file names
+    /// tell them apart and the first one ended without <c>Finished</c> / <c>Stopped</c> being seen.
+    /// </summary>
+    private readonly record struct JobIdentity(long? Id, string? FileName)
+    {
+        public bool IsOther(PrintJob? job, bool terminated)
+        {
+            if (job?.Id is { } id && Id is { } knownId)
+            {
+                return id != knownId;
+            }
+
+            if (job?.FileName is { } fileName && FileName is { } knownFileName && !string.Equals(fileName, knownFileName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return terminated;
+        }
+
+        /// <summary>Completes the identity of the same print, e.g. a file name that arrives a poll later.</summary>
+        public JobIdentity Merge(PrintJob? job) => job is null ? this : new JobIdentity(Id ?? job.Id, FileName ?? job.FileName);
+    }
 
     private sealed record StartPlan(string PrinterId, string Root, string Folder, string FileName, CameraRecordingMode Mode);
 
@@ -1117,6 +1194,15 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
         public ITimer? OfflineTimer;
         public string? JobFileName;
         public PrinterState LastState;
+
+        /// <summary>The identity of the followed print (while <see cref="Printing"/> or <see cref="Suppressed"/>).</summary>
+        public JobIdentity PrintIdentity;
+
+        /// <summary>The followed print reported <c>Finished</c> or <c>Stopped</c> since it last printed.</summary>
+        public bool PrintTerminated;
+
+        /// <summary>Another print started: the running automatic recording ends and a new one starts (a new file).</summary>
+        public bool NextFile;
 
         // The wish and what is.
         public bool ManualWanted;
