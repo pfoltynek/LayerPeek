@@ -1,7 +1,7 @@
 ---
 id: T-152
 title: Detekce chyb tisku z kamery – průzkum (spike): klasické CV vs. ML, licence, AOT, proveditelnost na Core One
-status: in-progress
+status: done
 owner: architect
 priority: P2
 platform: all
@@ -26,9 +26,9 @@ Hodnocení architekta, které uživatel dostal: kvalita první vrstvy je z bočn
 - **Výstup:** tabulka variant (licence s odkazy na primární zdroje, AOT, velikost, CPU, očekávaná spolehlivost na Core One), doporučený první detektor a přístup, upravený rozpad T-153 až T-156, otázky pro uživatele. Vše česky do tohoto úkolu, shrnutí do `docs/architecture.md` (oddíl „Plánované: … detekce chyb tisku“).
 
 ## Akceptační kritéria
-- [ ] Porovnání klasického CV a ML s ověřenými licencemi (kód, váhy, data) a odkazy na primární zdroje. *(Kód a váhy ověřené z primárních zdrojů, viz `docs/detection-spike.md` 3.2. Licence trénovacích sad na Roboflow Universe / Kaggle se ověřit nepodařilo, stránky vrací 403 nebo vyžadují JavaScript. Pro doporučenou variantu bez ML nejsou potřeba, kritérium zůstává otevřené kvůli otázce 1.)*
-- [ ] Ověřená kompatibilita navrhovaných runtime knihoven s Native AOT (pokus o AOT publish malé zkušební aplikace mimo `src/`, výsledek a varování v poznámkách) a s GPL-3.0-only. *(osx-arm64: ONNX Runtime 1.31.1, OpenCvSharp5 i čistý C# bez varování. win-x64 z Macu ověřit nejde a má smysl jen u knihovny, kterou uživatel vybere (otázky 1 a 2). Doporučená varianta žádnou knihovnu nepotřebuje.)*
-- [ ] Posouzení proveditelnosti detekce první vrstvy na záběru Core One (s ukázkovými snímky, pokud je uživatel poskytne). *(Posouzeno na stopě první vrstvy hotového dílu: stopa je vidět, kvalita ne. Záběry prvních minut tisku chybí, otázka 6.)*
+- [x] Porovnání klasického CV a ML s ověřenými licencemi (kód, váhy, data) a odkazy na primární zdroje. *(Kód a váhy ověřené z primárních zdrojů, viz `docs/detection-spike.md` 3.2. Licence trénovacích sad na Roboflow Universe / Kaggle se ověřit nepodařilo, stránky vrací 403 nebo vyžadují JavaScript. Uživatel 2026-11-04 zvolil klasické CV bez ML a ML odložil (otázky 1 a 12), licence trénovacích sad proto teď potřeba nejsou. Při případném návratu k ML je ověří nový úkol.)*
+- [x] Ověřená kompatibilita navrhovaných runtime knihoven s Native AOT (pokus o AOT publish malé zkušební aplikace mimo `src/`, výsledek a varování v poznámkách) a s GPL-3.0-only. *(osx-arm64: ONNX Runtime 1.31.1, OpenCvSharp5 i čistý C# bez varování. Uživatel 2026-11-04 schválil variantu bez nové závislosti (otázka 2), ověření knihoven na win-x64 proto odpadá. Čistý C# kompiluje T-153 / T-155 na obou OS.)*
+- [x] Posouzení proveditelnosti detekce první vrstvy na záběru Core One (s ukázkovými snímky, pokud je uživatel poskytne). *(Posouzeno na stopě první vrstvy hotového dílu: stopa je vidět, kvalita ne. Záběry prvních minut tisku uživatel plánovaným způsobem nepořídí (rozhodnutí 2026-11-04, otázka 6). Detektor první vrstvy v T-156 proto čeká na jiný zdroj dat.)*
 - [x] Doporučení prvního detektoru a seznam otázek pro uživatele.
 - [x] Rozhraní detektoru pro T-153 popsané (vstupy / výstupy), T-153 až T-156 upravené podle výsledku.
 
@@ -57,6 +57,16 @@ Doporučení k otázkám 1 a 5: **klasické CV v čistém C# bez nové závislos
 4. Fixture: smí se uložit **nejvýš ~10 zmenšených snímků** (640×360 JPEG, celkem do ~1 MB) jen s vnitřkem tiskárny.
 - Záběry: 2026-11-03 se z kamery uživatele (`rtsp://192.168.0.227/live`, Core One, standardní poloha) ukládá snímek každých 30 s během skutečného tisku (lokálně, mimo repozitář).
 
+### Rozhodnutí uživatele 2026-11-04
+1. a 5. **Přístup a první detektor schválené:** klasické CV v čistém C#, první detektor „Změna na podložce“ (`bed-change`). → T-155.
+2. **Žádná nová závislost.**
+6. a 7. **Záběry první vrstvy a uměle vyvolaných selhání** uživatel ze skutečných tisků plánovaným způsobem nepořídí („záběry vytvoříme jinak“). Práh a ověření spolehlivosti proto nesmí záviset na nahrávkách selhání od uživatele. T-155 počítá se syntetickými / inscenovanými testovacími daty (návrhy zdrojů jsou v otázkách T-155). Detektor první vrstvy (T-156) čeká, dokud nebude jiný zdroj dat.
+8. **Výřez podložky (ROI):** uživatel podporuje různé typy tiskáren a různé držáky kamery. Editor výřezu proto patří už do první verze detekce: obdélník nakreslený nad náhledem kamery v nastavení tiskárny, výchozí výřez je celý snímek. U Core One se standardním držákem je výřez předvyplněný. Model výřezu → T-153, editor → T-154. Automatické nalezení podložky v obraze může přijít později (zatím bez úkolu).
+9. a 10. **Dekódování jen klíčových snímků a zmenšení / šedotón v hubu schválené.** Navíc: detekce vzorkuje jen jednou za 2–5 s (nastavitelné v tomto rozsahu, rozumná výchozí hodnota) a běží **jen během tisku**. Bez tisku se nic nedekóduje a nic nepočítá. → T-153.
+11. **Tmavý filament na tmavém plátu:** zatím známé omezení v popisu detektoru, vyřeší se později → nový úkol T-163 (P3, závisí na T-155).
+12. **ML ve fázi 2:** odloženo.
+13. **Žádost o licenci PrintGuard:** odloženo spolu s ML.
+
 ## Výsledky spiku (2026-11-03)
 Podrobně v [`docs/detection-spike.md`](../../docs/detection-spike.md), shrnutí v `docs/architecture.md`.
 
@@ -73,4 +83,4 @@ Podrobně v [`docs/detection-spike.md`](../../docs/detection-spike.md), shrnutí
 - Prototypy jen mimo repozitář (scratch adresář agenta): Python 3.9 venv s `numpy` 2.0.2 a `opencv-python-headless` 5.0.0 (jen k pokusům, nedistribuuje se) a AOT konzolová aplikace .NET 11 (`PublishAot=true`, `IsAotCompatible=true`) ve třech variantách: čistý C#, `Microsoft.ML.OnnxRuntime` 1.31.1 a `OpenCvSharp5` 5.0.0.20261018 + `OpenCvSharp5.runtime.osx.arm64`. Všechny `dotnet publish -r osx-arm64` prošly **bez varování IL2xxx / IL3xxx**. U ORT balík zkopíroval do výstupu osx-arm64 i Windows `onnxruntime.dll`. U OpenCvSharp se nativní knihovna v AOT načetla jen z pracovního adresáře.
 - Modely Obico a PrintGuard byly staženy jen lokálně kvůli měření, do repozitáře nepatří a nejsou v něm.
 - Do `.gitattributes` přibylo `*.jpg binary` kvůli fixture.
-- Úkol zůstává v `in-progress/`: kritéria 1–3 čekají na odpovědi a data od uživatele (otázky 1, 2, 6).
+- Uzavřeno 2026-11-04: výstup spiku (zpráva `docs/detection-spike.md` a rozhodnutí uživatele) je hotový. T-153 až T-157 jsou upravené podle rozhodnutí a přibyl T-163 (tmavý filament na tmavém plátu). Otevřený zůstává zdroj syntetických / inscenovaných dat (T-155) a dat první vrstvy (T-156).

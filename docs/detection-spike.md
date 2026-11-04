@@ -1,8 +1,8 @@
 # Detekce chyb tisku z kamery – výsledky průzkumu (spike T-152)
 
-Stav k 2026-11-03. Průzkum vedl agent architect. Prototypy běžely jen mimo repozitář. Do repozitáře nepřibyla žádná
-závislost ani produkční kód. Rozhodnutí, která čekají na uživatele, jsou v [T-152](../tasks/in-progress/T-152-print-failure-detection-spike.md)
-v oddílu „Otevřené otázky“.
+Stav k 2026-11-03, rozhodnutí uživatele 2026-11-04 v oddílu 7. Průzkum vedl agent architect. Prototypy běžely jen mimo
+repozitář. Do repozitáře nepřibyla žádná závislost ani produkční kód. Otázky a rozhodnutí jsou v
+[T-152](../tasks/done/T-152-print-failure-detection-spike.md).
 
 ## 1. Data
 
@@ -188,4 +188,19 @@ public readonly record struct DetectionResult(bool IsWarmedUp, float Score); // 
   snímky deterministicky.
 - Orchestrace (T-153) dělá vzorkování, zmenšení podle `FrameSpec`, převod citlivosti na práh, potvrzení K z N,
   pozastavení při tmě, snímek poplachu a událost. Detektor vrací jen skóre.
-- Výřez podložky (ROI) je v prvním detektoru pevný pro Core One a výchozí polohu kamery (otázka 8).
+- Výřez podložky (ROI) je podle rozhodnutí 2026-11-04 editovatelný u každé tiskárny (oddíl 7), detektor ho dostává
+  od orchestrace.
+
+## 7. Rozhodnutí uživatele (2026-11-04)
+
+- **Přístup:** klasické CV v čistém C# bez nové závislosti, první detektor „Změna na podložce“ (`bed-change`) → T-155.
+- **Data:** záběry první vrstvy a uměle vyvolaných selhání uživatel ze skutečných tisků plánovaným způsobem nepořídí.
+  Práh a ověření spolehlivosti proto stojí na syntetických / inscenovaných datech (zdroj vybere uživatel, otázka 3
+  v T-155). Detektor první vrstvy (T-156) čeká na jiný zdroj dat.
+- **Výřez podložky:** editor výřezu už v první verzi (obdélník nad náhledem kamery v nastavení tiskárny, T-154), model
+  v normalizovaných souřadnicích u tiskárny (T-153). Výchozí výřez je celý snímek, u Core One se předvyplní výřez
+  z prototypu (dolních 45 % výšky, prostředních 70 % šířky). Automatické nalezení podložky může přijít později.
+- **Výkon:** dekódování jen klíčových snímků a zmenšení / šedotón při kopii v hubu schválené. Vzorek jen jednou za 2–5 s
+  (nastavitelné, výchozí 2 s) a jen ve stavu `Printing`. Mimo tisk se nic nedekóduje ani nepočítá → T-153.
+- **Tmavý filament na černém plátu:** zatím známé omezení, řešení později v T-163.
+- **ML (fáze 2) a žádost o licenci PrintGuard:** odloženo.
