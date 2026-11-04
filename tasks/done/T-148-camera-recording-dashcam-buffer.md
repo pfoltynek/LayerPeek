@@ -184,3 +184,12 @@ Review qa-reviewer 2026-11-04 (macOS arm64): schváleno po jedné opravě.
   i běžné 1080p IP kamery na polovinu a paměť běžné kamery by neušetřila.
 - `dotnet build` 0 upozornění; `dotnet test` celkem 9095, neúspěšné 0, přeskočeno 200; testy `*Dashcam*` (Core 66, App 52,
   UiTests 4, FFmpeg 1) opakovaně a souběžně bez selhání; `dotnet publish -r osx-arm64` bez varování trim / AOT.
+
+Oprava nestabilního testu (qa-reviewer 2026-11-04, macOS arm64): `ANewConnectionClearsTheBufferAndASaveGoesOnInTheNextFile`
+občas selhal (`BufferedDuration` 0,9 s místo 0 po novém spojení). Příčina: testovací počítadlo `CameraDashcam.ItemsRead`
+se zvyšovalo **před** zpracováním položky, takže test pokračoval (četl buffer, posouval falešné hodiny), než čtenář buffer
+vyprázdnil nebo paketu přidělil čas. Produkční chování to neovlivňovalo (`ItemsRead` čtou jen testy), opraveno je pořadí:
+položka se započítá až po zpracování (jako u časosběru, T-158). Deterministický regresní test
+`AnItemCountsAsReadOnlyOnceItIsHandled` (falešný zapisovač hlásí `ItemsRead` při zápisu paketu během ukládání; se starým
+pořadím selže vždy). Test 60× samostatně a 60× celá třída pod zátěží všech jader bez selhání; `dotnet test` celkem 9253,
+neúspěšné 0.

@@ -123,7 +123,10 @@ internal sealed partial class CameraDashcam : ICameraDashcam
 
     public Task Completion => _completion;
 
-    /// <summary>Stream items the reader took so far (descriptions and packets); tests pace a fake clock with it.</summary>
+    /// <summary>
+    /// Stream items the reader handled so far (descriptions and packets); tests pace a fake clock with it. Counted only once
+    /// an item is fully handled: a test that sees the count may read the buffer and move the clock on.
+    /// </summary>
     internal long ItemsRead => Volatile.Read(ref _itemsRead);
 
     /// <summary>Starts reading <paramref name="packets"/> (owned from now on: disposed when the dashcam ends).</summary>
@@ -419,7 +422,14 @@ internal sealed partial class CameraDashcam : ICameraDashcam
     /// <summary>One item of the stream; <see langword="true"/> when the dashcam ends now.</summary>
     private bool Step(in CameraStreamItem item)
     {
+        bool ended = Handle(item);
+        // After the item is handled (buffer cleared, packet timestamped): see ItemsRead.
         Volatile.Write(ref _itemsRead, _itemsRead + 1);
+        return ended;
+    }
+
+    private bool Handle(in CameraStreamItem item)
+    {
         if (item.Kind == CameraStreamItemKind.StreamStarted)
         {
             // A new connection: the buffered packets do not continue into its packets, and a save goes on in its next file.
