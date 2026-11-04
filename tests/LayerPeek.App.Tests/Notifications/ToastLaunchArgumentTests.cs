@@ -1,4 +1,5 @@
 using LayerPeek.App.Notifications;
+using LayerPeek.App.Settings;
 
 namespace LayerPeek.App.Tests.Notifications;
 
@@ -79,6 +80,22 @@ public sealed class ToastLaunchArgumentTests
         Assert.True(ToastLaunchArgument.IsSettings(ToastLaunchArgument.Settings));
         Assert.True(ToastLaunchArgument.IsWellFormed(ToastLaunchArgument.Settings));
         Assert.False(ToastLaunchArgument.TryGetPrinterId(ToastLaunchArgument.Settings, out _));
+        Assert.True(ToastLaunchArgument.TryGetSettingsPage(ToastLaunchArgument.Settings, out SettingsPage page));
+        Assert.Equal(SettingsPage.General, page);
+    }
+
+    /// <summary>T-146 (user decision 2026-11-04): a failed recording opens the settings on the Recording tab; no printer either.</summary>
+    [Fact]
+    public void TheArgumentOfTheRecordingNotificationIsWellFormedButNoPrinter()
+    {
+        Assert.Equal("settings=recording", ToastLaunchArgument.RecordingSettings);
+        Assert.True(ToastLaunchArgument.IsSettings(ToastLaunchArgument.RecordingSettings));
+        Assert.True(ToastLaunchArgument.IsWellFormed(ToastLaunchArgument.RecordingSettings));
+        Assert.False(ToastLaunchArgument.TryGetPrinterId(ToastLaunchArgument.RecordingSettings, out _));
+        Assert.True(ToastLaunchArgument.TryGetSettingsPage(ToastLaunchArgument.RecordingSettings, out SettingsPage page));
+        Assert.Equal(SettingsPage.Recording, page);
+        Assert.False(ToastLaunchArgument.TryGetSettingsPage(ToastLaunchArgument.Update, out _));
+        Assert.False(ToastLaunchArgument.TryGetSettingsPage(ToastLaunchArgument.ForPrinter("mk4"), out _));
     }
 
     /// <summary>T-101: only the exact text opens the settings; anything near it is refused like any foreign argument (T-068).</summary>
@@ -92,6 +109,8 @@ public sealed class ToastLaunchArgumentTests
     [InlineData("settings=printers")]
     [InlineData("settings=general&printer=mk4")]
     [InlineData("settings=general\n")]
+    [InlineData("settings=Recording")]
+    [InlineData("settings=recording ")]
     public void NothingButTheExactArgumentOfTheTestNotificationIsAccepted(string argument)
     {
         Assert.False(ToastLaunchArgument.IsSettings(argument));

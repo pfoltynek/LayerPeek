@@ -197,6 +197,20 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
         RaiseChanged(changed);
     }
 
+    /// <summary>
+    /// The folder the recordings of <paramref name="printerId"/> (case-insensitive) go to: its subfolder of
+    /// <see cref="RecordingsFolder"/> (<see cref="CameraRecordingFolders.PrinterFolderNames"/>), which may not exist yet;
+    /// <see langword="null"/> when the printer is not configured.
+    /// </summary>
+    public string? GetPrinterFolder(string printerId)
+    {
+        ArgumentNullException.ThrowIfNull(printerId);
+        lock (_gate)
+        {
+            return _entries.TryGetValue(printerId, out Entry? entry) ? PrinterFolder(entry) : null;
+        }
+    }
+
     /// <summary>The recording state of <paramref name="printerId"/> (case-insensitive); <see cref="CameraRecordingStatus.None"/> when not configured.</summary>
     public CameraRecordingStatus GetStatus(string printerId)
     {
@@ -538,7 +552,7 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
                     entry.Activity = CameraRecordingActivity.Starting;
                     entry.Mode = entry.ManualWanted ? CameraRecordingMode.Manual : CameraRecordingMode.Automatic;
                     entry.StartedAt = _time.GetUtcNow();
-                    string folder = Path.Combine(_root, entry.FolderName);
+                    string folder = PrinterFolder(entry);
                     bool hasJob = entry.Printing || entry.LastState is PrinterState.Printing or PrinterState.Paused or PrinterState.Attention;
                     string fileName = CameraRecordingFolders.FileName(_time.GetLocalNow(), hasJob ? entry.JobFileName : null);
                     // Protected from the rotation from now on: the recorder creates the file before it lists it.
@@ -1103,6 +1117,9 @@ public sealed partial class CameraRecordingService : IAsyncDisposable, IDisposab
 
         public ITimer? Timer { get; set; }
     }
+
+    /// <summary>The folder of <paramref name="entry"/> in the current root. Under <see cref="_gate"/>.</summary>
+    private string PrinterFolder(Entry entry) => Path.Combine(_root, entry.FolderName);
 
     /// <summary>One configured printer; every field guarded by <see cref="_gate"/>.</summary>
     private sealed class Entry(PrinterDefinition printer, string folderName)

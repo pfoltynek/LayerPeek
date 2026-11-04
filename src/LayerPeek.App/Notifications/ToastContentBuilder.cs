@@ -81,6 +81,46 @@ internal static class ToastContentBuilder
     }
 
     /// <summary>
+    /// The toast about a failed camera recording (T-146) in <paramref name="textCulture"/>: the printer name, "Camera recording
+    /// failed" and the reason (<see cref="RecordingNotificationText"/>), with the launch argument
+    /// <see cref="ToastLaunchArgument.RecordingSettings"/> (a click opens the settings window on the Recording tab).
+    /// </summary>
+    public static string BuildRecordingFailed(RecordingNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = RecordingLines(notification, textCulture);
+        StringBuilder xml = new(512);
+        xml.Append("<toast launch=\"");
+        AppendEscaped(xml, ToastLaunchArgument.RecordingSettings);
+        xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, lines.Title);
+        AppendText(xml, lines.Body);
+        if (lines.Detail is { } detail)
+        {
+            AppendText(xml, detail);
+        }
+
+        xml.Append("</binding></visual>");
+        if (!notification.PlaySound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
+    /// The texts of the recording failure (T-146) for every OS, the printer name cleaned and shortened like in
+    /// <see cref="Lines"/> (its id when the name is empty); not escaped.
+    /// </summary>
+    internal static NotificationLines RecordingLines(RecordingNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = RecordingNotificationText.Lines(notification, textCulture);
+        string title = Clean(lines.Title);
+        return lines with { Title = title.Length > 0 ? title : Clean(notification.PrinterId) };
+    }
+
+    /// <summary>
     /// The toast of the test notification (T-101) in <paramref name="textCulture"/>: the same shape as a printer toast (title
     /// and one line, foreground activation), with the launch argument <see cref="ToastLaunchArgument.Settings"/>.
     /// </summary>

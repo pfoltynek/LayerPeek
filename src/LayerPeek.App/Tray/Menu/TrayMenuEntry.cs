@@ -40,6 +40,18 @@ public enum TrayMenuCommand
     /// opens it when it closed meanwhile.
     /// </summary>
     CameraToFront,
+
+    /// <summary>"Start recording" of <see cref="TrayMenuEntry.PrinterId"/> (T-146): a manual recording of its camera.</summary>
+    StartRecording,
+
+    /// <summary>"Stop recording" of <see cref="TrayMenuEntry.PrinterId"/> (T-146): ends its recording, manual or automatic.</summary>
+    StopRecording,
+
+    /// <summary>"Play last recording" (T-146): the newest recording of <see cref="TrayMenuEntry.PrinterId"/> in the system's default app.</summary>
+    PlayLastRecording,
+
+    /// <summary>"Open recordings folder" (T-146): the printer's recordings folder in Explorer / Finder (the root while it has none).</summary>
+    OpenRecordingsFolder,
     About,
 
     /// <summary>

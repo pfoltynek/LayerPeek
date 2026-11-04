@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Layout;
 using LayerPeek.App.Cameras.Overlay;
+using LayerPeek.App.Cameras.Recording;
 using LayerPeek.App.Cooldown;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
@@ -132,7 +133,8 @@ internal static partial class AppServices
             logLevel ?? new LogLevelSwitch(LogLevel.Information),
             env.IsIsolated,
             sp.GetRequiredService<ILogger<DebugLoggingObserver>>()));
-        services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
+        // T-146: "Recording" in the tooltip of a printer whose camera is recorded.
+        services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ICameraRecordings>()));
 #if DEBUG
         // The test mode never starts a browser: the addresses go to a file of its data folder (T-067).
         services.AddSingleton<IUrlLauncher>(sp => env.IsIsolated
@@ -143,6 +145,8 @@ internal static partial class AppServices
 #endif
         // The log folder in Explorer / Finder (T-048).
         services.AddSingleton<IFolderLauncher>(static sp => new ProcessFolderLauncher(sp.GetRequiredService<ILogger<ProcessFolderLauncher>>()));
+        // T-146: "Play last recording" opens the file in the system's default app (only .mp4 recordings).
+        services.AddSingleton<IFileLauncher>(static sp => new ProcessFileLauncher(sp.GetRequiredService<ILogger<ProcessFileLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.ForCurrentPlatform);
         // Custom printer images (T-039): files next to settings.json (created on first use, may throw without a data folder) and
@@ -162,7 +166,9 @@ internal static partial class AppServices
             sp.GetRequiredService<TrayMenuOptions>(),
             sp.GetRequiredService<CustomPrinterImages>(),
             // T-058: "A new version X.Y.Z is available" while one is offered.
-            sp.GetRequiredService<UpdateOffer>()));
+            sp.GetRequiredService<UpdateOffer>(),
+            // T-146: start / stop, play the last recording and open the folder in the submenu of a printer with a camera.
+            sp.GetRequiredService<ICameraRecordings>()));
 #if DEBUG
         // T-133: the stand-in for Windows' notification setting of the test app, only read by the toasts of the test mode.
         services.AddSingleton(static sp => new PretendedToastSetting(sp.GetRequiredService<ILogger<PretendedToastSetting>>()));
@@ -247,9 +253,14 @@ internal static partial class AppServices
                 // First: its language switch is posted to the UI thread before the menu and tooltip updates of the same settings.
                 sp.GetRequiredService<UiLanguageObserver>(),
                 sp.GetRequiredService<DebugLoggingObserver>(),
+                // T-145: before the hub, so that a switched-off camera stops its recording before the hub ends the lease;
+                // T-146: before the tray, whose tooltip and menu read the recording state of the new printers.
+                sp.GetRequiredService<CameraRecordingObserver>(),
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
+                // T-146: recording failures as notifications, with the printer names and notification settings of this run.
+                sp.GetRequiredService<RecordingNotificationObserver>(),
                 // Before the cool-down monitor: a raised threshold may cool a printer down while it is configured.
                 sp.GetRequiredService<CooldownNotificationObserver>(),
                 sp.GetRequiredService<CooldownObserver>(),
@@ -257,8 +268,6 @@ internal static partial class AppServices
                 sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<CameraWindowAutoVisibilityObserver>(),
-                // T-145: before the hub, so that a switched-off camera stops its recording before the hub ends the lease.
-                sp.GetRequiredService<CameraRecordingObserver>(),
                 // Before MonitoredPrinters: the hub knows a new camera address before the open camera windows hear of it.
                 sp.GetRequiredService<CameraStreamHubObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
@@ -731,6 +740,17 @@ internal static partial class AppServices
             sp.GetRequiredService<ILogger<CameraRecordingService>>(),
             CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>())));
         services.AddSingleton(static sp => new CameraRecordingObserver(sp.GetRequiredService<CameraRecordingService>()));
+        // T-146: what the tray menu, the tooltip, the camera window and the settings window use of the recordings.
+        services.AddSingleton<ICameraRecordings>(static sp => new CameraRecordings(
+            sp.GetRequiredService<CameraRecordingService>(),
+            sp.GetRequiredService<IFolderLauncher>(),
+            sp.GetRequiredService<IFileLauncher>(),
+            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>())));
+        services.AddSingleton(static sp => new RecordingNotificationObserver(
+            sp.GetRequiredService<CameraRecordingService>(),
+            sp.GetRequiredService<INotificationService>(),
+            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>()).MinFreeBytes,
+            sp.GetRequiredService<ILogger<RecordingNotificationObserver>>()));
         // T-143 decision 3: an unsaved address is tested over a connection of its own, the saved camera through the hub.
         services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
             sp.GetRequiredService<ICameraFeedFactory>(),
@@ -851,7 +871,8 @@ internal static partial class AppServices
                 services.GetRequiredService<PrintThumbnails>(),
                 services.GetRequiredService<ICameraOverlayLayoutWriter>(),
                 services.GetRequiredService<ILocalNetworkPrivacy>(),
-                services.GetRequiredService<ICameraWindowTopmostWriter>())
+                services.GetRequiredService<ICameraWindowTopmostWriter>(),
+                services.GetRequiredService<ICameraRecordings>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
@@ -931,6 +952,8 @@ internal static partial class AppServices
             // T-058: "Check now" (Q4 a) and the hint to move the macOS app to Applications first (Q8 a).
             CheckForUpdatesNow = services.GetRequiredService<UpdateOffer>().CheckNowAsync,
             ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,
+            // T-146: the default folder, whether this build can record and "Open recordings folder".
+            Recordings = services.GetRequiredService<ICameraRecordings>(),
         };
     }
 

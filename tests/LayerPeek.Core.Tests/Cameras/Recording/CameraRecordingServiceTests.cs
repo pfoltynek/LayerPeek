@@ -711,6 +711,24 @@ public sealed class CameraRecordingServiceTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task ThePrinterFolderIsTheOneItRecordsInto()
+    {
+        string other = Path.Combine(_root, "other");
+        Configure(Printer("a", "MK4"), Printer("b", "MK4", address: "192.168.0.11"));
+        Assert.Null(_service.GetPrinterFolder("unknown"));
+        Assert.NotEqual(_service.GetPrinterFolder("a"), _service.GetPrinterFolder("b"));
+        Assert.Equal(_root, Path.GetDirectoryName(_service.GetPrinterFolder("A")));
+
+        _service.Start("a");
+        FakeRecording recording = await RecordingAsync(1);
+        Assert.Equal(_service.GetPrinterFolder("a"), Path.GetDirectoryName(recording.Path));
+
+        // A new root applies at once (to the next recording, and to "Open recordings folder").
+        _service.Configure([Printer("a", "MK4"), Printer("b", "MK4", address: "192.168.0.11")], new CameraRecordingSettings { Folder = other });
+        Assert.Equal(other, Path.GetDirectoryName(_service.GetPrinterFolder("a")));
+    }
+
+    [Fact]
     public async Task ANewFolderAppliesToTheNextRecording()
     {
         string other = Path.Combine(_root, "other");

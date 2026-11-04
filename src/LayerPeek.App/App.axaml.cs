@@ -232,9 +232,10 @@ public partial class App : Application, ITrayAppCommands
         host.LanguageChanged += OnLanguageChanged;
         _commandLogger = host.CreateLogger<App>();
         // T-101: a click on the test notification (from any thread) brings the settings window to the front on its General
-        // tab; one that came while the app had no UI yet (macOS waiting for a display, T-099) is handled now.
+        // tab, T-146: one on a failed recording on the Recording tab; one that came while the app had no UI yet (macOS
+        // waiting for a display, T-099) is handled now.
         AvaloniaUiDispatcher settingsDispatcher = new();
-        host.AttachSettingsOpener(() => settingsDispatcher.Post(() => ShowSettings(addPrinter: false, generalTab: true)));
+        host.AttachSettingsOpener(page => settingsDispatcher.Post(() => ShowSettings(addPrinter: false, page)));
         // T-058: the update of a Velopack installation quits through the normal quit of the Quit item from now on (a click on
         // the update notification reaches the update with the services, ServiceHost).
         host.UpdateOffer.AttachQuit(() => _quit?.QuitAsync() ?? Task.CompletedTask);
@@ -306,8 +307,8 @@ public partial class App : Application, ITrayAppCommands
     void ITrayAppCommands.AddPrinter() => ShowSettings(addPrinter: true);
 
     /// <param name="addPrinter">"Add printer…" (T-042), see <see cref="SettingsWindowCommand.Show"/>.</param>
-    /// <param name="generalTab">A click on the test notification (T-101): the General tab.</param>
-    private void ShowSettings(bool addPrinter, bool generalTab = false)
+    /// <param name="page">A click on a notification (T-101, T-146): the tab to show.</param>
+    private void ShowSettings(bool addPrinter, SettingsPage? page = null)
     {
         if (_host is not { } host || _windows is not { } windows || _quit is { IsQuitting: true })
         {
@@ -322,7 +323,7 @@ public partial class App : Application, ITrayAppCommands
             _settingsWindow,
             () => windows.Settings(screens => host.CreateSettingsViewModel(screens, cameraWindows, cameraWindows)),
             addPrinter,
-            generalTab);
+            page);
     }
 
     void ITrayAppCommands.ToggleCamera(string printerId)

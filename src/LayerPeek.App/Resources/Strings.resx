@@ -737,6 +737,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Startup and updates</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Recording</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Start automatically when I sign in to Windows</value>
   </data>
@@ -1561,5 +1564,142 @@
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Move LayerPeek to the Applications folder; then it can update itself.</value>
     <comment>T-058 (macOS, Q8 a): hint on the Startup and updates tab when the app runs from the disk image or Downloads (translocated) and cannot update itself.</comment>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>Start _recording</value>
+    <comment>Item of a printer submenu (T-146) while its camera is not recorded; starts a manual recording. "_" marks the access key: unique within the submenu and the same as in MenuStopRecording.</comment>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Stop _recording</value>
+    <comment>Item of a printer submenu while its camera is recorded (manually or during a print); stops the recording. Same access key as MenuStartRecording.</comment>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>_Play last recording</value>
+    <comment>Item of a printer submenu: opens the newest recording of the printer in the system's video player. Access key unique within the submenu.</comment>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Open recordings fol_der</value>
+    <comment>Item of a printer submenu: shows the folder of all recordings in Explorer / Finder. Access key unique within the submenu.</comment>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>This printer has no recording yet.</value>
+    <comment>Tooltip of the disabled MenuPlayLastRecording.</comment>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Start recording</value>
+    <comment>Tooltip and accessible name of the record button of the camera window while nothing records.</comment>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Stop recording</value>
+    <comment>Tooltip and accessible name of the record button while the camera is recorded.</comment>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>The recording is starting…</value>
+    <comment>Tooltip of the disabled record button / menu item while a recording waits for its first key frame.</comment>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>The recording is being finished…</value>
+    <comment>Tooltip of the disabled record button / menu item while a recording completes its file.</comment>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>This version of LayerPeek cannot record the camera.</value>
+    <comment>Shown where recording options are disabled because this build has no MP4 muxer.</comment>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+    <comment>The short indicator next to the red dot in the camera window while recording; keep it 3-4 characters.</comment>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Recording</value>
+    <comment>Line of the tray tooltip of a printer whose camera is recorded.</comment>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, recording</value>
+    <comment>One printer line of the multi-printer tooltip while its camera is recorded. {0} = "Name: State – 42%".</comment>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>Camera recording failed</value>
+    <comment>Second line of the notification of a failed recording (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>This version of LayerPeek cannot record the camera.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>The printer's camera is not available.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>The recordings folder cannot be written to. Check the drive or choose another folder in the settings.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Less than {0} GB of free space is left on the drive.</value>
+    <comment>{0} = free space the recordings need in GB (5).</comment>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>The drive is full.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>The recording file could not be written.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>Writing to the drive could not keep up with the camera.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>The camera stream broke off or cannot be stored.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>The recording alone is larger than the size limit of all recordings ({0} GB).</value>
+    <comment>{0} = the size limit of all recordings in GB.</comment>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Recording</value>
+    <comment>Heading of the recording section of the settings window.</comment>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Open recordings folder</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Folder for recordings</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Change…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Use the system's video folder again.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Every printer gets a subfolder of its own.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Choose the folder for recordings</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>The chosen folder is not on a drive of this computer.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>This folder cannot be used: its path is longer than {0} characters or contains characters that are not allowed.</value>
+    <comment>{0} = longest accepted path length.</comment>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>The chosen folder cannot be written to.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Size limit of all recordings (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Above the limit the oldest recordings are deleted. With less than {0} GB of free space, recording stops.</value>
+    <comment>{0} = free space the recordings need in GB (5).</comment>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Enter a whole number from {0} to {1}.</value>
+    <comment>{0} = minimum, {1} = maximum in GB.</comment>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Record prints automatically</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Records from the start of a print until a minute after its end, also without an open camera window.</value>
   </data>
 </root>

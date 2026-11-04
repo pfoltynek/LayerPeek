@@ -52,7 +52,7 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // Guarded by _gate.
-    // PrintNotification or UpdateNotification (T-058), in the order they came.
+    // PrintNotification, UpdateNotification (T-058) or RecordingNotification (T-146), in the order they came.
     private readonly Queue<object> _pending = new();
     private readonly Queue<SettingsRequest> _requests = new();
     private bool _started;
@@ -133,6 +133,23 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     /// <summary>The toast about a new version (T-058), queued like a printer toast; tagged, so a newer one replaces it.</summary>
     public void ShowUpdateAvailable(UpdateNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || _unavailable || _pending.Count >= MaxPending)
+            {
+                return;
+            }
+
+            _pending.Enqueue(notification);
+            EnsureStarted();
+            Monitor.Pulse(_gate);
+        }
+    }
+
+    /// <summary>The toast about a failed camera recording (T-146), queued like a printer toast.</summary>
+    public void ShowRecordingFailed(RecordingNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
         lock (_gate)
@@ -253,6 +270,10 @@ internal sealed partial class ToastNotificationService : INotificationService, I
                         if (notification is UpdateNotification update)
                         {
                             ShowUpdate(session, update);
+                        }
+                        else if (notification is RecordingNotification recording)
+                        {
+                            ShowRecording(session, recording);
                         }
                         else
                         {
@@ -427,6 +448,25 @@ internal sealed partial class ToastNotificationService : INotificationService, I
             LogUpdateShowFailed(ex, notification.Version);
         }
     }
+
+    private void ShowRecording(IToastSession session, RecordingNotification notification)
+    {
+        try
+        {
+            session.Show(ToastContentBuilder.BuildRecordingFailed(notification, _textCulture()), tag: null);
+            LogRecordingShown(notification.Problem, notification.PrinterId);
+        }
+        catch (Exception ex)
+        {
+            LogRecordingShowFailed(ex, notification.Problem, notification.PrinterId);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Toast shown for the recording failure ({Problem}) of printer '{PrinterId}'.")]
+    private partial void LogRecordingShown(Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The toast for the recording failure ({Problem}) of printer '{PrinterId}' could not be shown.")]
+    private partial void LogRecordingShowFailed(Exception exception, Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
 
     private void ShowNow(IToastSession session, PrintNotification notification)
     {

@@ -13,4 +13,8 @@ internal static partial class SettingsLog
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The start after logon could not be changed (wanted on: {Enabled}).")]
     public static partial void AutostartNotChanged(ILogger logger, Exception exception, bool enabled);
+
+    /// <remarks>Only the exception type: messages of the OS dialog can contain the folder path.</remarks>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The folder dialog of the recordings failed ({ExceptionType}); the folder stays as it was.")]
+    public static partial void RecordingFolderPickerFailed(ILogger logger, string exceptionType);
 }

@@ -95,7 +95,8 @@ public sealed class CameraTaskbarAndModeSwitchTests(E2EFixture fixture)
         await FailureScreenshots.GuardAsync(app, "taskbar-submenu", async () =>
         {
             nint window = await CameraWindowSettings.OpenCameraAsync(app);
-            string[] keys = ["MenuOpenPrusaLink", "MenuCameraToFront", "MenuHideCamera"];
+            // T-146: the recording items follow after a separator.
+            string[] keys = ["MenuOpenPrusaLink", "MenuCameraToFront", "MenuHideCamera", "MenuStartRecording", "MenuPlayLastRecording", "MenuOpenRecordingsFolder"];
             using CoverWindow cover = await CoverWindow.CreateAsync(CoverWindow.BoundsFor(Native.FrameBounds(window), Native.MonitorOf(window).Monitor, BackgroundMargin));
             await cover.BringToFrontAsync();
             Assert.True(CoverWindow.IsAbove(cover.Handle, window), "The other app's window is not above the camera window.");

@@ -660,6 +660,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Inicio y actualizaciones</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Grabación</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Iniciar al iniciar sesión en Windows</value>
   </data>
@@ -1470,5 +1473,122 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Mueve LayerPeek a la carpeta Aplicaciones; después podrá actualizarse solo.</value>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>_Grabar</value>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Detener _grabación</value>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>_Reproducir última grabación</value>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Abrir car_peta de grabaciones</value>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>Esta impresora aún no tiene grabaciones.</value>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Grabar</value>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Detener grabación</value>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>La grabación se está iniciando…</value>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>La grabación se está finalizando…</value>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>Esta versión de LayerPeek no puede grabar la cámara.</value>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Grabando</value>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, grabando</value>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>La grabación de la cámara falló</value>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>Esta versión de LayerPeek no puede grabar la cámara.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>La cámara de la impresora no está disponible.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>No se puede escribir en la carpeta de grabaciones. Compruebe la unidad o elija otra carpeta en la configuración.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Quedan menos de {0} GB libres en la unidad.</value>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>La unidad está llena.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>No se pudo escribir el archivo de la grabación.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>La escritura en la unidad no pudo seguir el ritmo de la cámara.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>La transmisión de la cámara se interrumpió o no se puede guardar.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>La grabación por sí sola supera el límite de tamaño de todas las grabaciones ({0} GB).</value>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Grabación</value>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Abrir carpeta de grabaciones</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Carpeta de grabaciones</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Cambiar…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Predeterminada</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Volver a usar la carpeta de vídeos del sistema.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Cada impresora tiene su propia subcarpeta.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Elegir la carpeta de grabaciones</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>La carpeta elegida no está en una unidad de este equipo.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>No se puede usar esta carpeta: su ruta tiene más de {0} caracteres o contiene caracteres no permitidos.</value>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>No se puede escribir en la carpeta elegida.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Límite de tamaño de todas las grabaciones (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Por encima del límite se eliminan las grabaciones más antiguas. Con menos de {0} GB libres, la grabación se detiene.</value>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Introduzca un número entero de {0} a {1}.</value>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Grabar las impresiones automáticamente</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Graba desde el inicio de una impresión hasta un minuto después de su fin, también sin la ventana de la cámara abierta.</value>
   </data>
 </root>

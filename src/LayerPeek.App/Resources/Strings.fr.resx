@@ -660,6 +660,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Démarrage et mises à jour</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Enregistrement</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Démarrer à l'ouverture de session Windows</value>
   </data>
@@ -1470,5 +1473,122 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Déplacez LayerPeek dans le dossier Applications ; il pourra alors se mettre à jour.</value>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>_Enregistrer</value>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Arrêter l'_enregistrement</value>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>_Lire le dernier enregistrement</value>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Ouvrir le _dossier des enregistrements</value>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>Cette imprimante n'a encore aucun enregistrement.</value>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Enregistrer</value>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Arrêter l'enregistrement</value>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>L'enregistrement démarre…</value>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>L'enregistrement se termine…</value>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>Cette version de LayerPeek ne peut pas enregistrer la caméra.</value>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Enregistrement en cours</value>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, enregistrement en cours</value>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>L'enregistrement de la caméra a échoué</value>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>Cette version de LayerPeek ne peut pas enregistrer la caméra.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>La caméra de l'imprimante n'est pas disponible.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>Impossible d'écrire dans le dossier des enregistrements. Vérifiez le disque ou choisissez un autre dossier dans les paramètres.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Il reste moins de {0} Go d'espace libre sur le disque.</value>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>Le disque est plein.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>Le fichier de l'enregistrement n'a pas pu être écrit.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>L'écriture sur le disque n'a pas suivi la caméra.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>Le flux de la caméra s'est interrompu ou ne peut pas être enregistré.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>L'enregistrement à lui seul dépasse la limite de taille de tous les enregistrements ({0} Go).</value>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Enregistrement</value>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Ouvrir le dossier des enregistrements</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Dossier des enregistrements</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Modifier…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Par défaut</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Utiliser de nouveau le dossier vidéo du système.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Chaque imprimante y a son propre sous-dossier.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Choisir le dossier des enregistrements</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>Le dossier choisi n'est pas sur un disque de cet ordinateur.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>Ce dossier ne peut pas être utilisé: son chemin dépasse {0} caractères ou contient des caractères non autorisés.</value>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>Impossible d'écrire dans le dossier choisi.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Limite de taille de tous les enregistrements (Go)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Au-delà de la limite, les enregistrements les plus anciens sont supprimés. Avec moins de {0} Go d'espace libre, l'enregistrement s'arrête.</value>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Saisissez un nombre entier de {0} à {1}.</value>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Enregistrer les impressions automatiquement</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Enregistre du début d'une impression jusqu'à une minute après sa fin, même sans fenêtre de caméra ouverte.</value>
   </data>
 </root>

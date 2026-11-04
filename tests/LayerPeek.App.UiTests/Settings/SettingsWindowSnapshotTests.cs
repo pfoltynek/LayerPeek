@@ -241,6 +241,20 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-startup-updates-not-installed");
         });
 
+    /// <summary>T-146 (user decision 2026-11-04): the Recording tab of its own, with the default folder and limit.</summary>
+    [Fact]
+    public Task RecordingTab() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.RecordingTab;
+            ui.Window.Settle();
+
+            Assert.True(ui.Find<Avalonia.Controls.TabItem>("SettingsTabRecording").IsSelected);
+            Assert.Equal(LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings.FixedDefaultFolder, ui.ViewModel.RecordingFolderText);
+            SnapshotAssert.Matches(ui.Window, "settings-recording");
+        });
+
     [Fact]
     public Task GeneralTabWithErrors() =>
         session.RunAsync(static async scope =>

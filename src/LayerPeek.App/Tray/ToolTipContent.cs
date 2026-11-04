@@ -10,13 +10,15 @@ namespace LayerPeek.App.Tray;
 /// <param name="State">Printer state; <see langword="null"/> before the first snapshot ("Connecting…").</param>
 /// <param name="ProgressPercent">Whole percent, rounded down; <see langword="null"/> when not shown.</param>
 /// <param name="RemainingMinutes">Remaining time rounded up to minutes; <see langword="null"/> when not shown.</param>
+/// <param name="IsRecording">Its camera is being recorded (T-146, user decision 2026-11-03: "Recording" in the tooltip).</param>
 internal readonly record struct ToolTipContent(
     string Name,
     PrinterState? State,
     int? ProgressPercent,
     long? RemainingMinutes,
     string? FileName,
-    int OtherPrinterCount)
+    int OtherPrinterCount,
+    bool IsRecording = false)
 {
     /// <summary>What the icon would show for this printer; not polled yet counts as offline.</summary>
     public TrayStatus Status => State is { } state ? TrayStatusRules.FromPrinterState(state) : TrayStatus.Offline;
@@ -39,7 +41,7 @@ internal readonly record struct ToolTipContent(
             }
         }
 
-        return new(printer.Definition.Name, snapshot?.State, progress, remaining, fileName, Math.Max(otherPrinterCount, 0));
+        return new(printer.Definition.Name, snapshot?.State, progress, remaining, fileName, Math.Max(otherPrinterCount, 0), printer.IsRecording);
     }
 
     /// <summary>Rounded down, so that an unfinished print never shows 100.</summary>

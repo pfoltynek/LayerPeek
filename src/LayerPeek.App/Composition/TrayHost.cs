@@ -190,7 +190,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
 #endif
 
     /// <summary>The settings window for a click on the test notification (T-101, <see cref="ServiceHost.AttachSettingsOpener"/>).</summary>
-    public void AttachSettingsOpener(Action open) => _core.AttachSettingsOpener(open);
+    public void AttachSettingsOpener(Action<SettingsPage> open) => _core.AttachSettingsOpener(open);
 
     /// <summary>The update the app offers (T-058): the menu item, the notification and the settings window. Valid until <see cref="StopAsync"/>.</summary>
     internal Updates.UpdateOffer UpdateOffer => _services.GetRequiredService<Updates.UpdateOffer>();

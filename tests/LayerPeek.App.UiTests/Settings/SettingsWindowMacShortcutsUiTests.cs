@@ -71,11 +71,11 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
             Press(window, Key.OemOpenBrackets, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "{");
             Assert.True(ui.Find<TabItem>("SettingsTabPrinters").IsSelected);
             Press(window, Key.OemOpenBrackets, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "{");
-            Assert.True(ui.Find<TabItem>("SettingsTabStartupUpdates").IsSelected);
+            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
 
             // ⌘⌥→ outside the printer form does nothing.
             Press(window, Key.Right, PhysicalKey.ArrowRight, Command | RawInputModifiers.Alt);
-            Assert.True(ui.Find<TabItem>("SettingsTabStartupUpdates").IsSelected);
+            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
 
             // The keys of Windows stay: Ctrl+Tab.
             Press(window, Key.Tab, PhysicalKey.Tab, RawInputModifiers.Control);
@@ -91,7 +91,7 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
 
             // Czech layout: the keys right of P type ú and ) — with ⇧ "/" and "(" — so the logical key is no bracket.
             Press(window, Key.OemQuestion, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "/");
-            Assert.True(ui.Find<TabItem>("SettingsTabStartupUpdates").IsSelected);
+            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
             Press(window, Key.None, PhysicalKey.BracketRight, Command | RawInputModifiers.Shift, "(");
             Assert.True(ui.Find<TabItem>("SettingsTabPrinters").IsSelected);
 

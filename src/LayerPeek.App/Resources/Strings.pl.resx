@@ -660,6 +660,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Uruchamianie i aktualizacje</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Nagrywanie</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Uruchamiaj po zalogowaniu się do systemu Windows</value>
   </data>
@@ -1470,5 +1473,122 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Przenieś LayerPeek do folderu Aplikacje; wtedy będzie mógł się sam aktualizować.</value>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>_Nagrywaj</value>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Zatrzymaj _nagrywanie</value>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>Od_twórz ostatnie nagranie</value>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Otwórz _folder z nagraniami</value>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>Ta drukarka nie ma jeszcze żadnego nagrania.</value>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Nagrywaj</value>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Zatrzymaj nagrywanie</value>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>Nagrywanie się uruchamia…</value>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>Nagrywanie się kończy…</value>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>Ta wersja LayerPeek nie może nagrywać kamery.</value>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Trwa nagrywanie</value>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, trwa nagrywanie</value>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>Nagrywanie kamery nie powiodło się</value>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>Ta wersja LayerPeek nie może nagrywać kamery.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>Kamera drukarki jest niedostępna.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>Nie można zapisywać w folderze z nagraniami. Sprawdź dysk lub wybierz inny folder w ustawieniach.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Na dysku zostało mniej niż {0} GB wolnego miejsca.</value>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>Dysk jest pełny.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>Nie można zapisać pliku nagrania.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>Zapis na dysk nie nadążał za kamerą.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>Strumień kamery został przerwany lub nie można go zapisać.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>Samo nagranie przekracza limit rozmiaru wszystkich nagrań ({0} GB).</value>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Nagrywanie</value>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Otwórz folder z nagraniami</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Folder na nagrania</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Zmień…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Domyślny</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Ponownie używaj systemowego folderu wideo.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Każda drukarka ma w nim własny podfolder.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Wybierz folder na nagrania</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>Wybrany folder nie znajduje się na dysku tego komputera.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>Nie można użyć tego folderu: ścieżka jest dłuższa niż {0} znaków lub zawiera niedozwolone znaki.</value>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>Nie można zapisywać w wybranym folderze.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Limit rozmiaru wszystkich nagrań (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Po przekroczeniu limitu usuwane są najstarsze nagrania. Przy mniej niż {0} GB wolnego miejsca nagrywanie się zatrzymuje.</value>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Wpisz liczbę całkowitą od {0} do {1}.</value>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Automatycznie nagrywaj wydruki</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Nagrywa od początku wydruku do minuty po jego zakończeniu, także bez otwartego okna kamery.</value>
   </data>
 </root>

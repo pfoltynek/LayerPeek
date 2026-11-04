@@ -57,5 +57,6 @@ public sealed partial class SettingsViewModel
     private string? FirstInvalidGeneralField() =>
         HasPollingIntervalError ? SettingsFieldIds.SettingsPollingInterval
         : HasRemainingTimeError ? SettingsFieldIds.SettingsRemainingTime
+        : HasRecordingLimitError ? SettingsFieldIds.SettingsRecordingLimit
         : null;
 }

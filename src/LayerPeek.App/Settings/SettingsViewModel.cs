@@ -62,6 +62,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>Main tab of the start after logon and the updates (T-017).</summary>
     public const int StartupUpdatesTab = 3;
 
+    /// <summary>
+    /// Main tab of the camera recordings (T-146, user decision 2026-11-04: a tab of its own, as the General tab has no room
+    /// left within 780 × 532, T-094); the sections of the timelapse and the print failure detection follow on it later.
+    /// </summary>
+    public const int RecordingTab = 4;
+
     /// <summary>Sub-tabs of the selected printer (<see cref="SelectedPrinterTabIndex"/>, T-033): connection fields.</summary>
     public const int ConnectionPrinterTab = 0;
 
@@ -74,7 +80,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>How many sub-tabs a printer has (the Overlay sub-tab of T-036 gave way to the Widgets tab, T-092).</summary>
     public const int PrinterTabCount = 3;
 
-    private const int TabCount = 4;
+    private const int TabCount = 5;
 
     private const int MaxIdAttempts = 100;
 
@@ -144,11 +150,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     private bool _cameraWindowAutoClose = true;
 
-    /// <summary>
-    /// The recording folder and size limit (T-145), kept as loaded until the settings window edits them (T-146), so that a
-    /// save never loses them.
-    /// </summary>
-    private CameraRecordingSettings _recording = CameraRecordingSettings.Default;
     private bool _offerPrereleaseUpdates;
     private bool _startWithWindows;
 
@@ -377,7 +378,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         private set => SetProperty(ref _statusIsError, value);
     }
 
-    /// <summary><see cref="PrintersTab"/>, <see cref="GeneralTab"/> or <see cref="StartupUpdatesTab"/>; switched by a failed save to the part with the error.</summary>
+    /// <summary>One of the main tabs (<see cref="PrintersTab"/> … <see cref="RecordingTab"/>); switched by a failed save to the part with the error.</summary>
     public int SelectedTabIndex
     {
         get => _selectedTabIndex;
@@ -914,6 +915,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         OnPropertyChanged(nameof(AutostartNeedsInstallationText));
         RefreshNotificationTexts();
         RefreshUpdateTexts();
+        RefreshRecordingTexts();
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -962,14 +964,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     }
 
     /// <summary>
-    /// A click on the test notification (T-101): the General tab, where the test came from; edits and the selection of the
-    /// other tabs are kept. UI thread.
+    /// A click on a notification: the General tab for the test notification, where the test came from (T-101), the Recording
+    /// tab for a failed recording, where its folder and limit are (T-146); edits and the selection of the other tabs are
+    /// kept. UI thread.
     /// </summary>
-    public void ShowGeneralTab()
+    internal void ShowPage(SettingsPage page)
     {
         if (!_disposed)
         {
-            SelectedTabIndex = GeneralTab;
+            SelectedTabIndex = page == SettingsPage.Recording ? RecordingTab : GeneralTab;
         }
     }
 
@@ -1070,7 +1073,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _startWithWindows = _autostartBaseline;
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
         _cameraWindowAutoClose = settings.CameraWindowAutoClose;
-        _recording = settings.Recording;
+        PopulateRecording(settings.Recording);
 
         _noticeSource = data.Status switch
         {
@@ -1244,7 +1247,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
         if (_pollingIntervalError is not null || _remainingTimeError is not null || !TryBuildSettings(out AppSettings? updated))
         {
-            SelectedTabIndex = GeneralTab;
+            // T-146: the recording limit is the only field of its tab that can be invalid.
+            SelectedTabIndex = _pollingIntervalError is null && _remainingTimeError is null && _recordingLimitError is not null ? RecordingTab : GeneralTab;
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             RequestFieldFocus(FirstInvalidGeneralField());
             return;
@@ -1454,7 +1458,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private bool TryBuildSettings([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AppSettings? settings)
     {
         settings = null;
-        if (_pollingIntervalSeconds is not { } seconds || _remainingTimeMinutes is not { } minutes || _pollingIntervalError is not null || _remainingTimeError is not null)
+        if (_pollingIntervalSeconds is not { } seconds || _remainingTimeMinutes is not { } minutes || _pollingIntervalError is not null || _remainingTimeError is not null
+            || BuildRecording() is not { } recording)
         {
             return false;
         }
@@ -1483,7 +1488,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,
                 CameraWindowAutoClose = _cameraWindowAutoClose,
-                Recording = _recording,
+                Recording = recording,
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,
@@ -1527,6 +1532,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         RemainingTimeError = _remainingTimeMinutes is { } minutes && minutes >= 0 && minutes <= NotificationSettings.MaxRemainingTimeMinutes && minutes == decimal.Truncate(minutes)
             ? null
             : Format(Strings.SettingsErrorRemainingTime, NotificationSettings.MaxRemainingTimeMinutes);
+        ValidateRecording();
     }
 
     /// <summary>Names must be unique (trimmed, case-insensitive) so that the tray menu and notifications are unambiguous.</summary>
@@ -1647,6 +1653,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
 
         OnWidgetsStateChanged();
+        OnRecordingEditableChanged();
     }
 
     private void OnPrintersChanged(object? sender, NotifyCollectionChangedEventArgs e)

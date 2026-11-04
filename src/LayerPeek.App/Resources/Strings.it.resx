@@ -660,6 +660,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Avvio e aggiornamenti</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Registrazione</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Avvia all'accesso a Windows</value>
   </data>
@@ -1470,5 +1473,122 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Sposta LayerPeek nella cartella Applicazioni; poi potrà aggiornarsi da solo.</value>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>_Registra</value>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Interrompi _registrazione</value>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>Riproduci _ultima registrazione</value>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Apri la _cartella delle registrazioni</value>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>Questa stampante non ha ancora registrazioni.</value>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Registra</value>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Interrompi registrazione</value>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>La registrazione si sta avviando…</value>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>La registrazione si sta concludendo…</value>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>Questa versione di LayerPeek non può registrare la telecamera.</value>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Registrazione in corso</value>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, registrazione in corso</value>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>Registrazione della telecamera non riuscita</value>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>Questa versione di LayerPeek non può registrare la telecamera.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>La telecamera della stampante non è disponibile.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>Impossibile scrivere nella cartella delle registrazioni. Controlla l'unità o scegli un'altra cartella nelle impostazioni.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Sull'unità restano meno di {0} GB liberi.</value>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>L'unità è piena.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>Impossibile scrivere il file della registrazione.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>La scrittura sull'unità non è riuscita a stare al passo con la telecamera.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>Il flusso della telecamera si è interrotto o non può essere salvato.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>La registrazione da sola supera il limite di dimensione di tutte le registrazioni ({0} GB).</value>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Registrazione</value>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Apri la cartella delle registrazioni</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Cartella delle registrazioni</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Cambia…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Predefinita</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Usa di nuovo la cartella video del sistema.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Ogni stampante ha una propria sottocartella.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Scegli la cartella delle registrazioni</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>La cartella scelta non si trova su un'unità di questo computer.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>Impossibile usare questa cartella: il percorso supera {0} caratteri o contiene caratteri non consentiti.</value>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>Impossibile scrivere nella cartella scelta.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Limite di dimensione di tutte le registrazioni (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Oltre il limite vengono eliminate le registrazioni più vecchie. Con meno di {0} GB liberi la registrazione si interrompe.</value>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Inserisci un numero intero da {0} a {1}.</value>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Registra le stampe automaticamente</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Registra dall'inizio di una stampa fino a un minuto dopo la fine, anche senza la finestra della telecamera aperta.</value>
   </data>
 </root>
