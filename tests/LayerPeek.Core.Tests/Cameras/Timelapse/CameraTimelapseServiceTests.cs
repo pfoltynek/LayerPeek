@@ -60,13 +60,13 @@ public sealed class CameraTimelapseServiceTests : IAsyncDisposable
     }
 
     private static PrinterDefinition Printer(
-        string id = "mk4", string name = "Workshop MK4", bool timelapsePrints = true, bool recordPrints = false, bool camera = true, string address = "192.168.0.10") => new()
+        string id = "mk4", string name = "Workshop MK4", bool timelapsePrints = true, bool recordPrints = false, bool camera = true, string address = "192.168.0.10", bool dashcam = false) => new()
     {
         Id = id,
         Name = name,
         ConnectionType = ConnectionType.PrusaLink,
         Address = address,
-        Camera = new CameraSettings(camera, StreamUri) { TimelapsePrints = timelapsePrints, RecordPrints = recordPrints },
+        Camera = new CameraSettings(camera, StreamUri) { TimelapsePrints = timelapsePrints, RecordPrints = recordPrints, Dashcam = dashcam },
     };
 
     private void Configure(params PrinterDefinition[] printers) => _service.Configure(printers, CameraRecordingSettings.Default);
@@ -464,6 +464,42 @@ public sealed class CameraTimelapseServiceTests : IAsyncDisposable
         Assert.False(manual.IsEnded);
         Assert.Equal(recording.Path, _service.GetStatus("mk4").LastFile);
         Assert.Equal(timelapse.Path, Status().LastFile);
+    }
+
+    [Fact]
+    public async Task DashcamAndTimelapseRunTogetherAndEndIndependently()
+    {
+        Configure(Printer(dashcam: true));
+        Raise(PrinterState.Printing);
+        FakeTimelapse timelapse = await TimelapseAsync(1);
+        await Eventually.TrueAsync(() => _recorder.Dashcams.Length == 1, "dashcam started");
+        FakeDashcam dashcam = _recorder.Dashcams[0];
+        await Eventually.TrueAsync(() => _service.GetStatus("mk4").Dashcam == CameraDashcamActivity.Buffering, "dashcam buffering");
+
+        // Stopping the timelapse leaves the dashcam alone, and the print takes no other timelapse.
+        _service.StopTimelapse("mk4");
+        await StatusAsync("mk4", CameraRecordingActivity.Idle);
+        Assert.True(timelapse.IsEnded);
+        await SettleAsync();
+        Assert.False(dashcam.IsEnded);
+        Assert.False(dashcam.EndRequested);
+        Assert.Single(_timelapses.Started);
+
+        // The dashcam ends with the print; the next print starts both again, and quitting completes both.
+        Raise(PrinterState.Finished);
+        await Eventually.TrueAsync(() => dashcam.IsEnded, "dashcam ended with the print");
+        Clock.Advance(TimeSpan.FromMinutes(1));
+        Raise(PrinterState.Printing, job: Cube);
+        FakeTimelapse next = await TimelapseAsync(2);
+        await Eventually.TrueAsync(() => _recorder.Dashcams.Length == 2, "second dashcam started");
+        FakeDashcam nextDashcam = _recorder.Dashcams[1];
+
+        await _service.StopAllAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+
+        Assert.True(next.IsEnded);
+        Assert.True(nextDashcam.IsEnded);
+        Assert.Equal(0, _time.ActiveTimers);
+        Assert.Empty(_failed);
     }
 
     private async Task<FakeRecording> RecordingStartedAsync(int number)
