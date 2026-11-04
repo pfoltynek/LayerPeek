@@ -117,6 +117,11 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] **T-145** (služba nahrávání, implementováno na Macu 2026-11-03): testy `CameraRecording*` v `LayerPeek.Core.Tests`
       prochází na Windows (výchozí složka `%USERPROFILE%\Videos\LayerPeek` podle známé složky Videa, volné místo přes
       `DriveInfo` kořene disku, skrytá značka `.layerpeek-recordings`); složka se značkou je v Průzkumníku skrytá; s Videi na OneDrive (Files On-Demand) rotace staré nahrávky skutečně maže (soubory s reparse pointem rotace přeskakuje, revize T-145).
+- [ ] **T-162** (krit. „Build na Windows s prázdnou cache stáhne a ověří FFmpeg a projde“, připnuto na Macu 2026-11-04):
+      `dotnet build` s `LayerPeekFFmpegCacheRoot` na prázdnou složku stáhne `autobuild-2026-10-31-12-59`
+      (`ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip`), ověří SHA-256 a projde; pak `dotnet test` (FFmpeg testy
+      včetně MP4 muxeru T-144) a `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez chyb; `pwsh -File
+      build/update-ffmpeg.Tests.ps1` (Pester) prochází i na Windows.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

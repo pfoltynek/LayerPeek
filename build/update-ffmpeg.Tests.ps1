@@ -27,7 +27,7 @@ BeforeAll {
     $script:Content = 'stand-in tarball'
     $script:ContentSha256 = (Get-FileHash -InputStream ([System.IO.MemoryStream]::new([System.Text.Encoding]::UTF8.GetBytes($script:Content))) -Algorithm SHA256).Hash.ToLowerInvariant()
     $script:Fpr = 'FCF986EA15E6E293A5644F10B4322F04D67658D8'
-    $script:Tag = 'autobuild-2026-11-20-12-00'
+    $script:Tag = 'autobuild-2026-11-30-12-00'
     $script:Asset = 'ffmpeg-n9.0.3-4-gabcdef0123-win64-lgpl-shared-9.0.zip'
     $script:Folder = 'ffmpeg-n9.0.3-4-gabcdef0123-win64-lgpl-shared-9.0'
     $script:ZipUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/$($script:Tag)/$($script:Asset)"
@@ -91,7 +91,7 @@ BeforeAll {
         $targets = @'
 <Project>
   <PropertyGroup>
-    <LayerPeekFFmpegUrl>https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip</LayerPeekFFmpegUrl>
+    <LayerPeekFFmpegUrl>https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip</LayerPeekFFmpegUrl>
     <LayerPeekFFmpegSha256>00ab3bc8fe02554bd0fffac9968bba498d1ab7e899a4871b85fbba828a50bfcc</LayerPeekFFmpegSha256>
     <LayerPeekFFmpegArchiveFolder>ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0</LayerPeekFFmpegArchiveFolder>
     <LayerPeekFFmpegMacSourceUrl>https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz</LayerPeekFFmpegMacSourceUrl>
@@ -108,7 +108,7 @@ BeforeAll {
 '@
         $licenses = @'
         public static Uri WindowsBuildUri { get; } =
-            new("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip");
+            new("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip");
         public static Uri WindowsBuildScriptsUri { get; } = new("https://github.com/BtbN/FFmpeg-Builds");
         public static Uri MacOSBuildUri { get; } = new("https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz");
 '@
@@ -174,19 +174,27 @@ Describe 'Source tarball (macOS)' {
 
 Describe 'BtbN build (Windows)' {
     It 'derives the URLs, archive folder and release branch from the tag and asset' {
-        $build = Get-BtbNBuild -Tag 'autobuild-2026-10-17-20-51' -Asset 'ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip'
-        $build.Url | Should -BeExactly 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip'
-        $build.ChecksumsUrl | Should -BeExactly 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/checksums.sha256'
+        $build = Get-BtbNBuild -Tag 'autobuild-2026-10-31-12-59' -Asset 'ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip'
+        $build.Url | Should -BeExactly 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip'
+        $build.ChecksumsUrl | Should -BeExactly 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/checksums.sha256'
         $build.Folder | Should -BeExactly 'ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0'
         $build.Branch | Should -BeExactly '9.0'
     }
 
     It 'accepts a release build without commits on top' {
-        (Get-BtbNBuild -Tag 'autobuild-2026-10-17-20-51' -Asset 'ffmpeg-n9.1-win64-lgpl-shared-9.1.zip').Branch | Should -BeExactly '9.1'
+        (Get-BtbNBuild -Tag 'autobuild-2026-10-31-12-59' -Asset 'ffmpeg-n9.1-win64-lgpl-shared-9.1.zip').Branch | Should -BeExactly '9.1'
     }
 
-    It 'rejects a malformed tag' -TestCases @(@{ T = 'latest' }, @{ T = 'autobuild-2026-10-17' }, @{ T = 'autobuild-2026-10-17-20-51/../x' }, @{ T = '' }) {
+    It 'rejects a malformed tag' -TestCases @(@{ T = 'latest' }, @{ T = 'autobuild-2026-10-17' }, @{ T = 'autobuild-2026-10-31-12-59/../x' }, @{ T = '' }) {
         { Get-BtbNBuild -Tag $T -Asset 'ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip' } | Should -Throw -ExpectedMessage '*not a BtbN release tag*'
+    }
+
+    It 'rejects a build that is not the last one of a month' -TestCases @(@{ T = 'autobuild-2026-10-17-20-51' }, @{ T = 'autobuild-2028-02-28-12-00' }, @{ T = 'autobuild-2026-13-31-12-00' }, @{ T = 'autobuild-2026-04-31-12-00' }) {
+        { Get-BtbNBuild -Tag $T -Asset 'ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip' } | Should -Throw -ExpectedMessage '*not the last build of a month*'
+    }
+
+    It 'accepts the month-end build of a leap February' {
+        (Get-BtbNBuild -Tag 'autobuild-2028-02-29-12-00' -Asset 'ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip').Tag | Should -BeExactly 'autobuild-2028-02-29-12-00'
     }
 
     It 'rejects anything but an LGPL shared win64 build of a release branch' -TestCases @(
@@ -198,11 +206,11 @@ Describe 'BtbN build (Windows)' {
         @{ A = '../ffmpeg-n9.0.2-win64-lgpl-shared-9.0.zip' },
         @{ A = '' }
     ) {
-        { Get-BtbNBuild -Tag 'autobuild-2026-10-17-20-51' -Asset $A } | Should -Throw -ExpectedMessage '*not an LGPL shared win64 build*'
+        { Get-BtbNBuild -Tag 'autobuild-2026-10-31-12-59' -Asset $A } | Should -Throw -ExpectedMessage '*not an LGPL shared win64 build*'
     }
 
     It 'rejects an asset whose version is not on its release branch' {
-        { Get-BtbNBuild -Tag 'autobuild-2026-10-17-20-51' -Asset 'ffmpeg-n9.0.2-win64-lgpl-shared-8.1.zip' } | Should -Throw -ExpectedMessage '*release branch 8.1*'
+        { Get-BtbNBuild -Tag 'autobuild-2026-10-31-12-59' -Asset 'ffmpeg-n9.0.2-win64-lgpl-shared-8.1.zip' } | Should -Throw -ExpectedMessage '*release branch 8.1*'
     }
 }
 
@@ -465,7 +473,7 @@ Describe 'Whole run' {
 
     It 'says so when the values are the ones already pinned (and not otherwise)' {
         $root = New-Repo
-        $pinnedTag = 'autobuild-2026-10-17-20-51'
+        $pinnedTag = 'autobuild-2026-10-31-12-59'
         $pinnedAsset = 'ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip'
         $zip = New-Zip (Get-GoodEntries -Folder 'ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0')
         $zipSha = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -535,9 +543,9 @@ Describe 'Whole run' {
 
     It 'fails before any download when an input is missing or invalid' -TestCases @(
         @{ P = 'all'; V = '9.0.3'; T = $null; A = $null; M = 'Windows needs -BtbNTag' },
-        @{ P = 'all'; V = $null; T = 'autobuild-2026-11-20-12-00'; A = 'ffmpeg-n9.0.3-win64-lgpl-shared-9.0.zip'; M = 'macOS needs -Version' },
+        @{ P = 'all'; V = $null; T = 'autobuild-2026-11-30-12-00'; A = 'ffmpeg-n9.0.3-win64-lgpl-shared-9.0.zip'; M = 'macOS needs -Version' },
         @{ P = 'macos'; V = 'latest'; T = $null; A = $null; M = 'not an FFmpeg release version' },
-        @{ P = 'windows'; V = $null; T = 'autobuild-2026-11-20-12-00'; A = 'ffmpeg-n9.0.3-win64-gpl-shared-9.0.zip'; M = 'not an LGPL shared win64 build' }
+        @{ P = 'windows'; V = $null; T = 'autobuild-2026-11-30-12-00'; A = 'ffmpeg-n9.0.3-win64-gpl-shared-9.0.zip'; M = 'not an LGPL shared win64 build' }
     ) {
         $download = New-Download (New-Zip (Get-GoodEntries)) ''
         $r = Invoke-Quiet { Invoke-Main -Platform $P -Version $V -BtbNTag $T -BtbNAsset $A -RepoRoot (New-Repo) -Download $download.Block -GetJson { throw 'no' } -Gpg $null -TempRoot $script:TempRoot }
@@ -585,7 +593,7 @@ Describe 'Whole run' {
         $after.Targets | Should -Match '<LayerPeekFFmpegMacSourceFolder>ffmpeg-9\.0\.3</LayerPeekFFmpegMacSourceFolder>'
         $after.Targets | Should -Match '<LayerPeekFFmpegSha256>00ab3bc8'
         $after.Licenses | Should -Match 'ffmpeg-9\.0\.3\.tar\.xz'
-        $after.Licenses | Should -Match 'autobuild-2026-10-17-20-51'
+        $after.Licenses | Should -Match 'autobuild-2026-10-31-12-59'
         @(Get-ChildItem -LiteralPath $script:TempRoot -Filter 'layerpeek-ffmpeg-*') | Should -BeNullOrEmpty
     }
 

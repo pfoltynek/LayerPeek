@@ -47,17 +47,17 @@
     macOS: the FFmpeg release, e.g. 9.0.3 (the tarball ffmpeg-<version>.tar.xz on ffmpeg.org).
 
 .PARAMETER BtbNTag
-    Windows: the BtbN release tag, e.g. autobuild-2026-10-17-20-51.
+    Windows: the BtbN release tag of a month-end build (the only ones BtbN keeps), e.g. autobuild-2026-10-31-12-59.
 
 .PARAMETER BtbNAsset
-    Windows: the asset of that release, e.g. ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip (only LGPL shared
+    Windows: the asset of that release, e.g. ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip (only LGPL shared
     win64 builds of a release branch are accepted).
 
 .PARAMETER Update
     Writes the verified values into build/FFmpeg.targets and ThirdPartyLicenses.cs (otherwise they are only printed).
 
 .EXAMPLE
-    pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -BtbNTag autobuild-2026-11-20-12-00 -BtbNAsset ffmpeg-n9.0.3-...-win64-lgpl-shared-9.0.zip
+    pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -BtbNTag autobuild-2026-11-30-12-00 -BtbNAsset ffmpeg-n9.0.3-...-win64-lgpl-shared-9.0.zip
 
 .EXAMPLE
     pwsh build/update-ffmpeg.ps1 -Platform macos -Version 9.0.3 -Update
@@ -111,11 +111,18 @@ function Get-FFmpegSource {
 #>
 function Get-BtbNBuild {
     param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Tag, [Parameter(Mandatory)] [AllowEmptyString()] [string] $Asset)
-    if ($Tag -notmatch '^autobuild-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$') {
-        throw "'$Tag' is not a BtbN release tag (e.g. autobuild-2026-10-17-20-51)."
+    if ($Tag -notmatch '^autobuild-(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})-\d{2}-\d{2}$') {
+        throw "'$Tag' is not a BtbN release tag (e.g. autobuild-2026-10-31-12-59)."
+    }
+    # BtbN deletes its daily releases after about two weeks and keeps only the last build of each month (T-162), so only
+    # a month-end build stays downloadable for clean builds.
+    $year = [int] $Matches.year
+    $month = [int] $Matches.month
+    if ($month -lt 1 -or $month -gt 12 -or [int] $Matches.day -ne [DateTime]::DaysInMonth($year, $month)) {
+        throw "'$Tag' is not the last build of a month; BtbN deletes the other builds after about two weeks (e.g. autobuild-2026-10-31-12-59)."
     }
     if ($Asset -notmatch '^ffmpeg-n(?<major>\d+)\.(?<minor>\d+)(\.\d+)?(-\d+-g[0-9a-f]+)?-win64-lgpl-shared-(?<branch>\d+\.\d+)\.zip$') {
-        throw "'$Asset' is not an LGPL shared win64 build of a BtbN release branch (e.g. ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip)."
+        throw "'$Asset' is not an LGPL shared win64 build of a BtbN release branch (e.g. ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip)."
     }
     $branch = "$($Matches.major).$($Matches.minor)"
     if ($Matches.branch -ne $branch) {
