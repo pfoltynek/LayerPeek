@@ -8,6 +8,43 @@ platform: macos
 depends_on: [T-019, T-020, T-021, T-026, T-038, T-053, T-055, T-058, T-097, T-101, T-102, T-106, T-107, T-115]
 ---
 
+## Před vydáním 0.5.0 – doporučené pořadí
+Doplněno 2026-11-04 (architekt). Jeden průchod na ~1–2 h se skutečnou Core One a kamerou Buddy3D. Řadí body tohoto
+úkolu pro funkce od 0.4.0 (nahrávání, dashcam, detekce, timelapse). Postupy jsou u bodů níže, odkaz má tvar oddíl ·
+úkol, a odškrtávají se tam. Nové UI od 0.4.0 na Macu **ještě nikdo neviděl na skutečném displeji** (agent neměl
+aktivní displej). To platí i pro systémové dialogy souborů (`NSOpenPanel`) a notifikace s přílohou a tlačítkem, proto
+mají přednost. Co z průchodu blokuje vydání, rozhodne uživatel. Každá nalezená chyba = nový úkol.
+
+0. **Příprava (~10 min).** `LayerPeek.app` z `caffeinate -d -u -i pwsh scripts/release-build.ps1` (notifikace fungují jen
+   v bundlu; sezení 1 v `docs/macos-manual-testing.md`). Pozor: na `develop` je ještě `<Version>0.4.0</Version>`, build
+   proto smaže a přepíše `artifacts/release/0.4.0` daného pracovního stromu. Spouštět ho v samostatném worktree, nebo až
+   na větvi `release/0.5.0`. Zálohovat profil („Než začnete“). Core One s kamerou, světlo komory zapnuté, podrobné
+   logování.
+1. **Nastavení a první dialog souboru (~10 min):** oddíl 1 · **T-146** (jen část nastavení: pátá záložka „Nahrávání“,
+   „Změnit…“ = systémový dialog složky, nezapisovatelná složka) → oddíl 1 · **T-154** (editor výřezu: „Načíst snímek“
+   ze skutečné Buddy3D, myš, šipky, ⌘+šipky, VoiceOver; „Výchozí pro Core One“ sedí na přední část podložky). Potom
+   zapnout detekci (hlavní vypínač + podzáložka Detekce) a u tiskárny „Uchovávat poslední minuty (dashcam)“ a „Pořizovat
+   timelapse tisku“, **bez** „Automaticky nahrávat tisk“ (jinak dashcam stojí).
+2. **Tisk A – dashcam, detekce, timelapse (~25 min, krátký díl):** oddíl 1 · **T-161** (TL v okně kamery a malém náhledu,
+   ztlumené během pauzy tisku) → oddíl 1 · **T-148** (během tisku „Uložit posledních 2 min“ z menu i z místní nabídky okna
+   kamery; se skutečnou Buddy3D ~2 min před událostí a ~30 s po ní, paměť +~17 MB) → oddíl 2 · **T-155** krok (2)
+   (inscenované selhání na přední části podložky, až po rozjezdu detektoru: aspoň 2 min tisku a Z nad 1 mm) a s ním oddíl 1 · **T-154** (notifikace s přílohou, tlačítko „Falešný
+   poplach“ už u prvního poplachu, klik otevře okno kamery, `…_alarm-bed-change.jpg` a `…_dashcam-failure.mp4`). Nakonec
+   tisk zastavit na tiskárně → `…_dashcam-stopped.mp4` (oddíl 1 · T-148).
+3. **Tisk B – automatické nahrávání (~15 min, krátký díl):** zapnout „Automaticky nahrávat tisk“ → oddíl 2 · **T-145**
+   (doplněný bod) a zároveň oddíl 2 · **T-155** krok (1) (celý běžný tisk bez poplachu; delší tisk podle času).
+4. **Po tiscích – přehrání a dialogy souborů (~20 min, nejvyšší priorita):** oddíl 1 · **T-146** (zbytek: tray menu,
+   „● REC“, ruční Start / Stop, „Přehrát poslední nahrávku“ v QuickTime, „Otevřít složku s nahrávkami“) → oddíl 2 ·
+   **T-147** (přehrání nahrávky z Buddy3D v QuickTime) → oddíl 1 · **T-164** (`NSOpenPanel` „Vytvořit timelapse
+   z nahrávky…“ nad nahrávkou tisku B) → oddíl 1 · **T-165** (`NSOpenPanel` „Exportovat timelapse do JPEG…“ nad timelapse
+   tisku A) → oddíl 1 · **T-158** (přehrání vzorků timelapse v QuickTime, 2 min).
+5. **Když zbývá čas (~15 min):** oddíl 2 · **T-143** (sdílené spojení se skutečnou kamerou) → oddíl 1 · **T-151** (Dock
+   a ⌘Tab: vypnout tiskárnu → po 30 s okno zmizí, zapnout → po 10 s se tiše objeví; místo simulátoru stačí skutečná
+   tiskárna) → oddíl 1 · **T-151** (fokus, E2E s odemčenou obrazovkou) → oddíl 1 · **T-154** a **T-161** (prohlédnutí
+   návrhů a snímků).
+6. Výsledky zapsat do `## Poznámky k implementaci`: verze macOS, datum, názvy vzniklých souborů, u T-155 čas do poplachu
+   a skóre z logu.
+
 ## Cíl
 Sběrný úkol se zbytkem čistě ručních kontrol na Macu, které nejsou instalace a nepatří do jednoho sezení agenta
 s uživatelem v T-115: ruční kroky bez tiskárny (Dock a ⌘Tab z T-102, zkušební upozornění z T-101, `/usr/bin/open`
@@ -230,6 +267,12 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       nahrávku z kamery simulátoru i ze skutečné Buddy3D (po T-146 z menu nebo okna kamery; do té doby soubor nahraný
       podle T-144 / T-147, poznámky) otevřít v QuickTime Playeru: obraz běží od začátku do konce, posuvník funguje, délka
       odpovídá. U nahrávky přerušené výpadkem kamery jdou přehrát oba soubory (`…mp4`, `…-2.mp4`).
+- [ ] **T-145** (automatické nahrávání tisku se skutečnou tiskárnou; doplněno 2026-11-04 před vydáním 0.5.0, ruční bod
+      dosud chyběl): Core One s Buddy3D, „Automaticky nahrávat tisk“ zapnuté, okno kamery zavřené. S krátkým tiskem
+      nahrávání začne samo (tooltip ikony „Nahrává se“, v podmenu tiskárny „Zastavit nahrávání“), soubor
+      `~/Movies/LayerPeek/<tiskárna>/<datum>_<čas>_<název tisku>.mp4`, a skončí asi minutu po konci tisku. „Přehrát poslední
+      nahrávku“ ho přehraje v QuickTime Playeru celý (obraz od začátku, posuvník, délka odpovídá). Během nahrávání je
+      „Uložit posledních 2 min“ zakázané s tipem „Nahrává se celý tisk.“ (dashcam stojí). Další tisk dá nový soubor.
 - [ ] **T-155** (krit. „Poplach z detektoru projde celou cestou“, ruční část se skutečnou tiskárnou a Buddy3D): Core One
       s výchozím výřezem (přední část podložky), zapnutá detekce (po T-154 v nastavení, do té doby v `settings.json`
       `detection.enabled` a `printers[*].detection.enabled` = `true`) a dashcam. (1) Celý běžný tisk včetně první vrstvy
@@ -281,6 +324,15 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 
 ## Otevřené otázky
 - (žádné vlastní; rozhodovací body T-038 otázky 1 b–3 jsou u kroků výše)
+- **Před vydáním 0.5.0** (architekt 2026-11-04, neblokuje tento úkol, rozhodne uživatel):
+  1. Z jakého buildu testovat? `release-build.ps1` na `develop` dá aplikaci s verzí 0.4.0 a přepíše
+     `artifacts/release/0.4.0` pracovního stromu. Varianta: build v samostatném worktree, nebo testovat až build větve
+     `release/0.5.0` (pak ale `release.ps1` už vytvořil větev a čeká na push).
+  2. Které body „doporučeného pořadí“ musí projít, aby šlo 0.5.0 vydat (např. jen dialogy souborů a notifikace), a co
+     může zůstat na později?
+  3. Má být i detekce chyb tisku v UI a v CHANGELOG označená jako experimentální (dnes má štítek jen timelapse)?
+     Detektor je naladěný jen na syntetických selháních a na úspěšných tiscích, skutečné selhání zachycené kamerou
+     zatím nemáme (T-156).
 
 ## Poznámky k implementaci
 (vyplní agent / uživatel po ověření)
