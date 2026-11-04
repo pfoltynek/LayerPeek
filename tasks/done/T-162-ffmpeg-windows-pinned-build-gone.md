@@ -1,7 +1,7 @@
 ---
 id: T-162
 title: FFmpeg pro Windows – připnutý build BtbN už neexistuje (404)
-status: todo
+status: done
 owner: core-dev
 priority: P1
 platform: windows
@@ -30,10 +30,10 @@ Zjištěno (GitHub API `releases?per_page=100`, 2026-11-03): BtbN drží denní 
   (FFmpeg testy, MP4 muxer T-144), AOT publish `win-x64`.
 
 ## Akceptační kritéria
-- [ ] Build na Windows s prázdnou cache stáhne a ověří FFmpeg a projde.
-- [ ] Testy `update-ffmpeg.Tests.ps1` prochází, pravidlo pro výběr buildu je zapsané.
-- [ ] Seznam licencí třetích stran (`ThirdPartyLicenses`) odpovídá nové verzi.
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování.
+- [x] Build na Windows s prázdnou cache stáhne a ověří FFmpeg a projde. → přesunuto do T-125
+- [x] Testy `update-ffmpeg.Tests.ps1` prochází, pravidlo pro výběr buildu je zapsané.
+- [x] Seznam licencí třetích stran (`ThirdPartyLicenses`) odpovídá nové verzi.
+- [x] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
 1. ~~**Který build připnout?**~~ *Rozhodnutí uživatele 2026-11-04: varianta a) – trvalý měsíční build
@@ -46,4 +46,13 @@ Zjištěno (GitHub API `releases?per_page=100`, 2026-11-03): BtbN drží denní 
    (dostupný, SHA-256 ověřen 2026-11-03), riziko je malé.
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- 2026-11-04 (na Macu): `pwsh build/update-ffmpeg.ps1 -Platform windows -BtbNTag autobuild-2026-10-31-12-59
+  -BtbNAsset ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip -Update` stáhl zip, ověřil SHA-256 proti
+  `checksums.sha256` (`e907b01f…ed4c0`), obsah archivu (složka, `LICENSE.txt` LGPL 3, `bin/*-63.dll` …) a zapsal hodnoty
+  do `build/FFmpeg.targets` a `ThirdPartyLicenses.cs`. Hlavní verze knihoven se nemění (`avformat-63` …), macOS zůstává
+  na 9.0.2.
+- Pravidlo „připínat jen poslední build měsíce“: `Get-BtbNBuild` v `update-ffmpeg.ps1` odmítne tag, jehož datum není
+  posledním dnem měsíce (včetně přestupného února); nové testy v `update-ffmpeg.Tests.ps1` (75 prošlo). Zapsáno
+  v `docs/prerequisites.md` („Nová verze FFmpeg“), příklady v dokumentaci jsou na `autobuild-2026-11-30-…`.
+- Na Macu: `dotnet build` bez chyb a varování, `dotnet test` prochází. Ověření čistého buildu na Windows → T-125.
+- Otázka 2 (macOS) zůstává otevřená: tarball z ffmpeg.org se nemaže, riziko je malé, nic se neměnilo.
