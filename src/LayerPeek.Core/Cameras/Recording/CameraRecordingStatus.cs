@@ -1,3 +1,5 @@
+using LayerPeek.Core.Cameras.Timelapse;
+
 namespace LayerPeek.Core.Cameras.Recording;
 
 /// <summary>What the recording of one printer is doing (<see cref="CameraRecordingStatus.Activity"/>).</summary>
@@ -92,8 +94,12 @@ public enum CameraRecordingProblem
 /// <param name="Problem">What went wrong.</param>
 /// <param name="Message">Technical English description for the log, never with a path.</param>
 /// <param name="Timestamp">When it happened.</param>
-/// <param name="Mode">Whether the recording was started by the user or by a print.</param>
-public sealed record CameraRecordingError(string PrinterId, CameraRecordingProblem Problem, string Message, DateTimeOffset Timestamp, CameraRecordingMode Mode);
+/// <param name="Mode">Whether the recording (or timelapse) was started by the user or by a print, or it was the dashcam.</param>
+public sealed record CameraRecordingError(string PrinterId, CameraRecordingProblem Problem, string Message, DateTimeOffset Timestamp, CameraRecordingMode Mode)
+{
+    /// <summary>The error is one of a timelapse (T-160; <see cref="Mode"/> is then manual or automatic).</summary>
+    public bool IsTimelapse { get; init; }
+}
 
 /// <summary>The recording state of one printer at one moment (<see cref="CameraRecordingService.GetStatus"/>).</summary>
 public sealed record CameraRecordingStatus
@@ -144,4 +150,7 @@ public sealed record CameraRecordingStatus
 
     /// <summary>Time the dashcam holds in memory now; zero while it does not buffer.</summary>
     public TimeSpan DashcamBuffered { get; init; }
+
+    /// <summary>What the timelapse of the printer does (T-160); it runs independently of the recording and the dashcam.</summary>
+    public CameraTimelapseStatus Timelapse { get; init; } = CameraTimelapseStatus.None;
 }

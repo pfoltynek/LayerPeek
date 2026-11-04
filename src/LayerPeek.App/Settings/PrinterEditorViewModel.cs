@@ -104,6 +104,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>"Record prints automatically" (T-145), switched on the Camera sub-tab (T-146).</summary>
     private bool _recordPrints;
     private bool _dashcam;
+
+    /// <summary>"Timelapse of every print" (T-160): kept as saved until T-161 adds its control.</summary>
+    private readonly bool _timelapsePrints;
     private bool _savedCameraEnabled;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
@@ -152,6 +155,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _overlayLayout = camera.Overlay;
         _recordPrints = camera.RecordPrints;
         _dashcam = camera.Dashcam;
+        _timelapsePrints = camera.TimelapsePrints;
         InitializeMiniStrip(camera);
         _savedCameraEnabled = saved is not null && camera.Enabled;
         InitializeImage(saved, storedCustomImage);
@@ -849,9 +853,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         CameraMiniStripSettings strip = _miniStrip;
         bool recordPrints = _recordPrints;
         bool dashcam = _dashcam;
+        bool timelapsePrints = _timelapsePrints;
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam, TimelapsePrints = timelapsePrints };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -863,14 +868,14 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             // No address and the default window and layout: the shared "no camera" value.
             return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay && strip == CameraSettings.Disabled.MiniStrip
-                && !recordPrints && !dashcam
+                && !recordPrints && !dashcam && !timelapsePrints
                 ? CameraSettings.Disabled
-                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam };
+                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam, TimelapsePrints = timelapsePrints };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam, TimelapsePrints = timelapsePrints };
         }
         catch (ArgumentException)
         {

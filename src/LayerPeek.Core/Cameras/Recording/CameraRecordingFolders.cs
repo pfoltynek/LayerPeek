@@ -8,7 +8,8 @@ using LayerPeek.Core.Printers;
 namespace LayerPeek.Core.Cameras.Recording;
 
 /// <summary>
-/// Where recordings go and how they are named (T-145): <c>&lt;root&gt;/&lt;printer folder&gt;/&lt;yyyy-MM-dd_HH-mm-ss&gt;[_&lt;print title&gt;].mp4</c>.
+/// Where recordings go and how they are named (T-145): <c>&lt;root&gt;/&lt;printer folder&gt;/&lt;yyyy-MM-dd_HH-mm-ss&gt;[_&lt;print title&gt;].mp4</c>;
+/// dashcam saves (T-148) and timelapses (T-160, <see cref="TimelapseFileName"/>) add a marker before the extension.
 /// The root is the user's folder or <see cref="DefaultRoot"/>; every printer folder carries <see cref="MarkerFileName"/>,
 /// and only files of marked folders that follow <see cref="IsRecordingFileName"/> or <see cref="IsSnapshotFileName"/> are
 /// ever deleted by the rotation. Alarm snapshots of the print failure detection (T-153) are JPEG files next to the
@@ -43,6 +44,9 @@ public static class CameraRecordingFolders
     internal const int TimestampLength = 19;
 
     private const string TimestampFormat = "yyyy-MM-dd_HH-mm-ss";
+
+    /// <summary>What ends the name of a timelapse before the extension (T-160).</summary>
+    private const string TimelapseMarker = "_timelapse";
 
     /// <summary>Folder used for a printer whose name has no usable character.</summary>
     private const string FallbackFolderName = "Printer";
@@ -129,6 +133,41 @@ public static class CameraRecordingFolders
             _ => "manual",
         };
         return string.Concat(name.AsSpan(0, name.Length - Extension.Length), "_dashcam-", marker, Extension);
+    }
+
+    /// <summary>
+    /// The file name of a timelapse (T-160, user decision 2026-11-04) that starts at <paramref name="start"/> (local time of
+    /// the user): like <see cref="FileName"/> with <see cref="TimelapseMarker"/> before the extension, e.g.
+    /// <c>2026-11-04_14-05-09_Benchy_timelapse.mp4</c>. It follows <see cref="IsRecordingFileName"/>, so the rotation keeps it
+    /// within the same limit as the recordings; <see cref="IsTimelapseFileName"/> tells it apart.
+    /// </summary>
+    public static string TimelapseFileName(DateTimeOffset start, string? printFileName)
+    {
+        string name = FileName(start, printFileName);
+        return string.Concat(name.AsSpan(0, name.Length - Extension.Length), TimelapseMarker, Extension);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="fileName"/> is a timelapse (<see cref="TimelapseFileName"/>): a recording file name whose
+    /// name ends with <see cref="TimelapseMarker"/>, also with the recorder's <c>-2</c>, <c>-3</c> … suffix after it (any
+    /// case). A recording of a print titled "timelapse" without a time of its own cannot be told apart; such a file is
+    /// listed as a timelapse.
+    /// </summary>
+    public static bool IsTimelapseFileName(string? fileName)
+    {
+        if (!IsRecordingFileName(fileName))
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> name = fileName.AsSpan(TimestampLength, fileName!.Length - TimestampLength - Extension.Length);
+        int dash = name.LastIndexOf('-');
+        if (dash >= 0 && dash < name.Length - 1 && !name[(dash + 1)..].ContainsAnyExceptInRange('0', '9'))
+        {
+            name = name[..dash];
+        }
+
+        return name.EndsWith(TimelapseMarker, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

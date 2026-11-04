@@ -119,6 +119,14 @@ public sealed record CameraSettings
     /// </summary>
     public bool Dashcam { get; init; }
 
+    /// <summary>
+    /// "Timelapse of every print" (T-160, user decision 2026-11-04: per printer, off by default; experimental): while the
+    /// camera is enabled, the <see cref="Recording.CameraRecordingService"/> takes a timelapse of every print of the printer
+    /// (one key frame per <see cref="Recording.CameraRecordingSettings.TimelapseIntervalSeconds"/>). Kept while the camera is
+    /// disabled or its address is invalid. Persisted as <c>printers[*].camera.timelapsePrints</c> (only when on).
+    /// </summary>
+    public bool TimelapsePrints { get; init; }
+
     /// <summary>A disabled camera that keeps an invalid address for correction.</summary>
     /// <exception cref="ArgumentException">
     /// <paramref name="streamUrl"/> is empty (no address), valid (use the constructor) or contains credentials
@@ -286,9 +294,10 @@ public sealed record CameraSettings
         && Overlay == other.Overlay
         && MiniStrip == other.MiniStrip
         && RecordPrints == other.RecordPrints
-        && Dashcam == other.Dashcam;
+        && Dashcam == other.Dashcam
+        && TimelapsePrints == other.TimelapsePrints;
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, MiniStrip, RecordPrints, Dashcam);
+    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, MiniStrip, RecordPrints, HashCode.Combine(Dashcam, TimelapsePrints));
 
     // Replaces the synthesized member list used by ToString: the invalid text may contain credentials.
     private bool PrintMembers(StringBuilder builder)
@@ -302,7 +311,8 @@ public sealed record CameraSettings
             .Append(", Overlay = ").Append(Overlay)
             .Append(", MiniStrip = ").Append(MiniStrip)
             .Append(", RecordPrints = ").Append(RecordPrints)
-            .Append(", Dashcam = ").Append(Dashcam);
+            .Append(", Dashcam = ").Append(Dashcam)
+            .Append(", TimelapsePrints = ").Append(TimelapsePrints);
         return true;
     }
 }

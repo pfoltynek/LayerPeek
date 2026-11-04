@@ -5,7 +5,8 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// found by <see cref="ICameraRecordingStorage.FindRecordings"/> (LayerPeek's names in LayerPeek's marked folders) are
 /// considered, and never a file of a running recording. Empty recordings left by a crash before their first fragment are
 /// removed as well once they are old enough not to belong to a recording that is just starting. Alarm snapshots of the
-/// print failure detection (T-153) count and go oldest first like the recordings.
+/// print failure detection (T-153), dashcam saves (T-148) and timelapses (T-160) count and go oldest first like the
+/// recordings.
 /// </summary>
 internal static class CameraRecordingRotation
 {
@@ -85,17 +86,22 @@ internal static class CameraRecordingRotation
         }
 
         Dictionary<string, string> newest = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> newestTimelapses = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> gone = new(deleted, StringComparer.OrdinalIgnoreCase);
         foreach (CameraRecordingFile file in stored)
         {
-            if (!gone.Contains(file.Path) && CameraRecordingFolders.IsRecordingFileName(Path.GetFileName(file.Path)))
+            string name = Path.GetFileName(file.Path);
+            if (gone.Contains(file.Path) || !CameraRecordingFolders.IsRecordingFileName(name))
             {
-                // Sorted oldest first: the last one per folder wins. Snapshots are no recordings to play.
-                newest[file.FolderName] = file.Path;
+                // Snapshots are no recordings to play.
+                continue;
             }
+
+            // Sorted oldest first: the last one per folder wins.
+            (CameraRecordingFolders.IsTimelapseFileName(name) ? newestTimelapses : newest)[file.FolderName] = file.Path;
         }
 
-        return new CameraRecordingRotationResult(storedBytes, storedBytes + activeBytes > limitBytes, deleted, failed, newest);
+        return new CameraRecordingRotationResult(storedBytes, storedBytes + activeBytes > limitBytes, deleted, failed, newest, newestTimelapses);
     }
 
     private static bool IsActive(string path, IReadOnlySet<string> activeFiles)
@@ -121,10 +127,14 @@ internal static class CameraRecordingRotation
 /// <param name="OverLimit">Still above the limit: everything that could go is gone, the running recordings alone are too big.</param>
 /// <param name="Deleted">Deleted files (full paths).</param>
 /// <param name="FailedDeletes">Files that should have gone but could not be deleted.</param>
-/// <param name="NewestByFolder">The newest remaining recording of every printer folder (by folder name, case-insensitive; never a snapshot).</param>
+/// <param name="NewestByFolder">
+/// The newest remaining recording of every printer folder (by folder name, case-insensitive; never a snapshot nor a timelapse).
+/// </param>
+/// <param name="NewestTimelapseByFolder">The newest remaining timelapse of every printer folder (T-160; like <paramref name="NewestByFolder"/>).</param>
 internal sealed record CameraRecordingRotationResult(
     long StoredBytes,
     bool OverLimit,
     IReadOnlyList<string> Deleted,
     int FailedDeletes,
-    IReadOnlyDictionary<string, string> NewestByFolder);
+    IReadOnlyDictionary<string, string> NewestByFolder,
+    IReadOnlyDictionary<string, string> NewestTimelapseByFolder);

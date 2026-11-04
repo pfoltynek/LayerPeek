@@ -36,6 +36,9 @@ public sealed partial class SettingsViewModel
     private bool _dashcamOnStopped = true;
     private bool _dashcamOnFailureDetection = true;
 
+    /// <summary>The timelapse interval (T-160): kept as saved until T-161 adds its control.</summary>
+    private int _timelapseIntervalSeconds = CameraRecordingSettings.DefaultTimelapseIntervalSeconds;
+
     /// <summary>The app's recordings (state, default folder, opening the folder); <see langword="null"/>: none (tests).</summary>
     internal ICameraRecordings? Recordings { get; init; }
 
@@ -203,6 +206,7 @@ public sealed partial class SettingsViewModel
         _dashcamOnAttention = recording.DashcamOnAttention;
         _dashcamOnStopped = recording.DashcamOnStopped;
         _dashcamOnFailureDetection = recording.DashcamOnFailureDetection;
+        _timelapseIntervalSeconds = recording.TimelapseIntervalSeconds;
     }
 
     /// <summary>The recording settings as edited; <see langword="null"/> while the limit or the dashcam length is invalid.</summary>
@@ -217,6 +221,7 @@ public sealed partial class SettingsViewModel
                 DashcamOnAttention = _dashcamOnAttention,
                 DashcamOnStopped = _dashcamOnStopped,
                 DashcamOnFailureDetection = _dashcamOnFailureDetection,
+                TimelapseIntervalSeconds = _timelapseIntervalSeconds,
             }
             : null;
 

@@ -4,8 +4,9 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// Global settings of the camera recordings (T-145, user decision 2026-11-03: folder and limit for all printers; whether a
 /// printer records its prints automatically is <see cref="CameraSettings.RecordPrints"/>) and of the dashcam (T-148, user
 /// decision 2026-11-04: its length and triggers for all printers; whether a printer has one is
-/// <see cref="CameraSettings.Dashcam"/>). Persisted as the <c>recording</c> section of <c>settings.json</c>, written only
-/// while something differs from the defaults.
+/// <see cref="CameraSettings.Dashcam"/>) and of the timelapses (T-160: the interval for all printers; whether a printer
+/// takes a timelapse of its prints is <see cref="CameraSettings.TimelapsePrints"/>). Persisted as the <c>recording</c>
+/// section of <c>settings.json</c>, written only while something differs from the defaults.
 /// </summary>
 public sealed record CameraRecordingSettings
 {
@@ -26,6 +27,13 @@ public sealed record CameraRecordingSettings
     public const int MinDashcamMinutes = 1;
 
     public const int MaxDashcamMinutes = 10;
+
+    /// <summary>Default of <see cref="TimelapseIntervalSeconds"/> (user decision 2026-11-04).</summary>
+    public const int DefaultTimelapseIntervalSeconds = 30;
+
+    public const int MinTimelapseIntervalSeconds = 5;
+
+    public const int MaxTimelapseIntervalSeconds = 600;
 
     public static CameraRecordingSettings Default { get; } = new();
 
@@ -81,6 +89,25 @@ public sealed record CameraRecordingSettings
             field = value;
         }
     } = DefaultDashcamMinutes;
+
+    /// <summary>
+    /// How often a timelapse takes a frame (T-160, user decision 2026-11-04: 30 s by default, 5–600 s), within
+    /// <see cref="MinTimelapseIntervalSeconds"/>–<see cref="MaxTimelapseIntervalSeconds"/>; for all printers. The frame is
+    /// the camera's next key frame (up to ~2.4 s later on the Buddy3D, T-158).
+    /// </summary>
+    public int TimelapseIntervalSeconds
+    {
+        get;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, MinTimelapseIntervalSeconds);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaxTimelapseIntervalSeconds);
+            field = value;
+        }
+    } = DefaultTimelapseIntervalSeconds;
+
+    /// <summary><see cref="TimelapseIntervalSeconds"/> as a time span.</summary>
+    public TimeSpan TimelapseInterval => TimeSpan.FromSeconds(TimelapseIntervalSeconds);
 
     /// <summary>The dashcam saves when the printer reports an error during a print (default on).</summary>
     public bool DashcamOnError { get; init; } = true;

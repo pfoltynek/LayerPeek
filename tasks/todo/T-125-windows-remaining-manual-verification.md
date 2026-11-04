@@ -182,6 +182,12 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       přehrají bez zelených / rozpadlých snímků a posuvník projde všechny snímky. Kdyby Media Foundation stejné `idr_pic_id`
       odmítal, založit úkol na přepis `idr_pic_id` v hlavičce řezu (spike T-149, bez dekódování).
 
+### 2h. Timelapse – služba (z T-160, implementováno na Macu 2026-11-04)
+- [ ] **T-160** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb
+      (nové `CameraTimelapseServiceTests`, `CameraTimelapseTimeTriggerTests`, `TimelapseFileNameTests`,
+      `SettingsMapperTimelapseTests`, `PreparingANewFolderFromSeveralWritersAtOnce…` v Core, `SettingsTimelapseTests` v App);
+      `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

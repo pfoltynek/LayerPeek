@@ -65,7 +65,9 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
             return;
         }
 
-        if (existed && HasUserEntries(folder))
+        // Another writer (a recording and a timelapse that start together) may have created the folder and its marker in
+        // between: the marker found now makes the folder ours after all.
+        if (existed && HasUserEntries(folder) && !File.Exists(marker))
         {
             throw new ForeignRecordingFolderException();
         }
@@ -168,7 +170,9 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
     {
         foreach (string entry in Directory.EnumerateFileSystemEntries(folder))
         {
-            if (!SystemMetadataFiles.Contains(Path.GetFileName(entry), StringComparer.OrdinalIgnoreCase))
+            string name = Path.GetFileName(entry);
+            if (!SystemMetadataFiles.Contains(name, StringComparer.OrdinalIgnoreCase)
+                && !string.Equals(name, CameraRecordingFolders.MarkerFileName, StringComparison.Ordinal))
             {
                 return true;
             }
