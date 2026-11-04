@@ -73,6 +73,16 @@ a kritérium.
       (např. složka na odpojeném disku) ukáže notifikaci „Nahrávání kamery selhalo“ a klik na ni otevře nastavení na záložce
       „Nahrávání“. Zapsat, jak vypadá zakázaná položka s tipem v NSMenu (tip se ukáže?).
 
+- [ ] **T-148** (krit. „Uložení po spouštěči vytvoří přehratelný soubor …“, ruční část macOS; sezení agenta nemělo
+      aktivní displej): simulátor s kamerou (`--speed 20`), tiskárna se zapnutým „Uchovávat poslední minuty (dashcam)“ (podzáložka
+      Kamera, ve stejném řádku jako „Automaticky nahrávat tisk“) a bez automatického nahrávání; během tisku je v podmenu
+      tiskárny v menu baru „Uložit posledních 2 min“ (mimo tisk zakázané s tipem) a totéž v místní nabídce okna kamery
+      (⌃-klik); klik → za ~30 s soubor `…_dashcam-manual.mp4` v `~/Movies/LayerPeek/<tiskárna>`, přehraje se v QuickTime
+      Playeru celý; `1 error` / `1 attention` / `1 stopped` v konzoli simulátoru během tisku → `…_dashcam-error.mp4` / `…-attention` / `…-stopped`. Se
+      skutečnou Buddy3D (relay `tools/ncrelay.sh`): soubor obsahuje ~2 min před událostí a ~30 s po ní; v Monitoru aktivity
+      roste paměť během tisku jen o ~17 MB a po konci tisku se vrátí. Záložka „Nahrávání“ má pod nahráváním sekci „Poslední
+      minuty tisku (dashcam)“, nic se neuřízne se systémovým písmem.
+
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`
       proběhl celý interaktivně včetně ručních kontrol níže; nalezené chyby skriptu zapsané (nový úkol). Zapsat odpověď

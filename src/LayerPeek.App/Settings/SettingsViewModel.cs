@@ -1247,8 +1247,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
         if (_pollingIntervalError is not null || _remainingTimeError is not null || !TryBuildSettings(out AppSettings? updated))
         {
-            // T-146: the recording limit is the only field of its tab that can be invalid.
-            SelectedTabIndex = _pollingIntervalError is null && _remainingTimeError is null && _recordingLimitError is not null ? RecordingTab : GeneralTab;
+            // T-146, T-148: the recording limit and the dashcam length are the fields of their tab that can be invalid.
+            SelectedTabIndex = _pollingIntervalError is null && _remainingTimeError is null && HasRecordingTabError ? RecordingTab : GeneralTab;
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             RequestFieldFocus(FirstInvalidGeneralField());
             return;

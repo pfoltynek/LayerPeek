@@ -94,6 +94,9 @@ public sealed class CameraRecordingsTests : IDisposable
 
         public ICameraRecording Start(string printerId, string filePath, Action<ICameraRecording>? changed = null) =>
             throw new InvalidOperationException("Never started without the muxer.");
+
+        public ICameraDashcam StartDashcam(string printerId, CameraDashcamOptions options, Action<ICameraDashcam>? changed = null, Action<CameraDashcamSave>? saved = null) =>
+            throw new InvalidOperationException("Never started without the muxer.");
     }
 
     private sealed class LauncherSpy : IFolderLauncher, IFileLauncher

@@ -63,6 +63,7 @@ internal static class SettingsMapper
                     Overlay = ToDocument(printer.Camera.Overlay),
                     MiniStrip = ToDocument(printer.Camera.MiniStrip),
                     RecordPrints = printer.Camera.RecordPrints ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
+                    Dashcam = printer.Camera.Dashcam ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
                 },
                 DetectedModel = printer.DetectedModel?.ToString(),
                 Image = ToDocument(printer.Image),
@@ -118,7 +119,7 @@ internal static class SettingsMapper
         return settings;
     }
 
-    /// <summary>Not written while both values are the defaults, so that files stay as they were.</summary>
+    /// <summary>Not written while every value is the default, so that files stay as they were; only values that differ are written.</summary>
     internal static JsonElement? ToDocument(CameraRecordingSettings recording)
     {
         if (recording == CameraRecordingSettings.Default)
@@ -130,15 +131,21 @@ internal static class SettingsMapper
         {
             Folder = recording.Folder,
             SizeLimitGigabytes = recording.SizeLimitGigabytes == CameraRecordingSettings.DefaultSizeLimitGigabytes ? null : recording.SizeLimitGigabytes,
+            DashcamMinutes = recording.DashcamMinutes == CameraRecordingSettings.DefaultDashcamMinutes ? null : recording.DashcamMinutes,
+            DashcamOnError = recording.DashcamOnError ? null : false,
+            DashcamOnAttention = recording.DashcamOnAttention ? null : false,
+            DashcamOnStopped = recording.DashcamOnStopped ? null : false,
+            DashcamOnFailureDetection = recording.DashcamOnFailureDetection ? null : false,
         };
         return JsonSerializer.SerializeToElement(document, SettingsJsonContext.Default.RecordingDocument);
     }
 
     /// <summary>
-    /// The recording section read leniently (T-145): a missing section or value is the default; an invalid value (a folder
-    /// that is no absolute path, a limit that is no whole number of gigabytes in range, a value of the wrong type) is its
-    /// default with one warning that never echoes the value (the folder may contain the user name). Property names are
-    /// matched case-insensitively and the last of duplicates wins; unknown names (a newer version) are ignored.
+    /// The recording section read leniently (T-145, T-148): a missing section or value is the default; an invalid value (a
+    /// folder that is no absolute path, a limit or a dashcam length that is no whole number in range, a trigger that is no
+    /// boolean, a value of the wrong type) is its default with one warning that never echoes the value (the folder may
+    /// contain the user name). Property names are matched case-insensitively and the last of duplicates wins; unknown names
+    /// (a newer version) are ignored.
     /// </summary>
     private static CameraRecordingSettings ToRecording(JsonElement? section, List<string> warnings)
     {
@@ -156,6 +163,11 @@ internal static class SettingsMapper
 
         JsonElement? folder = null;
         JsonElement? limit = null;
+        JsonElement? dashcamMinutes = null;
+        JsonElement? onError = null;
+        JsonElement? onAttention = null;
+        JsonElement? onStopped = null;
+        JsonElement? onFailure = null;
         foreach (JsonProperty property in value.EnumerateObject())
         {
             if (string.Equals(property.Name, "folder", StringComparison.OrdinalIgnoreCase))
@@ -165,6 +177,26 @@ internal static class SettingsMapper
             else if (string.Equals(property.Name, "sizeLimitGigabytes", StringComparison.OrdinalIgnoreCase))
             {
                 limit = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamMinutes", StringComparison.OrdinalIgnoreCase))
+            {
+                dashcamMinutes = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamOnError", StringComparison.OrdinalIgnoreCase))
+            {
+                onError = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamOnAttention", StringComparison.OrdinalIgnoreCase))
+            {
+                onAttention = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamOnStopped", StringComparison.OrdinalIgnoreCase))
+            {
+                onStopped = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamOnFailureDetection", StringComparison.OrdinalIgnoreCase))
+            {
+                onFailure = property.Value;
             }
         }
 
@@ -184,14 +216,7 @@ internal static class SettingsMapper
         int gigabytes = CameraRecordingSettings.DefaultSizeLimitGigabytes;
         if (IsPresent(limit))
         {
-            double? number = limit!.Value.ValueKind switch
-            {
-                JsonValueKind.Number when limit.Value.TryGetDouble(out double parsed) => parsed,
-                JsonValueKind.String when double.TryParse(limit.Value.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed) => parsed,
-                _ => null,
-            };
-            if (TryGetWholeNumber(number, out int whole)
-                && whole is >= CameraRecordingSettings.MinSizeLimitGigabytes and <= CameraRecordingSettings.MaxSizeLimitGigabytes)
+            if (TryGetWholeNumber(limit!.Value, CameraRecordingSettings.MinSizeLimitGigabytes, CameraRecordingSettings.MaxSizeLimitGigabytes, out int whole))
             {
                 gigabytes = whole;
             }
@@ -202,13 +227,74 @@ internal static class SettingsMapper
             }
         }
 
-        return folderPath is null && gigabytes == CameraRecordingSettings.DefaultSizeLimitGigabytes
-            ? CameraRecordingSettings.Default
-            : new CameraRecordingSettings { Folder = folderPath, SizeLimitGigabytes = gigabytes };
+        int minutes = CameraRecordingSettings.DefaultDashcamMinutes;
+        if (IsPresent(dashcamMinutes))
+        {
+            if (TryGetWholeNumber(dashcamMinutes!.Value, CameraRecordingSettings.MinDashcamMinutes, CameraRecordingSettings.MaxDashcamMinutes, out int whole))
+            {
+                minutes = whole;
+            }
+            else
+            {
+                warnings.Add(
+                    $"Dashcam length is invalid (whole number {CameraRecordingSettings.MinDashcamMinutes}–{CameraRecordingSettings.MaxDashcamMinutes} minutes); {CameraRecordingSettings.DefaultDashcamMinutes} minutes are used.");
+            }
+        }
+
+        CameraRecordingSettings settings = new()
+        {
+            Folder = folderPath,
+            SizeLimitGigabytes = gigabytes,
+            DashcamMinutes = minutes,
+            DashcamOnError = ToDashcamTrigger(onError, "error", warnings),
+            DashcamOnAttention = ToDashcamTrigger(onAttention, "attention", warnings),
+            DashcamOnStopped = ToDashcamTrigger(onStopped, "stopped print", warnings),
+            DashcamOnFailureDetection = ToDashcamTrigger(onFailure, "detected print failure", warnings),
+        };
+        return settings == CameraRecordingSettings.Default ? CameraRecordingSettings.Default : settings;
+    }
+
+    /// <summary>A whole number in range, as a JSON number or a numeric string (invariant culture).</summary>
+    private static bool TryGetWholeNumber(JsonElement value, int min, int max, out int whole)
+    {
+        double? number = value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetDouble(out double parsed) => parsed,
+            JsonValueKind.String when double.TryParse(value.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed) => parsed,
+            _ => null,
+        };
+        return TryGetWholeNumber(number, out whole) && whole >= min && whole <= max;
+    }
+
+    /// <summary>A dashcam trigger (T-148): missing = on; a value that is not a JSON boolean is on with a warning.</summary>
+    private static bool ToDashcamTrigger(JsonElement? value, string trigger, List<string> warnings)
+    {
+        if (!IsPresent(value))
+        {
+            return true;
+        }
+
+        switch (value!.Value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            default:
+                warnings.Add($"Dashcam trigger '{trigger}' is invalid (true / false); it is on.");
+                return true;
+        }
     }
 
     /// <summary>Missing = off; a value that is not a JSON boolean is off with a warning (T-145).</summary>
-    private static bool ToRecordPrints(JsonElement? value, string printerId, List<string> warnings)
+    private static bool ToRecordPrints(JsonElement? value, string printerId, List<string> warnings) =>
+        ToCameraOption(value, printerId, "automatic recording of prints", warnings);
+
+    /// <summary>Missing = off; a value that is not a JSON boolean is off with a warning (T-148).</summary>
+    private static bool ToDashcam(JsonElement? value, string printerId, List<string> warnings) =>
+        ToCameraOption(value, printerId, "keeping the last minutes of a print", warnings);
+
+    private static bool ToCameraOption(JsonElement? value, string printerId, string option, List<string> warnings)
     {
         if (!IsPresent(value))
         {
@@ -222,7 +308,7 @@ internal static class SettingsMapper
             case JsonValueKind.False:
                 return false;
             default:
-                warnings.Add($"Camera of printer '{Shorten(printerId)}': automatic recording of prints is invalid (true / false); it is off.");
+                warnings.Add($"Camera of printer '{Shorten(printerId)}': {option} is invalid (true / false); it is off.");
                 return false;
         }
     }
@@ -406,6 +492,11 @@ internal static class SettingsMapper
                 if (ToRecordPrints(documents[i]!.Camera?.RecordPrints, printer.Id, warnings))
                 {
                     camera = camera with { RecordPrints = true };
+                }
+
+                if (ToDashcam(documents[i]!.Camera?.Dashcam, printer.Id, warnings))
+                {
+                    camera = camera with { Dashcam = true };
                 }
 
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.

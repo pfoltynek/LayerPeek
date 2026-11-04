@@ -60,6 +60,19 @@ public interface ICameraRecorder
     /// </param>
     /// <exception cref="ArgumentException">The arguments are invalid (empty id, relative path, no file name).</exception>
     ICameraRecording Start(string printerId, string filePath, Action<ICameraRecording>? changed = null);
+
+    /// <summary>
+    /// Starts the dashcam of <paramref name="printerId"/>'s camera (T-148): the last minutes of its shared connection held in
+    /// memory and saved on <see cref="ICameraDashcam.Save"/>. Never throws for runtime conditions: one that cannot run (no
+    /// muxer, no camera) is returned already <see cref="CameraDashcamState.Ended"/> or ends by itself.
+    /// </summary>
+    /// <param name="changed">
+    /// Called when <see cref="ICameraDashcam.State"/> changed (on the dashcam's thread, or on the thread of
+    /// <see cref="ICameraDashcam.Save"/>); must return quickly and never block. Exceptions are logged and ignored.
+    /// </param>
+    /// <param name="saved">Called once per save when it ended (on the dashcam's thread); same rules.</param>
+    /// <exception cref="ArgumentException"><paramref name="printerId"/> is empty.</exception>
+    ICameraDashcam StartDashcam(string printerId, CameraDashcamOptions options, Action<ICameraDashcam>? changed = null, Action<CameraDashcamSave>? saved = null);
 }
 
 /// <summary>A running or ended recording of one printer's camera; thread-safe.</summary>

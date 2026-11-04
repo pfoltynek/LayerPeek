@@ -112,6 +112,23 @@ public sealed class RecordingNotificationTests : IDisposable
 
     [Theory]
     [MemberData(nameof(Languages))]
+    public void AFailedDashcamSaveSaysSoWithTheSameReasons(string language)
+    {
+        CultureInfo culture = CultureInfo.GetCultureInfo(language);
+        RecordingNotification recording = new("core", "Core One", CameraRecordingProblem.DiskFull, 37, 5, PlaySound: false);
+
+        NotificationLines dashcam = RecordingNotificationText.Lines(recording with { IsDashcam = true }, culture);
+        NotificationLines full = RecordingNotificationText.Lines(recording, culture);
+
+        Assert.Equal("Core One", dashcam.Title);
+        Assert.Equal(Strings.ResourceManager.GetString(nameof(Strings.NotificationDashcamFailed), culture), dashcam.Body);
+        Assert.False(string.IsNullOrWhiteSpace(dashcam.Body));
+        Assert.NotEqual(full.Body, dashcam.Body);
+        Assert.Equal(full.Detail, dashcam.Detail);
+    }
+
+    [Theory]
+    [MemberData(nameof(Languages))]
     public void EveryProblemHasItsOwnTranslatedReason(string language)
     {
         CultureInfo culture = CultureInfo.GetCultureInfo(language);
@@ -197,6 +214,9 @@ public sealed class RecordingNotificationTests : IDisposable
         public CameraRecorderAvailability Availability { get; } = CameraRecorderAvailability.Unavailable("No MP4 muxer in this build.");
 
         public ICameraRecording Start(string printerId, string filePath, Action<ICameraRecording>? changed = null) =>
+            throw new InvalidOperationException("Never started without the muxer.");
+
+        public ICameraDashcam StartDashcam(string printerId, CameraDashcamOptions options, Action<ICameraDashcam>? changed = null, Action<CameraDashcamSave>? saved = null) =>
             throw new InvalidOperationException("Never started without the muxer.");
     }
 

@@ -432,15 +432,25 @@
                           T-146: "Record prints automatically" (per printer, user decision 2026-11-03), under the camera it
                           needs; disabled (value kept) while the camera is off or this build cannot record. What it does, or
                           why it is disabled, is its tip and help text: the tab has no room for one more hint line (T-033 fit).
+                          T-148: "Keep the last minutes (dashcam)" (per printer, user decision 2026-11-04) in the same row with
+                          the same rules; the tab has no room for another line either.
                         -->
-                        <CheckBox AutomationProperties.AutomationId="PrinterRecordPrints"
-                                  Margin="28,0,0,0"
-                                  Content="{Binding [SettingsRecordPrints], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                  IsChecked="{Binding RecordPrints}"
-                                  IsEnabled="{Binding CanEditRecordPrints}"
-                                  ToolTip.Tip="{Binding RecordPrintsHint}"
-                                  ToolTip.ShowOnDisabled="True"
-                                  AutomationProperties.HelpText="{Binding RecordPrintsHint}" />
+                        <StackPanel Orientation="Horizontal" Spacing="16" Margin="28,0,0,0">
+                          <CheckBox AutomationProperties.AutomationId="PrinterRecordPrints"
+                                    Content="{Binding [SettingsRecordPrints], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    IsChecked="{Binding RecordPrints}"
+                                    IsEnabled="{Binding CanEditRecordPrints}"
+                                    ToolTip.Tip="{Binding RecordPrintsHint}"
+                                    ToolTip.ShowOnDisabled="True"
+                                    AutomationProperties.HelpText="{Binding RecordPrintsHint}" />
+                          <CheckBox AutomationProperties.AutomationId="PrinterDashcam"
+                                    Content="{Binding [SettingsDashcamPrinter], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    IsChecked="{Binding Dashcam}"
+                                    IsEnabled="{Binding CanEditDashcam}"
+                                    ToolTip.Tip="{Binding DashcamHint}"
+                                    ToolTip.ShowOnDisabled="True"
+                                    AutomationProperties.HelpText="{Binding DashcamHint}" />
+                        </StackPanel>
                         <TextBlock Classes="label" Margin="0,8,0,4" Text="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
                         <TextBox AutomationProperties.AutomationId="PrinterCameraUrl"
                                  Text="{Binding CameraUrl}"
@@ -1222,6 +1232,38 @@
               <StackPanel Grid.Row="3" Grid.Column="2">
                 <TextBlock AutomationProperties.AutomationId="SettingsRecordingLimitHint" Classes="hint" Text="{Binding RecordingLimitHint}" IsVisible="{Binding ShowsRecordingLimitHint}" />
                 <TextBlock AutomationProperties.AutomationId="SettingsRecordingLimitError" Classes="error" Text="{Binding RecordingLimitError}" IsVisible="{Binding HasRecordingLimitError}" />
+              </StackPanel>
+            </Grid>
+            <!--
+              T-148 "Last minutes of a print (dashcam)": the same two columns, the length in whole minutes with its hint (the
+              error replaces it, T-033) and the events that save automatically, with the hint that saving by hand always works.
+              Whether a printer has a dashcam is on its Camera sub-tab. Disabled when this build cannot record.
+            -->
+            <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto" IsEnabled="{Binding IsRecordingAvailable}">
+              <TextBlock Grid.ColumnSpan="3" Classes="section" Margin="0,4,0,4" Text="{Binding [SettingsDashcam], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Grid.Row="1" Classes="label" Text="{Binding [SettingsDashcamMinutes], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Classes="label" Text="{Binding [SettingsDashcamTriggers], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
+              <StackPanel Grid.Row="2">
+                <NumericUpDown AutomationProperties.AutomationId="SettingsDashcamMinutes"
+                               AutomationProperties.Name="{Binding [SettingsDashcamMinutes], Source={x:Static loc:LocalizedStrings.Instance}}"
+                               AutomationProperties.HelpText="{Binding DashcamMinutesHelpText}"
+                               Classes.invalid="{Binding HasDashcamMinutesError}"
+                               Value="{Binding DashcamMinutes}"
+                               Minimum="{x:Static vm:SettingsViewModel.MinDashcamMinutes}"
+                               Maximum="{x:Static vm:SettingsViewModel.MaxDashcamMinutes}"
+                               Increment="1"
+                               FormatString="0"
+                               Width="160"
+                               HorizontalAlignment="Left" />
+                <TextBlock AutomationProperties.AutomationId="SettingsDashcamMinutesHint" Classes="hint" Text="{Binding DashcamMinutesHint}" IsVisible="{Binding ShowsDashcamMinutesHint}" />
+                <TextBlock AutomationProperties.AutomationId="SettingsDashcamMinutesError" Classes="error" Text="{Binding DashcamMinutesError}" IsVisible="{Binding HasDashcamMinutesError}" />
+              </StackPanel>
+              <StackPanel Grid.Row="2" Grid.Column="2">
+                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnError" Content="{Binding [SettingsDashcamOnError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnError}" />
+                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnAttention" Content="{Binding [SettingsDashcamOnAttention], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnAttention}" />
+                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnStopped" Content="{Binding [SettingsDashcamOnStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnStopped}" />
+                <CheckBox AutomationProperties.AutomationId="SettingsDashcamOnFailureDetection" Content="{Binding [SettingsDashcamOnFailureDetection], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding DashcamOnFailureDetection}" />
+                <TextBlock AutomationProperties.AutomationId="SettingsDashcamTriggersHint" Classes="hint" Text="{Binding [SettingsDashcamTriggersHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
               </StackPanel>
             </Grid>
           </StackPanel>

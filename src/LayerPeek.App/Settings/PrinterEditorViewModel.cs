@@ -103,6 +103,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>"Record prints automatically" (T-145), switched on the Camera sub-tab (T-146).</summary>
     private bool _recordPrints;
+    private bool _dashcam;
     private bool _savedCameraEnabled;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
@@ -150,6 +151,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled && _owner.IsEditable);
         _overlayLayout = camera.Overlay;
         _recordPrints = camera.RecordPrints;
+        _dashcam = camera.Dashcam;
         InitializeMiniStrip(camera);
         _savedCameraEnabled = saved is not null && camera.Enabled;
         InitializeImage(saved, storedCustomImage);
@@ -422,6 +424,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 ApplyCameraWindowCommand.NotifyCanExecuteChanged();
                 // T-146: recording needs the camera.
                 OnPropertyChanged(nameof(CanEditRecordPrints));
+                OnPropertyChanged(nameof(CanEditDashcam));
                 _owner.OnPrinterEdited(nameChanged: false);
             }
         }
@@ -448,6 +451,28 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>The tip (and help text) of "Record prints automatically": what it does, or why it is disabled.</summary>
     public string RecordPrintsHint => _owner.IsRecordingAvailable ? Strings.SettingsRecordPrintsHint : Strings.RecordingUnavailable;
+
+    /// <summary>
+    /// "Keep the last minutes of a print" (T-148; off by default, user decision 2026-11-04): the dashcam of this printer. Kept
+    /// while the camera is off (the check box is disabled).
+    /// </summary>
+    public bool Dashcam
+    {
+        get => _dashcam;
+        set
+        {
+            if (SetProperty(ref _dashcam, value))
+            {
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>The check box can be switched: the camera is on and this build can record (otherwise disabled with the reason).</summary>
+    public bool CanEditDashcam => _cameraEnabled && _owner.IsRecordingAvailable;
+
+    /// <summary>The tip (and help text) of "Keep the last minutes of a print": what it does, or why it is disabled.</summary>
+    public string DashcamHint => _owner.IsRecordingAvailable ? Strings.SettingsDashcamPrinterHint : Strings.RecordingUnavailable;
 
     /// <summary>RTSP address of the stream (an invalid address loaded from the file is shown here for correction).</summary>
     public string CameraUrl
@@ -823,9 +848,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         CameraOverlayLayout layout = _overlayLayout;
         CameraMiniStripSettings strip = _miniStrip;
         bool recordPrints = _recordPrints;
+        bool dashcam = _dashcam;
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -837,14 +863,14 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             // No address and the default window and layout: the shared "no camera" value.
             return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay && strip == CameraSettings.Disabled.MiniStrip
-                && !recordPrints
+                && !recordPrints && !dashcam
                 ? CameraSettings.Disabled
-                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints };
+                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam };
         }
         catch (ArgumentException)
         {
@@ -1049,6 +1075,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     internal void RefreshTexts()
     {
         OnPropertyChanged(nameof(RecordPrintsHint));
+        OnPropertyChanged(nameof(DashcamHint));
         ValidateAddress();
         ValidateUserName();
         ValidatePassword();

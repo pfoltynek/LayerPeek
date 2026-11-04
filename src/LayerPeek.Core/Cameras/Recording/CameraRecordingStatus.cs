@@ -27,6 +27,28 @@ public enum CameraRecordingMode
     /// (user decision 2026-11-03).
     /// </summary>
     Automatic,
+
+    /// <summary>The dashcam of a printer with <see cref="CameraSettings.Dashcam"/> (T-148): the last minutes, saved on an event.</summary>
+    Dashcam,
+}
+
+/// <summary>What the dashcam of one printer is doing (<see cref="CameraRecordingStatus.Dashcam"/>, T-148).</summary>
+public enum CameraDashcamActivity
+{
+    /// <summary>The printer has no dashcam (<see cref="CameraSettings.Dashcam"/> off, camera disabled, or this build cannot record).</summary>
+    Off,
+
+    /// <summary>
+    /// The printer has a dashcam, but nothing is held now: it does not print, the whole print is recorded
+    /// (<see cref="CameraRecordingStatus.IsActive"/>), or the dashcam failed during this print.
+    /// </summary>
+    Waiting,
+
+    /// <summary>The last minutes are held in memory; "Save the last minutes" works.</summary>
+    Buffering,
+
+    /// <summary>The last minutes are being saved (and the stream after the event); another event extends the save.</summary>
+    Saving,
 }
 
 /// <summary>Why a recording could not start or ended with an error (<see cref="CameraRecordingError.Problem"/>).</summary>
@@ -113,4 +135,13 @@ public sealed record CameraRecordingStatus
 
     /// <summary>The printer has an enabled camera, so that it can be recorded at all.</summary>
     public bool CanRecord { get; init; }
+
+    /// <summary>What the dashcam does (T-148).</summary>
+    public CameraDashcamActivity Dashcam { get; init; }
+
+    /// <summary>Minutes the dashcam holds (<see cref="CameraRecordingSettings.DashcamMinutes"/>), e.g. for "Save the last 2 min".</summary>
+    public int DashcamMinutes { get; init; } = CameraRecordingSettings.DefaultDashcamMinutes;
+
+    /// <summary>Time the dashcam holds in memory now; zero while it does not buffer.</summary>
+    public TimeSpan DashcamBuffered { get; init; }
 }

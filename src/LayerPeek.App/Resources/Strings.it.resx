@@ -1591,4 +1591,52 @@
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Registra dall'inizio di una stampa fino a un minuto dopo la fine, anche senza la finestra della telecamera aperta.</value>
   </data>
+  <data name="MenuSaveDashcam" xml:space="preserve">
+    <value>_Salva gli ultimi {0}&#160;min</value>
+  </data>
+  <data name="DashcamNotPrinting" xml:space="preserve">
+    <value>Gli ultimi minuti vengono conservati solo durante una stampa.</value>
+  </data>
+  <data name="DashcamWholePrintRecorded" xml:space="preserve">
+    <value>Si sta registrando l'intera stampa.</value>
+  </data>
+  <data name="DashcamSaving" xml:space="preserve">
+    <value>Salvataggio degli ultimi minuti…</value>
+  </data>
+  <data name="SettingsDashcam" xml:space="preserve">
+    <value>Ultimi minuti di una stampa (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamMinutes" xml:space="preserve">
+    <value>Durata (minuti)</value>
+  </data>
+  <data name="SettingsDashcamMinutesHint" xml:space="preserve">
+    <value>Conservati in memoria durante la stampa (circa 8&#160;MB al minuto per stampante) e salvati con {0}&#160;s dopo l'evento.</value>
+  </data>
+  <data name="SettingsDashcamTriggers" xml:space="preserve">
+    <value>Salva automaticamente</value>
+  </data>
+  <data name="SettingsDashcamOnError" xml:space="preserve">
+    <value>In caso di errore di stampa</value>
+  </data>
+  <data name="SettingsDashcamOnAttention" xml:space="preserve">
+    <value>Quando la stampante richiede attenzione</value>
+  </data>
+  <data name="SettingsDashcamOnStopped" xml:space="preserve">
+    <value>Quando la stampa viene interrotta</value>
+  </data>
+  <data name="SettingsDashcamOnFailureDetection" xml:space="preserve">
+    <value>Quando la telecamera rileva un errore di stampa</value>
+  </data>
+  <data name="SettingsDashcamTriggersHint" xml:space="preserve">
+    <value>Il salvataggio manuale è sempre possibile: nel menu della stampante o nel menu della finestra della telecamera.</value>
+  </data>
+  <data name="SettingsDashcamPrinter" xml:space="preserve">
+    <value>Conserva gli ultimi minuti (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamPrinterHint" xml:space="preserve">
+    <value>Durante una stampa tiene in memoria gli ultimi minuti della telecamera e li salva se qualcosa va storto (scheda Registrazione). Inattivo mentre si registra l'intera stampa.</value>
+  </data>
+  <data name="NotificationDashcamFailed" xml:space="preserve">
+    <value>Salvataggio degli ultimi minuti non riuscito</value>
+  </data>
 </root>

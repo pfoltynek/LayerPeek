@@ -1591,4 +1591,52 @@
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Nahrává od začátku tisku do minuty po jeho konci, i když okno kamery není otevřené.</value>
   </data>
+  <data name="MenuSaveDashcam" xml:space="preserve">
+    <value>Uložit posle_dních {0}&#160;min</value>
+  </data>
+  <data name="DashcamNotPrinting" xml:space="preserve">
+    <value>Poslední minuty se uchovávají jen během tisku.</value>
+  </data>
+  <data name="DashcamWholePrintRecorded" xml:space="preserve">
+    <value>Nahrává se celý tisk.</value>
+  </data>
+  <data name="DashcamSaving" xml:space="preserve">
+    <value>Poslední minuty se ukládají…</value>
+  </data>
+  <data name="SettingsDashcam" xml:space="preserve">
+    <value>Poslední minuty tisku (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamMinutes" xml:space="preserve">
+    <value>Délka (minuty)</value>
+  </data>
+  <data name="SettingsDashcamMinutesHint" xml:space="preserve">
+    <value>Během tisku se drží v paměti (asi 8&#160;MB za minutu a tiskárnu) a ukládají se i s {0}&#160;s po události.</value>
+  </data>
+  <data name="SettingsDashcamTriggers" xml:space="preserve">
+    <value>Ukládat automaticky</value>
+  </data>
+  <data name="SettingsDashcamOnError" xml:space="preserve">
+    <value>Při chybě tisku</value>
+  </data>
+  <data name="SettingsDashcamOnAttention" xml:space="preserve">
+    <value>Když tiskárna čeká na zásah</value>
+  </data>
+  <data name="SettingsDashcamOnStopped" xml:space="preserve">
+    <value>Při zastavení tisku</value>
+  </data>
+  <data name="SettingsDashcamOnFailureDetection" xml:space="preserve">
+    <value>Když kamera rozpozná chybu tisku</value>
+  </data>
+  <data name="SettingsDashcamTriggersHint" xml:space="preserve">
+    <value>Ručně jde uložit vždy: v menu tiskárny nebo v nabídce okna kamery.</value>
+  </data>
+  <data name="SettingsDashcamPrinter" xml:space="preserve">
+    <value>Uchovávat poslední minuty (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamPrinterHint" xml:space="preserve">
+    <value>Během tisku drží poslední minuty kamery v paměti a uloží je, když se něco pokazí (záložka Nahrávání). Neběží, když se nahrává celý tisk.</value>
+  </data>
+  <data name="NotificationDashcamFailed" xml:space="preserve">
+    <value>Uložení posledních minut selhalo</value>
+  </data>
 </root>

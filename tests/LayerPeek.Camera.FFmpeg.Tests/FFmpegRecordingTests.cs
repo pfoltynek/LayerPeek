@@ -193,6 +193,48 @@ public sealed class FFmpegRecordingTests : IDisposable
         Mp4Probe.AssertValid(Assert.Single(recording.Files), 20);
     }
 
+    [FFmpegFact]
+    public async Task TheDashcamSavesAPlayableFileWithTheTimeBeforeAndAfterTheEvent()
+    {
+        await using RtspCamera camera = TestFixtures.StartCamera(loop: true, realTime: true);
+        await using Rig rig = new(camera);
+        TaskCompletionSource<CameraDashcamSave> saved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ICameraDashcam dashcam = rig.Recorder.StartDashcam(
+            "mk4",
+            new CameraDashcamOptions { BufferDuration = TimeSpan.FromSeconds(4), PostEventDuration = TimeSpan.FromSeconds(1) },
+            saved: result => saved.TrySetResult(result));
+        try
+        {
+            // More than the buffer holds: only the last 4 s (from a key frame, one or two per loop of the clip) are kept,
+            // and nothing is written.
+            await WaitAsync(() => dashcam.BufferedDuration >= TimeSpan.FromSeconds(2.5), "buffer filled");
+            await Task.Delay(TimeSpan.FromSeconds(2), Ct);
+            TimeSpan buffered = dashcam.BufferedDuration;
+            Assert.InRange(buffered, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(4));
+            Assert.Empty(Directory.EnumerateFileSystemEntries(_folder));
+
+            string path = Path.Combine(_folder, "2026-11-04_14-05-09_dashcam-manual.mp4");
+            Assert.True(dashcam.Save(path));
+            CameraDashcamSave result = await saved.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+
+            Assert.Equal(CameraRecordingFailure.None, result.Failure);
+            Assert.Equal([path], result.Files);
+            Assert.Equal(new FileInfo(path).Length, result.BytesWritten);
+            // The buffer and the second after the event, decoded from its first key frame on.
+            Mp4Contents contents = Mp4Probe.AssertValid(path, 40);
+            Assert.InRange(contents.DurationSeconds, buffered.TotalSeconds + 0.5, buffered.TotalSeconds + 2.5);
+            Assert.Equal(CameraDashcamState.Buffering, dashcam.State);
+            Assert.False(Assert.Single(rig.Feeds.Feeds).DecoderOpened);
+        }
+        finally
+        {
+            await dashcam.StopAsync();
+        }
+
+        Assert.Equal(CameraDashcamState.Ended, dashcam.State);
+        Assert.Equal(0, dashcam.BufferedBytes);
+    }
+
     /// <summary>Writes the fixture's packets (timestamps from 0) and hands the open writer to <paramref name="finish"/>.</summary>
     private static async Task WriteFixtureAsync(string path, Func<ICameraRecordingWriter, CameraStreamInfo, Task> finish, Action<bool> keyFrame)
     {

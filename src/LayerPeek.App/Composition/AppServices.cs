@@ -726,10 +726,12 @@ internal static partial class AppServices
         // T-144: recordings remux the hub's packets into fragmented MP4 (FFmpeg, never an encoder); when and where to
         // record is decided by T-145. Creating them loads nothing; a build without the muxer reports "not available".
         services.AddSingleton<ICameraRecordingWriterFactory>(static _ => new FFmpegCameraRecordingWriterFactory());
+        // T-148: the recorder also starts the dashcams (the last minutes in memory, saved on an event).
         services.AddSingleton<ICameraRecorder>(static sp => new CameraRecorder(
             sp.GetRequiredService<CameraStreamHub>(),
             sp.GetRequiredService<ICameraRecordingWriterFactory>(),
-            sp.GetRequiredService<ILogger<CameraRecorder>>()));
+            sp.GetRequiredService<ILogger<CameraRecorder>>(),
+            sp.GetRequiredService<TimeProvider>()));
         // T-145: when and where to record (manual, automatic during prints), the folder, the size limit and the rotation.
         // Idle without recordings; quitting waits for running recordings to complete their files (ServiceHost).
         services.AddSingleton(static sp => new CameraRecordingService(

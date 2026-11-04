@@ -42,6 +42,17 @@
           <ov:OverlayIcon Width="16" Height="16" Data="{DynamicResource IconLayoutCellFour16Regular}" Foreground="{DynamicResource MenuFlyoutItemForeground}" />
         </MenuItem.Icon>
       </MenuItem>
+      <!--
+        T-148: "Save the last N min" of a printer with a dashcam; disabled with the reason as its tip while the dashcam holds
+        nothing (no print, the whole print is recorded) or saves.
+      -->
+      <MenuItem AutomationProperties.AutomationId="CameraSaveDashcamMenuItem"
+                Header="{Binding SaveDashcamText}"
+                Command="{Binding SaveDashcamCommand}"
+                IsVisible="{Binding HasDashcam}"
+                ToolTip.Tip="{Binding SaveDashcamToolTip}"
+                ToolTip.ShowOnDisabled="True"
+                ToolTip.ServiceEnabled="{Binding SaveDashcamToolTip, Converter={x:Static ObjectConverters.IsNotNull}}" />
       <!-- No icon: the check mark takes the icon column. -->
       <MenuItem AutomationProperties.AutomationId="CameraTopmostMenuItem"
                 Header="{Binding [CameraTopmostMenu], Source={x:Static loc:LocalizedStrings.Instance}}"

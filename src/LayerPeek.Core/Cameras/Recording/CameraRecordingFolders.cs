@@ -107,6 +107,26 @@ public static class CameraRecordingFolders
     }
 
     /// <summary>
+    /// The file name of a dashcam save (T-148) of an event at <paramref name="eventTime"/> (local time of the user): like
+    /// <see cref="FileName"/> with <c>_dashcam-&lt;trigger&gt;</c> before the extension, e.g.
+    /// <c>2026-11-04_14-05-09_Benchy_dashcam-error.mp4</c>. It follows <see cref="IsRecordingFileName"/>, so the rotation
+    /// keeps it within the same limit as the recordings.
+    /// </summary>
+    public static string DashcamFileName(DateTimeOffset eventTime, string? printFileName, CameraDashcamTrigger trigger)
+    {
+        string name = FileName(eventTime, printFileName);
+        string marker = trigger switch
+        {
+            CameraDashcamTrigger.Error => "error",
+            CameraDashcamTrigger.Attention => "attention",
+            CameraDashcamTrigger.Stopped => "stopped",
+            CameraDashcamTrigger.FailureDetected => "failure",
+            _ => "manual",
+        };
+        return string.Concat(name.AsSpan(0, name.Length - Extension.Length), "_dashcam-", marker, Extension);
+    }
+
+    /// <summary>
     /// Whether <paramref name="fileName"/> follows the pattern of <see cref="FileName"/> (also with the recorder's
     /// <c>-2</c>, <c>-3</c> … suffix): a valid <c>yyyy-MM-dd_HH-mm-ss</c> timestamp at the start, then nothing, <c>_</c> or
     /// <c>-</c> and anything, and <see cref="Extension"/> (any case).

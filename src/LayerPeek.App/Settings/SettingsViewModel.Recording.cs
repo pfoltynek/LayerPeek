@@ -13,6 +13,11 @@ namespace LayerPeek.App.Settings;
 /// record, the options are disabled with the reason (the folder can still be opened: older recordings stay there).
 /// A chosen folder is checked right away (on this computer, an absolute path the settings accept, writable); a folder that
 /// fails is never taken and the reason is shown in place of the hint. Saved and applied by Save like the other settings.
+/// <para>
+/// T-148 "Last minutes of a print (dashcam)": the length the dashcam holds (whole minutes, 1–10) and which events save it
+/// automatically (each on by default); whether a printer has a dashcam is per printer on its Camera sub-tab. Disabled with
+/// the reason like the folder when this build cannot record.
+/// </para>
 /// </summary>
 public sealed partial class SettingsViewModel
 {
@@ -24,6 +29,12 @@ public sealed partial class SettingsViewModel
     private IAsyncRelayCommand? _chooseRecordingFolderCommand;
     private IRelayCommand? _resetRecordingFolderCommand;
     private IRelayCommand? _openRecordingsFolderCommand;
+    private decimal? _dashcamMinutes = CameraRecordingSettings.DefaultDashcamMinutes;
+    private string? _dashcamMinutesError;
+    private bool _dashcamOnError = true;
+    private bool _dashcamOnAttention = true;
+    private bool _dashcamOnStopped = true;
+    private bool _dashcamOnFailureDetection = true;
 
     /// <summary>The app's recordings (state, default folder, opening the folder); <see langword="null"/>: none (tests).</summary>
     internal ICameraRecordings? Recordings { get; init; }
@@ -95,6 +106,72 @@ public sealed partial class SettingsViewModel
     /// <summary>For screen readers: the error of the limit, else its hint.</summary>
     public string RecordingLimitHelpText => _recordingLimitError ?? RecordingLimitHint;
 
+    public static decimal MinDashcamMinutes => CameraRecordingSettings.MinDashcamMinutes;
+
+    public static decimal MaxDashcamMinutes => CameraRecordingSettings.MaxDashcamMinutes;
+
+    /// <summary>Minutes the dashcam holds in memory during a print (T-148).</summary>
+    public decimal? DashcamMinutes
+    {
+        get => _dashcamMinutes;
+        set => SetGeneral(ref _dashcamMinutes, value);
+    }
+
+    public string? DashcamMinutesError
+    {
+        get => _dashcamMinutesError;
+        private set
+        {
+            if (SetProperty(ref _dashcamMinutesError, value))
+            {
+                OnPropertyChanged(nameof(HasDashcamMinutesError));
+                OnPropertyChanged(nameof(ShowsDashcamMinutesHint));
+                OnPropertyChanged(nameof(DashcamMinutesHelpText));
+            }
+        }
+    }
+
+    public bool HasDashcamMinutesError => _dashcamMinutesError is not null;
+
+    public bool ShowsDashcamMinutesHint => _dashcamMinutesError is null;
+
+    /// <summary>The hint of the length: the memory it takes and the time saved after the event.</summary>
+    public string DashcamMinutesHint => Format(Strings.SettingsDashcamMinutesHint, (int)(Recordings?.DashcamPostEventDuration ?? CameraRecordingServiceOptions.Default.DashcamPostEventDuration).TotalSeconds);
+
+    /// <summary>For screen readers: the error of the length, else its hint.</summary>
+    public string DashcamMinutesHelpText => _dashcamMinutesError ?? DashcamMinutesHint;
+
+    /// <summary>The dashcam saves on a print error (T-148).</summary>
+    public bool DashcamOnError
+    {
+        get => _dashcamOnError;
+        set => SetGeneral(ref _dashcamOnError, value);
+    }
+
+    /// <summary>The dashcam saves when the printer needs attention.</summary>
+    public bool DashcamOnAttention
+    {
+        get => _dashcamOnAttention;
+        set => SetGeneral(ref _dashcamOnAttention, value);
+    }
+
+    /// <summary>The dashcam saves when the print is stopped.</summary>
+    public bool DashcamOnStopped
+    {
+        get => _dashcamOnStopped;
+        set => SetGeneral(ref _dashcamOnStopped, value);
+    }
+
+    /// <summary>The dashcam saves when the print failure detection of the camera reports a failure (T-155).</summary>
+    public bool DashcamOnFailureDetection
+    {
+        get => _dashcamOnFailureDetection;
+        set => SetGeneral(ref _dashcamOnFailureDetection, value);
+    }
+
+    /// <summary>A field of the Recording tab is invalid: a failed save shows that tab.</summary>
+    internal bool HasRecordingTabError => _recordingLimitError is not null || _dashcamMinutesError is not null;
+
     /// <summary>Opens the folder dialog; the chosen folder is checked before it is taken.</summary>
     public IAsyncRelayCommand ChooseRecordingFolderCommand => _chooseRecordingFolderCommand ??= new AsyncRelayCommand(
         ChooseRecordingFolderAsync,
@@ -121,21 +198,41 @@ public sealed partial class SettingsViewModel
         _recordingFolder = recording.Folder;
         _recordingLimitGigabytes = recording.SizeLimitGigabytes;
         _recordingFolderErrorSource = null;
+        _dashcamMinutes = recording.DashcamMinutes;
+        _dashcamOnError = recording.DashcamOnError;
+        _dashcamOnAttention = recording.DashcamOnAttention;
+        _dashcamOnStopped = recording.DashcamOnStopped;
+        _dashcamOnFailureDetection = recording.DashcamOnFailureDetection;
     }
 
-    /// <summary>The recording settings as edited; <see langword="null"/> while the limit is invalid.</summary>
+    /// <summary>The recording settings as edited; <see langword="null"/> while the limit or the dashcam length is invalid.</summary>
     private CameraRecordingSettings? BuildRecording() =>
-        _recordingLimitGigabytes is { } limit && _recordingLimitError is null
-            ? new CameraRecordingSettings { Folder = _recordingFolder, SizeLimitGigabytes = (int)limit }
+        _recordingLimitGigabytes is { } limit && _recordingLimitError is null && _dashcamMinutes is { } minutes && _dashcamMinutesError is null
+            ? new CameraRecordingSettings
+            {
+                Folder = _recordingFolder,
+                SizeLimitGigabytes = (int)limit,
+                DashcamMinutes = (int)minutes,
+                DashcamOnError = _dashcamOnError,
+                DashcamOnAttention = _dashcamOnAttention,
+                DashcamOnStopped = _dashcamOnStopped,
+                DashcamOnFailureDetection = _dashcamOnFailureDetection,
+            }
             : null;
 
-    private void ValidateRecording() =>
-        RecordingLimitError = _recordingLimitGigabytes is { } limit
-            && limit >= CameraRecordingSettings.MinSizeLimitGigabytes
-            && limit <= CameraRecordingSettings.MaxSizeLimitGigabytes
-            && limit == decimal.Truncate(limit)
+    private void ValidateRecording()
+    {
+        RecordingLimitError = IsWholeNumber(_recordingLimitGigabytes, CameraRecordingSettings.MinSizeLimitGigabytes, CameraRecordingSettings.MaxSizeLimitGigabytes)
             ? null
             : Format(Strings.SettingsErrorRecordingLimit, CameraRecordingSettings.MinSizeLimitGigabytes, CameraRecordingSettings.MaxSizeLimitGigabytes);
+        // The same text as the limit: "Enter a whole number from {0} to {1}."
+        DashcamMinutesError = IsWholeNumber(_dashcamMinutes, CameraRecordingSettings.MinDashcamMinutes, CameraRecordingSettings.MaxDashcamMinutes)
+            ? null
+            : Format(Strings.SettingsErrorRecordingLimit, CameraRecordingSettings.MinDashcamMinutes, CameraRecordingSettings.MaxDashcamMinutes);
+    }
+
+    private static bool IsWholeNumber(decimal? value, int min, int max) =>
+        value is { } number && number >= min && number <= max && number == decimal.Truncate(number);
 
     /// <summary>The language changed: texts with a format and the error are formatted again.</summary>
     private void RefreshRecordingTexts()
@@ -144,6 +241,8 @@ public sealed partial class SettingsViewModel
         OnPropertyChanged(nameof(RecordingLimitHelpText));
         OnPropertyChanged(nameof(RecordingFolderError));
         OnPropertyChanged(nameof(RecordingFolderHelpText));
+        OnPropertyChanged(nameof(DashcamMinutesHint));
+        OnPropertyChanged(nameof(DashcamMinutesHelpText));
     }
 
     /// <summary>Editing became possible or impossible (loading, saving): the buttons follow.</summary>

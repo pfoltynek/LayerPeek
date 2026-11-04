@@ -195,18 +195,77 @@ public sealed class TrayMenuRecordingTests : IDisposable
 
         _recordings.SetActivity("mk4", CameraRecordingActivity.Recording);
         _recordings.SetActivity("c", CameraRecordingActivity.Recording);
+        // T-148: with "Save the last N min" of the dashcam too.
+        _recordings.SetDashcam("mk4", CameraDashcamActivity.Waiting, minutes: 10);
+        _recordings.SetDashcam("c", CameraDashcamActivity.Waiting, minutes: 10);
         _dispatcher.RunAll();
 
         for (int i = 0; i < 2; i++)
         {
             TrayMenuEntryList submenu = viewModel.PrinterItems[i].Submenu!;
-            Assert.Equal(7, submenu.Count);
+            Assert.Equal(8, submenu.Count);
             char?[] keys = [.. submenu.Where(static item => !item.IsSeparator).Select(item => AccessKey(item, info))];
             Assert.All(keys, key => Assert.True(key is { } k && char.IsLetterOrDigit(k), $"{language}: {string.Join(", ", keys)}"));
             Assert.True(keys.Distinct().Count() == keys.Length, $"{language}: access keys {string.Join(", ", keys)} are not unique.");
             Assert.Equal(startKeys[i], AccessKey(Item(viewModel, TrayMenuCommand.StopRecording, i), info));
             Assert.All(submenu.Where(static item => !item.IsSeparator), item => Assert.Equal(1, NativeMenuText.HeaderOf(item).Count(static c => c == '_')));
         }
+    }
+
+    [Fact]
+    public void APrinterWithADashcamCanSaveTheLastMinutesWhileItBuffers()
+    {
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()), WithCamera(Definition("b", "Beta")));
+        Assert.DoesNotContain(viewModel.PrinterItems[0].Submenu!, static item => item.Command == TrayMenuCommand.SaveDashcam);
+
+        _recordings.SetDashcam("mk4", CameraDashcamActivity.Buffering, minutes: 5);
+        _dispatcher.RunAll();
+
+        TrayMenuEntryList submenu = viewModel.PrinterItems[0].Submenu!;
+        TrayMenuEntry save = Item(viewModel, TrayMenuCommand.SaveDashcam);
+        Assert.Equal(("_Save the last 5\u00a0min", true, null, "mk4", true), (save.Header, save.IsEnabled, save.ToolTip, save.PrinterId, save.HasAccessKey));
+        // Right below "Start recording".
+        Assert.Equal(TrayMenuCommand.StartRecording, submenu[submenu.ToList().IndexOf(save) - 1].Command);
+        Assert.DoesNotContain(viewModel.PrinterItems[1].Submenu!, static item => item.Command == TrayMenuCommand.SaveDashcam);
+    }
+
+    [Theory]
+    [InlineData(CameraDashcamActivity.Waiting, false)]
+    [InlineData(CameraDashcamActivity.Waiting, true)]
+    [InlineData(CameraDashcamActivity.Saving, false)]
+    public void WhileTheDashcamHoldsNothingTheItemIsDisabledWithTheReason(CameraDashcamActivity activity, bool wholePrintRecorded)
+    {
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()));
+
+        if (wholePrintRecorded)
+        {
+            _recordings.SetActivity("mk4", CameraRecordingActivity.Recording);
+        }
+
+        _recordings.SetDashcam("mk4", activity);
+        _dispatcher.RunAll();
+
+        TrayMenuEntry save = Item(viewModel, TrayMenuCommand.SaveDashcam);
+        Assert.False(save.IsEnabled);
+        Assert.Equal(
+            activity == CameraDashcamActivity.Saving ? Strings.DashcamSaving : wholePrintRecorded ? Strings.DashcamWholePrintRecorded : Strings.DashcamNotPrinting,
+            save.ToolTip);
+    }
+
+    [Fact]
+    public void AClickSavesTheLastMinutes()
+    {
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()));
+        using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
+        _recordings.SetDashcam("mk4", CameraDashcamActivity.Buffering);
+        _dispatcher.RunAll();
+
+        _target.Click(Item(viewModel, TrayMenuCommand.SaveDashcam));
+        viewModel.RunRecordingCommand(Item(viewModel, TrayMenuCommand.SaveDashcam) with { IsEnabled = false });
+
+        Assert.Equal(["mk4"], _recordings.DashcamSaves);
+        Assert.Empty(_recordings.Started);
+        Assert.Empty(_logger.Entries);
     }
 
     private static char? AccessKey(TrayMenuEntry item, CultureInfo culture) =>

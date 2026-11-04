@@ -111,6 +111,14 @@ public sealed record CameraSettings
     /// </summary>
     public bool RecordPrints { get; init; }
 
+    /// <summary>
+    /// "Keep the last minutes of a print" (T-148, user decision 2026-11-04, default off): with the camera enabled, the
+    /// <see cref="Recording.CameraRecordingService"/> holds the last minutes of the camera in memory during a print (unless
+    /// the whole print is recorded) and saves them when something happens. Kept while the camera is disabled or its address
+    /// is invalid. Persisted as <c>printers[*].camera.dashcam</c> (only when on).
+    /// </summary>
+    public bool Dashcam { get; init; }
+
     /// <summary>A disabled camera that keeps an invalid address for correction.</summary>
     /// <exception cref="ArgumentException">
     /// <paramref name="streamUrl"/> is empty (no address), valid (use the constructor) or contains credentials
@@ -277,9 +285,10 @@ public sealed record CameraSettings
         && Window == other.Window
         && Overlay == other.Overlay
         && MiniStrip == other.MiniStrip
-        && RecordPrints == other.RecordPrints;
+        && RecordPrints == other.RecordPrints
+        && Dashcam == other.Dashcam;
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, MiniStrip, RecordPrints);
+    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, MiniStrip, RecordPrints, Dashcam);
 
     // Replaces the synthesized member list used by ToString: the invalid text may contain credentials.
     private bool PrintMembers(StringBuilder builder)
@@ -292,7 +301,8 @@ public sealed record CameraSettings
             .Append(", Window = ").Append(Window)
             .Append(", Overlay = ").Append(Overlay)
             .Append(", MiniStrip = ").Append(MiniStrip)
-            .Append(", RecordPrints = ").Append(RecordPrints);
+            .Append(", RecordPrints = ").Append(RecordPrints)
+            .Append(", Dashcam = ").Append(Dashcam);
         return true;
     }
 }
