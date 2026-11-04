@@ -207,7 +207,7 @@ internal sealed partial class ServiceHost
     /// The UI runs (T-101): a click on the test notification brings the settings window to the front through
     /// <paramref name="open"/> (any thread; it posts to the UI thread itself); one that came earlier is handled now. Once.
     /// </summary>
-    public void AttachSettingsOpener(Action open) => Services.GetRequiredService<ToastActivationRouter>().AttachSettingsOpener(open);
+    public void AttachSettingsOpener(Action<SettingsPage> open) => Services.GetRequiredService<ToastActivationRouter>().AttachSettingsOpener(open);
 
     /// <summary>The update the app offers (T-058): the menu item, the notification and the settings window.</summary>
     public Updates.UpdateOffer UpdateOffer => Services.GetRequiredService<Updates.UpdateOffer>();

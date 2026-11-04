@@ -63,10 +63,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public const int StartupUpdatesTab = 3;
 
     /// <summary>
-    /// The main tab of the "Recording" section (T-146). The user decided on the General tab (2026-11-03), which has no room
-    /// left within 780 × 532 (T-094); until the open question of T-146 is answered it is on the Startup and updates tab.
+    /// Main tab of the camera recordings (T-146, user decision 2026-11-04: a tab of its own, as the General tab has no room
+    /// left within 780 × 532, T-094); the sections of the timelapse and the print failure detection follow on it later.
     /// </summary>
-    public const int RecordingTab = StartupUpdatesTab;
+    public const int RecordingTab = 4;
 
     /// <summary>Sub-tabs of the selected printer (<see cref="SelectedPrinterTabIndex"/>, T-033): connection fields.</summary>
     public const int ConnectionPrinterTab = 0;
@@ -80,7 +80,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>How many sub-tabs a printer has (the Overlay sub-tab of T-036 gave way to the Widgets tab, T-092).</summary>
     public const int PrinterTabCount = 3;
 
-    private const int TabCount = 4;
+    private const int TabCount = 5;
 
     private const int MaxIdAttempts = 100;
 
@@ -378,7 +378,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         private set => SetProperty(ref _statusIsError, value);
     }
 
-    /// <summary><see cref="PrintersTab"/>, <see cref="GeneralTab"/> or <see cref="StartupUpdatesTab"/>; switched by a failed save to the part with the error.</summary>
+    /// <summary>One of the main tabs (<see cref="PrintersTab"/> … <see cref="RecordingTab"/>); switched by a failed save to the part with the error.</summary>
     public int SelectedTabIndex
     {
         get => _selectedTabIndex;
@@ -964,14 +964,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     }
 
     /// <summary>
-    /// A click on the test notification (T-101): the General tab, where the test came from; edits and the selection of the
-    /// other tabs are kept. UI thread.
+    /// A click on a notification: the General tab for the test notification, where the test came from (T-101), the Recording
+    /// tab for a failed recording, where its folder and limit are (T-146); edits and the selection of the other tabs are
+    /// kept. UI thread.
     /// </summary>
-    public void ShowGeneralTab()
+    internal void ShowPage(SettingsPage page)
     {
         if (!_disposed)
         {
-            SelectedTabIndex = GeneralTab;
+            SelectedTabIndex = page == SettingsPage.Recording ? RecordingTab : GeneralTab;
         }
     }
 

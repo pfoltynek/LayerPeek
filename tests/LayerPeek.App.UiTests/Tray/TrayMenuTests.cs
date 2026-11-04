@@ -373,7 +373,8 @@ public sealed class TrayMenuTests(HeadlessSession session)
             TrayMenu.ClickLikeThePlatform((NativeMenuItem)submenu.Items[5]);
             Assert.Equal(["mk4"], recordings.Stopped);
             Assert.Equal(["mk4"], recordings.Played);
-            Assert.Equal([null], recordings.OpenedFolders);
+            Assert.Empty(recordings.OpenedFolders);
+            Assert.Equal(["mk4"], recordings.OpenedPrinterFolders);
             return Task.CompletedTask;
         });
 

@@ -660,6 +660,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Démarrage et mises à jour</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Enregistrement</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Démarrer à l'ouverture de session Windows</value>
   </data>

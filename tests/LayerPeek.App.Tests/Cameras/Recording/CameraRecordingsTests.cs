@@ -3,7 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using LayerPeek.App.Cameras.Recording;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Tests.Tray;
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Recording;
+using LayerPeek.Core.Printers;
 
 namespace LayerPeek.App.Tests.Cameras.Recording;
 
@@ -26,6 +28,15 @@ public sealed class CameraRecordingsTests : IDisposable
         NullLogger<CameraRecordingService>.Instance,
         new CameraRecordingServiceOptions { DefaultRoot = _root });
 
+    private static PrinterDefinition Printer() => new()
+    {
+        Id = "mk4",
+        Name = "Workshop MK4",
+        ConnectionType = ConnectionType.PrusaLink,
+        Address = "192.168.0.10",
+        Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.10/live")),
+    };
+
     private CameraRecordings Recordings(CameraRecordingService service) =>
         new(service, _launchers, _launchers, new CameraRecordingServiceOptions { DefaultRoot = _root, MinFreeBytes = 123 });
 
@@ -44,6 +55,27 @@ public sealed class CameraRecordingsTests : IDisposable
         Assert.Equal(_root, recordings.DefaultFolder);
         Assert.Equal(123, recordings.MinFreeBytes);
         Assert.False(recordings.IsAvailable);
+    }
+
+    [Fact]
+    public async Task OpenPrinterFolderOpensItsSubfolderOnceItExistsAndTheRootBefore()
+    {
+        await using CameraRecordingService service = Service();
+        service.Configure([Printer()], CameraRecordingSettings.Default);
+        CameraRecordings recordings = Recordings(service);
+        string printerFolder = service.GetPrinterFolder("mk4")!;
+
+        // Not recorded yet: the root (the folder launcher creates it), never an empty printer folder.
+        Assert.True(await recordings.OpenPrinterFolderAsync("mk4"));
+        Assert.False(Directory.Exists(printerFolder));
+        // An unknown printer (removed since the menu was built): the root as well.
+        Assert.True(await recordings.OpenPrinterFolderAsync("removed"));
+
+        Directory.CreateDirectory(printerFolder);
+        Assert.True(await recordings.OpenPrinterFolderAsync("MK4"));
+
+        Assert.Equal([_root, _root, printerFolder], _launchers.Folders);
+        Assert.Equal(_root, Path.GetDirectoryName(printerFolder));
     }
 
     [Fact]

@@ -128,19 +128,24 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] **T-146** (krit. „`dotnet build` a `dotnet test` bez chyb …; Native AOT publish bez nových varování“, část Windows):
       `dotnet test` na Windows bez chyb; `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
 - [ ] **T-146** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
-      a zkontrolovat nové `camera-recording.png`, `camera-mini-recording.png`, `camera-mini-recording-buttons.png`
-      a změněné `settings-camera.png`, `settings-camera-preview.png`, `settings-camera-preview-4x3-de.png`,
-      `settings-camera-notice.png`, `settings-startup-updates.png`, `settings-startup-updates-not-installed.png`
-      v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová).
+      a zkontrolovat nové `camera-recording.png`, `camera-mini-recording.png`, `camera-mini-recording-buttons.png`,
+      `settings-recording.png` (vlastní záložka „Nahrávání“, rozhodnutí 2026-11-04) a změněné **všechny** `settings-*.png`
+      (pátá hlavní záložka v záhlaví; navíc obsah `settings-camera*.png` s volbou „Automaticky nahrávat tisk“)
+      v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová). Bez přegenerování na Windows selžou snímkové testy
+      nastavení.
 - [ ] **T-146** (krit. „Ruční nahrávání jde spustit a zastavit … stav je vidět“, ruční část Windows): simulátor s kamerou;
       v podmenu tiskárny „Nahrávat“ → za pár sekund tooltip ikony „Nahrává se“ (ikona beze změny), v okně kamery „● REC“
       i bez ukazatele (normální okno, malý náhled, celá obrazovka), „Zastavit nahrávání“ v menu i tlačítkem v okně;
       „Přehrát poslední nahrávku“ otevře soubor ve Filmech a TV (přehraje se celý, posuvník funguje), i když název tisku
       i cesta obsahují čárku a žádnou mezeru (např. tiskárna `MK4` a tisk `a,b.bgcode`; `explorer.exe` dělí argument
       na čárkách – revize T-146, při chybě nový úkol); „Otevřít složku
-      s nahrávkami“ otevře Průzkumníka ve `%USERPROFILE%\Videos\LayerPeek`. V nastavení „Změnit…“ otevře systémový dialog
+      s nahrávkami“ v podmenu tiskárny otevře Průzkumníka v její podsložce `%USERPROFILE%\Videos\LayerPeek\<tiskárna>`, u tiskárny
+      bez nahrávek (podsložka ještě není) ve `%USERPROFILE%\Videos\LayerPeek` (rozhodnutí 2026-11-04). Nastavení má pátou
+      hlavní záložku „Nahrávání“ a všech pět záhlaví je na jednom řádku i ve francouzštině a polštině se systémovým písmem
+      (Segoe UI; headless testy měří s písmem Inter). „Změnit…“ otevře systémový dialog
       složky; složka na odpojeném USB disku nebo bez práva zápisu ukáže hlášku místo nápovědy; při nahrávání do složky,
-      jejíž disk se odpojí, přijde toast „Nahrávání kamery selhalo“ s důvodem a klik na něj otevře nastavení.
+      jejíž disk se odpojí, přijde toast „Nahrávání kamery selhalo“ s důvodem a klik na něj otevře nastavení rovnou na
+      záložce „Nahrávání“ (i když je okno nastavení už otevřené na jiné záložce; rozhodnutí 2026-11-04).
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

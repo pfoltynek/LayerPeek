@@ -30,6 +30,8 @@ internal sealed class FakeCameraRecordings : ICameraRecordings
 
     public List<string?> OpenedFolders { get; } = [];
 
+    public List<string> OpenedPrinterFolders { get; } = [];
+
     public List<string> Played { get; } = [];
 
     /// <summary>How many handlers listen to <see cref="Changed"/>.</summary>
@@ -82,6 +84,12 @@ internal sealed class FakeCameraRecordings : ICameraRecordings
     public Task<bool> OpenFolderAsync(string? folder = null)
     {
         OpenedFolders.Add(folder);
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> OpenPrinterFolderAsync(string printerId)
+    {
+        OpenedPrinterFolders.Add(printerId);
         return Task.FromResult(true);
     }
 

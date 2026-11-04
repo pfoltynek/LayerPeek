@@ -83,14 +83,14 @@ internal static class ToastContentBuilder
     /// <summary>
     /// The toast about a failed camera recording (T-146) in <paramref name="textCulture"/>: the printer name, "Camera recording
     /// failed" and the reason (<see cref="RecordingNotificationText"/>), with the launch argument
-    /// <see cref="ToastLaunchArgument.Settings"/> (a click opens the settings window).
+    /// <see cref="ToastLaunchArgument.RecordingSettings"/> (a click opens the settings window on the Recording tab).
     /// </summary>
     public static string BuildRecordingFailed(RecordingNotification notification, CultureInfo textCulture)
     {
         NotificationLines lines = RecordingLines(notification, textCulture);
         StringBuilder xml = new(512);
         xml.Append("<toast launch=\"");
-        AppendEscaped(xml, ToastLaunchArgument.Settings);
+        AppendEscaped(xml, ToastLaunchArgument.RecordingSettings);
         xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
         AppendText(xml, lines.Title);
         AppendText(xml, lines.Body);

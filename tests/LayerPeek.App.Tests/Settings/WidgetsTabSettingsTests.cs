@@ -878,7 +878,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
     {
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
 
-        Assert.Equal([0, 1, 2, 3], new[] { SettingsViewModel.PrintersTab, SettingsViewModel.WidgetsTab, SettingsViewModel.GeneralTab, SettingsViewModel.StartupUpdatesTab });
+        Assert.Equal([0, 1, 2, 3, 4], new[] { SettingsViewModel.PrintersTab, SettingsViewModel.WidgetsTab, SettingsViewModel.GeneralTab, SettingsViewModel.StartupUpdatesTab, SettingsViewModel.RecordingTab });
         Assert.True(vm.SelectAdjacentTab(forward: true));
         Assert.Equal(SettingsViewModel.WidgetsTab, vm.SelectedTabIndex);
         Assert.False(vm.SelectAdjacentPrinterTab(forward: true));

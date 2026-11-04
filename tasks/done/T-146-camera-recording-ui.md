@@ -1,7 +1,7 @@
 ---
 id: T-146
 title: Nahrávání kamery – UI (tray menu, okno kamery, nastavení) a E2E
-status: in-progress
+status: done
 owner: ui-designer + ui-dev
 priority: P2
 platform: all
@@ -35,9 +35,10 @@ Uživatelské rozhraní nahrávání z fáze 1 (nápad 1): ruční spuštění a
       běh E2E na Windows → přesunuto do T-125).
 - [x] Nastavení se uloží a po restartu aplikace platí; chybové stavy (nedostupná složka) mají srozumitelnou hlášku.
 - [x] Na platformě bez muxeru (macOS před T-147) jsou volby zakázané s vysvětlením, aplikace nespadne.
-- [ ] Všechny nové texty ve všech jazycích; okno nastavení bez posuvníku i s nejdelším překladem. Texty jsou ve všech
-      8 jazycích a okno je bez posuvníku ve všech jazycích a chybových stavech, **ale sekce „Nahrávání“ je zatím na záložce
-      „Spuštění a aktualizace“, ne na „Obecné“ podle rozhodnutí 3** – blokuje otázka 6.
+- [x] Všechny nové texty ve všech jazycích; okno nastavení bez posuvníku i s nejdelším překladem. Texty jsou ve všech
+      8 jazycích; sekce „Nahrávání“ je podle rozhodnutí 2026-11-04 na vlastní páté záložce „Nahrávání“, okno je bez
+      posuvníku a záhlaví pěti záložek na jednom řádku ve všech jazycích i chybových stavech (headless, písmo Inter;
+      se systémovým písmem na obrazovce → přesunuto do T-125 a T-127).
 - [x] E2E testy po sobě smažou nahrávky i po pádu (vlastní dočasná složka nahrávek: testovací režim nahrává do `Recordings`
       v datové složce běhu pod vyhrazeným kořenem E2E, který se maže na konci běhu a uklízí na začátku dalšího; běh →
       přesunuto do T-125).
@@ -75,8 +76,54 @@ Uživatelské rozhraní nahrávání z fáze 1 (nápad 1): ruční spuštění a
 9. „Otevřít složku s nahrávkami“ v podmenu tiskárny otevírá **kořen** všech nahrávek (ne podsložku tiskárny) – stejně jako
    tlačítko v nastavení. Chcete u tiskárny rovnou její podsložku?
 
+### Rozhodnutí uživatele 2026-11-04
+6. Sekce „Nahrávání“ se přesouvá na **novou, pátou hlavní záložku „Nahrávání“** (lokalizovaná ve všech jazycích).
+   Později na ni přibudou nastavení timelapse a detekce chyb tisku, proto je stavěná tak, aby šlo přidávat další sekce.
+   Ze záložky „Spuštění a aktualizace“ zmizí.
+7. Tlačítko REC zůstává, kde je (vedle špendlíku) – potvrzeno.
+8. Klik na notifikaci o chybě nahrávání otevře nastavení **rovnou na záložce „Nahrávání“** (pokud to okno nastavení umí
+   bez velkého zásahu; jinak stačí otevřít nastavení).
+9. „Otevřít složku s nahrávkami“ v podmenu tiskárny otevře **podsložku tiskárny**; když ještě neexistuje (nevytváří se),
+   otevře kořen; když neexistuje ani kořen, platí dosavadní chování (kořen se vytvoří). Cestu nepočítat znovu, převzít
+   ji z logiky `CameraRecordingFolders` / služby.
+
 ## Poznámky k implementaci
-Rozpracováno 2026-11-03 na macOS arm64 (ui-dev, zároveň v roli ui-designer). Úkol zůstává v `in-progress` kvůli otázce 6.
+Rozpracováno 2026-11-03 na macOS arm64 (ui-dev, zároveň v roli ui-designer), dokončeno 2026-11-04 na macOS arm64 podle
+rozhodnutí 2026-11-04 (otázky 6–9).
+
+**Dokončení podle rozhodnutí 2026-11-04:**
+- **Záložka „Nahrávání“** (otázka 6): `SettingsViewModel.RecordingTab = 4` (pátá, `TabCount = 5`; Ctrl+Tab / ⌘⇧] ji
+  obejdou), `TabItem` `SettingsTabRecording` s textem `SettingsTabRecording` ve všech 8 jazycích („Nahrávání“, „Recording“,
+  „Aufnahme“, „Grabación“, „Enregistrement“, „Registrazione“, „Nagrywanie“, „Nahrávanie“). Obsah je `ScrollViewer` +
+  `StackPanel Spacing="12"` jako u „Spuštění a aktualizace“, sekce „Nahrávání“ (nadpis s „Otevřít složku s nahrávkami“,
+  složka a limit) je jeho první položka; sekce timelapse a detekce chyb tisku se přidají jako další položky stejného
+  panelu. Záhlaví bez značky chyby jako „Obecné“ (jediné chybné pole je limit; neúspěšné uložení na záložku přepne a dá
+  fokus limitu). Nejdelší řada záhlaví (francouzština) má v headless testu ~712 z 748 DIP.
+- **Klik na notifikaci** (otázka 8, udělané – okno výběr záložky umí): nový pevný argument `settings=recording`
+  (`ToastLaunchArgument.RecordingSettings`, `IsSettings` platí pro oba pevné argumenty nastavení, `TryGetSettingsPage`)
+  na toastu Windows i v požadavku macOS. `ToastActivationRouter` předá otevírači nastavení `SettingsPage` (nový enum
+  `General` / `Recording`); klik před startem UI se drží jako dřív, při více klicích s poslední záložkou. `App` →
+  `SettingsWindowCommand.Show(…, page)` → `SettingsViewModel.ShowPage` (nahrazuje `ShowGeneralTab`) – nové i už otevřené
+  okno, rozpracované úpravy zůstanou. Druhý start aplikace s argumentem (T-068) ho přijme stejně (`IsWellFormed`).
+- **Složka tiskárny** (otázka 9): `CameraRecordingService.GetPrinterFolder(printerId)` (Core) vrátí složku, do které
+  tiskárna nahrává (stejný `Path.Combine(kořen, název z PrinterFolderNames)` jako start nahrávky – jeden pomocný
+  `PrinterFolder`), nebo `null` pro neznámou tiskárnu. `ICameraRecordings.OpenPrinterFolderAsync` otevře podsložku, jen
+  když existuje (dotaz na disk mimo UI vlákno), jinak `OpenFolderAsync()` = kořen, který `IFolderLauncher` vytvoří jako
+  dřív. Podsložka se nikdy nevytváří. Tlačítko v nastavení dál otevírá kořen z pole.
+- Testy: `SettingsWindowLayoutTests.RecordingTabFitsInEveryLanguage` (chyby složky i limitu / bez muxeru, bez posuvníku,
+  nic uříznutého, záhlaví na jednom řádku, neúspěšné uložení přepne na záložku), pohled „Recording“ v testech velikosti
+  okna, `AClickOnANotificationShowsItsTab`, nový snímek `settings-recording.png`; `ToastLaunchArgumentTests`,
+  `ToastActivationRouterTests` (záložka podle argumentu, držený klik), `RecordingNotificationTests` (nový argument),
+  `CameraRecordingsTests.OpenPrinterFolderOpensItsSubfolderOnceItExistsAndTheRootBefore`,
+  `CameraRecordingServiceTests.ThePrinterFolderIsTheOneItRecordsInto`, menu (`OpenPrinterFolderAsync` s id tiskárny),
+  klávesové zkratky záložek (Ctrl+Tab, ⌘⇧[ ]).
+- Snímky macOS přegenerované: všechny `settings-*.png` (pátá záložka v záhlaví; `settings-startup-updates*.png` už bez
+  sekce nahrávání) + nový `settings-recording.png`. Sada Windows → T-125.
+- `dotnet build` 0 upozornění, `dotnet test` celkem 8975, neúspěšné 0, úspěšné 8775, přeskočeno 200 (macOS arm64).
+  AOT publish po těchto změnách znovu nespuštěn (žádná reflexe, nový balíček ani interop; jen enum, konstanta a XAML se
+  compiled bindings).
+
+**Původní poznámky (2026-11-03):**
 
 **Návrh a chování (rozhodnutí 2026-11-03):**
 - **Tray menu** (`TrayMenuViewModel`): tiskárna s kamerou má v podmenu za oddělovačem „Nahrávat“ / „Zastavit nahrávání“
@@ -98,9 +145,10 @@ Rozpracováno 2026-11-03 na macOS arm64 (ui-dev, zároveň v roli ui-designer). 
 - **Notifikace** (`RecordingNotificationObserver`, `RecordingNotificationText`): `Failed` → `INotificationService
   .ShowRecordingFailed(RecordingNotification)` (nová výchozí metoda v Core, jako `ShowUpdateAvailable`); titulek = název
   tiskárny, řádek „Nahrávání kamery selhalo“ a důvod podle `CameraRecordingProblem` (limit a mez 5 GB v textu), ve všech
-  jazycích; Windows toast i macOS stejné texty, klik otevře nastavení (`ToastLaunchArgument.Settings`), bez tagu. Řídí se
+  jazycích; Windows toast i macOS stejné texty, klik otevře nastavení (od 2026-11-04 na záložce Nahrávání,
+  `ToastLaunchArgument.RecordingSettings`), bez tagu. Řídí se
   „Zobrazovat notifikace“ a zvukem jako chyba tiskárny. Anglická zpráva služby jen do logu.
-- **Nastavení** (`SettingsViewModel.Recording.cs`): sekce „Nahrávání“ (prozatím záložka Spuštění a aktualizace, otázka 6):
+- **Nastavení** (`SettingsViewModel.Recording.cs`): sekce „Nahrávání“ (od 2026-11-04 na vlastní záložce, viz výše):
   v záhlaví „Otevřít složku s nahrávkami“ (otevře složku z pole, i neuloženou), pod ním dva sloupce – složka (jen ke čtení,
   „Změnit…“ = systémový dialog `StorageProvider.OpenFolderPickerAsync`, AOT bezpečný; „Výchozí“ = Videa / Filmy +
   LayerPeek) a limit v celých GB (1–100 000). Zvolená složka se před převzetím ověří: místní cesta, `IsValidFolder`

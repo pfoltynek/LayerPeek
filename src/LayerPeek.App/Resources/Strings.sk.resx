@@ -660,6 +660,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Spustenie a aktualizácie</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Nahrávanie</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Spúšťať po prihlásení do Windows</value>
   </data>

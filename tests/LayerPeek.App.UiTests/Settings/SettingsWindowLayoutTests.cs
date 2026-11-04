@@ -51,6 +51,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         ("Widgets", SettingsViewModel.WidgetsTab, SettingsViewModel.ConnectionPrinterTab),
         ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
         ("Startup and updates", SettingsViewModel.StartupUpdatesTab, SettingsViewModel.ConnectionPrinterTab),
+        ("Recording", SettingsViewModel.RecordingTab, SettingsViewModel.ConnectionPrinterTab),
     ];
 
     // ---- Size ----
@@ -355,38 +356,6 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(CutTexts(mac.Window, $"{language} / macOS not in LayerPeek.app"));
             mac.Window.Close();
 
-            // T-146: the recording section on the same tab, with the longest error of the folder (in place of its hint) and of the
-            // limit, and a build without the recorder (the reason in the heading row).
-            foreach (bool available in (bool[])[true, false])
-            {
-                string recordingContext = $"{language} / macOS not in LayerPeek.app + recording {(available ? "errors" : "unavailable")}";
-                LayerPeek.App.Tests.Cameras.Recording.FakeRecordingFolderPicker picker = new() { Answer = new PickedFolder(LongFolder()) };
-                SettingsWindowHarness recording = await SettingsWindowHarness.OpenAsync(
-                    scope,
-                    SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
-                    autostartNeedsInstallation: true,
-                    macTerms: true,
-                    checkForUpdatesNow: static _ => Task.FromResult(new LayerPeek.Core.Updates.UpdateCheckResult(LayerPeek.Core.Updates.UpdateCheckOutcome.Failed, null)),
-                    showsMoveToApplications: true,
-                    recordings: new LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings { IsAvailable = available },
-                    recordingFolderPicker: picker);
-                recording.ViewModel.SelectedTabIndex = SettingsViewModel.RecordingTab;
-                await recording.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
-                if (available)
-                {
-                    await recording.ViewModel.ChooseRecordingFolderCommand.ExecuteAsync(null);
-                    recording.ViewModel.RecordingLimitGigabytes = 0;
-                }
-
-                recording.Window.Settle();
-                Assert.Equal(!available, recording.Find<TextBlock>("SettingsRecordingUnavailable").IsEffectivelyVisible);
-                Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingFolderError").IsEffectivelyVisible);
-                Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingLimitError").IsEffectivelyVisible);
-                problems.AddRange(ScrollingViewers(recording.Window, recordingContext));
-                problems.AddRange(CutTexts(recording.Window, recordingContext));
-                recording.Window.Close();
-            }
-
             // T-019 (user decisions 2026-10-29): switched off in System Settings. Opening the window shows the hint and the button
             // under the option; Save says so in a macOS status of its own; the button opens System Settings (here only counted).
             MemoryApprovalAutostart approval = new()
@@ -418,6 +387,51 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             Assert.Equal(1, approval.Opened);
             needsApproval.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-146 (user decision 2026-11-04): the Recording tab with the longest error of the folder (in place of its hint) and of
+    /// the limit, and a build without the recorder (the reason in place of the hint of the folder), in every language; Save
+    /// with an invalid limit shows this tab.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task RecordingTabFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            foreach (bool available in (bool[])[true, false])
+            {
+                string context = $"{language} / recording {(available ? "errors" : "unavailable")}";
+                LayerPeek.App.Tests.Cameras.Recording.FakeRecordingFolderPicker picker = new() { Answer = new PickedFolder(LongFolder()) };
+                SettingsWindowHarness recording = await SettingsWindowHarness.OpenAsync(
+                    scope,
+                    SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
+                    recordings: new LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings { IsAvailable = available },
+                    recordingFolderPicker: picker);
+                recording.Click("SettingsTabRecording");
+                if (available)
+                {
+                    await recording.ViewModel.ChooseRecordingFolderCommand.ExecuteAsync(null);
+                    recording.ViewModel.RecordingLimitGigabytes = 0;
+                    recording.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+                    await recording.ViewModel.SaveCommand.ExecuteAsync(null);
+                    Assert.Equal(SettingsViewModel.RecordingTab, recording.ViewModel.SelectedTabIndex);
+                }
+
+                recording.Window.Settle();
+                Assert.True(recording.Find<TabItem>("SettingsTabRecording").IsSelected);
+                Assert.Equal(!available, recording.Find<TextBlock>("SettingsRecordingUnavailable").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingFolderError").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingLimitError").IsEffectivelyVisible);
+                problems.AddRange(ScrollingViewers(recording.Window, context));
+                problems.AddRange(CutTexts(recording.Window, context));
+                problems.AddRange(HeadersNotOnOneRow(recording.Window, context));
+                recording.Window.Close();
+            }
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
@@ -622,7 +636,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
     /// <summary>T-101 Q4: a click on the test notification shows the General tab of a new window, and of an open one.</summary>
     [Fact]
-    public Task AClickOnTheTestNotificationShowsTheGeneralTab() =>
+    public Task AClickOnANotificationShowsItsTab() =>
         session.RunAsync(static async scope =>
         {
             FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
@@ -639,16 +653,22 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                     },
                     () => scope.Track(new SettingsWindow()));
 
-            SettingsWindowCommand.Show(slot, Create, addPrinter: false, generalTab: true);
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, SettingsPage.General);
             await created[0].LoadAsync();
             Assert.Equal(SettingsViewModel.GeneralTab, created[0].SelectedTabIndex);
 
             // Already open on another tab, with an edit: the same window, the edit kept, the General tab shown.
             created[0].SelectedTabIndex = SettingsViewModel.PrintersTab;
             created[0].SelectedPrinter!.Name = "Edited";
-            SettingsWindowCommand.Show(slot, Create, addPrinter: false, generalTab: true);
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, SettingsPage.General);
             Assert.Single(created);
             Assert.Equal(SettingsViewModel.GeneralTab, created[0].SelectedTabIndex);
+            Assert.Equal("Edited", created[0].SelectedPrinter!.Name);
+
+            // T-146: a failed recording shows the Recording tab, again in the same window with the edit kept.
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, SettingsPage.Recording);
+            Assert.Single(created);
+            Assert.Equal(SettingsViewModel.RecordingTab, created[0].SelectedTabIndex);
             Assert.Equal("Edited", created[0].SelectedPrinter!.Name);
             slot.Shutdown();
         });

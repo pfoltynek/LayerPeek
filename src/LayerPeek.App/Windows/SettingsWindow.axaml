@@ -1145,17 +1145,27 @@
                        Classes="hint"
                        IsVisible="{Binding ShowsMoveToApplications}"
                        Text="{Binding [SettingsUpdateMoveToApplications], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
 
+      <!--
+        T-146: camera recordings, a tab of its own (user decision 2026-11-04: the General tab has no room left within
+        780 × 532, T-094). One section per feature in the stack panel: the timelapse and the print failure detection
+        follow below the recording later. "Record prints automatically" stays with each printer (Camera sub-tab).
+      -->
+      <TabItem AutomationProperties.AutomationId="SettingsTabRecording" Header="{Binding [SettingsTabRecording], Source={x:Static loc:LocalizedStrings.Instance}}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+          <StackPanel Spacing="12">
             <!--
-              T-146 "Recording" (user decision 2026-11-03: the General tab, which has no room left within 780 × 532; here until
-              the open question of T-146 is answered, SettingsViewModel.RecordingTab). Like the notifications of the General
-              tab: the heading row holds "Open recordings folder" on its right. Two columns below: the folder (read-only,
-              "Change…" opens the system's folder dialog, "Default" the video folder again) and the size limit; the error of
-              each replaces its hint (T-033), and when this build cannot record the reason replaces the hint of the folder.
+              T-146 "Recording": like the notifications of the General tab, the heading row holds "Open recordings folder" on
+              its right. Two columns below: the folder (read-only, "Change…" opens the system's folder dialog, "Default" the
+              video folder again) and the size limit; the error of each replaces its hint (T-033), and when this build cannot
+              record the reason replaces the hint of the folder.
             -->
             <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto,Auto">
               <Grid Grid.ColumnSpan="3" ColumnDefinitions="Auto,*,Auto">
-                <!-- The stack panel already keeps 12 DIP above: the heading and the button need less of their own (fit, T-033). -->
+                <!-- The stack panel spaces the sections by 12 DIP: the heading and the button need less of their own (fit, T-033). -->
                 <TextBlock Classes="section" Margin="0,4,0,4" VerticalAlignment="Center" Text="{Binding [SettingsRecording], Source={x:Static loc:LocalizedStrings.Instance}}" />
                 <Button Grid.Column="2"
                         AutomationProperties.AutomationId="SettingsRecordingOpenFolder"

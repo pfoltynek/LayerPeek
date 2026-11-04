@@ -123,7 +123,7 @@ internal sealed partial class UserNotificationService : INotificationService, ID
 
     /// <summary>
     /// The notification about a failed camera recording (T-146), queued like a printer notification, with the launch argument
-    /// <see cref="ToastLaunchArgument.Settings"/> (a click opens the settings window).
+    /// <see cref="ToastLaunchArgument.RecordingSettings"/> (a click opens the settings window on the Recording tab).
     /// </summary>
     public void ShowRecordingFailed(RecordingNotification notification)
     {
@@ -281,7 +281,7 @@ internal sealed partial class UserNotificationService : INotificationService, ID
             NotificationLines lines = ToastContentBuilder.RecordingLines(notification, _textCulture());
             string body = lines.Detail is { } detail ? lines.Body + "\n" + detail : lines.Body;
             stop.ThrowIfCancellationRequested();
-            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, ToastLaunchArgument.Settings));
+            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, ToastLaunchArgument.RecordingSettings));
             LogRecordingShown(notification.Problem, notification.PrinterId);
         }
         catch (OperationCanceledException)

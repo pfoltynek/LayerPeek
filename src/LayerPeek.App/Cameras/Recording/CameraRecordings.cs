@@ -37,6 +37,12 @@ internal interface ICameraRecordings
     /// </summary>
     Task<bool> OpenFolderAsync(string? folder = null);
 
+    /// <summary>
+    /// "Open recordings folder" of a printer's submenu (user decision 2026-11-04): the printer's own subfolder when it exists,
+    /// otherwise the folder of the running settings like <see cref="OpenFolderAsync"/> (created when missing). Never throws.
+    /// </summary>
+    Task<bool> OpenPrinterFolderAsync(string printerId);
+
     /// <summary>Opens the newest completed recording of <paramref name="printerId"/> in the system's default app. Never throws.</summary>
     Task<bool> PlayLastAsync(string printerId);
 }
@@ -84,6 +90,19 @@ internal sealed class CameraRecordings : ICameraRecordings
     {
         string target = folder ?? _service.RecordingsFolder;
         return Path.IsPathFullyQualified(target) ? _folders.OpenAsync(target) : Task.FromResult(false);
+    }
+
+    public async Task<bool> OpenPrinterFolderAsync(string printerId)
+    {
+        // The service names the folder (no path rules of its own here); asking the disk can take a moment (a network share),
+        // so never on the UI thread.
+        if (_service.GetPrinterFolder(printerId) is { } folder && Path.IsPathFullyQualified(folder)
+            && await Task.Run(() => Directory.Exists(folder)).ConfigureAwait(false))
+        {
+            return await _folders.OpenAsync(folder).ConfigureAwait(false);
+        }
+
+        return await OpenFolderAsync().ConfigureAwait(false);
     }
 
     public Task<bool> PlayLastAsync(string printerId) =>

@@ -193,6 +193,7 @@ public sealed class AuxiliaryWindowSizeUiTests(HeadlessSession session)
                 ("Widgets", SettingsViewModel.WidgetsTab, SettingsViewModel.ConnectionPrinterTab),
                 ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
                 ("Startup and updates", SettingsViewModel.StartupUpdatesTab, SettingsViewModel.ConnectionPrinterTab),
+                ("Recording", SettingsViewModel.RecordingTab, SettingsViewModel.ConnectionPrinterTab),
             ];
             List<string> scrolled = [];
             foreach ((string name, int tab, int printerTab) in views)

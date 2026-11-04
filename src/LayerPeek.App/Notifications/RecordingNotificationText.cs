@@ -9,8 +9,8 @@ namespace LayerPeek.App.Notifications;
 /// <summary>
 /// The notification about a failed camera recording (T-146), the same on every OS: the printer name as the title, "Camera
 /// recording failed" and the reason by <see cref="CameraRecordingProblem"/>, all in one given language. A click opens the
-/// settings window like the test notification (<see cref="ToastLaunchArgument.Settings"/>: the folder and the limit are
-/// there); no tag, so two failures of different printers are two notifications.
+/// settings window on its Recording tab (<see cref="ToastLaunchArgument.RecordingSettings"/>, user decision 2026-11-04: the
+/// folder and the limit are there); no tag, so two failures of different printers are two notifications.
 /// </summary>
 internal static class RecordingNotificationText
 {

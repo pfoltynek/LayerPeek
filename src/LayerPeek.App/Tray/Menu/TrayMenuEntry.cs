@@ -50,7 +50,7 @@ public enum TrayMenuCommand
     /// <summary>"Play last recording" (T-146): the newest recording of <see cref="TrayMenuEntry.PrinterId"/> in the system's default app.</summary>
     PlayLastRecording,
 
-    /// <summary>"Open recordings folder" (T-146): the folder of all recordings in Explorer / Finder.</summary>
+    /// <summary>"Open recordings folder" (T-146): the printer's recordings folder in Explorer / Finder (the root while it has none).</summary>
     OpenRecordingsFolder,
     About,
 

@@ -714,6 +714,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Spuštění a aktualizace</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Nahrávání</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Spouštět po přihlášení do Windows</value>
   </data>

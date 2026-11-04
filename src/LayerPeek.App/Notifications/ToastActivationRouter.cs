@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.App.Settings;
 using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
 using LayerPeek.Core.Printers;
@@ -23,6 +24,8 @@ namespace LayerPeek.App.Notifications;
 /// T-101: a click on the test notification (<see cref="ToastLaunchArgument.Settings"/>) opens no web: it brings the settings
 /// window to the front on the General tab through the opener the UI attaches (<see cref="AttachSettingsOpener"/>). A click
 /// that comes before the UI runs (macOS waiting for a display, T-099) is held, once, and honoured when the opener is attached.
+/// A click on the notification about a failed recording (<see cref="ToastLaunchArgument.RecordingSettings"/>, T-146) does
+/// the same with the Recording tab.
 /// </para>
 /// <para>
 /// T-058: a click on the notification about a new version (<see cref="ToastLaunchArgument.Update"/>) starts the update action
@@ -47,8 +50,8 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     private long _recentTimestamp;
 
     // Guarded by _recentLock.
-    private Action? _settingsOpener;
-    private bool _settingsPending;
+    private Action<SettingsPage>? _settingsOpener;
+    private SettingsPage? _settingsPending;
     private Action? _updateOpener;
     private bool _updatePending;
 
@@ -73,9 +76,9 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     /// </returns>
     public async Task<bool> ActivateAsync(string? argument)
     {
-        if (ToastLaunchArgument.IsSettings(argument))
+        if (ToastLaunchArgument.TryGetSettingsPage(argument, out SettingsPage page))
         {
-            return OpenSettings(argument);
+            return OpenSettings(argument, page);
         }
 
         if (ToastLaunchArgument.IsUpdate(argument))
@@ -153,13 +156,14 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     }
 
     /// <summary>
-    /// The UI runs (T-101): <paramref name="open"/> brings the settings window to the front on the General tab (it posts to
-    /// the UI thread itself; called on any thread, never throws). A click that waited for it is handled now. Attach once.
+    /// The UI runs (T-101): <paramref name="open"/> brings the settings window to the front on the given tab (it posts to
+    /// the UI thread itself; called on any thread, never throws). A click that waited for it is handled now (the last one
+    /// when clicks on different notifications waited). Attach once.
     /// </summary>
-    public void AttachSettingsOpener(Action open)
+    public void AttachSettingsOpener(Action<SettingsPage> open)
     {
         ArgumentNullException.ThrowIfNull(open);
-        bool pending;
+        SettingsPage? pending;
         lock (_recentLock)
         {
             if (_settingsOpener is not null)
@@ -168,14 +172,14 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             }
 
             _settingsOpener = open;
-            pending = _settingsPending && !_stopped.Task.IsCompleted;
-            _settingsPending = false;
+            pending = _stopped.Task.IsCompleted ? null : _settingsPending;
+            _settingsPending = null;
         }
 
-        if (pending)
+        if (pending is { } page)
         {
             LogSettingsClickHonoured();
-            Invoke(open);
+            Invoke(open, page);
         }
     }
 
@@ -210,8 +214,8 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     /// <summary>The app quits: waiting clicks end without opening anything, later ones open nothing. Safe to repeat.</summary>
     public void Dispose() => _stopped.TrySetResult();
 
-    /// <summary>A click on the test notification: the settings window, now or once the UI attached its opener.</summary>
-    private bool OpenSettings(string argument)
+    /// <summary>A click on the test or recording notification: the settings window, now or once the UI attached its opener.</summary>
+    private bool OpenSettings(string argument, SettingsPage page)
     {
         if (IsRepeated(argument))
         {
@@ -219,7 +223,7 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             return false;
         }
 
-        Action? open;
+        Action<SettingsPage>? open;
         lock (_recentLock)
         {
             if (_stopped.Task.IsCompleted)
@@ -231,14 +235,14 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             open = _settingsOpener;
             if (open is null)
             {
-                // Coalesced like a waiting "activate": one window opens however often it was clicked.
-                _settingsPending = true;
+                // Coalesced like a waiting "activate": one window opens however often it was clicked, on the last tab asked for.
+                _settingsPending = page;
                 LogSettingsClickHeld();
                 return true;
             }
         }
 
-        Invoke(open);
+        Invoke(open, page);
         return true;
     }
 
@@ -270,6 +274,18 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
 
         Invoke(open);
         return true;
+    }
+
+    private void Invoke(Action<SettingsPage> open, SettingsPage page)
+    {
+        try
+        {
+            open(page);
+        }
+        catch (Exception ex)
+        {
+            LogSettingsFailed(ex);
+        }
     }
 
     private void Invoke(Action open)

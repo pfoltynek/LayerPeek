@@ -67,9 +67,11 @@ a kritérium.
       „Přehrát poslední nahrávku“ (zakázané, dokud nahrávka není) a „Otevřít složku s nahrávkami“; „Nahrávat“ → tooltip
       ikony „Nahrává se“, v okně kamery „● REC“ i bez ukazatele ve všech třech režimech (pod ukazatelem čtverec Stop),
       „Zastavit nahrávání“ v menu i tlačítkem; „Přehrát poslední nahrávku“ otevře soubor v QuickTime Playeru, „Otevřít
-      složku s nahrávkami“ Finder v `~/Movies/LayerPeek`. V nastavení „Změnit…“ otevře systémový dialog složky, složka bez
-      práva zápisu ukáže hlášku; chyba nahrávání (např. složka na odpojeném disku) ukáže notifikaci „Nahrávání kamery
-      selhalo“ a klik na ni otevře nastavení. Zapsat, jak vypadá zakázaná položka s tipem v NSMenu (tip se ukáže?).
+      složku s nahrávkami“ Finder v podsložce tiskárny `~/Movies/LayerPeek/<tiskárna>`, bez nahrávek v `~/Movies/LayerPeek`
+      (rozhodnutí 2026-11-04). Nastavení má pátou záložku „Nahrávání“, všech pět záhlaví na jednom řádku i ve francouzštině
+      se systémovým písmem. „Změnit…“ otevře systémový dialog složky, složka bez práva zápisu ukáže hlášku; chyba nahrávání
+      (např. složka na odpojeném disku) ukáže notifikaci „Nahrávání kamery selhalo“ a klik na ni otevře nastavení na záložce
+      „Nahrávání“. Zapsat, jak vypadá zakázaná položka s tipem v NSMenu (tip se ukáže?).
 
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`

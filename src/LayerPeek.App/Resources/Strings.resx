@@ -737,6 +737,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Startup and updates</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Recording</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Start automatically when I sign in to Windows</value>
   </data>

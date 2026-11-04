@@ -660,6 +660,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Autostart und Updates</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Aufnahme</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Nach der Anmeldung bei Windows starten</value>
   </data>

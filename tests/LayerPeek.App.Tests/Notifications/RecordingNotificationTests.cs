@@ -151,7 +151,7 @@ public sealed class RecordingNotificationTests : IDisposable
 
         XDocument toast = XDocument.Parse(ToastContentBuilder.BuildRecordingFailed(notification, CultureInfo.GetCultureInfo("cs-CZ")));
 
-        Assert.Equal(ToastLaunchArgument.Settings, toast.Root!.Attribute("launch")?.Value);
+        Assert.Equal(ToastLaunchArgument.RecordingSettings, toast.Root!.Attribute("launch")?.Value);
         Assert.Equal("foreground", toast.Root.Attribute("activationType")?.Value);
         Assert.Empty(toast.Descendants("action"));
         Assert.Equal(
@@ -188,7 +188,7 @@ public sealed class RecordingNotificationTests : IDisposable
         Assert.Equal("core", request.Title);
         Assert.Equal("Camera recording failed\nWriting to the drive could not keep up with the camera.", request.Body);
         Assert.False(request.PlaySound);
-        Assert.Equal(ToastLaunchArgument.Settings, request.LaunchArgument);
+        Assert.Equal(ToastLaunchArgument.RecordingSettings, request.LaunchArgument);
     }
 
     /// <summary>A recorder of a build without the MP4 muxer (T-144).</summary>

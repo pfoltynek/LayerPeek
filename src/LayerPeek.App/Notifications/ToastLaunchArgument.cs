@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
+using LayerPeek.App.Settings;
+
 namespace LayerPeek.App.Notifications;
 
 /// <summary>
@@ -7,7 +9,8 @@ namespace LayerPeek.App.Notifications;
 /// so it contains no characters that need XML escaping); the address is looked up at click time, so a click on an old
 /// toast opens the current address and a removed printer opens nothing. The test notification of the settings window
 /// (T-101) carries the fixed <see cref="Settings"/> instead: its click brings the settings window to the front on the
-/// General tab; the notification about a new version (T-058) carries the fixed <see cref="Update"/>. Nothing else is ever
+/// General tab; the notification about a failed camera recording (T-146) the fixed <see cref="RecordingSettings"/> (the
+/// Recording tab); the notification about a new version (T-058) the fixed <see cref="Update"/>. Nothing else is ever
 /// accepted (<see cref="IsWellFormed"/>).
 /// </summary>
 internal static class ToastLaunchArgument
@@ -25,6 +28,12 @@ internal static class ToastLaunchArgument
     public const string Settings = "settings=general";
 
     /// <summary>
+    /// The argument of the notification about a failed camera recording (T-146): open the settings window on the Recording
+    /// tab, where its folder and limit are. Exactly this text; no printer id can produce it.
+    /// </summary>
+    public const string RecordingSettings = "settings=recording";
+
+    /// <summary>
     /// The argument of the notification about a new version (T-058): start the update action (the release page, or the update
     /// of a Velopack installation). Exactly this text; no printer id can produce it.
     /// </summary>
@@ -35,8 +44,24 @@ internal static class ToastLaunchArgument
     /// <summary>Whether <paramref name="argument"/> is exactly <see cref="Update"/> (the update notification, T-058).</summary>
     public static bool IsUpdate([NotNullWhen(true)] string? argument) => string.Equals(argument, Update, StringComparison.Ordinal);
 
-    /// <summary>Whether <paramref name="argument"/> is exactly <see cref="Settings"/> (the test notification, T-101).</summary>
-    public static bool IsSettings([NotNullWhen(true)] string? argument) => string.Equals(argument, Settings, StringComparison.Ordinal);
+    /// <summary>
+    /// Whether <paramref name="argument"/> is exactly <see cref="Settings"/> (the test notification, T-101) or
+    /// <see cref="RecordingSettings"/> (a failed recording, T-146): a click that opens the settings window.
+    /// </summary>
+    public static bool IsSettings([NotNullWhen(true)] string? argument) => TryGetSettingsPage(argument, out _);
+
+    /// <summary>The tab a settings argument (<see cref="IsSettings"/>) opens; <see langword="false"/> for any other argument.</summary>
+    public static bool TryGetSettingsPage([NotNullWhen(true)] string? argument, out SettingsPage page)
+    {
+        if (string.Equals(argument, Settings, StringComparison.Ordinal))
+        {
+            page = SettingsPage.General;
+            return true;
+        }
+
+        page = SettingsPage.Recording;
+        return string.Equals(argument, RecordingSettings, StringComparison.Ordinal);
+    }
 
     /// <exception cref="ArgumentException">The id is empty or too long (see <see cref="TryForPrinter"/>).</exception>
     public static string ForPrinter(string printerId) =>
@@ -68,7 +93,7 @@ internal static class ToastLaunchArgument
     /// <summary>
     /// Whether <paramref name="argument"/> has exactly the form <see cref="ForPrinter"/> creates: the prefix, then only
     /// unreserved characters and percent escapes (ASCII, nothing to quote or escape), at most <see cref="MaxLength"/>,
-    /// naming a printer; or is exactly <see cref="Settings"/> (T-101). Arguments that came from outside the app (another
+    /// naming a printer; or is exactly one of the fixed arguments (<see cref="IsSettings"/>, <see cref="Update"/>). Arguments that came from outside the app (another
     /// start, T-068) must pass this check.
     /// </summary>
     public static bool IsWellFormed([NotNullWhen(true)] string? argument)

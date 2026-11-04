@@ -150,7 +150,8 @@ public sealed class TrayMenuRecordingTests : IDisposable
         Assert.Equal(["mk4", "mk4"], _recordings.Started);
         Assert.Equal(["mk4"], _recordings.Stopped);
         Assert.Equal(["mk4"], _recordings.Played);
-        Assert.Equal([null], _recordings.OpenedFolders);
+        Assert.Empty(_recordings.OpenedFolders);
+        Assert.Equal(["mk4"], _recordings.OpenedPrinterFolders);
         Assert.Empty(_logger.Entries);
     }
 

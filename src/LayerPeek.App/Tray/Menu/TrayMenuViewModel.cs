@@ -305,8 +305,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             case TrayMenuCommand.PlayLastRecording when entry.PrinterId is { } id:
                 _ = recordings.PlayLastAsync(id);
                 break;
-            case TrayMenuCommand.OpenRecordingsFolder:
-                _ = recordings.OpenFolderAsync();
+            case TrayMenuCommand.OpenRecordingsFolder when entry.PrinterId is { } id:
+                _ = recordings.OpenPrinterFolderAsync(id);
                 break;
         }
     }
