@@ -254,6 +254,24 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       Filmech a TV. Štítek „Experimentální“ v nastavení (záložka Nahrávání, podzáložka Kamera) se systémovým písmem Segoe UI
       nic neuřízne a nic se neposouvá. Chyba timelapse (např. složka na odpojeném USB disku) ukáže toast „Timelapse selhal“.
 
+### 2l. Timelapse – export do JPEG (z T-165, implementováno na Macu 2026-11-04)
+- [ ] **T-165** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb,
+      hlavně `FFmpegTimelapseJpegExportTests` (demuxer `mov` buildu BtbN čte timelapse, oříznutý soubor dá 4 z 8 snímků),
+      `CameraTimelapseJpegExporterTests.FileNamesWithSpecialCharactersReachTheDecoderUnchanged` (cesta s `#`, `%` a
+      diakritikou přes `Uri` na Windows), `JpegExportFolderTests`, `CameraRecordingsExportTests`,
+      `TimelapseExportNotificationTests` (toast bez `launch`), UiTests `TimelapseJpegExportUiTests` a
+      `TrayMenuTests.TheJpegExportItemStartsTheExportAndShowsItsProgressInPlace`; E2E upravené `TrayMenuDetailTests`
+      (klávesy O, C, R, T, P, L, E, D), `TrayMenuTests` a `CameraTaskbarAndModeSwitchTests` (nová položka „Export timelapse to
+      JPEG… (experimental)“ za „Play last timelapse“); `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových
+      varování AOT / trim.
+- [ ] **T-165** (ruční část Windows): simulátor s kamerou, timelapse z T-161 hotový; v podmenu tiskárny „Exportovat timelapse
+      do JPEG… (experimentální)“ → dialog Otevřít se ukáže v popředí (vlastník je skryté okno, ověřit, že nezůstane za jiným
+      oknem ani v hlavním panelu nevisí prázdné okno), otevře se v `%USERPROFILE%\Videos\LayerPeek\<tiskárna>` a filtr
+      „Timelapse (MP4)“ ukazuje jen `*_timelapse*.mp4`. Výběr → položka u všech tiskáren „Zrušit export do JPEG (x %)“ s
+      rostoucím procentem, potom složka `…_timelapse_jpg` vedle souboru s `0001.jpg`… (otevřít ve Fotkách), toast
+      „Timelapse exportován do JPEG“; zrušení uprostřed nezanechá žádnou složku (ani skrytou `.….partial`); zavřený dialog
+      bez výběru nic nespustí; klik na toast nic neotevře a nespadne.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

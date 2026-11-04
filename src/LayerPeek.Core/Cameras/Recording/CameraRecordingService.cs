@@ -38,7 +38,7 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// any thread (subscribers marshal themselves; a failing subscriber is logged). Never throws for runtime conditions.
 /// </para>
 /// </summary>
-public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IAsyncDisposable, IDisposable
+public sealed partial class CameraRecordingService : ICameraRecordingsFolder, ICameraRecordingFileGuard, IAsyncDisposable, IDisposable
 {
     private readonly IPrinterMonitor _monitor;
     private readonly ICameraRecorder _recorder;
@@ -63,6 +63,9 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
     private long _storedBytes;
     private IReadOnlyDictionary<string, string> _newestByFolder = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyDictionary<string, string> _newestTimelapseByFolder = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    // T-165: files and folders held away from the rotation (ICameraRecordingFileGuard), one entry per hold.
+    private readonly List<string[]> _held = [];
 
     /// <param name="timelapseRecorder">Writes the timelapses (T-158); <see langword="null"/>: this service takes none.</param>
     public CameraRecordingService(
@@ -1074,6 +1077,35 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         }
     }
 
+    /// <inheritdoc/>
+    public IDisposable Hold(IReadOnlyList<string> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        string[] held = [.. paths];
+        lock (_gate)
+        {
+            _held.Add(held);
+        }
+
+        return new FileHold(this, held);
+    }
+
+    private void Release(string[] held)
+    {
+        lock (_gate)
+        {
+            if (!_held.Remove(held))
+            {
+                return;
+            }
+
+            if (_configured && !_stopping)
+            {
+                RequestRotation();
+            }
+        }
+    }
+
     /// <summary>Runs the rotation on the thread pool, one at a time (a request meanwhile runs it once more); under <see cref="_gate"/>.</summary>
     private void RequestRotation()
     {
@@ -1103,6 +1135,11 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
                 foreach (Entry entry in _entries.Values)
                 {
                     CollectActive(entry, root, activeFiles, ref activeBytes);
+                }
+
+                foreach (string[] held in _held)
+                {
+                    activeFiles.UnionWith(held);
                 }
             }
 
@@ -1233,6 +1270,20 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IA
         }
 
         return task;
+    }
+
+    /// <summary>A hold of <see cref="Hold"/>; released once.</summary>
+    private sealed class FileHold(CameraRecordingService owner, string[] held) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                owner.Release(held);
+            }
+        }
     }
 
     private static bool IsSameMachine(PrinterDefinition before, PrinterDefinition after) =>

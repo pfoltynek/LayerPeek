@@ -115,6 +115,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         if (_recordings is not null)
         {
             _recordings.Changed += OnRecordingChanged;
+            _recordings.TimelapseExportChanged += OnTimelapseExportChanged;
         }
     }
 
@@ -321,6 +322,12 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             case TrayMenuCommand.PlayLastTimelapse when entry.PrinterId is { } id:
                 _ = recordings.PlayLastTimelapseAsync(id);
                 break;
+            case TrayMenuCommand.ExportTimelapseJpeg when entry.PrinterId is { } id:
+                _ = recordings.ExportTimelapseToJpegAsync(id);
+                break;
+            case TrayMenuCommand.CancelTimelapseJpegExport:
+                recordings.CancelTimelapseExport();
+                break;
         }
     }
 
@@ -352,6 +359,42 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             slot.Dirty = true;
             _dirtySlots.Add(index);
             ScheduleApplyLocked();
+        }
+    }
+
+    /// <summary>
+    /// Any thread (T-165): the JPEG export started, made progress or ended. Its item is in every printer's submenu (one export
+    /// at a time), so every printer is formatted again in the UI update of the next burst; nothing while the menu shows a
+    /// status message.
+    /// </summary>
+    private void OnTimelapseExportChanged(object? sender, EventArgs e)
+    {
+        lock (_gate)
+        {
+            if (_disposed || _slots is null)
+            {
+                return;
+            }
+
+            bool scheduled = false;
+            for (int index = 0; index < _slots.Length; index++)
+            {
+                Slot slot = _slots[index];
+                slot.RecordingChanged = true;
+                if (_monitoringFailed || slot.Dirty)
+                {
+                    continue;
+                }
+
+                slot.Dirty = true;
+                _dirtySlots.Add(index);
+                scheduled = true;
+            }
+
+            if (scheduled)
+            {
+                ScheduleApplyLocked();
+            }
         }
     }
 
@@ -494,6 +537,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         if (_recordings is not null)
         {
             _recordings.Changed -= OnRecordingChanged;
+            _recordings.TimelapseExportChanged -= OnTimelapseExportChanged;
         }
 
         lock (_gate)
@@ -604,6 +648,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// of a printer with a dashcam (T-148, disabled with the reason while it does not buffer), "Play last recording"
     /// (disabled until the printer has a recording) and "Open recordings folder". T-161: "Start timelapse" / "Stop timelapse"
     /// (experimental) after the recording controls, "Play last timelapse" after "Play last recording"; the folder is shared.
+    /// T-165: "Export timelapse to JPEG… (experimental)" (or "Cancel JPEG export (42 %)") after "Play last timelapse".
     /// </summary>
     private static void AddRecordingEntries(List<TrayMenuEntry> items, ICameraRecordings recordings, string printerId)
     {
@@ -651,6 +696,17 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             Strings.MenuPlayLastTimelapse,
             hasLastTimelapse,
             hasLastTimelapse ? null : Strings.MenuNoTimelapseYet,
+            PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        // T-165: the JPEG export of a timelapse file (experimental, the label is in the text), the same item for every printer.
+        TimelapseExportControlState export = new(recordings.IsTimelapseExportAvailable, recordings.TimelapseExport);
+        items.Add(new TrayMenuEntry(
+            export.IsRunning ? TrayMenuCommand.CancelTimelapseJpegExport : TrayMenuCommand.ExportTimelapseJpeg,
+            export.Text,
+            export.IsEnabled,
+            export.ToolTip,
             PrinterId: printerId)
         {
             HasAccessKey = true,

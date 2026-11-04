@@ -1813,4 +1813,46 @@
   <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
     <value>Nimmt vom Beginn eines Drucks bis eine Minute nach seinem Ende einen Zeitraffer auf, auch ohne geöffnetes Kamerafenster. Die Zeit zwischen Bildern steht auf der Registerkarte Aufnahme.</value>
   </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>Zeitraffer als JPEG _exportieren… (experimentell)</value>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>JPEG-_Export abbrechen ({0} %)</value>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Exportiert {0}</value>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>Der JPEG-Export ist in dieser Version nicht verfügbar.</value>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Zeitraffer für den JPEG-Export wählen (experimentell)</value>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Zeitraffer (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Zeitraffer als JPEG exportiert</value>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>{0} Bilder in einem Ordner neben dem Zeitraffer.</value>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Export des Zeitraffers als JPEG fehlgeschlagen</value>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>Die Datei ist kein Zeitraffer von LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>Der Zeitraffer kann nicht gelesen werden (Datei fehlt oder ist beschädigt).</value>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>In dieser Version fehlt der Videodecoder.</value>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>Der Ordner neben dem Zeitraffer ist nicht beschreibbar.</value>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>Ein unerwarteter Fehler ist aufgetreten, siehe Protokoll.</value>
+  </data>
 </root>

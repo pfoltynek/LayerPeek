@@ -1,6 +1,7 @@
 using LayerPeek.App.Cameras.Recording;
 using LayerPeek.App.Settings;
 using LayerPeek.Core.Cameras.Recording;
+using LayerPeek.Core.Cameras.Timelapse;
 
 namespace LayerPeek.App.Tests.Cameras.Recording;
 
@@ -172,6 +173,33 @@ internal sealed class FakeCameraRecordings : ICameraRecordings
         Played.Add(printerId);
         return Task.FromResult(true);
     }
+
+    public event EventHandler? TimelapseExportChanged;
+
+    /// <summary>This build can export timelapses as JPEG (T-165).</summary>
+    public bool IsTimelapseExportAvailable { get; set; } = true;
+
+    public CameraTimelapseExportStatus TimelapseExport { get; private set; } = CameraTimelapseExportStatus.Idle;
+
+    /// <summary>The printers whose menu asked for the JPEG export (T-165).</summary>
+    public List<string> TimelapseExportsRequested { get; } = [];
+
+    public int TimelapseExportCancels { get; private set; }
+
+    /// <summary>The JPEG export (T-165) runs with <paramref name="status"/>; <see cref="TimelapseExportChanged"/> is raised on the calling thread.</summary>
+    public void SetTimelapseExport(CameraTimelapseExportStatus status)
+    {
+        TimelapseExport = status;
+        TimelapseExportChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public Task ExportTimelapseToJpegAsync(string printerId)
+    {
+        TimelapseExportsRequested.Add(printerId);
+        return Task.CompletedTask;
+    }
+
+    public void CancelTimelapseExport() => TimelapseExportCancels++;
 }
 
 /// <summary>The folder dialog with a scripted answer (T-146).</summary>
@@ -186,5 +214,28 @@ internal sealed class FakeRecordingFolderPicker : IRecordingFolderPicker
     {
         StartDirectories.Add(startDirectory);
         return Task.FromResult(Answer);
+    }
+}
+
+/// <summary>The open dialog for a recording file (T-165) with a scripted answer; can hold the answer back.</summary>
+internal sealed class FakeRecordingFilePicker : IRecordingFilePicker
+{
+    /// <summary>What the next dialog returns; <see langword="null"/>: the user cancels.</summary>
+    public string? Answer { get; set; }
+
+    /// <summary>Awaited before the answer (a dialog that stays open); <see langword="null"/>: answers at once.</summary>
+    public Task? OpenUntil { get; set; }
+
+    public List<RecordingFilePickRequest> Requests { get; } = [];
+
+    public async Task<string?> PickAsync(RecordingFilePickRequest request)
+    {
+        Requests.Add(request);
+        if (OpenUntil is { } open)
+        {
+            await open.ConfigureAwait(true);
+        }
+
+        return Answer;
     }
 }

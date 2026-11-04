@@ -1982,4 +1982,60 @@
     <value>Takes a timelapse from the start of a print until a minute after its end, also without an open camera window. The time between frames is on the Recording tab.</value>
     <comment>T-161: tooltip and help text of SettingsTimelapsePrints.</comment>
   </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>_Export timelapse to JPEG… (experimental)</value>
+    <comment>T-165: item of a printer submenu: opens the open dialog for a timelapse file and exports its frames as JPEG files next to it. Experimental (user decision 2026-11-04): keep the label. "_" marks the access key: unique within the submenu and the same as in MenuCancelTimelapseJpegExport. The ellipsis says that a dialog follows.</comment>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>Cancel JPEG _export ({0}%)</value>
+    <comment>T-165: the same item while an export runs: cancels it. {0} = percent done (0–100). Same access key as MenuExportTimelapseJpeg.</comment>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Exporting {0}</value>
+    <comment>T-165: tooltip of the cancel item while an export runs. {0} = file name of the timelapse.</comment>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>JPEG export is not available in this build.</value>
+    <comment>T-165: tooltip of the disabled export item when this build cannot decode or encode.</comment>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Choose a timelapse to export to JPEG (experimental)</value>
+    <comment>T-165: title (and macOS message) of the open dialog for the timelapse file. Experimental: keep the label.</comment>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Timelapse (MP4)</value>
+    <comment>T-165: name of the file type filter of the open dialog (Windows).</comment>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Timelapse exported to JPEG</value>
+    <comment>T-165: second line of the notification of a finished JPEG export (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>{0} frames in a folder next to the timelapse.</value>
+    <comment>T-165: third line of the notification of a finished JPEG export. {0} = number of frames (a number, no plural forms needed).</comment>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Timelapse export to JPEG failed</value>
+    <comment>T-165: second line of the notification of a failed JPEG export (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>The file is not a LayerPeek timelapse.</value>
+    <comment>T-165: reason: the chosen file is no timelapse of LayerPeek (its name does not end with _timelapse).</comment>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>The timelapse cannot be read (missing or damaged file).</value>
+    <comment>T-165: reason: the file is missing, damaged or no video the app can read.</comment>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>The video decoder is missing in this build.</value>
+    <comment>T-165: reason: the video decoder is missing in this build.</comment>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>The folder next to the timelapse cannot be written.</value>
+    <comment>T-165: reason: the folder next to the timelapse cannot be written.</comment>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>An unexpected error occurred, see the log.</value>
+    <comment>T-165: reason of any other failure (details in the log).</comment>
+  </data>
 </root>

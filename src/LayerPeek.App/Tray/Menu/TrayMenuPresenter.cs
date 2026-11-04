@@ -162,7 +162,8 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                     _commands.BringCameraToFront(frontId);
                     break;
                 case TrayMenuCommand.StartRecording or TrayMenuCommand.StopRecording or TrayMenuCommand.PlayLastRecording or TrayMenuCommand.OpenRecordingsFolder
-                    or TrayMenuCommand.SaveDashcam or TrayMenuCommand.StartTimelapse or TrayMenuCommand.StopTimelapse or TrayMenuCommand.PlayLastTimelapse:
+                    or TrayMenuCommand.SaveDashcam or TrayMenuCommand.StartTimelapse or TrayMenuCommand.StopTimelapse or TrayMenuCommand.PlayLastTimelapse
+                    or TrayMenuCommand.ExportTimelapseJpeg or TrayMenuCommand.CancelTimelapseJpegExport:
                     _source.RunRecordingCommand(entry);
                     break;
                 case TrayMenuCommand.Settings:

@@ -5,6 +5,7 @@ using LayerPeek.App.Tests.Cameras.Recording;
 using LayerPeek.App.Tray.Menu;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Recording;
+using LayerPeek.Core.Cameras.Timelapse;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -63,6 +64,7 @@ public sealed class TrayMenuRecordingTests : IDisposable
             timelapse => Assert.Equal((TrayMenuCommand.StartTimelapse, "Start _timelapse (experimental)", true, null, "mk4"), (timelapse.Command, timelapse.Header, timelapse.IsEnabled, timelapse.ToolTip, timelapse.PrinterId)),
             play => Assert.Equal((TrayMenuCommand.PlayLastRecording, "_Play last recording", false, Strings.MenuNoRecordingYet), (play.Command, play.Header, play.IsEnabled, play.ToolTip)),
             playTimelapse => Assert.Equal((TrayMenuCommand.PlayLastTimelapse, "Play _last timelapse", false, Strings.MenuNoTimelapseYet), (playTimelapse.Command, playTimelapse.Header, playTimelapse.IsEnabled, playTimelapse.ToolTip)),
+            export => Assert.Equal((TrayMenuCommand.ExportTimelapseJpeg, "_Export timelapse to JPEG… (experimental)", true, null, "mk4"), (export.Command, export.Header, export.IsEnabled, export.ToolTip, export.PrinterId)),
             folder => Assert.Equal((TrayMenuCommand.OpenRecordingsFolder, "Open recordings fol_der", true), (folder.Command, folder.Header, folder.IsEnabled)));
         Assert.All(submenu.Where(static item => !item.IsSeparator), static item => Assert.True(item.HasAccessKey));
 
@@ -204,12 +206,16 @@ public sealed class TrayMenuRecordingTests : IDisposable
         // T-161: and a running timelapse ("Stop timelapse", same key as "Start timelapse").
         _recordings.SetTimelapse("mk4", CameraRecordingActivity.Recording);
         _recordings.SetTimelapse("c", CameraRecordingActivity.Recording);
+        char?[] exportKeys = [.. Enumerable.Range(0, 2).Select(i => AccessKey(Item(viewModel, TrayMenuCommand.ExportTimelapseJpeg, i), info))];
+        // T-165: and a running JPEG export ("Cancel JPEG export", same key as "Export timelapse to JPEG…").
+        _recordings.SetTimelapseExport(new CameraTimelapseExportStatus(true, "mk4", "/rec/mk4/2026-11-04_10-00-00_timelapse.mp4", 5, 10));
         _dispatcher.RunAll();
 
         for (int i = 0; i < 2; i++)
         {
             TrayMenuEntryList submenu = viewModel.PrinterItems[i].Submenu!;
-            Assert.Equal(10, submenu.Count);
+            Assert.Equal(11, submenu.Count);
+            Assert.Equal(exportKeys[i], AccessKey(Item(viewModel, TrayMenuCommand.CancelTimelapseJpegExport, i), info));
             char?[] keys = [.. submenu.Where(static item => !item.IsSeparator).Select(item => AccessKey(item, info))];
             Assert.All(keys, key => Assert.True(key is { } k && char.IsLetterOrDigit(k), $"{language}: {string.Join(", ", keys)}"));
             Assert.True(keys.Distinct().Count() == keys.Length, $"{language}: access keys {string.Join(", ", keys)} are not unique.");
@@ -217,6 +223,46 @@ public sealed class TrayMenuRecordingTests : IDisposable
             Assert.Equal(timelapseKeys[i], AccessKey(Item(viewModel, TrayMenuCommand.StopTimelapse, i), info));
             Assert.All(submenu.Where(static item => !item.IsSeparator), item => Assert.Equal(1, NativeMenuText.HeaderOf(item).Count(static c => c == '_')));
         }
+    }
+
+    [Fact]
+    public async Task TheJpegExportItemAsksForAFileAndTurnsIntoCancelWithTheProgressForEveryPrinter()
+    {
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()), WithCamera(Definition("b", "Beta")));
+        using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
+
+        viewModel.RunRecordingCommand(Item(viewModel, TrayMenuCommand.ExportTimelapseJpeg, 1));
+        Assert.Equal(["b"], _recordings.TimelapseExportsRequested);
+
+        // From another thread, like the exporter raises it: one export for all printers.
+        await Task.Run(() => _recordings.SetTimelapseExport(new CameraTimelapseExportStatus(true, "b", "/rec/Beta/2026-11-04_10-00-00_timelapse.mp4", 42, 100)), TestContext.Current.CancellationToken);
+        _dispatcher.RunAll();
+
+        for (int i = 0; i < 2; i++)
+        {
+            TrayMenuEntry cancel = Item(viewModel, TrayMenuCommand.CancelTimelapseJpegExport, i);
+            Assert.Equal(("Cancel JPEG _export (42%)", true, "Exporting 2026-11-04_10-00-00_timelapse.mp4"), (cancel.Header, cancel.IsEnabled, cancel.ToolTip));
+            Assert.DoesNotContain(viewModel.PrinterItems[i].Submenu!, static item => item.Command == TrayMenuCommand.ExportTimelapseJpeg);
+        }
+
+        viewModel.RunRecordingCommand(Item(viewModel, TrayMenuCommand.CancelTimelapseJpegExport));
+        Assert.Equal(1, _recordings.TimelapseExportCancels);
+
+        _recordings.SetTimelapseExport(CameraTimelapseExportStatus.Idle);
+        _dispatcher.RunAll();
+        Assert.Equal("_Export timelapse to JPEG… (experimental)", Item(viewModel, TrayMenuCommand.ExportTimelapseJpeg).Header);
+    }
+
+    [Fact]
+    public void WithoutTheExportTheItemIsDisabledWithTheReason()
+    {
+        _recordings.IsTimelapseExportAvailable = false;
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()));
+
+        TrayMenuEntry export = Item(viewModel, TrayMenuCommand.ExportTimelapseJpeg);
+        Assert.Equal((false, Strings.TimelapseExportUnavailable), (export.IsEnabled, export.ToolTip));
+        viewModel.RunRecordingCommand(export);
+        Assert.Empty(_recordings.TimelapseExportsRequested);
     }
 
     [Fact]

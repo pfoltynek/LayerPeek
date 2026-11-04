@@ -1813,4 +1813,46 @@
   <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
     <value>Zaznamenáva timelapse od začiatku tlače do minúty po jej konci, aj bez otvoreného okna kamery. Čas medzi snímkami je na karte Nahrávanie.</value>
   </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>_Exportovať timelapse do JPEG… (experimentálne)</value>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>Zrušiť _export do JPEG ({0} %)</value>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Exportuje sa {0}</value>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>Export do JPEG nie je v tejto verzii k dispozícii.</value>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Vyberte timelapse na export do JPEG (experimentálne)</value>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Timelapse (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Timelapse exportovaný do JPEG</value>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>Snímok: {0}, v priečinku vedľa timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Export timelapse do JPEG zlyhal</value>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>Súbor nie je timelapse z LayerPeeku.</value>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>Timelapse sa nedá prečítať (súbor chýba alebo je poškodený).</value>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>V tejto verzii chýba dekodér videa.</value>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>Do priečinka vedľa timelapse sa nedá zapisovať.</value>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>Nastala neočakávaná chyba, podrobnosti sú v logu.</value>
+  </data>
 </root>

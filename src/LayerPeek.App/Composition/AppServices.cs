@@ -277,6 +277,8 @@ internal static partial class AppServices
                 sp.GetRequiredService<PrintNotificationObserver>(),
                 // T-146: recording failures as notifications, with the printer names and notification settings of this run.
                 sp.GetRequiredService<RecordingNotificationObserver>(),
+                // T-165: the end of a JPEG export, with the printer names and notification settings of this run.
+                sp.GetRequiredService<TimelapseExportNotificationObserver>(),
                 // Before the cool-down monitor: a raised threshold may cool a printer down while it is configured.
                 sp.GetRequiredService<CooldownNotificationObserver>(),
                 sp.GetRequiredService<CooldownObserver>(),
@@ -815,12 +817,30 @@ internal static partial class AppServices
             CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>()),
             sp.GetRequiredService<ICameraTimelapseRecorder>()));
         services.AddSingleton(static sp => new CameraRecordingObserver(sp.GetRequiredService<CameraRecordingService>()));
+        // T-165: the JPEG export of a finished timelapse, only on demand from the tray menu: the decoder reads the file
+        // (FFmpeg, MP4), Avalonia / Skia encodes (variant A1, nothing native added); idle without an export. The service keeps
+        // the timelapse and the folder being written away from its rotation and counts the folder afterwards.
+        services.AddSingleton(static sp => new CameraTimelapseJpegExporter(
+            sp.GetRequiredService<ICameraFeedFactory>(),
+            AvaloniaJpegSequenceEncoderFactory.Instance,
+            sp.GetRequiredService<ILogger<CameraTimelapseJpegExporter>>(),
+            sp.GetRequiredService<CameraRecordingService>()));
+        // The open dialog of a tray app: a free-standing NSOpenPanel on macOS, Avalonia's dialog with a hidden owner elsewhere.
+        services.AddSingleton<IRecordingFilePicker>(static sp => OperatingSystem.IsMacOS()
+            ? new MacRecordingFilePicker(sp.GetRequiredService<ILogger<MacRecordingFilePicker>>())
+            : new StorageProviderRecordingFilePicker(sp.GetRequiredService<ILogger<StorageProviderRecordingFilePicker>>()));
+        services.AddSingleton(static sp => new TimelapseExportNotificationObserver(
+            sp.GetRequiredService<CameraTimelapseJpegExporter>(),
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<ILogger<TimelapseExportNotificationObserver>>()));
         // T-146: what the tray menu, the tooltip, the camera window and the settings window use of the recordings.
         services.AddSingleton<ICameraRecordings>(static sp => new CameraRecordings(
             sp.GetRequiredService<CameraRecordingService>(),
             sp.GetRequiredService<IFolderLauncher>(),
             sp.GetRequiredService<IFileLauncher>(),
-            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>())));
+            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>()),
+            sp.GetRequiredService<CameraTimelapseJpegExporter>(),
+            sp.GetRequiredService<IRecordingFilePicker>()));
         services.AddSingleton(static sp => new RecordingNotificationObserver(
             sp.GetRequiredService<CameraRecordingService>(),
             sp.GetRequiredService<INotificationService>(),

@@ -70,17 +70,52 @@ internal interface ICameraRecordings
 
     /// <summary>Opens the newest completed recording of <paramref name="printerId"/> in the system's default app. Never throws.</summary>
     Task<bool> PlayLastAsync(string printerId);
+
+    /// <summary>This build can export timelapses as JPEG (T-165: the decoder, the encoder and an open dialog exist).</summary>
+    bool IsTimelapseExportAvailable { get; }
+
+    /// <summary>The JPEG export now (T-165; one at a time for all printers).</summary>
+    CameraTimelapseExportStatus TimelapseExport { get; }
+
+    /// <summary>The JPEG export started, made progress or ended (any thread); read it with <see cref="TimelapseExport"/>.</summary>
+    event EventHandler? TimelapseExportChanged;
+
+    /// <summary>
+    /// UI thread. "Export timelapse to JPEG…" of a printer's submenu (T-165, user decision 2026-11-04): the open dialog for a
+    /// timelapse file, in the printer's recordings folder when it exists (else the root), then the export of the chosen file.
+    /// Nothing while an export runs or the dialog is open. Never throws.
+    /// </summary>
+    Task ExportTimelapseToJpegAsync(string printerId);
+
+    /// <summary>Cancels the running JPEG export (T-165), if any.</summary>
+    void CancelTimelapseExport();
 }
 
 /// <summary><see cref="ICameraRecordings"/> over the app's <see cref="CameraRecordingService"/> and the system launchers.</summary>
 internal sealed class CameraRecordings : ICameraRecordings
 {
+    /// <summary>The extension of a timelapse without the dot (for the macOS filter).</summary>
+    private const string TimelapseExtension = "mp4";
+
     private readonly CameraRecordingService _service;
     private readonly IFolderLauncher _folders;
     private readonly IFileLauncher _files;
+    private readonly CameraTimelapseJpegExporter? _exporter;
+    private readonly IRecordingFilePicker? _picker;
+
+    // UI thread only: the open dialog of the export is shown.
+    private bool _picking;
 
     /// <param name="options">The options of <paramref name="service"/>: its default root and the free space it needs.</param>
-    public CameraRecordings(CameraRecordingService service, IFolderLauncher folders, IFileLauncher files, CameraRecordingServiceOptions options)
+    /// <param name="exporter">The JPEG export of timelapses (T-165); <see langword="null"/>: none.</param>
+    /// <param name="picker">The open dialog of the export (T-165); <see langword="null"/>: no export.</param>
+    public CameraRecordings(
+        CameraRecordingService service,
+        IFolderLauncher folders,
+        IFileLauncher files,
+        CameraRecordingServiceOptions options,
+        CameraTimelapseJpegExporter? exporter = null,
+        IRecordingFilePicker? picker = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(service);
@@ -92,7 +127,32 @@ internal sealed class CameraRecordings : ICameraRecordings
         DefaultFolder = options.DefaultRoot;
         MinFreeBytes = options.MinFreeBytes;
         DashcamPostEventDuration = options.DashcamPostEventDuration;
+        _exporter = exporter;
+        _picker = picker;
     }
+
+    public event EventHandler? TimelapseExportChanged
+    {
+        add
+        {
+            if (_exporter is not null)
+            {
+                _exporter.Changed += value;
+            }
+        }
+
+        remove
+        {
+            if (_exporter is not null)
+            {
+                _exporter.Changed -= value;
+            }
+        }
+    }
+
+    public bool IsTimelapseExportAvailable => _exporter is not null && _picker is not null;
+
+    public CameraTimelapseExportStatus TimelapseExport => _exporter?.Status ?? CameraTimelapseExportStatus.Idle;
 
     public event EventHandler<string>? Changed
     {
@@ -146,6 +206,80 @@ internal sealed class CameraRecordings : ICameraRecordings
 
     public Task<bool> PlayLastAsync(string printerId) =>
         _service.GetStatus(printerId).LastFile is { } file ? _files.OpenAsync(file) : Task.FromResult(false);
+
+    public async Task ExportTimelapseToJpegAsync(string printerId)
+    {
+        ArgumentNullException.ThrowIfNull(printerId);
+        if (_exporter is not { } exporter || _picker is not { } picker || _picking || exporter.Status.IsRunning)
+        {
+            return;
+        }
+
+        _picking = true;
+        try
+        {
+            // Asking the disk can take a moment (a network share): off the UI thread, the dialog then on it again.
+            string? start = await Task.Run(() => PickerStartFolder(printerId)).ConfigureAwait(true);
+            string? file = await picker.PickAsync(new RecordingFilePickRequest(
+                Resources.Strings.TimelapseExportPickerTitle,
+                Resources.Strings.TimelapseExportPickerFilter,
+                TimelapseFilePatterns,
+                TimelapseExtension,
+                start)).ConfigureAwait(true);
+            // An empty answer is no choice (Start would throw, and nothing observes this task).
+            if (!string.IsNullOrWhiteSpace(file))
+            {
+                // False when an export started meanwhile (never from this menu): that one goes on.
+                exporter.Start(file, printerId);
+            }
+        }
+        finally
+        {
+            _picking = false;
+        }
+    }
+
+    public void CancelTimelapseExport() => _exporter?.Cancel();
+
+    /// <summary>The names of timelapses (<see cref="CameraRecordingFolders.TimelapseFileName"/>, also with <c>-2</c> …), for the filter of the dialog.</summary>
+    internal static IReadOnlyList<string> TimelapseFilePatterns { get; } = ["*_timelapse" + CameraRecordingFolders.Extension, "*_timelapse-*" + CameraRecordingFolders.Extension];
+
+    /// <summary>The printer's recordings folder when it exists, else the root when it exists, else none (the OS chooses).</summary>
+    private string? PickerStartFolder(string printerId)
+    {
+        if (_service.GetPrinterFolder(printerId) is { } folder && Path.IsPathFullyQualified(folder) && Directory.Exists(folder))
+        {
+            return folder;
+        }
+
+        string root = _service.RecordingsFolder;
+        return Path.IsPathFullyQualified(root) && Directory.Exists(root) ? root : null;
+    }
+}
+
+/// <summary>
+/// What the JPEG export item of a printer's submenu shows (T-165): "Export timelapse to JPEG… (experimental)" while none runs,
+/// "Cancel JPEG export (42 %)" while one runs (for every printer: one export at a time, user decision 2026-11-04), disabled
+/// with the reason when this build cannot export.
+/// </summary>
+internal readonly record struct TimelapseExportControlState(bool IsAvailable, CameraTimelapseExportStatus Status)
+{
+    /// <summary>An export runs: the item cancels it.</summary>
+    public bool IsRunning => Status.IsRunning;
+
+    public bool IsEnabled => IsRunning || IsAvailable;
+
+    /// <summary>The text with its access key; the progress while it runs.</summary>
+    public string Text => IsRunning
+        ? Format(Resources.Strings.MenuCancelTimelapseJpegExport, Status.Percent)
+        : Resources.Strings.MenuExportTimelapseJpeg;
+
+    /// <summary>The tip: which timelapse is exported, or why the item is disabled; <see langword="null"/> otherwise.</summary>
+    public string? ToolTip => IsRunning
+        ? Format(Resources.Strings.TimelapseExportRunning, Path.GetFileName(Status.SourceFile))
+        : IsAvailable ? null : Resources.Strings.TimelapseExportUnavailable;
+
+    private static string Format(string format, object? value) => string.Format(CultureInfo.CurrentCulture, format, value);
 }
 
 /// <summary>

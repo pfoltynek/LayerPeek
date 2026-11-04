@@ -122,6 +122,15 @@ a kritérium.
 - [ ] **T-161** (návrh): uživatel prohlédne `docs/design/timelapse-ui.md` a snímky `settings-recording.png` (zhuštěná sekce
       dashcamu, nová sekce Timelapse), `settings-camera.png`, `camera-timelapse.png`, `camera-mini-timelapse-buttons.png`
       v `tests/LayerPeek.App.UiTests/Snapshots/macOS/`; neblokující otázky v T-161; změny = nový úkol.
+- [ ] **T-165** (krit. „UI akce …“, ruční část macOS; sezení agenta nemělo displej, `NSOpenPanel` se nedalo zobrazit):
+      simulátor s kamerou, timelapse z T-161 hotový; v podmenu tiskárny v menu baru „Exportovat timelapse do JPEG…
+      (experimentální)“ → volné okno Otevřít (`NSOpenPanel`, ne list u okna) se ukáže v popředí s fokusem i nad jinou aplikací,
+      s titulkem „Vyberte timelapse k exportu do JPEG (experimentální)“, otevřené v `~/Movies/LayerPeek/<tiskárna>`, vybrat
+      jdou jen `.mp4`. Výběr nahrávky (ne timelapse) → notifikace „Export timelapse do JPEG selhal / Soubor není timelapse
+      z LayerPeeku“. Výběr timelapse → položka „Zrušit export do JPEG (x %)“ (procento roste i v otevřeném menu), pak složka
+      `…_timelapse_jpg` s `0001.jpg`… (Náhled je otevře, pořadí jako ve videu), notifikace „Timelapse exportován do JPEG“.
+      Druhý klik na položku, dokud je panel otevřený, nic nového neotevře; okno kamery během otevřeného panelu dál běží;
+      zrušení uprostřed nezanechá žádnou složku (ani skrytou `.….partial`, `ls -a`).
 
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`
