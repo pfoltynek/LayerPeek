@@ -377,6 +377,7 @@ displej), jsou v jednom postupu v [docs/macos-manual-testing.md](docs/macos-manu
 | `src/LayerPeek.PrusaLink` | klient PrusaLink REST API a lokální proxy webu |
 | `src/LayerPeek.PrusaConnect` | klient Prusa Connect (dál se nevyvíjí: Prusa Connect nemá veřejné API) |
 | `src/LayerPeek.Camera.FFmpeg` | kamera RTSP/H.264 přes FFmpeg |
+| `src/LayerPeek.Detection` | detektory chyb tisku z obrazu kamery (čisté C#; funkce je ve vývoji) |
 | `src/LayerPeek.App` | Avalonia tray aplikace, okna, platformní kód |
 | `tests/` | unit, UI (Avalonia headless) a E2E testy v xUnit v3 |
 | `tools/` | vývojové nástroje, např. simulátor tiskárny PrusaLink a kamery |

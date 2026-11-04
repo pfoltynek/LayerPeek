@@ -14,7 +14,9 @@ namespace LayerPeek.Core.Cameras;
 /// <remarks>
 /// <list type="bullet">
 /// <item>Decoding runs only while a frame subscriber exists (or for <see cref="Linger"/> after the last one left);
-/// packet subscribers alone only read the stream (<see cref="CameraStreamDemand"/>).</item>
+/// packet subscribers alone only read the stream (<see cref="CameraStreamDemand"/>). Subscribers of key frames only
+/// (<see cref="CameraFrameSubscriptionOptions.KeyFramesOnly"/>, T-153) never switch on full decoding: without another frame
+/// subscriber only the key frame that the earliest of them is due for is decoded.</item>
 /// <item>Every frame subscriber gets its own copy (<see cref="CameraFrameExchange"/>, newest frame wins), every packet
 /// subscriber its own bounded queue, so a slow subscriber never slows the stream or the others.</item>
 /// <item>All subscribers of a printer get the connection status; <see cref="Configure"/> restarts the connection when
@@ -258,7 +260,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             {
                 if (!_streams.TryGetValue(subscription.PrinterId, out PrinterStream? stream))
                 {
-                    stream = new PrinterStream(subscription.PrinterId);
+                    stream = new PrinterStream(subscription.PrinterId, _timeProvider);
                     _streams.Add(subscription.PrinterId, stream);
                 }
 
@@ -298,7 +300,8 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
     /// <summary>Under the lock: starts, keeps or stops the connection and sets its demand after the subscribers changed.</summary>
     private void EvaluateCore(PrinterStream stream, ref Pending pending)
     {
-        bool frames = stream.Frames.Length > 0;
+        // Every frame decoded: for subscribers other than the key frame only ones.
+        bool frames = stream.HasFullFrameSubscribers;
         bool packets = stream.Packets.Length > 0;
         stream.Demand.Packets = packets;
         if (frames)
@@ -307,7 +310,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             stream.FramesLinger = false;
         }
 
-        if (frames || packets)
+        if (stream.Frames.Length > 0 || packets)
         {
             stream.StopLinger = false;
             if (stream.Run is null)
@@ -347,7 +350,35 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             stream.Timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         }
 
+        ScheduleKeyFrame(stream);
         KeepReading(stream);
+    }
+
+    /// <summary>
+    /// Under the lock: the key frame the earliest subscriber of key frames only is due for (T-153), or none. Without full
+    /// decoding the decoder decodes exactly that one; it is scheduled again after every frame such a subscriber took.
+    /// </summary>
+    private static void ScheduleKeyFrame(PrinterStream stream)
+    {
+        long due = long.MaxValue;
+        bool wanted = false;
+        foreach (CameraFrameSubscription subscriber in stream.Frames)
+        {
+            if (subscriber.KeyFramesOnly && !subscriber.IsEnded)
+            {
+                wanted = true;
+                due = Math.Min(due, subscriber.NextFrameDue);
+            }
+        }
+
+        if (wanted && stream.Run is not null)
+        {
+            stream.Demand.RequestKeyFrame(due);
+        }
+        else
+        {
+            stream.Demand.CancelKeyFrame();
+        }
     }
 
     /// <summary>
@@ -394,7 +425,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
                 StopCore(stream, ref pending);
                 LogClosedAfterLinger(stream.PrinterId);
             }
-            else if (stream.FramesLinger && stream.Frames.Length == 0)
+            else if (stream.FramesLinger && !stream.HasFullFrameSubscribers)
             {
                 stream.Demand.Frames = false;
             }
@@ -436,6 +467,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         stream.Info = null;
         stream.Demand.Frames = false;
         stream.Demand.Packets = false;
+        stream.Demand.CancelKeyFrame();
         stream.FramesLinger = false;
         stream.StopLinger = false;
         // An idle printer keeps no timer.
@@ -508,11 +540,12 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
                 }
 
                 long now = _timeProvider.GetTimestamp();
+                bool keyFrameTaken = false;
                 foreach (CameraFrameSubscription subscriber in subscribers)
                 {
                     try
                     {
-                        subscriber.Publish(item.Frame, now);
+                        keyFrameTaken |= subscriber.Publish(item.Frame, now) && subscriber.KeyFramesOnly;
                     }
                     catch (Exception ex)
                     {
@@ -520,6 +553,18 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
                         if (subscriber.TryEnd(CameraStreamEndReason.Failed, ex))
                         {
                             Unsubscribe(subscriber);
+                        }
+                    }
+                }
+
+                if (keyFrameTaken)
+                {
+                    // Before the next read: the decoder must not decode the next key frame before its subscriber is due.
+                    lock (_gate)
+                    {
+                        if (stream.Generation == generation)
+                        {
+                            ScheduleKeyFrame(stream);
                         }
                     }
                 }
@@ -667,7 +712,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
     }
 
     /// <summary>The shared connection of one printer; every field except the subscriber arrays is guarded by the hub's lock.</summary>
-    private sealed class PrinterStream(string printerId)
+    private sealed class PrinterStream(string printerId, TimeProvider timeProvider)
     {
         private volatile int _generation;
         private volatile CameraFrameSubscription[] _frames = [];
@@ -677,10 +722,27 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
 
         public Uri? Uri { get; set; }
 
-        public CameraStreamDemand Demand { get; } = new(frames: false, packets: false);
+        public CameraStreamDemand Demand { get; } = new(frames: false, packets: false, timeProvider);
 
-        /// <summary>Read without the lock by the streaming thread (copy on write).</summary>
+        /// <summary>Read without the lock by the streaming thread (copy on write); also the subscribers of key frames only.</summary>
         public CameraFrameSubscription[] Frames => _frames;
+
+        /// <summary>A frame subscriber that needs every frame decoded (not only key frames).</summary>
+        public bool HasFullFrameSubscribers
+        {
+            get
+            {
+                foreach (CameraFrameSubscription subscriber in _frames)
+                {
+                    if (!subscriber.KeyFramesOnly)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
 
         /// <summary>Read without the lock by the streaming thread (copy on write).</summary>
         public CameraPacketSubscription[] Packets => _packets;

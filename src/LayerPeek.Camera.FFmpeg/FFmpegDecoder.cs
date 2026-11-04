@@ -65,6 +65,9 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     // _packet holds a packet that was handed out as a packet item and still goes to the decoder.
     private bool _packetPending;
 
+    // T-153: the pending packet is a single key frame to decode on its own (no full decoding).
+    private bool _keyFramePending;
+
     // The decoder gets packets (frame demand); when it was off, packets were skipped and it restarts at a key frame.
     private bool _decoding;
     private bool _needKeyFrame;
@@ -264,11 +267,12 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// <summary>
     /// The next item by <paramref name="demand"/> (T-143): first the stream description (when
     /// <paramref name="emitInfo"/>), then every video packet while packets are wanted, before it is decoded, and the
-    /// decoded frames while frames are wanted. Nothing is decoded without frame demand; when frames are wanted again
-    /// after packets were skipped, decoding restarts at the next key frame. Returns <see langword="false"/> at the end of
-    /// the stream. Packet data (copied into a reused buffer) and frames are valid until the next call (or, for frames,
-    /// until the buffer is replaced after a size change; the old buffer is then left to the garbage collector, so a
-    /// consumer holding on to it never sees freed memory).
+    /// decoded frames while frames are wanted. Nothing is decoded without frame demand, except a single key frame when
+    /// <see cref="CameraStreamDemand.KeyFrameDue"/> (T-153: decoded on its own, the packets in between are never decoded);
+    /// when frames are wanted again after packets were skipped, decoding restarts at the next key frame. Returns
+    /// <see langword="false"/> at the end of the stream. Packet data (copied into a reused buffer) and frames are valid
+    /// until the next call (or, for frames, until the buffer is replaced after a size change; the old buffer is then left
+    /// to the garbage collector, so a consumer holding on to it never sees freed memory).
     /// </summary>
     public bool TryRead(CameraStreamDemand demand, bool emitInfo, out CameraStreamItem item)
     {
@@ -283,7 +287,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         {
             ThrowIfInterrupted();
             bool frames = demand.Frames;
-            if (!frames && (_decoding || _packetPending))
+            if (!frames && _decoding)
             {
                 // Frames are no longer wanted: the decoder forgets its state and later restarts at a key frame.
                 StopDecoding();
@@ -322,6 +326,17 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             {
                 // Handed out as a packet item before; now it is decoded.
                 _packetPending = false;
+                if (_keyFramePending)
+                {
+                    _keyFramePending = false;
+                    if (TryDecodeKeyFrame(out item))
+                    {
+                        return true;
+                    }
+
+                    continue;
+                }
+
                 SendPacket();
                 continue;
             }
@@ -355,12 +370,20 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 _decoding = true;
             }
 
+            // Checked only for key frames (one clock read every few seconds), and only without full decoding.
+            bool keyFrame = !_decoding && (_packet->flags & ffmpeg.AV_PKT_FLAG_KEY) != 0 && demand.KeyFrameDue;
+            if (keyFrame)
+            {
+                EnsureDecoder();
+            }
+
             if (demand.Packets)
             {
                 item = CameraStreamItem.FromPacket(CopyPacket());
-                if (_decoding)
+                if (_decoding || keyFrame)
                 {
                     _packetPending = true;
+                    _keyFramePending = keyFrame;
                 }
                 else
                 {
@@ -374,10 +397,63 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             {
                 SendPacket();
             }
+            else if (keyFrame)
+            {
+                if (TryDecodeKeyFrame(out item))
+                {
+                    return true;
+                }
+            }
             else
             {
                 Skip();
             }
+        }
+    }
+
+    /// <summary>
+    /// T-153: decodes the key frame in <c>_packet</c> on its own and releases the packet. The decoder starts clean, gets
+    /// the key frame and is drained, so its picture comes out now (without waiting for later packets, also with a reorder
+    /// delay), and is flushed again afterwards; full decoding later restarts at a key frame. A damaged key frame gives no
+    /// frame (<see langword="false"/>), like in full decoding.
+    /// </summary>
+    private bool TryDecodeKeyFrame(out CameraStreamItem item)
+    {
+        item = default;
+        ffmpeg.avcodec_flush_buffers(_codec);
+        _needKeyFrame = true;
+        int sent = ffmpeg.avcodec_send_packet(_codec, _packet);
+        ffmpeg.av_packet_unref(_packet);
+        if (sent == ffmpeg.AVERROR_INVALIDDATA)
+        {
+            return false;
+        }
+
+        Check(sent, "Decoding the video failed");
+        Check(ffmpeg.avcodec_send_packet(_codec, null), "Decoding the video failed");
+        int received = ffmpeg.avcodec_receive_frame(_codec, _frame);
+        try
+        {
+            if (received == 0)
+            {
+                Interlocked.Increment(ref _decodedFrames);
+                // Converted into the reused buffer before the flush below releases the decoder's picture.
+                item = CameraStreamItem.FromFrame(Convert());
+                return true;
+            }
+
+            if (received != ErrorAgain && received != ffmpeg.AVERROR_EOF && received != ffmpeg.AVERROR_INVALIDDATA)
+            {
+                Check(received, "Decoding the video failed");
+            }
+
+            return false;
+        }
+        finally
+        {
+            // Leaves the drained state (the decoder takes packets again) and releases the picture until the next sample.
+            ffmpeg.av_frame_unref(_frame);
+            ffmpeg.avcodec_flush_buffers(_codec);
         }
     }
 
@@ -394,6 +470,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         {
             ffmpeg.av_packet_unref(_packet);
             _packetPending = false;
+            _keyFramePending = false;
         }
 
         if (_codec is not null)

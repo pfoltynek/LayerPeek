@@ -5,3 +5,4 @@
 *.h264 binary
 *.wav binary
 *.jpg binary
+*.gray binary

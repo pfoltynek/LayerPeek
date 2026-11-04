@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Raw 8-bit grayscale samples of the Core One fixtures (see Fixtures/coreone/README.md); the JPEGs stay for viewing. -->
+    <None Include="Fixtures\**\*.gray" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LayerPeek.Detection\LayerPeek.Detection.csproj" />
+  </ItemGroup>
+</Project>

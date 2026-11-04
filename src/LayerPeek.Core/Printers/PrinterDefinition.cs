@@ -1,5 +1,6 @@
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.Detection;
 
 namespace LayerPeek.Core.Printers;
 
@@ -113,6 +114,20 @@ public sealed record PrinterDefinition
             field = value;
         }
     } = CooldownThresholds.Default;
+
+    /// <summary>
+    /// Print failure detection of this printer (T-153): on / off, region and detector settings; off by default
+    /// (<see cref="PrinterDetectionSettings.Default"/>). Kept while the camera is disabled.
+    /// </summary>
+    public PrinterDetectionSettings Detection
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = PrinterDetectionSettings.Default;
 
     private static string RequireText(string value)
     {

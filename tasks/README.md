@@ -169,7 +169,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-150 | Okno kamery – automatické zavření při vypnuté tiskárně a znovuotevření (logika v Core) | all | core-dev | P2 | T-035, T-006 |
 | T-151 | Okno kamery – automatické zavření a znovuotevření (App, nastavení, E2E) | all | ui-dev | P2 | T-150 |
 | T-152 | Detekce chyb tisku z kamery – průzkum (spike): CV vs. ML, licence, AOT, Core One (hotovo, rozhodnuto 2026-11-04) | all | architect | P2 | – |
-| T-153 | Detekce chyb tisku – infrastruktura (projekt LayerPeek.Detection, vzorkování, kontext tisku, události) | all | core-dev | P2 | T-143, T-152 |
+| T-153 | Detekce chyb tisku – infrastruktura (projekt LayerPeek.Detection, vzorkování, kontext tisku, události) (hotovo) | all | core-dev | P2 | T-143, T-152 |
 | T-154 | Detekce chyb tisku – UI (nastavení detektorů, notifikace, falešný poplach) | all | ui-designer + ui-dev | P2 | T-153, T-033 |
 | T-155 | Detekce chyb tisku – první detektor „Změna na podložce“ (bed-change) | all | core-dev | P2 | T-152, T-153 |
 | T-156 | Detekce chyb tisku – další detektory včetně první vrstvy (rozpad) | all | architect | P3 | T-155 |
