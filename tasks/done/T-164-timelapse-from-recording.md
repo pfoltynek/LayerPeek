@@ -129,7 +129,8 @@ Všechny zodpovězené (rozhodnutí uživatele 2026-11-04):
   jazyků.
 - **Notifikace:** „Timelapse z nahrávky vytvořen“ + „Snímků: N, vedle nahrávky.“, nebo „Vytvoření timelapse z nahrávky selhalo“
   + důvod (není nahrávka, nejde přečíst, chybí knihovna videa, do složky nejde zapisovat, plný disk, jiná chyba). Zrušení se
-  nehlásí. Zvuk jen se „všemi upozorněními“. Bez argumentu spuštění (jako T-165).
+  nehlásí. Zvuk jen se „všemi upozorněními“. Klik otevře složku nahrávek tiskárny (doplněno později, viz „Navazující
+  opravy“ a T-165 otázka 6).
 - **Texty:** 13 nových řetězců ve všech 8 `Strings.*.resx` (en s komentáři), procento s pevnou mezerou jako u T-165.
 - **Testy:** Core – `CameraTimelapseFromRecordingMakerTests` (výběr a razítka 30 fps, řídké klíčové snímky, razítka
   nezačínající nulou, tři segmenty s vybraným prostředním a změnou parametrů → dva soubory, hledání segmentů včetně mezery,
@@ -158,3 +159,13 @@ Všechny zodpovězené (rozhodnutí uživatele 2026-11-04):
   a nový řádek `AFileWithSpecialCharactersInItsPathIsRead`. Varianta Windows (disk, UNC) se ověří s testy v T-125.
 - Uzavřeno 2026-11-04: zbývající ruční ověření přesunuto do T-125 (Windows: testy, E2E, publish, dialog a toast) a T-127
   (macOS: `NSOpenPanel`, průběh v otevřeném menu, notifikace).
+
+## Navazující opravy (po revizi, 2026-11-04, větev `feature/review-followups`)
+- **Částečné zveřejnění:** když se v `Output.Publish` nepodaří přejmenovat druhý nebo další výstupní soubor, výsledek je
+  dál chyba (`WriteFailed`, příp. `DiskFull`; nezachovaly se všechny snímky), ale `OutputFiles` už uvádí soubory, které se
+  stihly zveřejnit a na disku zůstávají (dřív prázdné). Dočasné soubory zbytku smaže `Discard` jako dřív. Test
+  `CameraTimelapseFromRecordingMakerTests.WhenALaterFileCannotBeRenamedTheFilesAlreadyPublishedAreReportedWithTheFailure`.
+- **Klik na notifikaci:** otevře složku nahrávek tiskárny (úspěch i chyba, rozhodnutí uživatele 2026-11-04), podrobnosti
+  v T-165 („Navazující opravy“, otázka 6).
+- Ostatní nálezy revize T-164 / T-165 (`MacRecordingFilePicker`, exportní složka se soubory uživatele, normalizace cest
+  v `Hold`) jsou popsané v T-165.

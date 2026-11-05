@@ -38,6 +38,11 @@ namespace LayerPeek.App.Notifications;
 /// until it is attached, and only for a printer that is still configured. Its "False alarm" button
 /// (<see cref="ToastLaunchArgument.ForFalseAlarm"/>) is handed to the <see cref="IFalseAlarmReporter"/> (a local record only).
 /// </para>
+/// <para>
+/// T-164 / T-165: a click on the notification about a finished JPEG export or timelapse from a recording
+/// (<see cref="ToastLaunchArgument.TryForRecordingsFolder"/>) opens the recordings folder of its printer, the same action as
+/// the tray menu item (user decision 2026-11-04), only for a printer that is still configured. It needs no UI.
+/// </para>
 /// </summary>
 internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisposable
 {
@@ -65,12 +70,22 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     private string? _cameraPending;
 
     private readonly IFalseAlarmReporter? _falseAlarms;
+    private readonly Func<string, Task<bool>>? _openRecordingsFolder;
 
     // Replaced as a whole, never mutated after publishing.
     private volatile Dictionary<string, PrinterDefinition> _printers = new(StringComparer.OrdinalIgnoreCase);
 
     /// <param name="falseAlarms">Records the "False alarm" button of a print failure notification (T-154); <see langword="null"/>: ignored.</param>
-    public ToastActivationRouter(PrinterWebOpener webOpener, ILogger<ToastActivationRouter> logger, TimeProvider? time = null, IFalseAlarmReporter? falseAlarms = null)
+    /// <param name="openRecordingsFolder">
+    /// Opens the recordings folder of a printer (T-164 / T-165, any thread, the tray menu's action); <see langword="null"/>:
+    /// such clicks open nothing.
+    /// </param>
+    public ToastActivationRouter(
+        PrinterWebOpener webOpener,
+        ILogger<ToastActivationRouter> logger,
+        TimeProvider? time = null,
+        IFalseAlarmReporter? falseAlarms = null,
+        Func<string, Task<bool>>? openRecordingsFolder = null)
     {
         ArgumentNullException.ThrowIfNull(webOpener);
         ArgumentNullException.ThrowIfNull(logger);
@@ -78,6 +93,7 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
         _logger = logger;
         _time = time ?? TimeProvider.System;
         _falseAlarms = falseAlarms;
+        _openRecordingsFolder = openRecordingsFolder;
     }
 
     /// <summary>
@@ -104,7 +120,7 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             return await ReportFalseAlarmAsync(argument, alarmId).ConfigureAwait(false);
         }
 
-        if (!TryGetTarget(argument, out bool camera, out string? printerId))
+        if (!TryGetTarget(argument, out ClickTarget target, out string? printerId))
         {
             LogMalformedArgument();
             return false;
@@ -134,9 +150,14 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             return false;
         }
 
-        if (camera)
+        if (target == ClickTarget.Camera)
         {
             return OpenCamera(printer.Id);
+        }
+
+        if (target == ClickTarget.RecordingsFolder)
+        {
+            return await OpenRecordingsFolderAsync(printer.Id).ConfigureAwait(false);
         }
 
         Uri? address = PrinterWebAddress.For(printer);
@@ -318,11 +339,52 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
         return true;
     }
 
-    /// <summary>The printer of a printer argument (its web) or of a camera argument (its camera window, T-154).</summary>
-    private static bool TryGetTarget([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? argument, out bool camera, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? printerId)
+    /// <summary>
+    /// The printer of a printer argument (its web), of a camera argument (its camera window, T-154) or of a recordings folder
+    /// argument (its folder, T-164 / T-165).
+    /// </summary>
+    private static bool TryGetTarget([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? argument, out ClickTarget target, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? printerId)
     {
-        camera = ToastLaunchArgument.TryGetCameraPrinterId(argument, out printerId);
-        return camera || ToastLaunchArgument.TryGetPrinterId(argument, out printerId);
+        if (ToastLaunchArgument.TryGetCameraPrinterId(argument, out printerId))
+        {
+            target = ClickTarget.Camera;
+            return true;
+        }
+
+        if (ToastLaunchArgument.TryGetRecordingsFolderPrinterId(argument, out printerId))
+        {
+            target = ClickTarget.RecordingsFolder;
+            return true;
+        }
+
+        target = ClickTarget.Web;
+        return ToastLaunchArgument.TryGetPrinterId(argument, out printerId);
+    }
+
+    /// <summary>A click on the notification of a finished timelapse job: the printer's recordings folder (never throws).</summary>
+    private async Task<bool> OpenRecordingsFolderAsync(string printerId)
+    {
+        if (_openRecordingsFolder is not { } open)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await open(printerId).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogRecordingsFolderFailed(ex, printerId);
+            return false;
+        }
+    }
+
+    private enum ClickTarget
+    {
+        Web,
+        Camera,
+        RecordingsFolder,
     }
 
     /// <summary>
@@ -483,6 +545,9 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Opening the camera window of printer '{PrinterId}' for a click on a print failure notification failed.")]
     private partial void LogCameraFailed(Exception exception, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Opening the recordings folder of printer '{PrinterId}' for a click on a timelapse notification failed.")]
+    private partial void LogRecordingsFolderFailed(Exception exception, string printerId);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "The \"False alarm\" button of alarm {AlarmId} reported again; recorded once.")]
     private partial void LogFalseAlarmRepeated(string alarmId);

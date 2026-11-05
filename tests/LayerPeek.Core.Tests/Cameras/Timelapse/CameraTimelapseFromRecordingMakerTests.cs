@@ -154,6 +154,38 @@ public sealed class CameraTimelapseFromRecordingMakerTests : IDisposable
         Assert.DoesNotContain(Entries(), static e => e.StartsWith('.'));
     }
 
+    [Fact]
+    public async Task WhenALaterFileCannotBeRenamedTheFilesAlreadyPublishedAreReportedWithTheFailure()
+    {
+        // Two files (other stream parameters in the second segment); the second one vanishes when it is completed, so
+        // renaming it fails after the first one got its final name.
+        CameraStreamInfo other = new(CameraVideoCodec.H264, 1920, 1080, CameraTimeBase.Rtp90kHz, new byte[] { 1, 0x64, 0, 0x28 });
+        string recording = _files.Add(Path_("2026-11-04_14-05-09_Benchy.mp4"), new RecordingScript { FirstFill = 0 });
+        _files.Add(Path_("2026-11-04_14-05-09_Benchy-2.mp4"), new RecordingScript { FirstFill = 100, Info = other });
+        int completed = 0;
+        FakeRecordingWriterFactory writers = new()
+        {
+            Completing = path =>
+            {
+                if (Interlocked.Increment(ref completed) == 2)
+                {
+                    File.Delete(path);
+                }
+            },
+        };
+        using CameraTimelapseFromRecordingMaker maker = Maker(writers);
+
+        CameraTimelapseFromRecordingResult result = await MakeAsync(maker, recording, TimeSpan.FromSeconds(25));
+
+        Assert.Equal(CameraTimelapseExportProblem.WriteFailed, result.Problem);
+        Assert.False(result.Succeeded);
+        Assert.Equal([Path_(OutputName)], result.OutputFiles);
+        Assert.True(File.Exists(Path_(OutputName)));
+        Assert.Equal(2, writers.Writers.Length);
+        Assert.Equal(["2026-11-04_14-05-09_Benchy-2.mp4", RecordingName, OutputName], Entries());
+        Assert.Empty(_guard.Held);
+    }
+
     [Theory]
     [InlineData("2026-11-04_14-05-09_Benchy.mp4", "2026-11-04_14-05-09_Benchy")]
     [InlineData("2026-11-04_14-05-09_Benchy-2.mp4", "2026-11-04_14-05-09_Benchy")]

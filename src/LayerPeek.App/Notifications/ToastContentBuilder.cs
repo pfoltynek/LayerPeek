@@ -182,14 +182,22 @@ internal static class ToastContentBuilder
 
     /// <summary>
     /// The toast about a finished JPEG export of a timelapse (T-165) in <paramref name="textCulture"/>: the printer name, done or
-    /// failed and the frames or the reason (<see cref="TimelapseExportNotificationText"/>); no launch argument (a click only
-    /// brings the app to the front).
+    /// failed and the frames or the reason (<see cref="TimelapseExportNotificationText"/>); the launch argument
+    /// <see cref="TimelapseExportLaunchArgument"/> (a click opens the printer's recordings folder), none without a printer.
     /// </summary>
     public static string BuildTimelapseExport(TimelapseExportNotification notification, CultureInfo textCulture)
     {
         NotificationLines lines = TimelapseExportLines(notification, textCulture);
         StringBuilder xml = new(512);
-        xml.Append("<toast activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        xml.Append("<toast");
+        if (TimelapseExportLaunchArgument(notification) is { } launch)
+        {
+            xml.Append(" launch=\"");
+            AppendEscaped(xml, launch);
+            xml.Append('"');
+        }
+
+        xml.Append(" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
         AppendText(xml, lines.Title);
         AppendText(xml, lines.Body);
         if (lines.Detail is { } detail)
@@ -206,6 +214,17 @@ internal static class ToastContentBuilder
         xml.Append("</toast>");
         return xml.ToString();
     }
+
+    /// <summary>
+    /// The click target of a finished JPEG export (T-165) or timelapse from a recording (T-164), success or failure, for every
+    /// OS: the printer's recordings folder (<see cref="ToastLaunchArgument.TryForRecordingsFolder"/>, user decision
+    /// 2026-11-04); <see langword="null"/> without a printer or with an id too long to encode (a click then only brings the app
+    /// to the front).
+    /// </summary>
+    internal static string? TimelapseExportLaunchArgument(TimelapseExportNotification notification) =>
+        !string.IsNullOrWhiteSpace(notification.PrinterId) && ToastLaunchArgument.TryForRecordingsFolder(notification.PrinterId, out string? launch)
+            ? launch
+            : null;
 
     /// <summary>The texts of a finished JPEG export (T-165) for every OS, the title cleaned and shortened like in <see cref="Lines"/>; not escaped.</summary>
     internal static NotificationLines TimelapseExportLines(TimelapseExportNotification notification, CultureInfo textCulture)

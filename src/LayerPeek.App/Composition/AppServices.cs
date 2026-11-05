@@ -185,7 +185,10 @@ internal static partial class AppServices
             sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<ILogger<ToastActivationRouter>>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<FalseAlarmReporter>()));
+            sp.GetRequiredService<FalseAlarmReporter>(),
+            // T-164 / T-165: the tray menu's "Open recordings folder", resolved at the click (the recordings come after the
+            // notifications, whose clicks come through the router).
+            printerId => sp.GetRequiredService<ICameraRecordings>().OpenPrinterFolderAsync(printerId)));
         // T-154: the image files of print failure notifications (a file is all a toast or an attachment takes), at most a few.
         services.AddSingleton(static sp => new AlarmNotificationImages(
             Path.Combine(sp.GetRequiredService<AppEnvironment>().CacheDirectory(), "notification-images"),
