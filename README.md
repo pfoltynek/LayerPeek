@@ -328,7 +328,8 @@ Any Prusa printer with **Buddy firmware 6.x and PrusaLink**:
 | Original Prusa MK3 / MK3S (8-bit firmware) | ❌ the printer has no built-in PrusaLink |
 
 All printers with Buddy firmware 6.x share the same PrusaLink API. Do you run the app with another model? Please
-[let us know](https://github.com/pfoltynek/LayerPeek/issues) whether it works, so we can mark it as tested.
+fill in a short [printer compatibility report](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (a checklist, one run on Windows or macOS is
+enough), so we can mark it as tested.
 
 The camera is optional. Without it you still get the tray icon, notifications and diagnostics. The camera has to
 provide an **RTSP H.264** stream reachable from your computer, for example the Prusa Buddy3D camera or most IP

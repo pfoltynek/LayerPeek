@@ -41,6 +41,8 @@ entrambe le varianti.
 LayerPeek funziona solo nella tua rete locale. Non usa Prusa Connect né altri servizi cloud. Quando sei fuori casa puoi
 raggiungere le stampanti tramite una VPN verso la tua rete domestica.
 
+Finora è stata testata solo la CORE One. Hai un altro modello? Invia un breve [rapporto di compatibilità della stampante](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (modulo in inglese): basta una prova su Windows o macOS.
+
 ## 2. Installazione
 
 Scarica l’ultima versione dalla pagina [Releases](https://github.com/pfoltynek/LayerPeek/releases).
