@@ -38,14 +38,14 @@ public static class ReadmeScreenshotSwitch
 }
 
 /// <summary>
-/// Generates the screenshots of README.md (English) and README.cz.md (Czech) into <c>docs/images/en</c> and
-/// <c>docs/images/cs</c> (docs/readme-screenshots.md). Not a test: skipped unless <c>LAYERPEEK_README_SCREENSHOTS=1</c>.
+/// Generates the screenshots of README.md (English), README.cz.md (Czech) and the user manuals (manuals/, every
+/// language of the app) into <c>docs/images/&lt;language&gt;</c> (docs/readme-screenshots.md). Not a test: skipped unless <c>LAYERPEEK_README_SCREENSHOTS=1</c>.
 /// Everything is the real app rendered headless at 2× by Skia: the real windows, widgets and view models on the fakes
 /// of the UI tests, a real frame of the recorded Buddy3D clip as the camera picture and the simulator's G-code preview.
 /// </summary>
 public sealed class ReadmeScreenshots(HeadlessSession session)
 {
-    public static TheoryData<string> Languages => ["en", "cs"];
+    public static TheoryData<string> Languages => [.. ReadmeScenario.Cultures.Keys];
 
     private const double MiniWidth = 400;
 

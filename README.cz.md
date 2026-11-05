@@ -16,6 +16,7 @@
   <a href="#jak-to-vypadá">Snímky</a> ·
   <a href="#funkce">Funkce</a> ·
   <a href="#experimentální-funkce">Experimentální</a> ·
+  <a href="manuals/cs/manual.md"><b>Příručka</b></a> ·
   <a href="README.md">English</a>
 </p>
 
@@ -337,6 +338,10 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 | macOS (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
 
 ## Rychlý start
+
+> [!TIP]
+> Celá **[uživatelská příručka](manuals/cs/manual.md)** popisuje všechny funkce na Windows i macOS. Je i v dalších
+> jazycích: English, Slovenčina, Deutsch, Español, Français, Italiano a Polski, viz [všechny jazyky](manuals/README.md).
 
 ### 1. Stažení
 
