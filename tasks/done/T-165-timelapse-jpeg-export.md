@@ -49,6 +49,9 @@ Všechny zodpovězené (rozhodnutí uživatele 2026-11-04):
    nechat napůl zapsaný soubor (zápis do dočasného místa + přejmenování). Průběh / zrušení, notifikace na konci (úspěch
    i chyba, krátce), štítek „Experimentální“, všechny texty ve všech jazycích.
 5. **Dva exporty najednou:** nespouštět paralelně, nejjednodušší rozumné chování vybere agent (viz poznámky).
+6. **Klik na notifikaci (vyřešeno, rozhodnutí uživatele 2026-11-04):** klik na notifikaci o konci exportu JPEG i timelapse
+   z nahrávky (T-164), při úspěchu i chybě, otevře složku nahrávek tiskárny – stejná akce jako položka tray menu „Otevřít
+   složku s nahrávkami“. Argument nese jen ID tiskárny (`recordings=<id>`, žádnou cestu), viz „Navazující opravy“.
 
 ## Poznámky k implementaci
 - **Kodér: varianta A1** (Avalonia / Skia + libjpeg-turbo). Nic nativního navíc. A2 by přidala 232 kB do `libavcodec`
@@ -109,8 +112,8 @@ Všechny zodpovězené (rozhodnutí uživatele 2026-11-04):
   `Completed` na nové `INotificationService.ShowTimelapseExportFinished(TimelapseExportNotification)` (výchozí implementace
   nic). Zrušení se nehlásí. Zvuk jen s „všemi upozorněními“ (informace). Texty `TimelapseExportNotificationText`: titulek
   = tiskárna (bez ní „LayerPeek“), „Timelapse exportován do JPEG“ + „Snímků: N, ve složce vedle timelapse.“, nebo „Export
-  timelapse do JPEG selhal“ + důvod. Toast Windows i notifikace macOS jsou bez argumentu spuštění: klik nic neotevře, cesta
-  se do argumentu nedává (nedůvěryhodný vstup z OS).
+  timelapse do JPEG selhal“ + důvod. Klik otevře složku nahrávek tiskárny (otázka 6, doplněno
+  v „Navazující opravy“); cesta se do argumentu nedává (nedůvěryhodný vstup z OS).
 - **Texty:** 14 nových řetězců ve všech 8 `Strings.*.resx` (en s komentáři). Štítek „(experimentální)“ je v textu
   položky menu a v titulku dialogu.
 - **Výkon (Mac mini M2 Pro, Debug, fixture Buddy3D 1280×720):** 300 snímků za 2,41–2,45 s, tj. **8,0–8,2 ms na snímek**
@@ -151,3 +154,30 @@ odpovědi dialogu nic nespustí (dřív by `Start` vyhodil výjimku v nesledovan
   (symbolický odkaz, namapovaný disk vs. UNC) zdroj nechrání; následek je jen řízené selhání exportu (`Unreadable`).
 - Exportní složka, ve které zůstaly jen soubory uživatele, se po 10 min při každé rotaci znovu „smaže“ (`TryDelete` vrátí
   `true`, složka zůstane) – jen opakovaný záznam v logu.
+
+## Navazující opravy (po revizi, 2026-11-04, větev `feature/review-followups`)
+- **`MacRecordingFilePicker.OnCompleted`:** panel se v dokončovacím handleru už neuvolňuje `release`, ale `autorelease`
+  (mimo vlastní autorelease pool, v `finally`): uvolní se, až se vyprázdní pool AppKitu kolem události, tedy po návratu
+  z handleru. Panel se uvolní právě jednou. Bez displeje to nejde ukázat testem (ruční ověření dialogu zůstává v T-127).
+- **Exportní složka jen se soubory uživatele:** `CameraRecordingStorage.FindRecordings` ji už nehlásí (nejsou v ní žádné
+  snímky LayerPeeku, nic se nepočítá ani nemaže) a `TryDelete` pro exportní složku vrátí `true`, jen když odstranil snímek
+  nebo složku. Rotace ji tak už každých 10 min znovu „nesmaže“. Složka jen se systémovými metadaty (`.DS_Store`) dál zmizí
+  jako prázdný zbytek. Testy `JpegExportFolderTests.AnExportFolderWithOnlyFilesOfTheUserLeftIsNotDeletedAgainEveryRotation`,
+  `AnExportFolderWithOnlySystemMetadataIsStillAnEmptyLeftover`. Rozhoduje počet snímků, ne jejich velikost: prázdný
+  snímek (0 B) po pádu vedle souboru uživatele se dál najde a smaže (revize QA, test `EmptyFramesNextToFilesOfTheUserAreStillRemoved`).
+- **`Hold`:** cesty se při držení normalizují stejně jako kořen nahrávek (`Path.GetFullPath`, bez koncového oddělovače),
+  takže `..`, `.`, zdvojený nebo koncový oddělovač odpovídají cestě z výčtu rotace; porovnání dál bez rozlišení velikosti
+  písmen. Symbolické odkazy se nerozlišují. Test `JpegExportFolderTests.AHeldPathInAnotherEquivalentFormIsKeptToo` (soubor
+  i složka).
+- **Klik na notifikaci (otázka 6):** nový argument `ToastLaunchArgument.TryForRecordingsFolder` / `TryGetRecordingsFolderPrinterId`
+  (`recordings=` + kódované ID, stejně přísné jako `camera=`, přijímá ho i `IsWellFormed`). Toast Windows
+  (`ToastContentBuilder.BuildTimelapseExport`) i notifikace macOS ho nesou (bez tiskárny nebo s příliš dlouhým ID žádný).
+  `ToastActivationRouter` ho pro nakonfigurovanou tiskárnu předá akci `ICameraRecordings.OpenPrinterFolderAsync` (stejná
+  jako v tray menu, získaná až při kliku, bez UI); odstraněná tiskárna nic neotevře, dvojí hlášení kliku otevře jednou.
+  Testy `TimelapseNotificationActivationTests`, upravené `TimelapseExportNotificationTests`.
+- **Nestabilní alokační testy (revize QA):** `FFmpegCameraFeedAllocationTests.SteadyStateFramesThroughTheHubDoNotAllocate`
+  pod zátěží padal (≈3,7 MB = třetí buffer `CameraFrameExchange`, který dostane pixely až po několika odběrech; hladovějící
+  odběratel v zahřátí nic neodebral). Zahřátí teď čeká na 3 odebrané snímky, měří se 30 snímků a průchod, kterému dojde
+  fixture (konec streamu, reconnect), se opakuje. `PrintFailureDetectionAllocationTests.ASampleDoesNotAllocate` (360–600 B)
+  zachytil alokace runtime při vzniku/rušení vlákna thread poolu; průchod, při kterém se změnil `ThreadPool.ThreadCount`,
+  se opakuje (nejvýš 12, aspoň jeden platný). Záruka 0 B na snímek/vzorek zůstává.

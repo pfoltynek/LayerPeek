@@ -89,7 +89,7 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IC
         _time = timeProvider;
         _logger = logger;
         _options = options ?? CameraRecordingServiceOptions.Default;
-        _root = NormalizeRoot(_options.DefaultRoot);
+        _root = NormalizePath(_options.DefaultRoot);
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
     }
 
@@ -204,7 +204,9 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IC
                     if (recordedPrints != entry.RecordsPrints || couldRecord != entry.CanRecord || usedDashcam != entry.UsesDashcam
                         || timelapsedPrints != entry.TimelapsesPrints
                         || (entry.UsesDashcam && settings.DashcamMinutes != _settings.DashcamMinutes)
-                        || settings.TimelapseIntervalSeconds != _settings.TimelapseIntervalSeconds)
+                        || settings.TimelapseIntervalSeconds != _settings.TimelapseIntervalSeconds
+                        || settings.TimelapseTrigger != _settings.TimelapseTrigger
+                        || settings.TimelapseEveryNthLayer != _settings.TimelapseEveryNthLayer)
                     {
                         changed.Add(printer.Id);
                     }
@@ -234,11 +236,11 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IC
             }
 
             _entries = entries;
-            string root = NormalizeRoot(settings.Folder ?? _options.DefaultRoot);
+            string root = NormalizePath(settings.Folder ?? _options.DefaultRoot);
             bool rotate = !_configured || !string.Equals(root, _root, StringComparison.Ordinal) || settings.SizeLimitGigabytes != _settings.SizeLimitGigabytes;
-            bool newInterval = settings.TimelapseIntervalSeconds != _settings.TimelapseIntervalSeconds;
+            bool newTrigger = !settings.TakesTimelapseFramesLike(_settings);
             _settings = settings;
-            if (newInterval)
+            if (newTrigger)
             {
                 ReplaceTimelapseTriggers();
             }
@@ -1096,7 +1098,14 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IC
     public IDisposable Hold(IReadOnlyList<string> paths)
     {
         ArgumentNullException.ThrowIfNull(paths);
-        string[] held = [.. paths];
+        // Normalised once here like the root, so that an equivalent form (".." or "." parts, doubled or trailing
+        // separators) matches the enumerated path in the rotation; links are not resolved.
+        string[] held = new string[paths.Count];
+        for (int index = 0; index < held.Length; index++)
+        {
+            held[index] = NormalizePath(paths[index]);
+        }
+
         lock (_gate)
         {
             _held.Add(held);
@@ -1305,10 +1314,11 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IC
         before.ConnectionType == after.ConnectionType && string.Equals(before.Address, after.Address, StringComparison.Ordinal);
 
     /// <summary>
-    /// The root as the file system names it (no <c>..</c>, doubled or trailing separators), so that the paths of running
-    /// recordings compare equal to the enumerated ones of the rotation.
+    /// The root or a held path as the file system names it (no <c>..</c>, doubled or trailing separators), so that the paths
+    /// of running recordings and held files compare equal to the enumerated ones of the rotation; unchanged when it is no
+    /// valid path.
     /// </summary>
-    private static string NormalizeRoot(string root)
+    private static string NormalizePath(string root)
     {
         try
         {

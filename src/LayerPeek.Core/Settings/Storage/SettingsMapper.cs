@@ -123,6 +123,11 @@ internal static class SettingsMapper
         return settings;
     }
 
+    /// <summary><c>recording.timelapseTrigger</c> of the layer trigger (T-159); the time trigger is the default and not written.</summary>
+    private const string LayerTimelapseTrigger = "layer";
+
+    private const string TimeTimelapseTrigger = "time";
+
     /// <summary>Not written while every value is the default, so that files stay as they were; only values that differ are written.</summary>
     internal static JsonElement? ToDocument(CameraRecordingSettings recording)
     {
@@ -141,14 +146,16 @@ internal static class SettingsMapper
             DashcamOnStopped = recording.DashcamOnStopped ? null : false,
             DashcamOnFailureDetection = recording.DashcamOnFailureDetection ? null : false,
             TimelapseIntervalSeconds = recording.TimelapseIntervalSeconds == CameraRecordingSettings.DefaultTimelapseIntervalSeconds ? null : recording.TimelapseIntervalSeconds,
+            TimelapseTrigger = recording.TimelapseTrigger == CameraTimelapseTriggerKind.Layer ? LayerTimelapseTrigger : null,
+            TimelapseEveryNthLayer = recording.TimelapseEveryNthLayer == CameraRecordingSettings.DefaultTimelapseEveryNthLayer ? null : recording.TimelapseEveryNthLayer,
         };
         return JsonSerializer.SerializeToElement(document, SettingsJsonContext.Default.RecordingDocument);
     }
 
     /// <summary>
-    /// The recording section read leniently (T-145, T-148, T-160): a missing section or value is the default; an invalid
-    /// value (a folder that is no absolute path, a limit, a dashcam length or a timelapse interval that is no whole number in
-    /// range, a trigger that is no
+    /// The recording section read leniently (T-145, T-148, T-160, T-159): a missing section or value is the default; an
+    /// invalid value (a folder that is no absolute path, a limit, a dashcam length, a timelapse interval or layer step that is
+    /// no whole number in range, a timelapse trigger that is neither "time" nor "layer", a dashcam trigger that is no
     /// boolean, a value of the wrong type) is its default with one warning that never echoes the value (the folder may
     /// contain the user name). Property names are matched case-insensitively and the last of duplicates wins; unknown names
     /// (a newer version) are ignored.
@@ -175,6 +182,8 @@ internal static class SettingsMapper
         JsonElement? onStopped = null;
         JsonElement? onFailure = null;
         JsonElement? timelapseInterval = null;
+        JsonElement? timelapseTrigger = null;
+        JsonElement? everyNthLayer = null;
         foreach (JsonProperty property in value.EnumerateObject())
         {
             if (string.Equals(property.Name, "folder", StringComparison.OrdinalIgnoreCase))
@@ -208,6 +217,14 @@ internal static class SettingsMapper
             else if (string.Equals(property.Name, "timelapseIntervalSeconds", StringComparison.OrdinalIgnoreCase))
             {
                 timelapseInterval = property.Value;
+            }
+            else if (string.Equals(property.Name, "timelapseTrigger", StringComparison.OrdinalIgnoreCase))
+            {
+                timelapseTrigger = property.Value;
+            }
+            else if (string.Equals(property.Name, "timelapseEveryNthLayer", StringComparison.OrdinalIgnoreCase))
+            {
+                everyNthLayer = property.Value;
             }
         }
 
@@ -266,6 +283,34 @@ internal static class SettingsMapper
             }
         }
 
+        CameraTimelapseTriggerKind trigger = CameraTimelapseTriggerKind.Time;
+        if (IsPresent(timelapseTrigger))
+        {
+            string? name = timelapseTrigger!.Value.ValueKind == JsonValueKind.String ? timelapseTrigger.Value.GetString() : null;
+            if (string.Equals(name, LayerTimelapseTrigger, StringComparison.OrdinalIgnoreCase))
+            {
+                trigger = CameraTimelapseTriggerKind.Layer;
+            }
+            else if (!string.Equals(name, TimeTimelapseTrigger, StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add($"Timelapse trigger is invalid (\"{TimeTimelapseTrigger}\" or \"{LayerTimelapseTrigger}\"); a frame every interval is used.");
+            }
+        }
+
+        int layers = CameraRecordingSettings.DefaultTimelapseEveryNthLayer;
+        if (IsPresent(everyNthLayer))
+        {
+            if (TryGetWholeNumber(everyNthLayer!.Value, CameraRecordingSettings.MinTimelapseEveryNthLayer, CameraRecordingSettings.MaxTimelapseEveryNthLayer, out int whole))
+            {
+                layers = whole;
+            }
+            else
+            {
+                warnings.Add(
+                    $"Timelapse layer step is invalid (whole number {CameraRecordingSettings.MinTimelapseEveryNthLayer}–{CameraRecordingSettings.MaxTimelapseEveryNthLayer}); every layer is used.");
+            }
+        }
+
         CameraRecordingSettings settings = new()
         {
             Folder = folderPath,
@@ -276,6 +321,8 @@ internal static class SettingsMapper
             DashcamOnStopped = ToDashcamTrigger(onStopped, "stopped print", warnings),
             DashcamOnFailureDetection = ToDashcamTrigger(onFailure, "detected print failure", warnings),
             TimelapseIntervalSeconds = interval,
+            TimelapseTrigger = trigger,
+            TimelapseEveryNthLayer = layers,
         };
         return settings == CameraRecordingSettings.Default ? CameraRecordingSettings.Default : settings;
     }

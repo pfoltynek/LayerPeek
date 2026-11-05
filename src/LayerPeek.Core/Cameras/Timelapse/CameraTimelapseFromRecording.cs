@@ -5,7 +5,8 @@ namespace LayerPeek.Core.Cameras.Timelapse;
 /// <param name="SourceFile">The recording that was chosen (full path).</param>
 /// <param name="OutputFiles">
 /// The timelapse files written (full paths, in order; more than one only when the camera's stream parameters changed between
-/// the recording's segments); empty unless it succeeded.
+/// the recording's segments). Empty when it failed, except when giving a later file its final name failed: then the files
+/// already published (they stay on disk) and still a failure, as not every frame was kept.
 /// </param>
 /// <param name="Frames">Frames written (all of them when it succeeded).</param>
 /// <param name="Problem">Why it did not succeed; <see cref="CameraTimelapseExportProblem.None"/> when it did.</param>

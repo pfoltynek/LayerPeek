@@ -183,29 +183,32 @@ public sealed class TimelapseExportNotificationTests
         UserNotificationRequest request = center.Posted[0];
         Assert.Equal("Core One", request.Title);
         Assert.Equal("Timelapse created from recording\n7 frames, next to the recording.", request.Body);
-        Assert.Null(request.LaunchArgument);
+        // A click opens the printer's recordings folder (user decision 2026-11-04).
+        Assert.Equal("recordings=core", request.LaunchArgument);
     }
 
     [Fact]
-    public void TheToastOfATimelapseFromARecordingHasItsTextsAndNoLaunchArgument()
+    public void TheToastOfAFailedTimelapseFromARecordingHasItsTextsAndOpensTheRecordingsFolder()
     {
         TimelapseExportNotification notification = new("core", "Core One", 0, CameraTimelapseExportProblem.Unreadable, PlaySound: true, TimelapseExportKind.FromRecording);
 
         XDocument toast = XDocument.Parse(ToastContentBuilder.BuildTimelapseExport(notification, CultureInfo.GetCultureInfo("cs-CZ")));
 
-        Assert.Null(toast.Root!.Attribute("launch"));
+        Assert.Equal("recordings=core", toast.Root!.Attribute("launch")?.Value);
         Assert.Equal(["Core One", "Vytvoření timelapse z nahrávky selhalo", "Nahrávku nejde přečíst (soubor chybí nebo je poškozený)."], toast.Descendants("text").Select(static text => text.Value));
         Assert.Empty(toast.Descendants("audio"));
     }
 
     [Fact]
-    public void TheToastHasNoLaunchArgumentAndANameCannotAddMarkup()
+    public void TheToastOpensTheRecordingsFolderAndNeitherANameNorAnIdCanAddMarkup()
     {
-        TimelapseExportNotification notification = new("core", "Core\"/><action/>One", 42, CameraTimelapseExportProblem.None, PlaySound: false);
+        TimelapseExportNotification notification = new("Core \"One\"&<x>", "Core\"/><action/>One", 42, CameraTimelapseExportProblem.None, PlaySound: false);
 
         XDocument toast = XDocument.Parse(ToastContentBuilder.BuildTimelapseExport(notification, CultureInfo.GetCultureInfo("cs-CZ")));
 
-        Assert.Null(toast.Root!.Attribute("launch"));
+        string? launch = toast.Root!.Attribute("launch")?.Value;
+        Assert.True(ToastLaunchArgument.TryGetRecordingsFolderPrinterId(launch, out string? printerId));
+        Assert.Equal("Core \"One\"&<x>", printerId);
         Assert.Equal("foreground", toast.Root.Attribute("activationType")?.Value);
         Assert.Empty(toast.Descendants("action"));
         Assert.Equal(["Core\"/><action/>One", "Timelapse exportován do JPEG", "Snímků: 42, ve složce vedle timelapse."], toast.Descendants("text").Select(static text => text.Value));
@@ -227,7 +230,7 @@ public sealed class TimelapseExportNotificationTests
     }
 
     [Fact]
-    public async Task TheMacNotificationHasTheTextsAndNoLaunchArgument()
+    public async Task TheMacNotificationHasTheTextsAndOpensTheRecordingsFolder()
     {
         FakeUserNotificationCenter center = new();
         using UserNotificationService service = new(center, static () => CultureInfo.GetCultureInfo("en-US"), new ListLogger<UserNotificationService>());
@@ -239,7 +242,21 @@ public sealed class TimelapseExportNotificationTests
         Assert.Equal("core", request.Title);
         Assert.Equal("Timelapse exported to JPEG\n7 frames in a folder next to the timelapse.", request.Body);
         Assert.False(request.PlaySound);
-        Assert.Null(request.LaunchArgument);
+        Assert.Equal("recordings=core", request.LaunchArgument);
+    }
+
+    [Theory]
+    [InlineData(TimelapseExportKind.Jpeg)]
+    [InlineData(TimelapseExportKind.FromRecording)]
+    public void WithoutAPrinterOrWithAnIdTooLongThereIsNoClickTarget(TimelapseExportKind kind)
+    {
+        TimelapseExportNotification none = new(null, null, 0, CameraTimelapseExportProblem.WriteFailed, PlaySound: false, kind);
+        TimelapseExportNotification tooLong = new(new string('x', ToastLaunchArgument.MaxLength), "XL", 3, CameraTimelapseExportProblem.None, PlaySound: false, kind);
+
+        Assert.Null(ToastContentBuilder.TimelapseExportLaunchArgument(none));
+        Assert.Null(ToastContentBuilder.TimelapseExportLaunchArgument(tooLong));
+        Assert.Null(XDocument.Parse(ToastContentBuilder.BuildTimelapseExport(none, CultureInfo.InvariantCulture)).Root!.Attribute("launch"));
+        Assert.Null(XDocument.Parse(ToastContentBuilder.BuildTimelapseExport(tooLong, CultureInfo.InvariantCulture)).Root!.Attribute("launch"));
     }
 
     private sealed class ExportSink : INotificationService

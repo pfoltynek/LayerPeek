@@ -62,7 +62,7 @@ internal sealed unsafe partial class MacRecordingFilePicker(ILogger<MacRecording
         }
     }
 
-    /// <summary>A new panel (retained until it completed) for one existing file of the request's type.</summary>
+    /// <summary>A new panel (retained until it completed, see <see cref="OnCompleted"/>) for one existing file of the request's type.</summary>
     private static nint Configure(nint panelClass, RecordingFilePickRequest request)
     {
         nint panel = ObjCRuntime.Send(panelClass, ObjCRuntime.Selector("openPanel"));
@@ -107,7 +107,12 @@ internal sealed unsafe partial class MacRecordingFilePicker(ILogger<MacRecording
         return panel;
     }
 
-    /// <summary>The panel closed (main thread): the chosen file, or none. Must never throw into AppKit.</summary>
+    /// <summary>
+    /// The panel closed (main thread): the chosen file, or none. Must never throw into AppKit. The panel is still inside
+    /// its own completion handler, so its retain is handed back with <c>autorelease</c>, not <c>release</c>: the object is
+    /// freed when AppKit's pool around the event drains, after the handler returned and AppKit is done with the panel.
+    /// The <c>autorelease</c> runs outside this code's own pool on purpose (that pool would drain it right here).
+    /// </summary>
     [UnmanagedCallersOnly]
     private static void OnCompleted(nint block, nint response)
     {
@@ -126,16 +131,36 @@ internal sealed unsafe partial class MacRecordingFilePicker(ILogger<MacRecording
                     return url == 0 ? null : ObjCRuntime.ToText(ObjCRuntime.Send(url, ObjCRuntime.Selector("path")));
                 });
             }
-
-            ObjCRuntime.Release(panel);
         }
         catch (Exception)
         {
             // Nothing may escape into native code; no file then.
             path = null;
         }
+        finally
+        {
+            Autorelease(panel);
+        }
 
         pending?.TrySetResult(path);
+    }
+
+    /// <summary>Gives up this code's retain of <paramref name="panel"/> deferred (0 is ignored); never throws.</summary>
+    private static void Autorelease(nint panel)
+    {
+        if (panel == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            ObjCRuntime.Send(panel, ObjCRuntime.Selector("autorelease"));
+        }
+        catch (Exception)
+        {
+            // Nothing may escape into native code; at worst the panel leaks.
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The open dialog for a recording file failed.")]

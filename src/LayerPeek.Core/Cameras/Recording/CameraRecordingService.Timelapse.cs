@@ -18,8 +18,10 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// rules of the automatic one; started without a print and no print follows, it runs until it is stopped. Like a recording:
 /// one timelapse per printer, Start during an automatic one does nothing, Stop also ends an automatic one, which does not
 /// start again before its print ended; one that fails is not restarted during that print.</item>
-/// <item><b>Frames:</b> a trigger (<see cref="ICameraTimelapseTrigger"/>, T-160 the time trigger, one timer per running
-/// timelapse) asks for a key frame every <see cref="CameraRecordingSettings.TimelapseIntervalSeconds"/>; none while the
+/// <item><b>Frames:</b> a trigger (<see cref="ICameraTimelapseTrigger"/>, <see cref="CameraRecordingSettings.TimelapseTrigger"/>)
+/// asks for key frames: T-160 the time trigger (one timer per running timelapse) every
+/// <see cref="CameraRecordingSettings.TimelapseIntervalSeconds"/>, T-159 the layer trigger (no timer, the snapshots of the
+/// printer) every <see cref="CameraRecordingSettings.TimelapseEveryNthLayer"/>-th estimated layer change; none while the
 /// printer is <see cref="PrinterState.Paused"/> or <see cref="PrinterState.Attention"/> (the file stays open, the camera
 /// connection too; a request still waiting for its key frame is withdrawn, so at most a frame already being written lands
 /// after the pause started).</item>
@@ -183,7 +185,10 @@ public sealed partial class CameraRecordingService
         timelapse.ManualSawPrint = false;
     }
 
-    /// <summary>The interval changed: the running timelapses go on with triggers of the new interval; under <see cref="_gate"/>.</summary>
+    /// <summary>
+    /// The trigger, its interval or its layer step changed: the running timelapses go on with new triggers (a new layer
+    /// trigger first learns the current layer again); under <see cref="_gate"/>.
+    /// </summary>
     private void ReplaceTimelapseTriggers()
     {
         foreach (Entry entry in _entries.Values)
@@ -204,13 +209,15 @@ public sealed partial class CameraRecordingService
     internal Func<ICameraTimelapse, ICameraTimelapseTrigger>? TriggerOverride { get; init; }
 
     /// <summary>
-    /// The only place that chooses the trigger of a timelapse (T-160: by time; T-159 adds the layer trigger here) and starts
-    /// it in the printer's current state; under <see cref="_gate"/>.
+    /// The only place that chooses the trigger of a timelapse (<see cref="CameraRecordingSettings.TimelapseTrigger"/>: by time,
+    /// T-160, or by layer, T-159) and starts it in the printer's current state; under <see cref="_gate"/>.
     /// </summary>
     private void StartTrigger(Entry entry, ICameraTimelapse current)
     {
         TimelapseSlot timelapse = entry.Timelapse;
-        timelapse.Trigger = TriggerOverride is { } create ? create(current) : new CameraTimelapseTimeTrigger(current, _settings.TimelapseInterval, _time);
+        timelapse.Trigger = TriggerOverride is { } create ? create(current)
+            : _settings.TimelapseTrigger == CameraTimelapseTriggerKind.Layer ? new CameraTimelapseLayerTrigger(current, _settings.TimelapseEveryNthLayer)
+            : new CameraTimelapseTimeTrigger(current, _settings.TimelapseInterval, _time);
         timelapse.Trigger.SetCapturing(IsCapturingState(entry.LastState));
     }
 

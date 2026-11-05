@@ -1801,11 +1801,32 @@
   <data name="SettingsExperimentalHint" xml:space="preserve">
     <value>Experimentální funkce: může se změnit nebo nemusí vždy fungovat spolehlivě.</value>
   </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Experimentální funkce: vyladěná na simulovaných selháních a jednom skutečném úspěšném tisku. Může selhání přehlédnout nebo vyhlásit planý poplach.</value>
+  </data>
   <data name="SettingsTimelapseInterval" xml:space="preserve">
     <value>Čas mezi snímky (sekundy)</value>
   </data>
   <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
     <value>Jeden snímek za zvolený čas, během pauzy tisku žádný. Video má {0} snímků za sekundu.</value>
+  </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Pořizovat snímek</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Každých N sekund</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Každou N. vrstvu (odhad)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Každých N sekund: snímek po každém intervalu. Každou N-tou vrstvu: snímek na začátku nové vrstvy, odhadnutý z výšky osy Z, kterou PrusaLink hlásí při každém dotazu (vrstvy tiskárna nehlásí). Experimentální.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Vrstev mezi snímky</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Snímek každou N-tou vrstvu (1 = každou vrstvu), k tomu jeden na začátku a jeden hotového tisku, během pauzy žádný. Vrstva se odhaduje z osy Z při každém dotazu: vrstvy kratší než asi dva dotazy se sloučí a výjimečně přidá snímek z-hop nebo výměna filamentu. Video má {0} snímků za sekundu.</value>
   </data>
   <data name="SettingsTimelapsePrints" xml:space="preserve">
     <value>Pořizovat timelapse tisku</value>

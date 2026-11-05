@@ -12,13 +12,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Camera recording** (Windows and macOS): the submenu of a printer with a camera has **Start recording** / **Stop
   recording**, **Play last recording** (opens the newest recording in the system's video player) and **Open recordings
-  folder** (the printer's own folder once it has recordings); the camera window has a record button next to the pin that shows a red dot with **REC** while the camera is
-  recorded (also in the mini preview and in full screen), and the tray tooltip says **Recording**. Recordings are MP4
-  files without re-encoding, by default in the Videos (Windows) / Movies (macOS) folder under `LayerPeek`, one subfolder per
-  printer. **Record prints automatically** on the printer's Camera tab records every print from its start to a minute
-  after its end, also without an open camera window (off by default). A new **Recording** tab in the settings has the
-  folder and a total size limit (50 GB by default; the oldest recordings are deleted above it, recording stops below 5 GB
-  of free space). A recording that fails shows a notification with the reason; clicking it opens the Recording tab.
+  folder** (the printer's own folder once it has recordings); the camera window has a record button next to the pin
+  that shows a red dot with **REC** while the camera is recorded (also in the mini preview and in full screen), and
+  the tray tooltip says **Recording**. Recordings are MP4 files without re-encoding, by default in the Videos
+  (Windows) / Movies (macOS) folder under `LayerPeek`, one subfolder per printer, named after the time and the print.
+  **Record prints automatically** on the printer's Camera sub-tab records every print from its start to a minute after
+  its end, also without an open camera window (off by default); every new print job gets a file of its own. A new
+  **Recording** tab in the settings has the folder (**Change…**) and a total size limit (50 GB by default; the oldest
+  recordings are deleted above it, recording stops below 5 GB of free space). A recording that fails shows a
+  notification with the reason; clicking it opens the Recording tab.
+- **Dashcam: keep the last minutes of a print** (Windows and macOS): **Keep the last minutes (dashcam)** on the
+  printer's Camera sub-tab (off by default) keeps the last 2 minutes of the camera in memory during a print (1–10 min
+  on the Recording tab, about 8 MB per minute and printer; nothing is written to the disk until it is saved). They are
+  saved together with 30 s after the event as `…_dashcam-<reason>.mp4` in the printer's recordings folder on a print
+  error, when the printer needs attention, when the print is stopped and when the camera detects a print failure (each
+  can be switched off), or by hand with **Save the last 2 min** in the printer's menu or in the context menu of the
+  camera window. The dashcam is idle while the whole print is being recorded. Only a failed save shows a notification.
+- **Print failure detection (experimental)** (Windows and macOS, off by default): LayerPeek can watch a print through
+  the camera and warn you when something goes wrong on the bed. Turn on **Look for print failures in the camera image** on the
+  Recording tab and **Watch the prints of this printer with the camera** on the printer's new **Detection** sub-tab.
+  The first detector, **Change on the bed**, notices a part that vanished or moved and new material on the bed
+  (spaghetti, a part torn off), with a sensitivity slider (0–100, default 50). The sub-tab has an editor for the **bed
+  region** that is watched (drag with the mouse or use the arrow keys; **Whole frame**, **Load frame** for a new
+  picture from the camera and, for a Core One, **Default for Core One**, which is also its preset). An alarm shows a
+  notification "Possible print failure – Change on the bed" with a snapshot of the camera, with the same sound as a
+  print error; clicking it opens the camera window, and its **False alarm** button keeps a local record for tuning
+  (nothing leaves the computer, the sensitivity does not change). By default there is one alarm per print and kind of
+  failure (or again every 10 min while it lasts), a JPEG snapshot of every alarm is saved in the printer's recordings
+  folder (can be switched off) and a running dashcam saves the last minutes. Detection runs only while printing and
+  with the chamber light on, checks the camera every 2 s (2–5 s on the Recording tab), decodes only key frames and
+  works without an open camera window. **Limitations:** it does not notice the quality of the first layer, problems at
+  the nozzle or defects inside the part, it is less reliable with dark filament on a black sheet, and with the whole
+  frame as the region the moving parts of the printer can cause false alarms. It is experimental: tuned on synthetic
+  failures and one real successful print of a Core One with a Buddy3D camera, not yet on real failed prints, so it may
+  miss a failure or raise a false alarm. The settings mark it with an **Experimental** badge.
 - **Dark filament mode (experimental)** for print failure detection (Windows and macOS, off by default): **Dark
   filament** with an **Experimental** badge on the printer's Detection sub-tab. For black or very dark filament, the
   "Change on the bed" detector then counts a smaller darkening of the bed as a change (10 instead of 14 gray levels;
@@ -26,6 +53,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   percentage points), at the price of less headroom against false alarms (the real Core One test print stays about
   4× below the alarm threshold instead of 9×). The known limitation (less reliable with dark filament on a black
   sheet) stays. Saved as `printers[*].detection.darkFilament`.
+- **Timelapse (experimental)** (Windows and macOS): **Start timelapse (experimental)** / **Stop timelapse
+  (experimental)** in the printer's menu and a stopwatch button in the camera window, which shows an amber **TL**
+  while a timelapse is taken (dimmed while the print is paused); **Play last timelapse** in the printer's menu. **Take
+  a timelapse of prints** on the printer's Camera sub-tab (off by default) takes one of every print, from its start to
+  a minute after its end, also without an open camera window. One frame every 30 s by default (**Time between
+  frames**, 5–600 s, on the Recording tab), none while the print is paused; the video plays at 30 frames per second.
+  The frames are key frames of the camera stored without re-encoding (so a frame can be up to about 2 s off the
+  interval with a Buddy3D), saved as `…_timelapse.mp4` in the printer's recordings folder and counted in the size
+  limit of the recordings. A failed timelapse shows a notification.
+- **Timelapse frames per layer (experimental):** on the Recording tab, **Every N seconds** next to the timelapse heading
+  can be switched to **Every N-th layer (estimate)** (N = 1–100, 1 by default): a frame when a new layer starts, plus
+  one at the start and one of the finished part. PrusaLink reports no layers, so LayerPeek estimates them from the
+  height of the Z axis at every poll (z-hops are filtered out); layers shorter than about two polls merge, and rarely a
+  z-hop or a tool change adds a frame. Tested on a real Core One print: every layer found at 2–5 s polling. The polling
+  interval does not change.
+- **Timelapse from a recording (experimental):** **Create timelapse from recording… (experimental)** in the printer's
+  menu asks for a LayerPeek recording and makes a timelapse of it with the same time between frames, saved next to it
+  as `…_recording_timelapse.mp4`; a recording split by a camera dropout (`…-2.mp4`) is taken as a whole. The menu item
+  shows the progress and cancels it; a notification tells when it is done.
+- **Export a timelapse to JPEG (experimental):** **Export timelapse to JPEG… (experimental)** in the printer's menu
+  asks for a LayerPeek timelapse and saves its frames as numbered JPEG files (`0001.jpg`, …) in a folder next to it,
+  e.g. for your own video editing. Progress and cancelling are in the menu item, a notification tells when it is done;
+  the folder counts in the size limit of the recordings.
+- **Camera window closes when the printer turns off** (Windows and macOS, on by default): an open camera window closes
+  after the printer has been offline for 30 s and opens again at its last place 10 s after the printer is back,
+  without taking the focus from the app you work in (also after LayerPeek restarts in between). A window you close
+  yourself stays closed. While you edit the layout or the context menu is open, the window waits. No notification.
+  Switch it off with **Close when the printer turns off, reopen when it is back on** on the Camera window sub-tab of a
+  printer (it applies to all printers).
+- **Settings:** new `recording` and `detection` sections, `printers[*].camera.recordPrints`, `.dashcam` and
+  `.timelapsePrints`, `printers[*].detection` and `cameraWindowAutoClose` (only values that differ from the defaults
+  are written); older settings files load unchanged.
+
+### Changed
+
+- Camera: every printer now has **one camera connection** shared by the camera window, recording, dashcam, timelapse
+  and detection, so recording or detection does not open a second stream. After the last user is gone (e.g. the camera
+  window is closed or minimized), the connection stays open for 10 s, so a window restored within that time shows the
+  picture at once. **Test camera** in the settings uses the open window's connection for the saved address and its own
+  connection for a changed address.
+- Settings: on the printer's Camera sub-tab the camera address label is now left of the field, to make room for the
+  new recording options.
+- Windows: the bundled FFmpeg libraries are a newer LGPL build of FFmpeg 9.0.2 (BtbN `autobuild-2026-10-31-12-59`),
+  because the previously used build is no longer available for download. macOS is unchanged.
 
 ## [0.4.0] - 2026-11-02
 
