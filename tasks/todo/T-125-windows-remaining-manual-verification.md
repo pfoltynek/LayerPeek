@@ -97,19 +97,19 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       případy se při instalaci přeskočí, viz poznámky.
 
 ### 2b. Automatické okno kamery (z T-151, implementováno na Macu 2026-11-03)
-- [ ] **T-151** (krit. „Vypnutí tiskárny (simulátor offline) okno zavře po debounce, zapnutí ho otevře na posledním místě“,
+- [x] **T-151** (krit. „Vypnutí tiskárny (simulátor offline) okno zavře po debounce, zapnutí ho otevře na posledním místě“,
       „Ručně zavřené okno se znovu neotevře“ a „Automaticky otevřené okno nebere fokus …“, část Windows):
       `pwsh tools/run-e2e.ps1 -Class '*CameraWindowAutoCloseTests'` = PASS. Test byl napsaný a přeložený na Macu a na Windows
       ještě neběžel. Když selže kvůli testu, opravit test, když kvůli aplikaci, založit úkol. Prohlédnout snímky
       `camera-auto-close-1-open` a `camera-auto-close-2-reopened`.
-- [ ] **T-151** (krit. „Stávající E2E okna kamery (T-071, T-120) prochází“): `pwsh tools/run-e2e.ps1 -Class '*Camera*'` = PASS.
-- [ ] **T-151** (snímky UI a `dotnet test` na Windows): přegenerovat a zkontrolovat referenční snímky Windows
+- [x] **T-151** (krit. „Stávající E2E okna kamery (T-071, T-120) prochází“): `pwsh tools/run-e2e.ps1 -Class '*Camera*'` = PASS.
+- [x] **T-151** (snímky UI a `dotnet test` na Windows): přegenerovat a zkontrolovat referenční snímky Windows
       `tests/LayerPeek.App.UiTests/Snapshots/settings-camera-window.png`, `settings-camera-window-error-normal-size.png`,
       `settings-camera-window-errors-fr.png` a `settings-camera-window-off-cs.png`
       (`$env:LAYERPEEK_UPDATE_SNAPSHOTS=1; dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`).
       V podzáložce „Okno kamery“ přibylo zaškrtávátko „Close when the printer turns off…“ pod tlačítky. Pak celý
       `dotnet test` bez chyb, včetně `SettingsWindowLayoutTests` (bez posuvníku ve všech jazycích).
-- [ ] **T-151** (krit. Native AOT, část Windows): `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových
+- [x] **T-151** (krit. Native AOT, část Windows): `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových
       varování (nový `[LibraryImport("powrprof.dll")]` + `UnmanagedCallersOnly` v `WindowsSystemResumeEvents`).
 - [ ] **T-151** (ruční, Windows, probuzení): se zapnutým podrobným logováním otevřít okno kamery, uspat počítač
       a probudit ho. V logu je „The computer resumed from sleep: the camera window delays start again.“ a okno se po
@@ -119,10 +119,10 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       aktivuje zobrazené okno, jehož stav se změní (T-040). Pokud ho vezme, zapsat a založit úkol.
 
 ### 2c. Sdílené spojení s kamerou (z T-143, implementováno na Macu 2026-11-03)
-- [ ] **T-143** (krit. „Okno kamery, malý náhled a překryv fungují jako dřív; stávající … E2E okna kamery prochází“, část
+- [x] **T-143** (krit. „Okno kamery, malý náhled a překryv fungují jako dřív; stávající … E2E okna kamery prochází“, část
       Windows): `pwsh tools/run-e2e.ps1 -Class '*Camera*'` = PASS a `dotnet test` na Windows bez chyb (unit a headless UI
       testy prošly na Macu).
-- [ ] **T-143** (krit. „Ustálený stav streamu bez alokací“, část Windows): `FFmpegCameraFeedAllocationTests` (včetně
+- [x] **T-143** (krit. „Ustálený stav streamu bez alokací“, část Windows): `FFmpegCameraFeedAllocationTests` (včetně
       `SteadyStatePacketsAndFramesDoNotAllocate` a `SteadyStateFramesThroughTheHubDoNotAllocate`) a
       `CameraStreamHubAllocationTests` prochází na Windows; `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez
       nových varování AOT / trim.
@@ -131,7 +131,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       logováním: „The shared camera stream of printer '…' closed after its last subscriber left.“).
 
 ### 2d. Nahrávání kamery (z T-144, implementováno na Macu 2026-11-03)
-- [ ] **T-144** (krit. „Nahrávka z fixture i z RTSP kamery simulátoru … platný soubor“ a „Ustálený stav … bez alokací“, část
+- [x] **T-144** (krit. „Nahrávka z fixture i z RTSP kamery simulátoru … platný soubor“ a „Ustálený stav … bez alokací“, část
       Windows): `FFmpegRecordingTests`, `FFmpegRecordingAllocationTests` a `FFmpegRuntimeMuxerTests` prochází na Windows
       (build BtbN má muxer MP4); `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
 - [ ] **T-144** (ruční, přehrání): nahrávka z kamery simulátoru (po T-146 z menu nebo okna kamery) jde přehrát ve
@@ -152,9 +152,9 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] **T-146** (změněné podmenu tiskárny): `pwsh tools/run-e2e.ps1 -Class '*TrayMenu*'` a `-Class '*CameraTaskbarAndModeSwitch*'`
       = PASS (očekávané položky doplněné o „Start recording“, „Play last recording“, „Open recordings folder“; oddělovač
       není položka menu – kdyby UI Automation hlásilo oddělovač jako `MenuItem`, opravit `TrayMenu.ItemsOf`).
-- [ ] **T-146** (krit. „`dotnet build` a `dotnet test` bez chyb …; Native AOT publish bez nových varování“, část Windows):
+- [x] **T-146** (krit. „`dotnet build` a `dotnet test` bez chyb …; Native AOT publish bez nových varování“, část Windows):
       `dotnet test` na Windows bez chyb; `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
-- [ ] **T-146** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+- [x] **T-146** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
       a zkontrolovat nové `camera-recording.png`, `camera-mini-recording.png`, `camera-mini-recording-buttons.png`,
       `settings-recording.png` (vlastní záložka „Nahrávání“, rozhodnutí 2026-11-04) a změněné **všechny** `settings-*.png`
       (pátá hlavní záložka v záhlaví; navíc obsah `settings-camera*.png` s volbou „Automaticky nahrávat tisk“)
@@ -175,11 +175,11 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       záložce „Nahrávání“ (i když je okno nastavení už otevřené na jiné záložce; rozhodnutí 2026-11-04).
 
 ### 2f. Dashcam – posledních N minut (z T-148, implementováno na Macu 2026-11-04)
-- [ ] **T-148** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez chyb
+- [x] **T-148** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez chyb
       (nové `CameraDashcam*`, `DashcamBufferTests`, `SettingsMapperDashcamTests` v Core, `FFmpegRecordingTests
       .TheDashcamSavesAPlayableFileWithTheTimeBeforeAndAfterTheEvent` s BtbN, `SettingsDashcamTests`, `TrayMenuRecordingTests`,
       `CameraWindowDashcamUiTests`); `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
-- [ ] **T-148** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+- [x] **T-148** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
       a zkontrolovat změněné `settings-recording.png` (sekce „Poslední minuty tisku (dashcam)“) a `settings-camera.png`,
       `settings-camera-preview.png`, `settings-camera-preview-4x3-de.png`, `settings-camera-notice.png` (vedle
       „Automaticky nahrávat tisk“ nově „Uchovávat poslední minuty (dashcam)“ v tomtéž řádku) v
@@ -194,7 +194,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       a po konci tisku se vrátí.
 
 ### 2g. Detekce chyb tisku – UI (z T-154, implementováno na Macu 2026-11-04)
-- [ ] **T-154** (krit. „Poplach zobrazí notifikaci podle návrhu (E2E na Windows)“ a „Falešný poplach funguje z místa podle
+- [x] **T-154** (krit. „Poplach zobrazí notifikaci podle návrhu (E2E na Windows)“ a „Falešný poplach funguje z místa podle
       návrhu“, E2E): `pwsh tools/run-e2e.ps1 -Class '*PrintFailureAlarm*'` = PASS – detektor testovacího režimu
       (`LAYERPEEK_TEST_FAKE_DETECTOR=1`, Debug) během tisku simulátoru s kamerou vyvolá toast „Possible print failure –
       Detector e2e-alarm“ s názvem tiskárny, snímek `…_alarm-e2e-alarm.jpg` je v `Recordings` testovací datové složky,
@@ -206,12 +206,12 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       složce nahrávek) a jednou vypnutým (obrázek z `%LOCALAPPDATA%\LayerPeek\cache\notification-images`, ve složce nejvýš
       5 souborů). Zvuk jako u chyby tisku. Postup: simulátor s kamerou, v testovacím režimu `LAYERPEEK_TEST_FAKE_DETECTOR=1`
       (Debug) nebo s detektorem „Změna na podložce“ po T-155 a zakrytím podložky.
-- [ ] **T-154** (krit. „`dotnet build` a `dotnet test` bez chyb a varování; Native AOT publish bez nových varování“, část
+- [x] **T-154** (krit. „`dotnet build` a `dotnet test` bez chyb a varování; Native AOT publish bez nových varování“, část
       Windows): `dotnet test` na Windows bez chyb (nové `SettingsDetectionTests`, `DetectionRegionGeometryTests`,
       `PrintFailureNotificationTests`, `PrintFailureActivationTests`, `SettingsWindowDetectionUiTests`,
       `SettingsWindowLayoutTests.DetectionSubTabFitsInEveryLanguage`); `dotnet publish src/LayerPeek.App -c Release -r win-x64`
       bez nových varování AOT / trim.
-- [ ] **T-154** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+- [x] **T-154** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
       a zkontrolovat nové `settings-detection.png`, `settings-detection-camera-off-fr.png` a změněné `settings-recording.png`
       (sekce „Detekce chyb tisku“, nápověda dashcamu v levém sloupci) a všechny `settings-*.png` podzáložek tiskárny (čtvrtá
       podzáložka „Detekce“ v záhlaví) v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová).
@@ -222,7 +222,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       je na jednom řádku i ve francouzštině se Segoe UI.
 
 ### 2h. Timelapse – zápis z klíčových snímků (z T-158, implementováno na Macu 2026-11-04)
-- [ ] **T-158** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb
+- [x] **T-158** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb
       (nové `CameraTimelapse*` v Core, `FFmpegTimelapseTests` s BtbN – fixture, simulátor, „pád“, výpadek, dvakrát týž IDR);
       `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
 - [ ] **T-158** (krit. „dva po sobě jdoucí vybrané IDR se stejným `idr_pic_id` … přehrání ve Filmech a TV ručně“): dekodér
@@ -233,12 +233,12 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       odmítal, založit úkol na přepis `idr_pic_id` v hlavičce řezu (spike T-149, bez dekódování).
 
 ### 2i. Detekce chyb tisku – detektor „Změna na podložce“ (z T-155, implementováno na Macu 2026-11-04)
-- [ ] **T-155** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
+- [x] **T-155** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
       chyb (nové `BedChangeDetectorTests`, `BedChangeDetectorCostTests`, `BedChangeAccuracyCoreOneTests`,
       `BedChangeAccuracyFullFrameTests` v Detection; `BedChangeLocalSamplesTests` se bez `~/LayerPeek-samples` přeskočí;
       `BedChangeAlarmSimulatorTests` a `FFmpegRecordingTests.ARecordingPlaysAsTheSimulatorsCameraClip` s BtbN; `Mp4ClipTests`
       simulátoru).
-- [ ] **T-155** (krit. „Licence … Native AOT publish bez nových varování“, část Windows): `dotnet publish src/LayerPeek.App
+- [x] **T-155** (krit. „Licence … Native AOT publish bez nových varování“, část Windows): `dotnet publish src/LayerPeek.App
       -c Release -r win-x64` bez nových varování AOT / trim (žádná nová závislost).
 - [ ] **T-155** (krit. „Spotřeba CPU a paměti změřená“, část win-x64): změřit čas detektoru na vzorek jako v poznámkách T-155
       (testovací aplikace mimo repozitář: `PrintFailureDetectors.All[0].Create()`, 6 klíčových snímků fixture dokola,
@@ -248,7 +248,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `Process.TotalProcessorTime` za 60 s).
 
 ### 2j. Timelapse – služba (z T-160, implementováno na Macu 2026-11-04)
-- [ ] **T-160** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb
+- [x] **T-160** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb
       (nové `CameraTimelapseServiceTests`, `CameraTimelapseTimeTriggerTests`, `TimelapseFileNameTests`,
       `SettingsMapperTimelapseTests`, `PreparingANewFolderFromSeveralWritersAtOnce…` v Core, `SettingsTimelapseTests` v App);
       `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
@@ -263,7 +263,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       okna kamery) a upravené `TrayMenuTests`, `TrayMenuDetailTests` (klávesy O, C, R, T, P, L, D),
       `CameraTaskbarAndModeSwitchTests` prochází; `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování
       AOT / trim.
-- [ ] **T-161** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+- [x] **T-161** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
       a zkontrolovat nové `camera-timelapse.png`, `camera-mini-timelapse.png`, `camera-mini-timelapse-buttons.png` a změněné
       `camera-mini-recording-buttons.png` (tlačítko timelapse před REC), `settings-recording.png` (dashcam zhuštěný, sekce
       „Timelapse“ se štítkem), `settings-camera.png`, `settings-camera-preview.png`, `settings-camera-preview-4x3-de.png`,
@@ -324,14 +324,14 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       simulovaných selháních.
 
 ### 2o. Timelapse – spouštěč po vrstvě (z T-159, implementováno na Macu 2026-11-05)
-- [ ] **T-159** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
+- [x] **T-159** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
       chyb, hlavně Core `LayerChangeDetectorTests` (záznam `Fixtures/z-recordings/coreone-job354-0.2mm.csv` se kopíruje do
       výstupu, 0 B na vzorek), `CameraTimelapseLayerTriggerTests`, `CameraTimelapseServiceLayerTests` (i se skutečným
       rekordérem nad falešným proudem), `SettingsMapperTimelapseLayerTests`; App `SettingsTimelapseTriggerTests`; UiTests
       `SettingsWindowTimelapseUiTests` (výběr spouštěče ve všech jazycích, texty se vejdou do pole se Segoe UI) a rozšířené
       `SettingsWindowLayoutTests.RecordingTabFitsInEveryLanguage`; `dotnet publish src/LayerPeek.App -c Release -r win-x64`
       bez nových varování AOT / trim.
-- [ ] **T-159** (snímky UI, sada Windows): spolu s 2k přegenerovat a zkontrolovat `settings-recording.png` (v řádku nadpisu
+- [x] **T-159** (snímky UI, sada Windows): spolu s 2k přegenerovat a zkontrolovat `settings-recording.png` (v řádku nadpisu
       „Timelapse“ pole „Každých N sekund“ místo popisku intervalu).
 - [ ] **T-159** (ruční část Windows): na záložce Nahrávání přepnout „Každých N sekund“ → „Každou N. vrstvu (odhad)“, místo
       intervalu se ukáže počet vrstev (1), tipy vysvětlují odhad z osy Z; uložit, znovu otevřít – volba zůstane. Simulátor
@@ -349,7 +349,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       nepřekrývá ani v němčině a francouzštině (125 % a 150 % DPI).
 
 ### 2q. Detekce chyb tisku – detektor „Tisk do vzduchu“ (z T-167, implementováno na Macu 2026-11-05)
-- [ ] **T-167** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
+- [x] **T-167** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
       chyb, hlavně `AirPrintingDetectorTests`, `AirPrintingDetectorCostTests` a `AirPrintingSeedSweepTests` v Detection
       (`AirPrintingLocalSamplesTests` se bez `~/LayerPeek-samples` přeskočí), nové testy registrace a mapperu v Core
       (`DetectionModelTests`, `SettingsMapperDetectionTests`, `PrintFailureDetectionServiceTests`), `SettingsDetectionTests`
@@ -418,3 +418,29 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
   `InstalledOlderVersionUpdatesFromALocalFeedAfterAClick` SKIP kvůli nainstalované 0.4.0. Uživatel rozhodl 0.4.0
   neodinstalovat a body T-058 (E2E) a T-128 uzavřít na základě ostré aktualizace výše. Klik na banner toastu
   u instalované verze tak ověřuje jen případ `.zip` (stejná cesta banneru, jiná akce).
+
+### Build, testy, snímky, AOT a E2E 2026-11-05 (hlavní agent, develop `dc7d46e0` + větev `feature/windows-test-catchup`)
+- `dotnet build` bez varování. `dotnet test` na Windows nejdřív 47 chyb: 45 snímkových testů (sada Windows bez změn z Macu
+  od T-146) a 2 testy v Core, které na Windows nikdy neprošly. `CameraRecordingRotationTests.PreparingAFolderWritesTheMarkerOnce`
+  přepisoval skrytou značku přes `File.WriteAllText`, což Windows u skrytého souboru odmítne (aplikace značku jen vytváří,
+  chyba byla v testu). `CameraTimelapseJpegExporterTests.ManyFramesGetMoreDigitsSoThatTheNamesStillSort` (10 001 souborů)
+  při plném běhu nestihl 10 s, test teď čeká 1 min. Po opravě a přegenerování všech 11 projektů PASS.
+- Snímky UI sady Windows přegenerované (`LAYERPEEK_UPDATE_SNAPSHOTS=1`): 38 změněných `settings-*.png`, 9 nových (`camera-recording`,
+  `camera-timelapse`, `camera-mini-recording(-buttons)`, `camera-mini-timelapse(-buttons)`, `settings-recording`,
+  `settings-detection`, `settings-detection-camera-off-fr`). Nové a ty s největším rozdílem prohlédnuté, změny odpovídají
+  T-146 / T-148 / T-154 / T-161 / T-159 / T-163 / štítku „Experimentální“ a nic se neořezává (Inter, headless).
+- `dotnet publish src/LayerPeek.App -c Release -r win-x64`: 0 varování AOT / trim.
+- `tools/run-e2e.ps1` celý (se změnami systému): 505 PASS, 9 SKIP, 5 FAIL; systém po běhu obnovený. Opraveno v testech:
+  `TrayMenuDetailTests` (podmenu tiskárny má po T-146/T-161/T-165/T-164 devět položek, klávesy O, C, R, T, P, L, E, M, D),
+  `CameraMiniPreviewTests` (Tab: tlačítko TL je zastávka navíc, limit 6 → 10), `PrintFailureAlarmTests` (Windows po
+  použití tlačítka „False alarm“ toast z centra oznámení odstraní; rozděleno na dva testy, každý se svým poplachem).
+  Opakovaně: `TrayMenuDetailTests` 9/9, `CameraMiniPreviewTests` 6/6, `PrintFailureAlarmTests` 2/2, `TaskbarJumpListTests`
+  1/1 PASS (dřív jednorázové selhání, nestabilní). `CameraWindowAutoCloseTests` PASS, snímky `camera-auto-close-1-open`
+  a `-2-reopened` prohlédnuté (okno kamery s obrazem, znovu otevřené na stejném místě).
+- **`TrayMenuTests.RealTrayMenuShowsThePrinterSubmenuAndTogglesTheCamera` FAIL** (2× za sebou): po „Hide camera“ zůstane
+  hlavní menu otevřené. Na commitu před T-146 test prochází → nový úkol **T-168**. Kvůli tomu zůstávají neodškrtnuté body
+  T-146 (podmenu), T-161, T-165 a T-164, které tento test vyžadují; jinak u nich `dotnet test`, snímky, AOT
+  a `TrayMenuDetailTests` / `CameraTaskbarAndModeSwitchTests` prošly.
+- Neodškrtnuto, protože zbývá ruční část nebo jiný krok: T-145 (skrytí v Průzkumníku, OneDrive; testy `CameraRecording*` PASS),
+  T-146 `*CameraRecording*` (E2E PASS, prázdný kořen `Recordings` po běhu nekontrolován), 2n a T-163 (ruční část),
+  T-162 (prázdná cache FFmpeg).
