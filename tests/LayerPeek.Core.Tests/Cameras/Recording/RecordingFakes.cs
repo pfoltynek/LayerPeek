@@ -27,6 +27,9 @@ internal sealed class FakeRecordingWriterFactory : ICameraRecordingWriterFactory
     /// <summary>Called on the writing thread with the fill of every packet written (after it is stored).</summary>
     public Action<byte>? Written { get; init; }
 
+    /// <summary>Called with the writer's path when <see cref="FakeRecordingWriter.Complete"/> runs (before a failure is thrown).</summary>
+    public Action<string>? Completing { get; init; }
+
     public FakeRecordingWriter[] Writers => [.. _writers];
 
     public ICameraRecordingWriter Create(string path, CameraStreamInfo info, ReadOnlySpan<byte> firstKeyFrame)
@@ -37,13 +40,13 @@ internal sealed class FakeRecordingWriterFactory : ICameraRecordingWriterFactory
             throw failure;
         }
 
-        FakeRecordingWriter writer = new(path, info, firstKeyFrame.ToArray(), WriteFailure, CompleteFailure, Written);
+        FakeRecordingWriter writer = new(path, info, firstKeyFrame.ToArray(), WriteFailure, CompleteFailure, Written, Completing);
         _writers.Enqueue(writer);
         return writer;
     }
 }
 
-internal sealed class FakeRecordingWriter(string path, CameraStreamInfo info, byte[] firstKeyFrame, (int Write, Exception Error)? writeFailure, Exception? completeFailure, Action<byte>? written = null)
+internal sealed class FakeRecordingWriter(string path, CameraStreamInfo info, byte[] firstKeyFrame, (int Write, Exception Error)? writeFailure, Exception? completeFailure, Action<byte>? written = null, Action<string>? completing = null)
     : ICameraRecordingWriter
 {
     private readonly WrittenPacket[] _packets = new WrittenPacket[4096];
@@ -87,6 +90,7 @@ internal sealed class FakeRecordingWriter(string path, CameraStreamInfo info, by
     public void Complete()
     {
         Volatile.Write(ref _completed, 1);
+        completing?.Invoke(Path);
         if (completeFailure is { } failure)
         {
             throw failure;

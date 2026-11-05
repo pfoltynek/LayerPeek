@@ -398,12 +398,13 @@ public sealed partial class CameraTimelapseFromRecordingMaker : IAsyncDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             LogWriteFailed(ex.GetType().Name);
-            return job.Fail(CameraRecording.IsDiskFull(ex) ? CameraTimelapseExportProblem.DiskFull : CameraTimelapseExportProblem.WriteFailed, reader.Frames);
+            // Renaming a later file failed: the files already renamed stay and are reported (still a failure).
+            return job.Fail(CameraRecording.IsDiskFull(ex) ? CameraTimelapseExportProblem.DiskFull : CameraTimelapseExportProblem.WriteFailed, reader.Frames, output.Published);
         }
         catch (Exception ex)
         {
             LogUnexpectedFailure(ex);
-            return job.Fail(CameraTimelapseExportProblem.Failed, reader.Frames);
+            return job.Fail(CameraTimelapseExportProblem.Failed, reader.Frames, output.Published);
         }
         finally
         {
@@ -474,8 +475,9 @@ public sealed partial class CameraTimelapseFromRecordingMaker : IAsyncDisposable
         /// <summary>Completed when the job cleaned up and told how it ended.</summary>
         public TaskCompletionSource Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public CameraTimelapseFromRecordingResult Fail(CameraTimelapseExportProblem problem, int frames = 0) =>
-            new(PrinterId, SourceFile, [], frames, problem);
+        /// <summary>A failed job; <paramref name="published"/> are the files it already gave their final names (they stay).</summary>
+        public CameraTimelapseFromRecordingResult Fail(CameraTimelapseExportProblem problem, int frames = 0, IReadOnlyList<string>? published = null) =>
+            new(PrinterId, SourceFile, published ?? [], frames, problem);
     }
 
     /// <summary>
@@ -589,6 +591,7 @@ public sealed partial class CameraTimelapseFromRecordingMaker : IAsyncDisposable
         private readonly string _extension = Path.GetExtension(fileName);
         private readonly List<string> _temporary = [];
         private readonly List<IDisposable> _holds = [];
+        private readonly List<string> _published = [];
         private ICameraRecordingWriter? _writer;
         private CameraStreamInfo? _info;
         private RecordingClock _clock;
@@ -641,23 +644,28 @@ public sealed partial class CameraTimelapseFromRecordingMaker : IAsyncDisposable
             }
         }
 
+        /// <summary>The files <see cref="Publish"/> gave their final names so far (full paths, in order).</summary>
+        public IReadOnlyList<string> Published => _published;
+
         /// <summary>Completes the files and gives them their final names in order (<c>name.mp4</c>, then <c>-2</c>, <c>-3</c> … for a taken name).</summary>
         /// <exception cref="CameraRecordingException">Completing failed.</exception>
-        /// <exception cref="IOException">Renaming failed (the remaining temporary files are deleted by <see cref="Discard"/>).</exception>
+        /// <exception cref="IOException">
+        /// Renaming failed (the remaining temporary files are deleted by <see cref="Discard"/>; the ones renamed before stay,
+        /// listed in <see cref="Published"/>).
+        /// </exception>
         public List<string> Publish()
         {
             Close();
-            List<string> published = new(_temporary.Count);
             int next = 1;
             for (int index = 0; index < _temporary.Count; index++)
             {
                 (string target, next) = MoveToFreeName(_temporary[index], next);
-                published.Add(target);
+                _published.Add(target);
                 _temporary[index] = "";
             }
 
             _temporary.Clear();
-            return published;
+            return _published;
         }
 
         /// <summary>Closes and deletes every temporary file (best effort; the rotation removes what is left later).</summary>

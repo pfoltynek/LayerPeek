@@ -12,6 +12,9 @@ public sealed class FFmpegCameraFeedAllocationTests
     private const int WarmUpFrames = 10;
     private const int MeasuredFrames = 50;
 
+    /// <summary>Fewer than <see cref="MeasuredFrames"/>: the hub drops frames the consumer misses, so a pass uses up more of the fixture.</summary>
+    private const int HubMeasuredFrames = 30;
+
     [FFmpegFact]
     public async Task SteadyStateFramesDoNotAllocate()
     {
@@ -59,13 +62,21 @@ public sealed class FFmpegCameraFeedAllocationTests
     [FFmpegFact]
     public async Task SteadyStateFramesThroughTheHubDoNotAllocate()
     {
-        // T-143: the camera window's real path, the shared connection with the subscriber's own buffers.
+        // T-143: the camera window's real path, the shared connection with the subscriber's own buffers. The file plays
+        // as fast as it decodes, so under load a pass can run out of frames (the stream ends and reconnects); such a pass
+        // measures nothing and is repeated.
         long minimum = long.MaxValue;
-        for (int pass = 0; pass < 3 && minimum > 0; pass++)
+        int valid = 0;
+        for (int pass = 0; pass < 10 && valid < 3 && minimum > 0; pass++)
         {
-            minimum = Math.Min(minimum, await Task.Run(MeasureHubPassAsync, TestContext.Current.CancellationToken));
+            if (await Task.Run(MeasureHubPassAsync, TestContext.Current.CancellationToken) is { } allocated)
+            {
+                valid++;
+                minimum = Math.Min(minimum, allocated);
+            }
         }
 
+        Assert.True(valid > 0, "Every pass ran out of frames.");
         Assert.Equal(0, minimum);
     }
 
@@ -96,7 +107,8 @@ public sealed class FFmpegCameraFeedAllocationTests
         }
     }
 
-    private static async Task<long> MeasureHubPassAsync()
+    /// <returns>The bytes allocated over <see cref="HubMeasuredFrames"/> frames; <see langword="null"/> when the fixture ran out first.</returns>
+    private static async Task<long?> MeasureHubPassAsync()
     {
         ReconnectingCameraFeed camera = new(new FFmpegCameraFeedFactory(), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
         await using CameraStreamHub hub = new(camera, TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
@@ -114,19 +126,29 @@ public sealed class FFmpegCameraFeedAllocationTests
 
         int taken = 0;
         DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
-        while (Seen(ref taken) < WarmUpFrames)
+        // The exchange's third buffer gets its pixels only after the consumer took frames (the third take proves it): a
+        // consumer starved by a loaded machine that took none in the warm-up would allocate it inside the measurement.
+        while (Seen(ref taken) < WarmUpFrames || taken < 3)
         {
             Assert.True(DateTime.UtcNow < deadline, "No frames.");
             Thread.Yield();
         }
 
+        long start = Seen(ref taken);
+        if (start + HubMeasuredFrames > TestFixtures.Buddy3DFrameCount)
+        {
+            return null;
+        }
+
         long before = GC.GetTotalAllocatedBytes(precise: true);
-        while (Seen(ref taken) < WarmUpFrames + MeasuredFrames)
+        while (Seen(ref taken) < start + HubMeasuredFrames)
         {
             Thread.Yield();
         }
 
-        return GC.GetTotalAllocatedBytes(precise: true) - before;
+        long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        // The end of the file (and the reconnect) inside the measurement is no steady state.
+        return lease.Status.State == CameraConnectionState.Streaming ? allocated : null;
     }
 
     private static async Task<long> MeasureReconnectingPassAsync()

@@ -12,7 +12,9 @@ namespace LayerPeek.App.Notifications;
 /// General tab; the notification about a failed camera recording (T-146) the fixed <see cref="RecordingSettings"/> (the
 /// Recording tab); the notification about a new version (T-058) the fixed <see cref="Update"/>. The notification of a
 /// suspected print failure (T-154) carries <c>camera=</c> and the printer id (its click opens the printer's camera window),
-/// its "False alarm" button <c>false-alarm=</c> and the alarm id (<see cref="ForFalseAlarm"/>). Nothing else is ever
+/// its "False alarm" button <c>false-alarm=</c> and the alarm id (<see cref="ForFalseAlarm"/>). The notification about a
+/// finished JPEG export (T-165) or timelapse from a recording (T-164) carries <c>recordings=</c> and the printer id (its
+/// click opens the printer's recordings folder, user decision 2026-11-04; no path travels). Nothing else is ever
 /// accepted (<see cref="IsWellFormed"/>): every argument comes back from the OS and is untrusted.
 /// </summary>
 internal static class ToastLaunchArgument
@@ -49,6 +51,8 @@ internal static class ToastLaunchArgument
     private const string CameraPrefix = "camera=";
 
     private const string FalseAlarmPrefix = "false-alarm=";
+
+    private const string RecordingsFolderPrefix = "recordings=";
 
     /// <summary>Whether <paramref name="argument"/> is exactly <see cref="Update"/> (the update notification, T-058).</summary>
     public static bool IsUpdate([NotNullWhen(true)] string? argument) => string.Equals(argument, Update, StringComparison.Ordinal);
@@ -133,6 +137,17 @@ internal static class ToastLaunchArgument
         return true;
     }
 
+    /// <summary>
+    /// The argument of the notification about a finished JPEG export (T-165) or timelapse from a recording (T-164), success
+    /// or failure: its click opens the recordings folder of <paramref name="printerId"/> (like the tray menu item).
+    /// </summary>
+    /// <returns><see langword="false"/> when the encoded argument would exceed <see cref="MaxLength"/>.</returns>
+    public static bool TryForRecordingsFolder(string printerId, [NotNullWhen(true)] out string? argument) => TryEncode(RecordingsFolderPrefix, printerId, out argument);
+
+    /// <summary>The printer of a recordings folder argument (<see cref="TryForRecordingsFolder"/>); <see langword="false"/> for anything else.</summary>
+    public static bool TryGetRecordingsFolderPrinterId([NotNullWhen(true)] string? argument, [NotNullWhen(true)] out string? printerId) =>
+        TryDecode(RecordingsFolderPrefix, argument, out printerId);
+
     /// <summary>The printer of a camera argument (<see cref="TryForCamera"/>); <see langword="false"/> for anything else.</summary>
     public static bool TryGetCameraPrinterId([NotNullWhen(true)] string? argument, [NotNullWhen(true)] out string? printerId) =>
         TryDecode(CameraPrefix, argument, out printerId);
@@ -170,7 +185,7 @@ internal static class ToastLaunchArgument
             return true;
         }
 
-        return IsEncodedId(PrinterPrefix, argument) || IsEncodedId(CameraPrefix, argument);
+        return IsEncodedId(PrinterPrefix, argument) || IsEncodedId(CameraPrefix, argument) || IsEncodedId(RecordingsFolderPrefix, argument);
     }
 
     /// <returns><see langword="false"/> for anything not created by <see cref="ForPrinter"/>.</returns>

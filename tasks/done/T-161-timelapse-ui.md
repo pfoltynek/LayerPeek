@@ -55,6 +55,7 @@ jako **experimentální**.
 **K potvrzení uživatelem (neblokující, implementované je konzervativní výchozí chování, změna je malá):**
 1. **Interval u každé tiskárny?** (z T-160) Interval je globální (`recording.timelapseIntervalSeconds`, záložka Nahrávání),
    automatický timelapse je volba u tiskárny (`camera.timelapsePrints`). Výchozí bez rozhodnutí: globální.
+   **Vyřešeno (rozhodnutí uživatele 2026-11-04):** interval zůstává globální.
 2. **Zhuštěná sekce dashcamu na záložce Nahrávání.** Sekce timelapse se na záložku jinak nevešla (záložka byla plná,
    nejplnější stav měl rezervu 5 DIP, T-033). Délka dashcamu je proto v řádku nadpisu, čtyři spouštěče ve dvou sloupcích
    a popisek „Ukládat automaticky“ a nápověda „Ručně jde uložit vždy …“ už nemají vlastní řádek (jsou přístupný název
@@ -67,6 +68,7 @@ jako **experimentální**.
 5. **„TL“** jako indikátor v okně kamery (vedle „REC“, ve všech jazycích stejně jako „REC“). Vyhovuje, nebo jen ikona /
    jiný text?
 6. **Bez notifikace o hotovém timelapse** (jen chyby, jako nahrávky – T-145 8). Stačí?
+   **Vyřešeno (rozhodnutí uživatele 2026-11-04):** ano, o hotovém živém timelapse se notifikace nezobrazuje.
 
 ## Podklady z T-160
 - Služba: `CameraRecordingService.StartTimelapse(id)` / `StopTimelapse(id)` (vrací `false`, když to nejde vůbec zkusit),

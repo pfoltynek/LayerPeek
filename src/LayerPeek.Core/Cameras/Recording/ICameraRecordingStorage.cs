@@ -38,7 +38,7 @@ public interface ICameraRecordingStorage
     /// The recordings in <paramref name="root"/>: files named by <see cref="CameraRecordingFolders.IsRecordingFileName"/>
     /// or <see cref="CameraRecordingFolders.IsSnapshotFileName"/> (alarm snapshots, T-153) directly in subfolders that carry
     /// the marker, and the JPEG export folders of timelapses there (T-165, <see cref="CameraRecordingFile.IsFolder"/>, with
-    /// the size of their frames), and timelapses from recordings that are still written there (T-164,
+    /// the size of their frames; not one without frames that holds files of the user), and timelapses from recordings that are still written there (T-164,
     /// <see cref="CameraRecordingFile.IsUnfinished"/>); nothing else (no files of the root itself, no other levels, no unmarked folders, no links).
     /// Missing or unreadable folders give no files (never throws).
     /// </summary>
@@ -46,7 +46,8 @@ public interface ICameraRecordingStorage
 
     /// <summary>
     /// Deletes the file; for a JPEG export folder (T-165) its frames, and the folder when nothing else is left in it.
-    /// <see langword="false"/> when that failed (it is in use, no permission…; never throws).
+    /// <see langword="false"/> when that failed (it is in use, no permission…; never throws), and for an export folder
+    /// when nothing was removed (no frames, only files of the user).
     /// </summary>
     bool TryDelete(string path);
 }
@@ -65,6 +66,9 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
 
     /// <summary>Files that the system puts into any folder that was opened; they do not make a folder the user's.</summary>
     private static readonly string[] SystemMetadataFiles = [".DS_Store", "Thumbs.db", "desktop.ini"];
+
+    /// <summary>Every entry of one folder (also hidden ones and links), as far as it can be read.</summary>
+    private static readonly EnumerationOptions AllEntries = new() { RecurseSubdirectories = false, IgnoreInaccessible = true, AttributesToSkip = 0 };
 
     public void PrepareFolder(string folder)
     {
@@ -163,7 +167,14 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
                         bool unfinished = CameraRecordingFolders.IsUnfinishedJpegExportFolderName(export.Name);
                         if (unfinished || CameraRecordingFolders.IsJpegExportFolderName(export.Name))
                         {
-                            (long length, DateTime written) = MeasureFrames(export, options);
+                            (int frames, long length, DateTime written, bool hasOtherEntries) = MeasureFrames(export);
+                            if (frames == 0 && hasOtherEntries)
+                            {
+                                // No frames left, only files of the user: nothing of LayerPeek's to count or delete (the
+                                // rotation would "delete" it again every time).
+                                continue;
+                            }
+
                             files.Add(new CameraRecordingFile(export.FullName, folder.Name, length, written, IsFolder: true, IsUnfinished: unfinished));
                         }
                     }
@@ -199,22 +210,34 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
         }
     }
 
-    /// <summary>The frames of an export folder and their size; a folder that cannot be read counts as empty.</summary>
-    private static (long Length, DateTime LastWriteUtc) MeasureFrames(DirectoryInfo export, EnumerationOptions options)
+    /// <summary>
+    /// The frames of an export folder (files with LayerPeek's frame names, no links), their count (an empty frame left by a
+    /// crash still counts, so it is removed) and size, and whether anything
+    /// else but system metadata is in it (a file or folder of the user, which keeps the folder from being deleted). A folder
+    /// that cannot be read counts as empty.
+    /// </summary>
+    private static (int Frames, long Length, DateTime LastWriteUtc, bool HasOtherEntries) MeasureFrames(DirectoryInfo export)
     {
+        int frames = 0;
         long length = 0;
+        bool hasOtherEntries = false;
         DateTime written = export.LastWriteTimeUtc;
         try
         {
-            foreach (FileInfo frame in export.EnumerateFiles("*", options))
+            foreach (FileSystemInfo entry in export.EnumerateFileSystemInfos("*", AllEntries))
             {
-                if (CameraRecordingFolders.IsJpegExportFrameFileName(frame.Name))
+                if (entry is FileInfo frame && !frame.Attributes.HasFlag(FileAttributes.ReparsePoint) && CameraRecordingFolders.IsJpegExportFrameFileName(frame.Name))
                 {
+                    frames++;
                     length += frame.Length;
                     if (frame.LastWriteTimeUtc > written)
                     {
                         written = frame.LastWriteTimeUtc;
                     }
+                }
+                else if (!SystemMetadataFiles.Contains(entry.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    hasOtherEntries = true;
                 }
             }
         }
@@ -222,12 +245,13 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
         {
         }
 
-        return (length, written);
+        return (frames, length, written, hasOtherEntries);
     }
 
     /// <summary>
     /// T-165: the frames of an export folder (only LayerPeek's names, never through a link), then the folder itself when
-    /// nothing but system metadata is left; files of the user stay, and so does the folder then.
+    /// nothing but system metadata is left; files of the user stay, and so does the folder then. <see langword="true"/> only
+    /// when a frame or the folder was removed: a folder holding nothing but files of the user is left as it is.
     /// </summary>
     private static bool TryDeleteExport(string folder)
     {
@@ -239,10 +263,16 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
         }
 
         EnumerationOptions options = new() { RecurseSubdirectories = false, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
+        bool removed = false;
         foreach (string file in Directory.EnumerateFiles(folder, "*", options))
         {
             string fileName = Path.GetFileName(file);
-            if (CameraRecordingFolders.IsJpegExportFrameFileName(fileName) || SystemMetadataFiles.Contains(fileName, StringComparer.OrdinalIgnoreCase))
+            if (CameraRecordingFolders.IsJpegExportFrameFileName(fileName))
+            {
+                File.Delete(file);
+                removed = true;
+            }
+            else if (SystemMetadataFiles.Contains(fileName, StringComparer.OrdinalIgnoreCase))
             {
                 File.Delete(file);
             }
@@ -251,13 +281,14 @@ public sealed class CameraRecordingStorage : ICameraRecordingStorage
         try
         {
             Directory.Delete(folder, recursive: false);
+            removed = true;
         }
         catch (IOException) when (Directory.Exists(folder))
         {
             // Not empty: files of the user stay with their folder; the frames are gone, so their space is free.
         }
 
-        return true;
+        return removed;
     }
 
     private static bool HasUserEntries(string folder)
