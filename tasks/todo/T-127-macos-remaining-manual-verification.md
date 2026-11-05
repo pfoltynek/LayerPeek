@@ -254,9 +254,25 @@ a kritérium.
 - [ ] **T-170** (snímky UI, sada macOS): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
       a zkontrolovat změněné `Snapshots/macOS/settings-*.png` podzáložky Tiskárna (pole „Připojení“ zmizelo, jméno vede
       přes celou šířku vedle obrázku; `settings-prusaconnect.png` je smazaný). Pak celý `dotnet test` na Macu bez chyb.
-- [ ] **T-170** (`tools/macos-verify.ps1`, kontrola `mac.shortcuts`): upravená kontrola Cmd-. s otevřeným seznamem teď
+- [ ] **T-170** (`tools/macos-verify.ps1`, kontrola `mac.keys`): upravená kontrola Cmd-. s otevřeným seznamem teď
       přejde na záložku Obecné (Cmd-Shift-] dvakrát) a otevře `SettingsLanguage` místo smazaného `PrinterConnectionType`.
-      Na Macu spustit `pwsh tools/macos-verify.ps1 -Only mac.shortcuts` a ověřit, že kontrola proběhne (ne „not checked“).
+      Na Macu spustit `pwsh tools/macos-verify.ps1 -Only mac.keys -Allow mac.keys` a ověřit, že kontrola proběhne (ne „not checked“).
+
+### 1d. Chyby hlášené uživatelem
+- [ ] **Kontrola aktualizací: text výsledku po skutečném kliknutí (macOS, hlášeno uživatelem 2026-11-05).** Nastavení →
+      Spuštění a aktualizace → „Zkontrolovat nyní“ (`SettingsCheckForUpdatesNow`) při dostupné novější verzi neukázal
+      v `SettingsUpdateCheckResult` žádný text (Windows ukáže „Je dostupná verze X.Y.Z…“), aktualizace sama pak prošla.
+      Programové vyvolání příkazu chybu nikdy nezopakovalo (Debug JIT, AOT, Velopack, Release 0.4.0). Kontrola
+      `mac.update-check` zkouší skutečný vstup proti náhradnímu GitHub API na 127.0.0.1 (`tools/fake-github-releases.ps1`,
+      vydání 9.9.0, odpověď zpožděná o 1,5 s, aby šlo vidět „Checking…“): a) skutečný klik do aktivního okna, b) jeden
+      skutečný klik do neaktivního okna, když je vpředu jiná aplikace (hlavní hypotéza: první klik okno jen aktivuje),
+      c) AXPress (VoiceOver). Text čte ze stromu Accessibility každých 50 ms; se Záznamem obrazovky navíc porovná snímky
+      okna před a po (je text opravdu vykreslený?). Jednorázově: odemčená obrazovka, Terminál v Soukromí a zabezpečení →
+      Zpřístupnění (po zapnutí Terminál restartovat), volitelně i v „Záznam obrazovky a systémového zvuku“. Spustit
+      `caffeinate -d -u pwsh tools/macos-verify.ps1 -Unattended -Only mac.update-check -Allow mac.update-check` (nebo
+      interaktivně `pwsh tools/macos-verify.ps1 -Only mac.update-check`). Výsledek všech tří scénářů a důkazy
+      (`*-watch.jsonl`, `*-before/after.png`, `github-requests.txt`, log aplikace) ze složky běhu zapsat sem; při `FAIL`
+      založit úkol na opravu.
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)
