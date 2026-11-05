@@ -18,45 +18,24 @@ public sealed class FFmpegCameraFeedAllocationTests
     [FFmpegFact]
     public async Task SteadyStateFramesDoNotAllocate()
     {
-        long minimum = long.MaxValue;
-
         // Decoding runs on the feed's own thread, so all threads are counted (GC.GetTotalAllocatedBytes); a stray
         // allocation elsewhere in the process does not repeat on every pass, a per-frame allocation would.
-        for (int pass = 0; pass < 3 && minimum > 0; pass++)
-        {
-            // On the thread pool: no synchronization context, so continuations stay on the decoder thread like in
-            // a consumer that uses ConfigureAwait(false) (a context would allocate for every post).
-            minimum = Math.Min(minimum, await Task.Run(MeasurePassAsync, TestContext.Current.CancellationToken));
-        }
-
         // Anything per frame would be at least 50 objects; the 1280x720 buffer alone is 3.6 MB.
-        Assert.Equal(0, minimum);
+        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasurePassAsync));
     }
 
     [FFmpegFact]
     public async Task SteadyStateFramesThroughReconnectingFeedDoNotAllocate()
     {
         // The real path of the camera window: FFmpeg completes every read asynchronously on its decoder thread.
-        long minimum = long.MaxValue;
-        for (int pass = 0; pass < 3 && minimum > 0; pass++)
-        {
-            minimum = Math.Min(minimum, await Task.Run(MeasureReconnectingPassAsync, TestContext.Current.CancellationToken));
-        }
-
-        Assert.Equal(0, minimum);
+        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureReconnectingPassAsync));
     }
 
     [FFmpegFact]
     public async Task SteadyStatePacketsAndFramesDoNotAllocate()
     {
         // T-143: a recording (packets) and a window (frames) on one connection.
-        long minimum = long.MaxValue;
-        for (int pass = 0; pass < 3 && minimum > 0; pass++)
-        {
-            minimum = Math.Min(minimum, await Task.Run(MeasureItemsPassAsync, TestContext.Current.CancellationToken));
-        }
-
-        Assert.Equal(0, minimum);
+        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureItemsPassAsync));
     }
 
     [FFmpegFact]
@@ -65,22 +44,34 @@ public sealed class FFmpegCameraFeedAllocationTests
         // T-143: the camera window's real path, the shared connection with the subscriber's own buffers. The file plays
         // as fast as it decodes, so under load a pass can run out of frames (the stream ends and reconnects); such a pass
         // measures nothing and is repeated.
+        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureHubPassAsync));
+    }
+
+    /// <summary>
+    /// The smallest allocation of up to three valid passes. All threads are counted, so a pass during which the thread
+    /// pool started or retired workers (allocations of the runtime, not of the feed) measures nothing and is repeated.
+    /// </summary>
+    private static async Task<long> MinimumOfValidPassesAsync(Func<Task<long?>> measure)
+    {
         long minimum = long.MaxValue;
         int valid = 0;
         for (int pass = 0; pass < 10 && valid < 3 && minimum > 0; pass++)
         {
-            if (await Task.Run(MeasureHubPassAsync, TestContext.Current.CancellationToken) is { } allocated)
+            // On the thread pool: no synchronization context, so continuations stay on the decoder thread like in
+            // a consumer that uses ConfigureAwait(false) (a context would allocate for every post).
+            if (await Task.Run(measure, TestContext.Current.CancellationToken) is { } allocated)
             {
                 valid++;
                 minimum = Math.Min(minimum, allocated);
             }
         }
 
-        Assert.True(valid > 0, "Every pass ran out of frames.");
-        Assert.Equal(0, minimum);
+        Assert.True(valid > 0, "No pass measured a steady state.");
+        return minimum;
     }
 
-    private static async Task<long> MeasureItemsPassAsync()
+    /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> packets and frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
+    private static async Task<long?> MeasureItemsPassAsync()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -93,13 +84,15 @@ public sealed class FFmpegCameraFeedAllocationTests
                 Assert.True(await items.MoveNextAsync());
             }
 
+            int threads = ThreadPool.ThreadCount;
             long before = GC.GetTotalAllocatedBytes(precise: true);
             for (int i = 0; i < 2 * MeasuredFrames; i++)
             {
                 Assert.True(await items.MoveNextAsync());
             }
 
-            return GC.GetTotalAllocatedBytes(precise: true) - before;
+            long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            return ThreadPool.ThreadCount == threads ? allocated : null;
         }
         finally
         {
@@ -107,7 +100,7 @@ public sealed class FFmpegCameraFeedAllocationTests
         }
     }
 
-    /// <returns>The bytes allocated over <see cref="HubMeasuredFrames"/> frames; <see langword="null"/> when the fixture ran out first.</returns>
+    /// <returns>The bytes allocated over <see cref="HubMeasuredFrames"/> frames; <see langword="null"/> when the fixture ran out first or the thread pool changed its size meanwhile.</returns>
     private static async Task<long?> MeasureHubPassAsync()
     {
         ReconnectingCameraFeed camera = new(new FFmpegCameraFeedFactory(), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
@@ -140,6 +133,7 @@ public sealed class FFmpegCameraFeedAllocationTests
             return null;
         }
 
+        int threads = ThreadPool.ThreadCount;
         long before = GC.GetTotalAllocatedBytes(precise: true);
         while (Seen(ref taken) < start + HubMeasuredFrames)
         {
@@ -148,10 +142,11 @@ public sealed class FFmpegCameraFeedAllocationTests
 
         long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
         // The end of the file (and the reconnect) inside the measurement is no steady state.
-        return lease.Status.State == CameraConnectionState.Streaming ? allocated : null;
+        return lease.Status.State == CameraConnectionState.Streaming && ThreadPool.ThreadCount == threads ? allocated : null;
     }
 
-    private static async Task<long> MeasureReconnectingPassAsync()
+    /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
+    private static async Task<long?> MeasureReconnectingPassAsync()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         ReconnectingCameraFeed camera = new(new FFmpegCameraFeedFactory(), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
@@ -164,13 +159,15 @@ public sealed class FFmpegCameraFeedAllocationTests
                 Assert.True(await frames.MoveNextAsync());
             }
 
+            int threads = ThreadPool.ThreadCount;
             long before = GC.GetTotalAllocatedBytes(precise: true);
             for (int i = 0; i < MeasuredFrames; i++)
             {
                 Assert.True(await frames.MoveNextAsync());
             }
 
-            return GC.GetTotalAllocatedBytes(precise: true) - before;
+            long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            return ThreadPool.ThreadCount == threads ? allocated : null;
         }
         finally
         {
@@ -179,7 +176,8 @@ public sealed class FFmpegCameraFeedAllocationTests
         }
     }
 
-    private static async Task<long> MeasurePassAsync()
+    /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
+    private static async Task<long?> MeasurePassAsync()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -191,13 +189,15 @@ public sealed class FFmpegCameraFeedAllocationTests
                 Assert.True(await frames.MoveNextAsync());
             }
 
+            int threads = ThreadPool.ThreadCount;
             long before = GC.GetTotalAllocatedBytes(precise: true);
             for (int i = 0; i < MeasuredFrames; i++)
             {
                 Assert.True(await frames.MoveNextAsync());
             }
 
-            return GC.GetTotalAllocatedBytes(precise: true) - before;
+            long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            return ThreadPool.ThreadCount == threads ? allocated : null;
         }
         finally
         {
