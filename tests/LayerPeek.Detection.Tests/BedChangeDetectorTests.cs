@@ -177,6 +177,56 @@ public sealed class BedChangeDetectorTests
         Assert.False(second.Analyze(SyntheticScene.Median, time).IsWarmedUp);
     }
 
+    /// <summary>T-163: switching the dark filament mode starts over (the run restarts anyway; a detector does not mix modes).</summary>
+    [Fact]
+    public void AnotherDarkFilamentModeStartsOver()
+    {
+        BedChangeDetector detector = new();
+        Session session = new(detector, DetectionRegion.CoreOneBed);
+        TimeSpan time = session.WarmUp(SyntheticScene.Median, TimeSpan.Zero);
+        Assert.True(session.Analyze(SyntheticScene.Median, time).IsWarmedUp);
+
+        session.DarkFilament = true;
+
+        Assert.False(session.Analyze(SyntheticScene.Median, time + TimeSpan.FromSeconds(2)).IsWarmedUp);
+    }
+
+    /// <summary>
+    /// T-163: the dark filament mode counts a smaller darkening (a dim lump darker than the sheet by 13 levels), and
+    /// a brightening of the same size stays below the level in either mode.
+    /// </summary>
+    [Fact]
+    public void TheDarkFilamentModeCountsASmallerDarkeningOnly()
+    {
+        Assert.True(ScoreOfShift(-13, darkFilament: true) > 0.01f);
+        Assert.Equal(0, ScoreOfShift(-13, darkFilament: false));
+        Assert.Equal(0, ScoreOfShift(+13, darkFilament: true));
+        Assert.Equal(0, ScoreOfShift(+13, darkFilament: false));
+    }
+
+    /// <summary>The score after a block of the Core One bed region changed by <paramref name="levels"/> and stayed so.</summary>
+    private static float ScoreOfShift(int levels, bool darkFilament)
+    {
+        BedChangeDetector detector = new();
+        Session session = new(detector, DetectionRegion.CoreOneBed) { DarkFilament = darkFilament };
+        byte[] flat = new byte[Width * Height];
+        Array.Fill(flat, (byte)80);
+        TimeSpan time = session.WarmUp(flat, TimeSpan.Zero);
+        byte[] changed = (byte[])flat.Clone();
+        for (int y = 130; y < 160; y++)
+        {
+            Array.Fill(changed, (byte)(80 + levels), (y * Width) + 120, 60);
+        }
+
+        float score = 0;
+        for (TimeSpan end = time + TimeSpan.FromMinutes(2); time < end; time += TimeSpan.FromSeconds(2))
+        {
+            score = session.Analyze(changed, time).Score;
+        }
+
+        return score;
+    }
+
     [Fact]
     public void TheOptionsAreValidated()
     {
@@ -187,6 +237,8 @@ public sealed class BedChangeDetectorTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new BedChangeDetector(valid with { ChangeLevel = 255 }));
         Assert.Throws<ArgumentOutOfRangeException>(() => new BedChangeDetector(valid with { ScoreArea = 0 }));
         Assert.Throws<ArgumentOutOfRangeException>(() => new BedChangeDetector(valid with { ReferenceZSpacing = 0 }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BedChangeDetector(valid with { DarkFilamentLevel = 0 }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BedChangeDetector(valid with { DarkFilamentLevel = 15 }));
     }
 
     private static float ScoreOfLump(DetectionRegion region)
@@ -248,7 +300,9 @@ public sealed class BedChangeDetectorTests
 
         public double? AxisZ { get; set; }
 
-        public PrintFailureContext Context => new(1, AxisZ, 0, TimeSpan.Zero, region);
+        public bool DarkFilament { get; set; }
+
+        public PrintFailureContext Context => new(1, AxisZ, 0, TimeSpan.Zero, region, DarkFilament);
 
         public DetectionResult Analyze(byte[] frame, TimeSpan time) =>
             detector.Analyze(new DetectionSample(frame, Width, Height, Width, time, _pixels, Context with { PrintElapsed = time }));
@@ -273,15 +327,16 @@ public sealed class BedChangeDetectorTests
 public sealed class BedChangeDetectorCostTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ASampleAllocatesNothing(bool fullFrame)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void ASampleAllocatesNothing(bool fullFrame, bool darkFilament = false)
     {
         DetectionRegion region = fullFrame ? DetectionRegion.Full : DetectionRegion.CoreOneBed;
         BedChangeDetector detector = new();
         IEnumerator<(TimeSpan Time, byte[] Pixels)> samples = new SyntheticPrint { Interval = TimeSpan.FromSeconds(2), Region = region, Duration = TimeSpan.FromHours(1) }.Samples().GetEnumerator();
         DetectionPixelRegion pixels = region.ToPixels(SyntheticPrint.Width, SyntheticPrint.Height);
-        PrintFailureContext context = new(1, 5, 50, TimeSpan.Zero, region);
+        PrintFailureContext context = new(1, 5, 50, TimeSpan.Zero, region, darkFilament);
         detector.Reset(context);
 
         void Next()

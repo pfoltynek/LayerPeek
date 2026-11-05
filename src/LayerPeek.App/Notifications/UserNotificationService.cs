@@ -149,7 +149,10 @@ internal sealed partial class UserNotificationService : INotificationService, ID
         }
     }
 
-    /// <summary>The notification about a finished JPEG export of a timelapse (T-165), queued like a printer notification, without a launch argument.</summary>
+    /// <summary>
+    /// The notification about a finished JPEG export of a timelapse (T-165) or timelapse from a recording (T-164), queued like
+    /// a printer notification; its click opens the printer's recordings folder (<see cref="ToastContentBuilder.TimelapseExportLaunchArgument"/>).
+    /// </summary>
     public void ShowTimelapseExportFinished(TimelapseExportNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
@@ -361,7 +364,7 @@ internal sealed partial class UserNotificationService : INotificationService, ID
             NotificationLines lines = ToastContentBuilder.TimelapseExportLines(notification, _textCulture());
             string body = lines.Detail is { } detail ? lines.Body + "\n" + detail : lines.Body;
             stop.ThrowIfCancellationRequested();
-            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, LaunchArgument: null));
+            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, ToastContentBuilder.TimelapseExportLaunchArgument(notification)));
             LogTimelapseExportShown(notification.Problem);
         }
         catch (OperationCanceledException)

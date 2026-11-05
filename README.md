@@ -67,8 +67,8 @@ firmware. Your camera picture and print data stay on your network: no cloud serv
   decoded locally with FFmpeg.
 - 📼 **Recordings when you need them.** Record a print, keep the last minutes like a dashcam and save them when
   something goes wrong, or take a timelapse (experimental). Everything stays on your disk, within a size limit.
-- 🕵️ **An extra pair of eyes.** Optional print failure detection watches the bed through the camera and warns you
-  with a snapshot when a part vanishes or spaghetti appears. It runs locally, without any cloud.
+- 🕵️ **An extra pair of eyes.** Optional print failure detection (experimental) watches the bed through the camera and
+  warns you with a snapshot when a part vanishes or spaghetti appears. It runs locally, without any cloud.
 - 🧩 **Widgets you arrange yourself. Status, times, temperatures with a chart, print name with the G-code preview
   and cool-down, each in three sizes, placed by drag and drop right in the camera window, per printer.
 - 🔔 **You hear about it when it matters.** Native notifications on Windows and macOS, plus a reminder a few minutes
@@ -177,6 +177,8 @@ Buddy3D camera recording and simulated printer data), see [docs/readme-screensho
 
 ### Print failure detection
 
+- *Experimental:* tuned on synthetic failures and one real successful print, not yet on real failed prints; it may
+  miss a failure or raise a false alarm.
 - Optional (off by default), per printer, only while printing. The detector "Change on the bed" notices a part that
   vanished or moved and new material on the bed, inside a bed region you set in the settings.
 - The alarm is a notification with a snapshot of the camera and a "False alarm" button; it can save the dashcam.

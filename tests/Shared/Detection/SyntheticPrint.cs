@@ -35,16 +35,20 @@ internal sealed record SyntheticPrint
 
     public int Seed { get; init; } = 1;
 
+    /// <summary>The key frames the print is made of (null: the fixture itself, <see cref="SyntheticScene.KeyFrames"/>; T-163: <see cref="DarkScene"/>).</summary>
+    public SyntheticBackdrop? Backdrop { get; init; }
+
     /// <summary>The samples in time order: the frame is reused, valid until the next one is produced.</summary>
     public IEnumerable<(TimeSpan Time, byte[] Pixels)> Samples()
     {
         Random random = new(Seed);
         byte[] frame = new byte[Width * Height];
         TimeSpan time = TimeSpan.Zero;
-        int index = random.Next(SyntheticScene.KeyFrames.Count);
+        IReadOnlyList<byte[]> keyFrames = Backdrop?.KeyFrames ?? SyntheticScene.KeyFrames;
+        int index = random.Next(keyFrames.Count);
         while (time <= Duration)
         {
-            SyntheticScene.KeyFrames[index].CopyTo(frame, 0);
+            keyFrames[index].CopyTo(frame, 0);
             if (Failure is { } failure && time >= FailureStart)
             {
                 failure.Apply(frame, time - FailureStart);
@@ -64,7 +68,7 @@ internal sealed record SyntheticPrint
 
             // The orchestration takes the first key frame after the interval (Buddy3D: one every ~2.3 s).
             time += Interval + TimeSpan.FromMilliseconds(random.Next(0, 600));
-            index = (index + 1 + random.Next(2)) % SyntheticScene.KeyFrames.Count;
+            index = (index + 1 + random.Next(2)) % keyFrames.Count;
         }
     }
 }
@@ -161,15 +165,18 @@ internal static class SyntheticScene
         return Math.Sqrt(-2 * Math.Log(u)) * Math.Cos(2 * Math.PI * v);
     }
 
-    private static byte[] ComputeMedian()
+    private static byte[] ComputeMedian() => MedianOf(KeyFrames);
+
+    /// <summary>Per-pixel median of <paramref name="frames"/>.</summary>
+    public static byte[] MedianOf(IReadOnlyList<byte[]> frames)
     {
         byte[] median = new byte[SyntheticPrint.Width * SyntheticPrint.Height];
-        Span<byte> values = stackalloc byte[KeyFrames.Count];
+        Span<byte> values = stackalloc byte[frames.Count];
         for (int i = 0; i < median.Length; i++)
         {
-            for (int f = 0; f < KeyFrames.Count; f++)
+            for (int f = 0; f < frames.Count; f++)
             {
-                values[f] = KeyFrames[f][i];
+                values[f] = frames[f][i];
             }
 
             values.Sort();

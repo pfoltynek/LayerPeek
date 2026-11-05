@@ -100,6 +100,10 @@ internal sealed class PrinterDetectionDocument
     /// <summary>By detector id; only detectors whose settings differ from the defaults.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, DetectorDocument>? Detectors { get; set; }
+
+    /// <summary>T-163: written only while on.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DarkFilament { get; set; }
 }
 
 /// <summary>A <see cref="Detection.DetectionRegion"/>: fractions of the frame.</summary>
@@ -154,6 +158,14 @@ internal sealed class RecordingDocument
     /// <summary>Seconds between two timelapse frames (T-160); not written while it is the default.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? TimelapseIntervalSeconds { get; set; }
+
+    /// <summary>What takes the timelapse frames (T-159): <c>"layer"</c>; not written for the default (by time).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TimelapseTrigger { get; set; }
+
+    /// <summary>A frame every this many layers (T-159); not written while it is the default (1).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TimelapseEveryNthLayer { get; set; }
 }
 
 internal sealed class CameraOverlaySettingsDocument

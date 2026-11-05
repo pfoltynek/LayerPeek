@@ -160,6 +160,58 @@ public sealed class JpegExportFolderTests : IDisposable
     }
 
     [Fact]
+    public void AnExportFolderWithOnlyFilesOfTheUserLeftIsNotDeletedAgainEveryRotation()
+    {
+        string export = Export("2026-11-01_08-00-00_timelapse_jpg", frames: 3, frameBytes: 100, Now.AddDays(-2));
+        File.WriteAllBytes(Path.Combine(export, "my-edit.psd"), [1, 2, 3]);
+        string leftover = Export(".2026-11-02_08-00-00_timelapse_jpg.partial", frames: 0, frameBytes: 0, Now.AddDays(-1));
+        File.WriteAllBytes(Path.Combine(leftover, "notes.txt"), [1]);
+        Directory.CreateDirectory(Path.Combine(export, "deeper"));
+
+        CameraRecordingRotationResult first = Rotate(limit: 0);
+        CameraRecordingRotationResult second = Rotate(limit: 0);
+
+        // The frames went once; then nothing of LayerPeek's is left to count, delete or report as failed.
+        Assert.Equal([export], first.Deleted);
+        Assert.Empty(second.Deleted);
+        Assert.Equal(0, second.FailedDeletes);
+        Assert.Empty(CameraRecordingStorage.Instance.FindRecordings(_root));
+        Assert.False(CameraRecordingStorage.Instance.TryDelete(export));
+        Assert.Equal(["my-edit.psd"], Directory.GetFiles(export).Select(Path.GetFileName));
+        Assert.Equal(["notes.txt"], Directory.GetFiles(leftover).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void EmptyFramesNextToFilesOfTheUserAreStillRemoved()
+    {
+        // A crash can leave a frame of zero bytes: it is LayerPeek's and goes, the file of the user stays.
+        string export = Export(".2026-11-02_08-00-00_timelapse_jpg.partial", frames: 2, frameBytes: 0, Now.AddDays(-1));
+        File.WriteAllBytes(Path.Combine(export, "notes.txt"), [1]);
+        Directory.SetLastWriteTimeUtc(export, Now.AddDays(-1));
+
+        CameraRecordingFile found = Assert.Single(CameraRecordingStorage.Instance.FindRecordings(_root));
+        CameraRecordingRotationResult result = Rotate(limit: 0);
+
+        Assert.Equal(0, found.Length);
+        Assert.Equal([export], result.Deleted);
+        Assert.Equal(["notes.txt"], Directory.GetFiles(export).Select(Path.GetFileName));
+        Assert.Empty(CameraRecordingStorage.Instance.FindRecordings(_root));
+    }
+
+    [Fact]
+    public void AnExportFolderWithOnlySystemMetadataIsStillAnEmptyLeftover()
+    {
+        string export = Export("2026-11-01_08-00-00_timelapse_jpg", frames: 0, frameBytes: 0, Now.AddDays(-2));
+        File.WriteAllBytes(Path.Combine(export, ".DS_Store"), [1]);
+        Directory.SetLastWriteTimeUtc(export, Now.AddDays(-2));
+
+        CameraRecordingRotationResult result = Rotate(limit: long.MaxValue);
+
+        Assert.Equal([export], result.Deleted);
+        Assert.False(Directory.Exists(export));
+    }
+
+    [Fact]
     public void AnEmptiedExportFolderGoesCompletely()
     {
         string export = Export("2026-11-01_08-00-00_timelapse_jpg", frames: 3, frameBytes: 100, Now.AddDays(-2));
@@ -223,6 +275,38 @@ public sealed class JpegExportFolderTests : IDisposable
         hold.Dispose();
         await WaitUntilAsync(() => !File.Exists(timelapse));
         Assert.Equal(2, storage.Finds);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AHeldPathInAnotherEquivalentFormIsKeptToo(bool folder)
+    {
+        string big = folder
+            ? Export("2026-11-01_08-00-00_timelapse_jpg", frames: 2, frameBytes: 100, Now.AddDays(-3))
+            : Write("2026-11-01_08-00-00_timelapse.mp4", 1000, Now.AddDays(-3));
+        string name = Path.GetFileName(big);
+        string sep = Path.DirectorySeparatorChar.ToString();
+        // ".." and "." parts, a doubled separator, and a trailing one for the folder.
+        string held = folder
+            ? Path.Combine(_root, "MK4", "..", "MK4", name) + sep
+            : _root + sep + "." + sep + "MK4" + sep + sep + name;
+        BigFileStorage storage = new(big, 2_000_000_000);
+        await using CameraRecordingService service = new(
+            new Recording.SnapshotMonitor(),
+            new Recording.FakeCameraRecorder(),
+            storage,
+            TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CameraRecordingService>.Instance,
+            new CameraRecordingServiceOptions { DefaultRoot = _root });
+        IDisposable hold = service.Hold([held]);
+        service.Configure([], new CameraRecordingSettings { SizeLimitGigabytes = CameraRecordingSettings.MinSizeLimitGigabytes });
+        await WaitUntilAsync(() => storage.Finds >= 1);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.True(Path.Exists(big));
+
+        hold.Dispose();
+        await WaitUntilAsync(() => !Path.Exists(big));
     }
 
     /// <summary>The real file system, except that one file looks much larger.</summary>

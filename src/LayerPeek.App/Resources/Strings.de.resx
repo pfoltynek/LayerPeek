@@ -1810,11 +1810,32 @@
   <data name="SettingsExperimentalHint" xml:space="preserve">
     <value>Eine experimentelle Funktion: Sie kann sich ändern oder nicht immer zuverlässig funktionieren.</value>
   </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Eine experimentelle Funktion: abgestimmt auf simulierte Fehldrucke und einen echten erfolgreichen Druck. Sie kann einen Fehldruck übersehen oder einen Fehlalarm auslösen.</value>
+  </data>
   <data name="SettingsTimelapseInterval" xml:space="preserve">
     <value>Zeit zwischen Bildern (Sekunden)</value>
   </data>
   <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
     <value>Ein Bild pro Intervall, keines während der Druck pausiert. Das Video läuft mit {0} Bildern pro Sekunde.</value>
+  </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Bild aufnehmen</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Alle N Sekunden</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Jede N. Schicht (geschätzt)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Alle N Sekunden: ein Bild pro Intervall. Jede N-te Schicht: ein Bild, wenn eine neue Schicht beginnt, geschätzt aus der Höhe der Z-Achse, die PrusaLink bei jeder Abfrage meldet (der Drucker meldet keine Schichten). Experimentell.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Schichten zwischen Bildern</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Ein Bild jede N-te Schicht (1 = jede Schicht), dazu eines zu Beginn und eines vom fertigen Druck, keines während der Druck pausiert. Die Schicht wird bei jeder Abfrage aus der Z-Achse geschätzt: Schichten kürzer als etwa zwei Abfragen werden zusammengefasst, und selten fügt ein Z-Hop oder ein Werkzeugwechsel ein Bild hinzu. Das Video läuft mit {0} Bildern pro Sekunde.</value>
   </data>
   <data name="SettingsTimelapsePrints" xml:space="preserve">
     <value>Zeitraffer von Drucken aufnehmen</value>
@@ -1902,5 +1923,11 @@
   </data>
   <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
     <value>Der Ordner neben der Aufnahme ist nicht beschreibbar.</value>
+  </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Dunkles Filament</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Schwarzes oder sehr dunkles Filament: Schon eine geringere Verdunkelung auf dem Druckbett zählt als Änderung. Findet auf einer dunklen Druckplatte etwas mehr, mit höherem Risiko für Fehlalarme.</value>
   </data>
 </root>

@@ -28,8 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   error, when the printer needs attention, when the print is stopped and when the camera detects a print failure (each
   can be switched off), or by hand with **Save the last 2 min** in the printer's menu or in the context menu of the
   camera window. The dashcam is idle while the whole print is being recorded. Only a failed save shows a notification.
-- **Print failure detection** (Windows and macOS, off by default): LayerPeek can watch a print through the camera and
-  warn you when something goes wrong on the bed. Turn on **Look for print failures in the camera image** on the
+- **Print failure detection (experimental)** (Windows and macOS, off by default): LayerPeek can watch a print through
+  the camera and warn you when something goes wrong on the bed. Turn on **Look for print failures in the camera image** on the
   Recording tab and **Watch the prints of this printer with the camera** on the printer's new **Detection** sub-tab.
   The first detector, **Change on the bed**, notices a part that vanished or moved and new material on the bed
   (spaghetti, a part torn off), with a sensitivity slider (0–100, default 50). The sub-tab has an editor for the **bed
@@ -43,8 +43,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   with the chamber light on, checks the camera every 2 s (2–5 s on the Recording tab), decodes only key frames and
   works without an open camera window. **Limitations:** it does not notice the quality of the first layer, problems at
   the nozzle or defects inside the part, it is less reliable with dark filament on a black sheet, and with the whole
-  frame as the region the moving parts of the printer can cause false alarms. It is tuned on synthetic failures and
-  real successful prints of a Core One with a Buddy3D camera; it has not been tried on many real failed prints yet.
+  frame as the region the moving parts of the printer can cause false alarms. It is experimental: tuned on synthetic
+  failures and one real successful print of a Core One with a Buddy3D camera, not yet on real failed prints, so it may
+  miss a failure or raise a false alarm. The settings mark it with an **Experimental** badge.
 - **Print failure detector "Printing into the air" (experimental, off by default)** (Windows and macOS): a second
   detector on the printer's **Detection** sub-tab, offered only for printers whose bed moves down while printing
   (Core One, Core One L, XL, XL+; hidden for other models). It notices that the printer goes on printing (the Z axis
@@ -57,6 +58,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   print head are not judged, a wipe tower that keeps growing can hide a failure, and a part whose wider lower step ends
   (or several parts of which most end earlier) can cause a false alarm. It is tuned on synthetic failures and two real
   successful Core One prints; there is no real footage of printing into the air yet.
+- **Dark filament mode (experimental)** for print failure detection (Windows and macOS, off by default): **Dark
+  filament** with an **Experimental** badge on the printer's Detection sub-tab. For black or very dark filament, the
+  "Change on the bed" detector then counts a smaller darkening of the bed as a change (10 instead of 14 gray levels;
+  brightening is unchanged). On synthetic black-filament failures on dark sheets it finds a little more (about 2–3
+  percentage points), at the price of less headroom against false alarms (the real Core One test print stays about
+  4× below the alarm threshold instead of 9×). The known limitation (less reliable with dark filament on a black
+  sheet) stays. Saved as `printers[*].detection.darkFilament`.
 - **Timelapse (experimental)** (Windows and macOS): **Start timelapse (experimental)** / **Stop timelapse
   (experimental)** in the printer's menu and a stopwatch button in the camera window, which shows an amber **TL**
   while a timelapse is taken (dimmed while the print is paused); **Play last timelapse** in the printer's menu. **Take
@@ -66,6 +74,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   The frames are key frames of the camera stored without re-encoding (so a frame can be up to about 2 s off the
   interval with a Buddy3D), saved as `…_timelapse.mp4` in the printer's recordings folder and counted in the size
   limit of the recordings. A failed timelapse shows a notification.
+- **Timelapse frames per layer (experimental):** on the Recording tab, **Every N seconds** next to the timelapse heading
+  can be switched to **Every N-th layer (estimate)** (N = 1–100, 1 by default): a frame when a new layer starts, plus
+  one at the start and one of the finished part. PrusaLink reports no layers, so LayerPeek estimates them from the
+  height of the Z axis at every poll (z-hops are filtered out); layers shorter than about two polls merge, and rarely a
+  z-hop or a tool change adds a frame. Tested on a real Core One print: every layer found at 2–5 s polling. The polling
+  interval does not change.
 - **Timelapse from a recording (experimental):** **Create timelapse from recording… (experimental)** in the printer's
   menu asks for a LayerPeek recording and makes a timelapse of it with the same time between frames, saved next to it
   as `…_recording_timelapse.mp4`; a recording split by a camera dropout (`…-2.mp4`) is taken as a whole. The menu item

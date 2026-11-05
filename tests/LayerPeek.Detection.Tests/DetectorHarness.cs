@@ -24,8 +24,9 @@ internal static class DetectorHarness
         DetectionRegion region,
         float[] thresholds,
         int width = 320,
-        int height = 180) =>
-        Run(detector, samples.Select(static s => (s.Time, s.Pixels, (double?)null)), region, thresholds, width, height);
+        int height = 180,
+        bool darkFilament = false) =>
+        Run(detector, samples.Select(static s => (s.Time, s.Pixels, (double?)null)), region, thresholds, width, height, darkFilament);
 
     /// <summary>With the height of the Z axis of every sample (<see cref="PrintFailureContext.AxisZ"/>, T-167).</summary>
     public static DetectorRun Run(
@@ -34,13 +35,14 @@ internal static class DetectorHarness
         DetectionRegion region,
         float[] thresholds,
         int width = 320,
-        int height = 180)
+        int height = 180,
+        bool darkFilament = false)
     {
         PrintFailureDetectionOptions options = PrintFailureDetectionOptions.Default;
         ConfirmationWindow[] windows = [.. thresholds.Select(_ => new ConfirmationWindow(options.ConfirmationWindow.Ticks, options.ConfirmationRatio, options.MinConfirmationSamples))];
         TimeSpan?[] alarms = new TimeSpan?[thresholds.Length];
         DetectionPixelRegion pixels = region.ToPixels(width, height);
-        PrintFailureContext context = new(1, null, 0, TimeSpan.Zero, region);
+        PrintFailureContext context = new(1, null, 0, TimeSpan.Zero, region, darkFilament);
         detector.Reset(context);
         List<(TimeSpan Time, float Score)> scores = [];
         foreach ((TimeSpan time, byte[] frame, double? z) in samples)

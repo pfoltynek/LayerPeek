@@ -61,6 +61,7 @@ internal static class DetectionSettingsMapper
                 ? new DetectionRegionDocument { X = region.X, Y = region.Y, Width = region.Width, Height = region.Height }
                 : null,
             Detectors = detectors,
+            DarkFilament = settings.DarkFilament ? true : null,
         };
         return JsonSerializer.SerializeToElement(document, SettingsJsonContext.Default.PrinterDetectionDocument);
     }
@@ -117,6 +118,7 @@ internal static class DetectionSettingsMapper
         }
 
         bool enabled = false;
+        bool darkFilament = false;
         DetectionRegion? region = null;
         Dictionary<string, DetectorSettings> detectors = new(StringComparer.Ordinal);
         foreach (JsonProperty property in section.Value.EnumerateObject())
@@ -134,9 +136,13 @@ internal static class DetectionSettingsMapper
             {
                 detectors = ToDetectors(value, printerId, warnings);
             }
+            else if (Is(property, "darkFilament"))
+            {
+                darkFilament = ToBool(value, false, $"Printer '{printerId}': the dark filament mode of print failure detection", warnings);
+            }
         }
 
-        PrinterDetectionSettings settings = new() { Enabled = enabled, Region = region, Detectors = detectors };
+        PrinterDetectionSettings settings = new() { Enabled = enabled, Region = region, Detectors = detectors, DarkFilament = darkFilament };
         return settings == PrinterDetectionSettings.Default ? PrinterDetectionSettings.Default : settings;
     }
 

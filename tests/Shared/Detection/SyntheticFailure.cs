@@ -28,13 +28,17 @@ internal abstract record SyntheticFailure
 /// <summary>
 /// Spaghetti: a tangle of thin strands of filament (random walks) in a box on the bed, growing for
 /// <paramref name="Growth"/>. At 320×180 a strand (~0.4 mm) covers a fraction of a pixel, so it is blended with
-/// <paramref name="Alpha"/>; <paramref name="Thick"/> strands are two pixels wide.
+/// <paramref name="Alpha"/>; <paramref name="Thick"/> strands are two pixels wide. <paramref name="Glint"/> (T-163) is the
+/// share of the strands' pixels with a highlight of the chamber light (glossy black filament), fixed in place.
 /// </summary>
-internal sealed record Spaghetti(int Seed, int Strands, double Luma, double Alpha, bool Thick, (int X, int Y, int Width, int Height) Box, TimeSpan Growth) : SyntheticFailure
+internal sealed record Spaghetti(int Seed, int Strands, double Luma, double Alpha, bool Thick, (int X, int Y, int Width, int Height) Box, TimeSpan Growth, double Glint = 0) : SyntheticFailure
 {
+    /// <summary>A highlight on glossy filament (blended with the strand's alpha, it stays below saturation).</summary>
+    public const double GlintLuma = 170;
+
     private readonly Lazy<(int X, int Y)[][]> _paths = new(() => Walk(Seed, Strands, Box));
 
-    public override string Name => $"spaghetti({Strands} strands, luma {Luma:0}, alpha {Alpha:0.00}{(Thick ? ", thick" : "")}, box {Box.Width}×{Box.Height}, growth {Growth.TotalMinutes:0.#} min)";
+    public override string Name => $"spaghetti({Strands} strands, luma {Luma:0}, alpha {Alpha:0.00}{(Thick ? ", thick" : "")}{(Glint > 0 ? $", glint {Glint:P0}" : "")}, box {Box.Width}×{Box.Height}, growth {Growth.TotalMinutes:0.#} min)";
 
     public override void Apply(byte[] frame, TimeSpan since)
     {
@@ -50,8 +54,23 @@ internal sealed record Spaghetti(int Seed, int Strands, double Luma, double Alph
                 {
                     Paint(frame, x, y + 1, Luma, Alpha);
                 }
+
+                if (Glint > 0 && IsGlint(s, x, y))
+                {
+                    Paint(frame, x, y, GlintLuma, Alpha * 0.6);
+                }
             }
         }
+    }
+
+    /// <summary>Whether the strand has a highlight at this pixel: a fixed hash, the same in every sample.</summary>
+    private bool IsGlint(int strand, int x, int y)
+    {
+        uint hash = unchecked(((uint)x * 73856093u) ^ ((uint)y * 19349663u) ^ ((uint)strand * 83492791u) ^ (uint)Seed);
+        hash ^= hash >> 13;
+        hash *= 0x5bd1e995u;
+        hash ^= hash >> 15;
+        return (hash % 1000) < Glint * 1000;
     }
 
     private static (int X, int Y)[][] Walk(int seed, int strands, (int X, int Y, int Width, int Height) box)
@@ -127,18 +146,21 @@ internal sealed record Lump(int Seed, int CenterX, int CenterY, double Radius, d
 
 /// <summary>
 /// The part came loose: it vanishes from its place (the sheet shows through) and, unless <paramref name="Gone"/>, lies
-/// <paramref name="Dx"/>, <paramref name="Dy"/> px away. At once, as when the nozzle knocks it off.
+/// <paramref name="Dx"/>, <paramref name="Dy"/> px away. At once, as when the nozzle knocks it off. The part looks as in
+/// <paramref name="Backdrop"/> (null: the silver part of the fixture; T-163: the black one of <see cref="DarkScene"/>).
 /// </summary>
-internal sealed record MovedPart(int Dx, int Dy, bool Gone) : SyntheticFailure
+internal sealed record MovedPart(int Dx, int Dy, bool Gone, SyntheticBackdrop? Backdrop = null) : SyntheticFailure
 {
     public override string Name => Gone ? "part gone" : $"part moved by {Dx},{Dy} px";
 
     public override void Apply(byte[] frame, TimeSpan since)
     {
-        bool[] part = SyntheticScene.Part;
-        byte[] median = SyntheticScene.Median;
+        bool[] part = Backdrop?.Part ?? SyntheticScene.Part;
+        byte[] median = Backdrop?.Median ?? SyntheticScene.Median;
         int width = SyntheticPrint.Width;
+        // The part box with the 2 px edge of a dark backdrop's part (the fixture's part lies within the box).
         (int bx, int by, int bw, int bh) = SyntheticScene.PartBox;
+        (bx, by, bw, bh) = (bx - 2, by - 2, bw + 4, bh + 4);
 
         // The sheet where the part was: per row, interpolated between the pixels left and right of the part.
         for (int y = by; y < by + bh; y++)

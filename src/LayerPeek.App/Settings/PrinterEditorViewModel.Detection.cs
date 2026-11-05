@@ -25,6 +25,7 @@ namespace LayerPeek.App.Settings;
 public sealed partial class PrinterEditorViewModel
 {
     private bool _detectionEnabled;
+    private bool _detectionDarkFilament;
     private DetectionRegion? _detectionRegion;
     private List<DetectorSettingsViewModel> _detectors = [];
 
@@ -42,6 +43,19 @@ public sealed partial class PrinterEditorViewModel
         set
         {
             if (SetProperty(ref _detectionEnabled, value))
+            {
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>T-163: the experimental "dark filament" mode of this printer (off by default).</summary>
+    public bool DetectionDarkFilament
+    {
+        get => _detectionDarkFilament;
+        set
+        {
+            if (SetProperty(ref _detectionDarkFilament, value))
             {
                 _owner.OnPrinterEdited(nameChanged: false);
             }
@@ -136,7 +150,7 @@ public sealed partial class PrinterEditorViewModel
             }
         }
 
-        return new PrinterDetectionSettings { Enabled = _detectionEnabled, Region = _detectionRegion, Detectors = detectors };
+        return new PrinterDetectionSettings { Enabled = _detectionEnabled, Region = _detectionRegion, Detectors = detectors, DarkFilament = _detectionDarkFilament };
     }
 
     /// <summary>
@@ -159,6 +173,7 @@ public sealed partial class PrinterEditorViewModel
     {
         PrinterDetectionSettings detection = saved?.Detection ?? PrinterDetectionSettings.Default;
         _detectionEnabled = detection.Enabled;
+        _detectionDarkFilament = detection.DarkFilament;
         _detectionRegion = detection.Region;
         _otherDetectors = new Dictionary<string, DetectorSettings>(detection.Detectors, StringComparer.Ordinal);
         List<DetectorSettingsViewModel> detectors = new(_owner.DetectorRegistrations.Count);

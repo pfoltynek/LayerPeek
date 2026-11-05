@@ -757,10 +757,19 @@
                   <ContentControl.ContentTemplate>
                     <DataTemplate x:DataType="vm:PrinterEditorViewModel">
                       <StackPanel>
-                        <CheckBox AutomationProperties.AutomationId="PrinterDetectionEnabled"
-                                  Content="{Binding [SettingsDetectionPrinterEnabled], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                  IsChecked="{Binding DetectionEnabled}"
-                                  IsEnabled="{Binding CameraEnabled}" />
+                        <!-- Experimental (user decision 2026-11-04, like the timelapse of T-161): the badge right of the switch. -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <CheckBox AutomationProperties.AutomationId="PrinterDetectionEnabled"
+                                    Content="{Binding [SettingsDetectionPrinterEnabled], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    IsChecked="{Binding DetectionEnabled}"
+                                    IsEnabled="{Binding CameraEnabled}" />
+                          <Border Classes="badge"
+                                  AutomationProperties.AutomationId="PrinterDetectionExperimental"
+                                  AutomationProperties.HelpText="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                  ToolTip.Tip="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                            <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                          </Border>
+                        </StackPanel>
                         <TextBlock AutomationProperties.AutomationId="PrinterDetectionCameraOff" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionCameraOff], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionCameraOff}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterDetectionGloballyOff" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionGloballyOff], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionGloballyOff}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterDetectionRunsHint" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionRunsHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionRunsHint}" />
@@ -864,6 +873,24 @@
                                 </DataTemplate>
                               </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <!--
+                              T-163: the experimental dark filament mode of the printer (off by default), with the T-161 badge. Its
+                              explanation is the tooltip and screen reader help only: the sub-tab has to fit without scrolling (T-033).
+                            -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding HasDetectors}">
+                              <CheckBox AutomationProperties.AutomationId="PrinterDetectionDarkFilament"
+                                        Content="{Binding [SettingsDetectionDarkFilament], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                        IsChecked="{Binding DetectionDarkFilament}"
+                                        ToolTip.Tip="{Binding [SettingsDetectionDarkFilamentHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                        AutomationProperties.HelpText="{Binding [SettingsDetectionDarkFilamentHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <Border Classes="badge"
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.AutomationId="PrinterDetectionDarkFilamentExperimental"
+                                      AutomationProperties.HelpText="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      ToolTip.Tip="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                                <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              </Border>
+                            </StackPanel>
                           </StackPanel>
                         </Grid>
                       </StackPanel>
@@ -1455,6 +1482,9 @@
               pause, 30 fps) is its tip and help text, as the tab has no room for one more hint line (T-033, like the
               detection interval of T-154). An error or, without the recorder, the reason shows in a row below. Global for
               all printers; whether a printer takes a timelapse of its prints is on its Camera sub-tab.
+              T-159: what takes the frames is a combo box in place of the interval's label (every N seconds / every N-th layer,
+              the layer estimated from the Z axis); next to it the number of the chosen one. That the layer is an estimate is
+              the tip and help text of both (no room for a hint line, T-033).
             -->
             <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto">
               <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -1466,12 +1496,26 @@
                   <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
                 </Border>
               </StackPanel>
-              <Grid Grid.Column="2" ColumnDefinitions="Auto,8,Auto">
-                <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsTimelapseInterval], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <Grid Grid.Column="2" ColumnDefinitions="*,8,Auto">
+                <ComboBox AutomationProperties.AutomationId="SettingsTimelapseTrigger"
+                          AutomationProperties.Name="{Binding [SettingsTimelapseTrigger], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          AutomationProperties.HelpText="{Binding TimelapseTriggerHelpText}"
+                          ToolTip.Tip="{Binding TimelapseTriggerHelpText}"
+                          IsEnabled="{Binding IsTimelapseAvailable}"
+                          ItemsSource="{Binding TimelapseTriggerOptions}"
+                          SelectedItem="{Binding SelectedTimelapseTrigger}"
+                          HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TimelapseTriggerOption">
+                      <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
                 <NumericUpDown Grid.Column="2"
                                AutomationProperties.AutomationId="SettingsTimelapseInterval"
                                AutomationProperties.Name="{Binding [SettingsTimelapseInterval], Source={x:Static loc:LocalizedStrings.Instance}}"
                                AutomationProperties.HelpText="{Binding TimelapseIntervalHelpText}"
+                               IsVisible="{Binding IsTimelapseByTime}"
                                IsEnabled="{Binding IsTimelapseAvailable}"
                                Classes.invalid="{Binding HasTimelapseIntervalError}"
                                ToolTip.Tip="{Binding TimelapseIntervalHint}"
@@ -1481,8 +1525,23 @@
                                Increment="5"
                                FormatString="0"
                                Width="120" />
+                <NumericUpDown Grid.Column="2"
+                               AutomationProperties.AutomationId="SettingsTimelapseEveryNthLayer"
+                               AutomationProperties.Name="{Binding [SettingsTimelapseEveryNthLayer], Source={x:Static loc:LocalizedStrings.Instance}}"
+                               AutomationProperties.HelpText="{Binding TimelapseEveryNthLayerHelpText}"
+                               IsVisible="{Binding IsTimelapseByLayer}"
+                               IsEnabled="{Binding IsTimelapseAvailable}"
+                               Classes.invalid="{Binding HasTimelapseEveryNthLayerError}"
+                               ToolTip.Tip="{Binding TimelapseEveryNthLayerHint}"
+                               Value="{Binding TimelapseEveryNthLayer}"
+                               Minimum="{x:Static vm:SettingsViewModel.MinTimelapseEveryNthLayer}"
+                               Maximum="{x:Static vm:SettingsViewModel.MaxTimelapseEveryNthLayer}"
+                               Increment="1"
+                               FormatString="0"
+                               Width="120" />
               </Grid>
               <TextBlock Grid.Row="1" Grid.ColumnSpan="3" AutomationProperties.AutomationId="SettingsTimelapseIntervalError" Classes="error" Text="{Binding TimelapseIntervalError}" IsVisible="{Binding HasTimelapseIntervalError}" />
+              <TextBlock Grid.Row="1" Grid.ColumnSpan="3" AutomationProperties.AutomationId="SettingsTimelapseEveryNthLayerError" Classes="error" Text="{Binding TimelapseEveryNthLayerError}" IsVisible="{Binding HasTimelapseEveryNthLayerError}" />
               <TextBlock Grid.Row="1"
                          Grid.ColumnSpan="3"
                          AutomationProperties.AutomationId="SettingsTimelapseUnavailable"
@@ -1497,7 +1556,16 @@
               shows its error below it. Whether a printer is watched, its region and the sensitivities are on its Detection sub-tab.
             -->
             <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto">
-              <TextBlock Grid.ColumnSpan="3" Classes="section" Margin="0,4,0,4" Text="{Binding [SettingsDetection], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <!-- Experimental (user decision 2026-11-04): the badge next to the heading covers the section, like the timelapse. -->
+              <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="8" Margin="0,4,0,4">
+                <TextBlock Classes="section" Margin="0" VerticalAlignment="Center" Text="{Binding [SettingsDetection], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <Border Classes="badge"
+                        AutomationProperties.AutomationId="SettingsDetectionExperimental"
+                        AutomationProperties.HelpText="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        ToolTip.Tip="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                  <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </Border>
+              </StackPanel>
               <StackPanel Grid.Row="1">
                 <CheckBox AutomationProperties.AutomationId="SettingsDetectionEnabled"
                           Content="{Binding [SettingsDetectionEnabled], Source={x:Static loc:LocalizedStrings.Instance}}"

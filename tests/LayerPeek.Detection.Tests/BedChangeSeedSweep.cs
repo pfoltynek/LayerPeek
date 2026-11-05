@@ -19,7 +19,7 @@ public sealed class BedChangeSeedSweepTests
     /// Thirty sets: the committed one (7), the four of the T-155 review, seven more used for the T-166 tuning and eighteen
     /// held out of it (1–20 without 7 and 11).
     /// </summary>
-    private static readonly int[] Seeds = [7, 11, 23, 31, 47, 101, 202, 303, 404, 505, 606, 707, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+    internal static readonly int[] Seeds = [7, 11, 23, 31, 47, 101, 202, 303, 404, 505, 606, 707, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 
     /// <summary>The thresholds of the table: the most sensitive end, steps, the default one last.</summary>
     private static readonly float[] Thresholds = [0.001f, 0.0015f, 0.002f, 0.0025f, BedChangeSeedSweep.DefaultThreshold];
@@ -106,19 +106,32 @@ internal static class BedChangeSeedSweep
     /// started; that run then does not count as found). At the last threshold: the delays from the start of the failure to
     /// the alarm, and what was missed (with its highest score) or alarmed too early.
     /// </summary>
-    public sealed record SetResult(int Seed, int Interval, int Total, int[] Found, int[] FalseAlarms, double[] Delays, TimeSpan Watched, string[] Notes);
+    /// <param name="Kinds">At the last threshold, per kind of failure (<see cref="Kind"/>): found and total.</param>
+    public sealed record SetResult(int Seed, int Interval, int Total, int[] Found, int[] FalseAlarms, double[] Delays, TimeSpan Watched, string[] Notes, IReadOnlyDictionary<string, (int Found, int Total)> Kinds);
+
+    /// <summary>The kind of a failure for the tallies: spaghetti (matte or glossy), lump, moved or gone part.</summary>
+    public static string Kind(SyntheticFailure failure) => failure switch
+    {
+        Spaghetti { Glint: > 0 } => "glossy spaghetti",
+        Spaghetti => "spaghetti",
+        Lump => "lump",
+        _ => "part",
+    };
 
     /// <param name="create">The detector (null: the default one).</param>
-    public static SetResult Evaluate(DetectionRegion region, int interval, int seed, float[] thresholds, Func<IPrintFailureDetector>? create = null)
+    /// <param name="backdrop">The scene (null: the fixture with <see cref="SyntheticSets.Failures"/>; T-163: one of
+    /// <see cref="DarkScene.Backdrops"/> with <see cref="SyntheticSets.DarkFailures"/>).</param>
+    /// <param name="darkFilament">The printer's "dark filament" mode (T-163).</param>
+    public static SetResult Evaluate(DetectionRegion region, int interval, int seed, float[] thresholds, Func<IPrintFailureDetector>? create = null, SyntheticBackdrop? backdrop = null, bool darkFilament = false)
     {
-        SyntheticFailure[] failures = [.. SyntheticSets.Failures(seed)];
+        SyntheticFailure[] failures = [.. backdrop is null ? SyntheticSets.Failures(seed) : SyntheticSets.DarkFailures(seed, backdrop)];
         (int[] Found, int[] False, double? Delay, string? Note)[] runs = new (int[], int[], double?, string?)[failures.Length];
         Parallel.For(0, failures.Length, index =>
         {
             SyntheticFailure failure = failures[index];
             // Independent noise and timing per set (the committed test of seed 7 uses 100 + index).
-            SyntheticPrint print = new() { Interval = TimeSpan.FromSeconds(interval), Region = region, Failure = failure, Seed = (seed * 1000) + index };
-            DetectorRun run = DetectorHarness.Run(create?.Invoke() ?? new BedChangeDetector(), print.Samples(), region, thresholds);
+            SyntheticPrint print = new() { Interval = TimeSpan.FromSeconds(interval), Region = region, Failure = failure, Seed = (seed * 1000) + index, Backdrop = backdrop };
+            DetectorRun run = DetectorHarness.Run(create?.Invoke() ?? new BedChangeDetector(), print.Samples(), region, thresholds, darkFilament: darkFilament);
             int[] found = new int[thresholds.Length];
             int[] early = new int[thresholds.Length];
             for (int t = 0; t < thresholds.Length; t++)
@@ -147,7 +160,10 @@ internal static class BedChangeSeedSweep
             [.. runs.Where(static r => r.Delay is not null).Select(static r => r.Delay!.Value).Order()],
             // Watched without an alarm: from the end of the warm-up to the start of the failure.
             (Timing.FailureStart - BedChangeOptions.Default.WarmUp) * failures.Length,
-            [.. runs.Where(static r => r.Note is not null).Select(static r => r.Note!).Order(StringComparer.Ordinal)]);
+            [.. runs.Where(static r => r.Note is not null).Select(static r => r.Note!).Order(StringComparer.Ordinal)],
+            failures.Select(static (f, i) => (Kind: Kind(f), Index: i))
+                .GroupBy(static k => k.Kind)
+                .ToDictionary(static g => g.Key, g => (g.Sum(k => runs[k.Index].Found[^1]), g.Count())));
     }
 
     public static string Describe(SetResult r) => string.Create(
@@ -177,20 +193,23 @@ internal static class BedChangeSeedSweep
         return text.ToString();
     }
 
-    /// <summary>The successful prints of every profile with <paramref name="seeds"/> seeds, in both regions and at both intervals.</summary>
-    public static string SuccessfulPrints(int seeds, float[] thresholds, List<string> failures)
+    /// <summary>
+    /// The successful prints of every profile with <paramref name="seeds"/> seeds, in both regions and at both intervals,
+    /// on <paramref name="backdrop"/> (null: the fixture), at <paramref name="intervals"/> (null: 2 s and 5 s).
+    /// </summary>
+    public static string SuccessfulPrints(int seeds, float[] thresholds, List<string> failures, SyntheticBackdrop? backdrop = null, int[]? intervals = null, bool darkFilament = false)
     {
-        StringBuilder text = new("\n## successful prints\n");
+        StringBuilder text = new($"\n## successful prints{(backdrop is null ? "" : ", " + backdrop.Name)}{(darkFilament ? ", dark filament mode" : "")}\n");
         foreach (DetectionRegion region in (DetectionRegion[])[DetectionRegion.CoreOneBed, DetectionRegion.Full])
         {
-            foreach (int interval in (int[])[2, 5])
+            foreach (int interval in intervals ?? [2, 5])
             {
                 (int Profile, float Max, bool[] Alarms)[] runs = new (int, float, bool[])[Profiles.Length * seeds];
                 Parallel.For(0, runs.Length, i =>
                 {
                     (string _, double noise, Func<TimeSpan, double>? brightness) = Profiles[i / seeds];
-                    SyntheticPrint print = new() { Interval = TimeSpan.FromSeconds(interval), Region = region, Noise = noise, Brightness = brightness, Seed = 500 + (i % seeds) };
-                    DetectorRun run = DetectorHarness.Run(new BedChangeDetector(), print.Samples(), region, thresholds);
+                    SyntheticPrint print = new() { Interval = TimeSpan.FromSeconds(interval), Region = region, Noise = noise, Brightness = brightness, Seed = 500 + (i % seeds), Backdrop = backdrop };
+                    DetectorRun run = DetectorHarness.Run(new BedChangeDetector(), print.Samples(), region, thresholds, darkFilament: darkFilament);
                     runs[i] = (i / seeds, run.MaxScore(), [.. run.Alarms.Select(static a => a is not null)]);
                 });
 
@@ -202,7 +221,7 @@ internal static class BedChangeSeedSweep
                 text.Append(line).Append('\n');
                 if (alarms[^1] > 0)
                 {
-                    failures.Add("successful prints: " + line);
+                    failures.Add($"successful prints{(backdrop is null ? "" : ", " + backdrop.Name)}: " + line);
                 }
             }
         }

@@ -1810,11 +1810,32 @@
   <data name="SettingsExperimentalHint" xml:space="preserve">
     <value>Experimentálna funkcia: môže sa zmeniť alebo nemusí vždy fungovať spoľahlivo.</value>
   </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Experimentálna funkcia: vyladená na simulovaných zlyhaniach a jednej skutočnej úspešnej tlači. Môže zlyhanie prehliadnuť alebo vyhlásiť planý poplach.</value>
+  </data>
   <data name="SettingsTimelapseInterval" xml:space="preserve">
     <value>Čas medzi snímkami (sekundy)</value>
   </data>
   <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
     <value>Jedna snímka za zvolený čas, počas pauzy tlače žiadna. Video má {0} snímok za sekundu.</value>
+  </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Snímať</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Každých N sekúnd</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Každú N. vrstvu (odhad)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Každých N sekúnd: snímka po každom intervale. Každú N-tú vrstvu: snímka na začiatku novej vrstvy, odhadnutá z výšky osi Z, ktorú PrusaLink hlási pri každom dopyte (vrstvy tlačiareň nehlási). Experimentálne.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Vrstiev medzi snímkami</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Snímka každú N-tú vrstvu (1 = každú vrstvu), k tomu jedna na začiatku a jedna hotovej tlače, počas pauzy žiadna. Vrstva sa odhaduje z osi Z pri každom dopyte: vrstvy kratšie ako asi dva dopyty sa zlúčia a výnimočne pridá snímku z-hop alebo výmena filamentu. Video má {0} snímok za sekundu.</value>
   </data>
   <data name="SettingsTimelapsePrints" xml:space="preserve">
     <value>Zaznamenávať timelapse tlače</value>
@@ -1902,5 +1923,11 @@
   </data>
   <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
     <value>Do priečinka vedľa nahrávky sa nedá zapisovať.</value>
+  </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Tmavý filament</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Čierny alebo veľmi tmavý filament: ako zmena sa počíta aj menšie stmavnutie na podložke. Na tmavom pláte nájde o niečo viac, s vyšším rizikom falošných poplachov.</value>
   </data>
 </root>

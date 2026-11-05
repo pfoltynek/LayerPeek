@@ -95,19 +95,30 @@ public sealed class PrintFailureDetectionAllocationTests
             Step();
         }
 
+        // All threads are counted (the sample crosses the hub thread and the thread pool). The thread pool starting or
+        // retiring a worker meanwhile (a loaded machine) allocates a few hundred bytes in the runtime, not per sample:
+        // such a pass proves nothing and is repeated. A real allocation per sample shows on every pass.
         long minimum = long.MaxValue;
-        for (int pass = 0; pass < 4 && minimum > 0; pass++)
+        int valid = 0;
+        for (int pass = 0; pass < 12 && valid < 4 && minimum > 0; pass++)
         {
+            int threads = ThreadPool.ThreadCount;
             long before = GC.GetTotalAllocatedBytes(precise: true);
             for (int i = 0; i < Measured; i++)
             {
                 Step();
             }
 
-            minimum = Math.Min(minimum, GC.GetTotalAllocatedBytes(precise: true) - before);
+            long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            if (ThreadPool.ThreadCount == threads)
+            {
+                valid++;
+                minimum = Math.Min(minimum, allocated);
+            }
         }
 
         TestDirectories.Delete(folder);
+        Assert.True(valid > 0, "The thread pool changed its size during every pass.");
         return minimum;
     }
 
