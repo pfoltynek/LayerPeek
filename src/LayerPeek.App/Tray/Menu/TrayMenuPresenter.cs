@@ -173,6 +173,9 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                 case TrayMenuCommand.AddPrinter:
                     _commands.AddPrinter();
                     break;
+                case TrayMenuCommand.Manual:
+                    _commands.OpenManual();
+                    break;
                 case TrayMenuCommand.About:
                     _commands.ShowAbout();
                     break;

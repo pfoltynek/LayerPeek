@@ -75,7 +75,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
             report.AppendLine(CultureInfo.InvariantCulture, $"Menu {window}, scaling {scaling:0.##}, icon {iconPixels} px, asset {assetPixels} px");
 
             AutomationElement[] items = menu.Items();
-            Assert.Equal([.. printers.Select(static p => p.Name), "Diagnostics…", "Settings…", "About", "Quit"], items.Select(static item => item.Name.Split(':')[0]).ToArray());
+            Assert.Equal([.. printers.Select(static p => p.Name), "Diagnostics…", "Settings…", "User manual", "About", "Quit"], items.Select(static item => item.Name.Split(':')[0]).ToArray());
             int iconColumn = 0;
             for (int i = 0; i < count; i++)
             {
@@ -153,7 +153,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         await using SimulatedPrinter printer = await Simulators.StartModelAsync(SimulatedModel.Mk4S);
         await using RtspCamera camera = Simulators.StartCamera();
         await using AppInstance app = await StartWithCameraAsync("menu-keyboard", printer, camera, "MK4 workshop");
-        string[] fixedKeys = ["MenuDiagnostics", "MenuSettings", "MenuAbout", "MenuQuit"];
+        string[] fixedKeys = ["MenuDiagnostics", "MenuSettings", "MenuManual", "MenuAbout", "MenuQuit"];
 
         // With the mouse: no access keys shown.
         TrayMenuWindow menu = await TrayMenu.OpenWithMouseAsync(app);
@@ -177,7 +177,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         Native.GetWindowRect(menu.Handle, out Native.Rect window);
         Dictionary<string, Rectangle> rows = menu.Items().Where(static item => TrayMenu.AccessKeyOf(item).Length > 0)
             .ToDictionary(static item => item.Name, item => Relative(item.BoundingRectangle, window));
-        Assert.Equal(["Diagnostics…", "Settings…", "About", "Quit"], rows.Keys.ToArray());
+        Assert.Equal(["Diagnostics…", "Settings…", "User manual", "About", "Quit"], rows.Keys.ToArray());
         (List<string> problems, List<string> lines) = PixelChecks.CheckUnderlines(withKeys, withMouse, rows);
         Screenshots.SaveText(string.Join(Environment.NewLine, [.. lines, .. problems]), "menu-keyboard-underlines");
         Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
@@ -242,7 +242,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
 
         TrayMenuWindow menu = await TrayMenu.OpenWithKeyboardAsync(app, requireTaskbar: true);
         Screenshots.Save(menu.Handle, "menu-keyboard-taskbar-2-menu");
-        AssertFixedItems(menu, ["MenuDiagnostics", "MenuSettings", "MenuAbout", "MenuQuit"]);
+        AssertFixedItems(menu, ["MenuDiagnostics", "MenuSettings", "MenuManual", "MenuAbout", "MenuQuit"]);
         Assert.NotNull(menu.Items()[0].FindFirstChild(cf => cf.ByControlType(ControlType.Image)));
         await TrayMenu.CloseAsync(menu);
     }
@@ -292,7 +292,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         Screenshots.Save(menu.Handle, "menu-add-printer-1-menu");
         AutomationElement[] items = menu.Items();
         string addPrinter = TrayMenu.ShownText(TrayMenu.Resource("MenuAddPrinter"));
-        Assert.Equal([TrayMenu.Resource("ToolTipNoPrinter"), addPrinter, "Diagnostics…", "Settings…", "About", "Quit"], items.Select(static item => item.Name).ToArray());
+        Assert.Equal([TrayMenu.Resource("ToolTipNoPrinter"), addPrinter, "Diagnostics…", "Settings…", "User manual", "About", "Quit"], items.Select(static item => item.Name).ToArray());
         Assert.False(items[0].IsEnabled, "The 'no printer' text is enabled.");
         Assert.True(items[1].IsEnabled);
         Assert.Equal(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuAddPrinter")), TrayMenu.AccessKeyOf(items[1]));
@@ -387,7 +387,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         TrayMenuWindow menu = await TrayMenu.OpenWithMouseAsync(app);
         AutomationElement[] items = menu.Items();
         Screenshots.Save(menu.Handle, "menu-starting-1-starting");
-        Assert.Equal([TrayMenu.Resource("ToolTipStarting"), "Diagnostics…", "Settings…", "About", "Quit"], items.Select(static item => item.Name).ToArray());
+        Assert.Equal([TrayMenu.Resource("ToolTipStarting"), "Diagnostics…", "Settings…", "User manual", "About", "Quit"], items.Select(static item => item.Name).ToArray());
         AutomationElement diagnostics = menu.Item("Diagnostics…");
         Assert.False(diagnostics.IsEnabled, "Diagnostics… is enabled while starting.");
         string runtimeId = RuntimeId(diagnostics);
