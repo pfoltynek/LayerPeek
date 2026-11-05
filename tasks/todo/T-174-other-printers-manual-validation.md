@@ -9,7 +9,7 @@ depends_on: []
 ---
 
 > Zadání uživatele 2026-11-05: jen ruční validace na skutečných tiskárnách, bez vývoje. Každá nalezená chyba = nový
-> úkol.
+> úkol. Uživatel má přístup jen k CORE One, ostatní modely závisí na hlášeních komunity (otázka 1).
 
 ## Cíl
 README a příručka (`manuals/`) uvádějí jako otestovanou jen Prusa CORE One. Ostatní tiskárny s firmwarem Buddy 6.x
@@ -56,8 +56,9 @@ Pro každý model zapsat do tabulky níže verzi firmwaru, OS a výsledek těcht
 - [ ] Modely, které nebylo na čem ověřit, zůstávají „not tested yet“ a jsou tak uvedené v poznámkách
 
 ## Otevřené otázky
-1. Ke kterým modelům je přístup (vlastní tiskárny, známí, komunita)? Má se pro neověřené modely v README výslovně
-   požádat komunitu o hlášení (už tam je obecná výzva)?
+1. ~~Ke kterým modelům je přístup?~~ **Odpověď uživatele 2026-11-05: jen k CORE One** (ta je už ověřená). Ostatní modely
+   tedy může ověřit jen komunita. Otevřené: má se k tomu přidat šablona GitHub issue „Hlášení kompatibility tiskárny“
+   s kontrolami 1–9 a výzva v README / příručce?
 2. Stačí pro „✅ tested“ jeden průchod na jednom OS, nebo na obou?
 
 ## Poznámky k implementaci
