@@ -60,6 +60,7 @@ public sealed partial class SettingsViewModel
         : HasRecordingLimitError ? SettingsFieldIds.SettingsRecordingLimit
         : HasDashcamMinutesError ? SettingsFieldIds.SettingsDashcamMinutes
         : HasTimelapseIntervalError ? SettingsFieldIds.SettingsTimelapseInterval
+        : HasTimelapseEveryNthLayerError ? SettingsFieldIds.SettingsTimelapseEveryNthLayer
         : HasDetectionIntervalError ? SettingsFieldIds.SettingsDetectionInterval
         : null;
 }

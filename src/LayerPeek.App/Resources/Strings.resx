@@ -1974,6 +1974,30 @@
     <value>One frame per interval, none while the print is paused. The video plays at {0} frames per second.</value>
     <comment>T-161: hint of the interval. {0} = frames per second of the video (30).</comment>
   </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Take a frame</value>
+    <comment>T-159: accessible name of the combo box that chooses what takes the timelapse frames (in place of the SettingsTimelapseInterval label).</comment>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Every N seconds</value>
+    <comment>T-159: item of the timelapse trigger combo box; the number of seconds is the field next to it. Keep it short (combo box of ~200 DIP).</comment>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Every N-th layer (estimate)</value>
+    <comment>T-159: item of the timelapse trigger combo box: a frame every N-th layer change, estimated (not reported by the printer); N is the field next to it. Keep it short (combo box of ~200 DIP).</comment>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Every N seconds: a frame every interval. Every N-th layer: a frame when a new layer starts, estimated from the height of the Z axis that PrusaLink reports at every poll (the printer reports no layers). Experimental.</value>
+    <comment>T-159: tooltip and help text of the timelapse trigger combo box.</comment>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Layers between frames</value>
+    <comment>T-159: accessible name of the number of layers between two timelapse frames (whole number 1-100, 1 = every layer).</comment>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>A frame every N-th layer (1 = every layer), plus one at the start and one of the finished print, none while the print is paused. The layer is estimated from the Z axis at every poll: layers shorter than about two polls merge, and rarely a z-hop or a tool change adds a frame. The video plays at {0} frames per second.</value>
+    <comment>T-159: tooltip and help text of the number of layers. {0} = frames per second of the video (30).</comment>
+  </data>
   <data name="SettingsTimelapsePrints" xml:space="preserve">
     <value>Take a timelapse of prints</value>
     <comment>T-161: check box on the Camera sub-tab of a printer (next to the SettingsExperimental badge): a timelapse of every print.</comment>

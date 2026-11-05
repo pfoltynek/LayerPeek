@@ -5,7 +5,7 @@ namespace LayerPeek.Core.Cameras.Recording;
 /// printer records its prints automatically is <see cref="CameraSettings.RecordPrints"/>) and of the dashcam (T-148, user
 /// decision 2026-11-04: its length and triggers for all printers; whether a printer has one is
 /// <see cref="CameraSettings.Dashcam"/>) and of the timelapses (T-160: the interval for all printers; whether a printer
-/// takes a timelapse of its prints is <see cref="CameraSettings.TimelapsePrints"/>). Persisted as the <c>recording</c>
+/// takes a timelapse of its prints is <see cref="CameraSettings.TimelapsePrints"/>; T-159 adds the layer trigger). Persisted as the <c>recording</c>
 /// section of <c>settings.json</c>, written only while something differs from the defaults.
 /// </summary>
 public sealed record CameraRecordingSettings
@@ -34,6 +34,13 @@ public sealed record CameraRecordingSettings
     public const int MinTimelapseIntervalSeconds = 5;
 
     public const int MaxTimelapseIntervalSeconds = 600;
+
+    /// <summary>Default of <see cref="TimelapseEveryNthLayer"/>: every layer (user decision 2026-11-04).</summary>
+    public const int DefaultTimelapseEveryNthLayer = 1;
+
+    public const int MinTimelapseEveryNthLayer = 1;
+
+    public const int MaxTimelapseEveryNthLayer = 100;
 
     public static CameraRecordingSettings Default { get; } = new();
 
@@ -108,6 +115,50 @@ public sealed record CameraRecordingSettings
 
     /// <summary><see cref="TimelapseIntervalSeconds"/> as a time span.</summary>
     public TimeSpan TimelapseInterval => TimeSpan.FromSeconds(TimelapseIntervalSeconds);
+
+    /// <summary>
+    /// What takes the frames of every timelapse (T-159, experimental): the time (<see cref="TimelapseIntervalSeconds"/>, the
+    /// default) or the layer changes estimated from the Z axis (<see cref="TimelapseEveryNthLayer"/>); for all printers.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">Not a defined value.</exception>
+    public CameraTimelapseTriggerKind TimelapseTrigger
+    {
+        get;
+        init
+        {
+            if (value is not (CameraTimelapseTriggerKind.Time or CameraTimelapseTriggerKind.Layer))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown timelapse trigger.");
+            }
+
+            field = value;
+        }
+    }
+
+    /// <summary>
+    /// The layer trigger takes a frame every this many layer changes (T-159, user decision 2026-11-04: 1 by default), within
+    /// <see cref="MinTimelapseEveryNthLayer"/>–<see cref="MaxTimelapseEveryNthLayer"/>; for all printers.
+    /// </summary>
+    public int TimelapseEveryNthLayer
+    {
+        get;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, MinTimelapseEveryNthLayer);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaxTimelapseEveryNthLayer);
+            field = value;
+        }
+    } = DefaultTimelapseEveryNthLayer;
+
+    /// <summary>
+    /// Whether running timelapses take their frames the same way with <paramref name="other"/>; <see langword="false"/>: they
+    /// need a new trigger.
+    /// </summary>
+    internal bool TakesTimelapseFramesLike(CameraRecordingSettings other) =>
+        TimelapseTrigger == other.TimelapseTrigger
+        && (TimelapseTrigger == CameraTimelapseTriggerKind.Time
+            ? TimelapseIntervalSeconds == other.TimelapseIntervalSeconds
+            : TimelapseEveryNthLayer == other.TimelapseEveryNthLayer);
 
     /// <summary>The dashcam saves when the printer reports an error during a print (default on).</summary>
     public bool DashcamOnError { get; init; } = true;

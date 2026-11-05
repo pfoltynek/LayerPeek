@@ -439,6 +439,18 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 Assert.Equal(!available, recording.Find<TextBlock>("SettingsTimelapseUnavailable").IsEffectivelyVisible);
                 Assert.True(recording.Find<Border>("SettingsTimelapseExperimental").IsEffectivelyVisible);
                 Assert.Equal(available, recording.Find<TextBlock>("SettingsDetectionIntervalError").IsEffectivelyVisible);
+                // T-159: every choice of what takes the timelapse frames fits its combo box (it trims as well).
+                ComboBox trigger = recording.Find<ComboBox>("SettingsTimelapseTrigger");
+                foreach (TimelapseTriggerOption option in recording.ViewModel.TimelapseTriggerOptions)
+                {
+                    TextBlock probe = new() { Text = option.Text, FontSize = trigger.FontSize, FontFamily = trigger.FontFamily };
+                    probe.Measure(Size.Infinity);
+                    if (probe.DesiredSize.Width > trigger.Bounds.Width - 44)
+                    {
+                        problems.Add($"{context}: '{option.Text}' needs {probe.DesiredSize.Width:0.#} DIP in a combo box of {trigger.Bounds.Width:0.#}.");
+                    }
+                }
+
                 // T-154: every choice of "Alarm" fits its combo box (it trims, so CutTexts would not notice).
                 ComboBox repeat = recording.Find<ComboBox>("SettingsDetectionRepeat");
                 foreach (AlarmRepeatOption option in recording.ViewModel.AlarmRepeatOptions)

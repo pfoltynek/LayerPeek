@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.Input;
 
 using LayerPeek.App.Cameras.Recording;
+using LayerPeek.App.Localization;
 using LayerPeek.App.Resources;
 using LayerPeek.Core.Cameras.Recording;
 
@@ -24,6 +25,13 @@ namespace LayerPeek.App.Settings;
 /// a timelapse of its prints is on its Camera sub-tab. A free whole number like the other numbers of the tab (presets could
 /// not offer every value the service accepts), validated like them (T-112). Disabled with the reason without the recorder.
 /// </para>
+/// <para>
+/// T-159 what takes the frames (experimental like the whole section): a frame every interval (the default) or every N-th
+/// layer change estimated from the Z axis (user decision 2026-11-04: N configurable, 1 by default, 1–100), for all printers.
+/// The combo box replaces the label of the interval; next to it the number of the chosen trigger (the other one keeps its
+/// value and is neither shown nor validated: an invalid hidden value falls back to the one loaded). The explanation that the
+/// layer is an estimate is the tip and help text of both (no room for a hint line, T-033).
+/// </para>
 /// </summary>
 public sealed partial class SettingsViewModel
 {
@@ -44,6 +52,13 @@ public sealed partial class SettingsViewModel
 
     private decimal? _timelapseIntervalSeconds = CameraRecordingSettings.DefaultTimelapseIntervalSeconds;
     private string? _timelapseIntervalError;
+    private TimelapseTriggerOption? _selectedTimelapseTrigger;
+    private decimal? _timelapseEveryNthLayer = CameraRecordingSettings.DefaultTimelapseEveryNthLayer;
+    private string? _timelapseEveryNthLayerError;
+
+    // The values loaded: what a hidden invalid value of the other trigger falls back to when saving.
+    private int _loadedTimelapseIntervalSeconds = CameraRecordingSettings.DefaultTimelapseIntervalSeconds;
+    private int _loadedTimelapseEveryNthLayer = CameraRecordingSettings.DefaultTimelapseEveryNthLayer;
 
     /// <summary>The fixed frame rate of every timelapse video (T-158), told by the hint of the interval.</summary>
     private readonly int _timelapseFramesPerSecond = LayerPeek.Core.Cameras.Timelapse.ICameraTimelapseRecorder.FramesPerSecond;
@@ -212,7 +227,7 @@ public sealed partial class SettingsViewModel
     public bool HasTimelapseIntervalError => _timelapseIntervalError is not null;
 
     /// <summary>Without the recorder the reason takes the place of the hint (unless an error does).</summary>
-    public bool ShowsTimelapseUnavailable => _timelapseIntervalError is null && !IsTimelapseAvailable;
+    public bool ShowsTimelapseUnavailable => _timelapseIntervalError is null && _timelapseEveryNthLayerError is null && !IsTimelapseAvailable;
 
     /// <summary>The hint of the interval: no frames during a pause, the fixed frame rate of the video.</summary>
     public string TimelapseIntervalHint => Format(Strings.SettingsTimelapseIntervalHint, _timelapseFramesPerSecond);
@@ -220,9 +235,77 @@ public sealed partial class SettingsViewModel
     /// <summary>For screen readers: the error of the interval, else why timelapses are not available, else its hint.</summary>
     public string TimelapseIntervalHelpText => _timelapseIntervalError ?? (IsTimelapseAvailable ? TimelapseIntervalHint : Strings.TimelapseUnavailable);
 
+    /// <summary>What takes the timelapse frames (T-159): by time or by layer, in this order.</summary>
+    public IReadOnlyList<TimelapseTriggerOption> TimelapseTriggerOptions => field ??=
+    [
+        new TimelapseTriggerOption(CameraTimelapseTriggerKind.Time, static () => Strings.SettingsTimelapseTriggerTime),
+        new TimelapseTriggerOption(CameraTimelapseTriggerKind.Layer, static () => Strings.SettingsTimelapseTriggerLayer),
+    ];
+
+    public TimelapseTriggerOption SelectedTimelapseTrigger
+    {
+        get => _selectedTimelapseTrigger ?? TimelapseTriggerOptions[0];
+        set
+        {
+            // A combo box may write null while its items change.
+            if (value is null || ReferenceEquals(value, SelectedTimelapseTrigger))
+            {
+                return;
+            }
+
+            SetGeneral(ref _selectedTimelapseTrigger, value);
+            OnPropertyChanged(nameof(IsTimelapseByTime));
+            OnPropertyChanged(nameof(IsTimelapseByLayer));
+            OnPropertyChanged(nameof(TimelapseTriggerHelpText));
+        }
+    }
+
+    /// <summary>A frame every interval: the interval shows next to the trigger.</summary>
+    public bool IsTimelapseByTime => SelectedTimelapseTrigger.Value == CameraTimelapseTriggerKind.Time;
+
+    /// <summary>A frame every N-th layer: N shows next to the trigger.</summary>
+    public bool IsTimelapseByLayer => SelectedTimelapseTrigger.Value == CameraTimelapseTriggerKind.Layer;
+
+    public static decimal MinTimelapseEveryNthLayer => CameraRecordingSettings.MinTimelapseEveryNthLayer;
+
+    public static decimal MaxTimelapseEveryNthLayer => CameraRecordingSettings.MaxTimelapseEveryNthLayer;
+
+    /// <summary>The layer trigger takes a frame every this many layer changes (T-159), for all printers.</summary>
+    public decimal? TimelapseEveryNthLayer
+    {
+        get => _timelapseEveryNthLayer;
+        set => SetGeneral(ref _timelapseEveryNthLayer, value);
+    }
+
+    public string? TimelapseEveryNthLayerError
+    {
+        get => _timelapseEveryNthLayerError;
+        private set
+        {
+            if (SetProperty(ref _timelapseEveryNthLayerError, value))
+            {
+                OnPropertyChanged(nameof(HasTimelapseEveryNthLayerError));
+                OnPropertyChanged(nameof(ShowsTimelapseUnavailable));
+                OnPropertyChanged(nameof(TimelapseEveryNthLayerHelpText));
+            }
+        }
+    }
+
+    public bool HasTimelapseEveryNthLayerError => _timelapseEveryNthLayerError is not null;
+
+    /// <summary>The hint of N: what the layer trigger takes, that the layer is an estimate from the Z axis, the frame rate.</summary>
+    public string TimelapseEveryNthLayerHint => Format(Strings.SettingsTimelapseEveryNthLayerHint, _timelapseFramesPerSecond);
+
+    /// <summary>For screen readers: the error of N, else why timelapses are not available, else its hint.</summary>
+    public string TimelapseEveryNthLayerHelpText => _timelapseEveryNthLayerError ?? (IsTimelapseAvailable ? TimelapseEveryNthLayerHint : Strings.TimelapseUnavailable);
+
+    /// <summary>The tip and help text of the trigger: both triggers, the layer being an estimate.</summary>
+    public string TimelapseTriggerHelpText => IsTimelapseAvailable ? Strings.SettingsTimelapseTriggerHint : Strings.TimelapseUnavailable;
+
     /// <summary>A field of the Recording tab is invalid: a failed save shows that tab.</summary>
     internal bool HasRecordingTabError =>
-        _recordingLimitError is not null || _dashcamMinutesError is not null || _timelapseIntervalError is not null || _detectionIntervalError is not null;
+        _recordingLimitError is not null || _dashcamMinutesError is not null || _timelapseIntervalError is not null || _timelapseEveryNthLayerError is not null
+        || _detectionIntervalError is not null;
 
     /// <summary>Opens the folder dialog; the chosen folder is checked before it is taken.</summary>
     public IAsyncRelayCommand ChooseRecordingFolderCommand => _chooseRecordingFolderCommand ??= new AsyncRelayCommand(
@@ -256,15 +339,32 @@ public sealed partial class SettingsViewModel
         _dashcamOnStopped = recording.DashcamOnStopped;
         _dashcamOnFailureDetection = recording.DashcamOnFailureDetection;
         _timelapseIntervalSeconds = recording.TimelapseIntervalSeconds;
+        _loadedTimelapseIntervalSeconds = recording.TimelapseIntervalSeconds;
+        _selectedTimelapseTrigger = FindTimelapseTrigger(recording.TimelapseTrigger);
+        _timelapseEveryNthLayer = recording.TimelapseEveryNthLayer;
+        _loadedTimelapseEveryNthLayer = recording.TimelapseEveryNthLayer;
+    }
+
+    private TimelapseTriggerOption FindTimelapseTrigger(CameraTimelapseTriggerKind trigger)
+    {
+        foreach (TimelapseTriggerOption option in TimelapseTriggerOptions)
+        {
+            if (option.Value == trigger)
+            {
+                return option;
+            }
+        }
+
+        return TimelapseTriggerOptions[0];
     }
 
     /// <summary>
-    /// The recording settings as edited; <see langword="null"/> while the limit, the dashcam length or the timelapse interval
-    /// is invalid.
+    /// The recording settings as edited; <see langword="null"/> while the limit, the dashcam length or the number of the
+    /// chosen timelapse trigger is invalid (the hidden one of the other trigger falls back to its loaded value).
     /// </summary>
     private CameraRecordingSettings? BuildRecording() =>
         _recordingLimitGigabytes is { } limit && _recordingLimitError is null && _dashcamMinutes is { } minutes && _dashcamMinutesError is null
-            && _timelapseIntervalSeconds is { } interval && _timelapseIntervalError is null
+            && _timelapseIntervalError is null && _timelapseEveryNthLayerError is null
             ? new CameraRecordingSettings
             {
                 Folder = _recordingFolder,
@@ -274,9 +374,13 @@ public sealed partial class SettingsViewModel
                 DashcamOnAttention = _dashcamOnAttention,
                 DashcamOnStopped = _dashcamOnStopped,
                 DashcamOnFailureDetection = _dashcamOnFailureDetection,
-                TimelapseIntervalSeconds = (int)interval,
+                TimelapseIntervalSeconds = WholeOr(_timelapseIntervalSeconds, CameraRecordingSettings.MinTimelapseIntervalSeconds, CameraRecordingSettings.MaxTimelapseIntervalSeconds, _loadedTimelapseIntervalSeconds),
+                TimelapseTrigger = SelectedTimelapseTrigger.Value,
+                TimelapseEveryNthLayer = WholeOr(_timelapseEveryNthLayer, CameraRecordingSettings.MinTimelapseEveryNthLayer, CameraRecordingSettings.MaxTimelapseEveryNthLayer, _loadedTimelapseEveryNthLayer),
             }
             : null;
+
+    private static int WholeOr(decimal? value, int min, int max, int fallback) => IsWholeNumber(value, min, max) ? (int)value!.Value : fallback;
 
     private void ValidateRecording()
     {
@@ -287,9 +391,13 @@ public sealed partial class SettingsViewModel
         DashcamMinutesError = IsWholeNumber(_dashcamMinutes, CameraRecordingSettings.MinDashcamMinutes, CameraRecordingSettings.MaxDashcamMinutes)
             ? null
             : Format(Strings.SettingsErrorRecordingLimit, CameraRecordingSettings.MinDashcamMinutes, CameraRecordingSettings.MaxDashcamMinutes);
-        TimelapseIntervalError = IsWholeNumber(_timelapseIntervalSeconds, CameraRecordingSettings.MinTimelapseIntervalSeconds, CameraRecordingSettings.MaxTimelapseIntervalSeconds)
+        // Only the number of the chosen trigger: the other one is hidden.
+        TimelapseIntervalError = !IsTimelapseByTime || IsWholeNumber(_timelapseIntervalSeconds, CameraRecordingSettings.MinTimelapseIntervalSeconds, CameraRecordingSettings.MaxTimelapseIntervalSeconds)
             ? null
             : Format(Strings.SettingsErrorRecordingLimit, CameraRecordingSettings.MinTimelapseIntervalSeconds, CameraRecordingSettings.MaxTimelapseIntervalSeconds);
+        TimelapseEveryNthLayerError = !IsTimelapseByLayer || IsWholeNumber(_timelapseEveryNthLayer, CameraRecordingSettings.MinTimelapseEveryNthLayer, CameraRecordingSettings.MaxTimelapseEveryNthLayer)
+            ? null
+            : Format(Strings.SettingsErrorRecordingLimit, CameraRecordingSettings.MinTimelapseEveryNthLayer, CameraRecordingSettings.MaxTimelapseEveryNthLayer);
     }
 
     private static bool IsWholeNumber(decimal? value, int min, int max) =>
@@ -306,6 +414,14 @@ public sealed partial class SettingsViewModel
         OnPropertyChanged(nameof(DashcamMinutesHelpText));
         OnPropertyChanged(nameof(TimelapseIntervalHint));
         OnPropertyChanged(nameof(TimelapseIntervalHelpText));
+        foreach (TimelapseTriggerOption option in TimelapseTriggerOptions)
+        {
+            option.RefreshText();
+        }
+
+        OnPropertyChanged(nameof(TimelapseEveryNthLayerHint));
+        OnPropertyChanged(nameof(TimelapseEveryNthLayerHelpText));
+        OnPropertyChanged(nameof(TimelapseTriggerHelpText));
     }
 
     /// <summary>Editing became possible or impossible (loading, saving): the buttons follow.</summary>
@@ -422,4 +538,10 @@ public sealed partial class SettingsViewModel
             return false;
         }
     }
+}
+
+/// <summary>An item of "Take a frame" of the timelapse (T-159): every interval or every N-th layer.</summary>
+public sealed class TimelapseTriggerOption(CameraTimelapseTriggerKind value, Func<string> text) : LocalizedOption(text)
+{
+    public CameraTimelapseTriggerKind Value { get; } = value;
 }

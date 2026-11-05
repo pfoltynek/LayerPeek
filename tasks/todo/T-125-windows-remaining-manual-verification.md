@@ -14,17 +14,18 @@ nepřeložily ani neotestovaly. `scripts/release-build.ps1` spouští celý `dot
 jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrtávají tam. Co blokuje vydání, rozhodne uživatel.
 
 1. **Build a testy (blokuje build vydání):** 2d · **T-162** (prázdná cache FFmpeg, nový build BtbN) → `dotnet test` na
-   Windows (testovací body 2c–2m: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165).
+   Windows (testovací body 2c–2n: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165,
+   T-159).
 2. **Snímky UI sady Windows (blokuje build vydání; bez nich selžou snímkové testy nastavení):** jeden běh
-   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154 a 2k · T-161 a kontrola souborů
+   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · T-159 a kontrola souborů
    vyjmenovaných u těchto bodů.
-3. **Native AOT `win-x64`:** jeden `dotnet publish src/LayerPeek.App -c Release -r win-x64` uzavře body AOT v 2b–2m.
+3. **Native AOT `win-x64`:** jeden `dotnet publish src/LayerPeek.App -c Release -r win-x64` uzavře body AOT v 2b–2n.
 4. **E2E:** 2b · **T-151** (`CameraWindowAutoCloseTests`, `*Camera*`), 2e · **T-146** (`*CameraRecording*`,
    `*TrayMenu*`, `*CameraTaskbarAndModeSwitch*`), 2g · **T-154** (`*PrintFailureAlarm*`), 2k · **T-161**
    (`CameraTimelapseTests`).
 5. **Ručně se simulátorem (nejvyšší priorita: dialogy souborů a toasty dosud nikdo neviděl):** 2l · **T-165** a 2m ·
    **T-164** (dialog Otevřít bez okna aplikace, v popředí) → 2e · **T-146** („Změnit…“, toast chyby nahrávání) → 2g ·
-   **T-154** (obrázek toastu a editor výřezu) → 2f · **T-148** → 2k · **T-161** → 2d · **T-144** a 2h · **T-158**
+   **T-154** (obrázek toastu a editor výřezu) → 2f · **T-148** → 2k · **T-161** a 2n · **T-159** → 2d · **T-144** a 2h · **T-158**
    (přehrání ve Filmech a TV).
 6. **Když zbývá čas:** 2b · T-151 (probuzení, celá obrazovka), 2c · T-143 (ruční), 2i · T-155 (měření CPU), 2d · T-145
    (OneDrive), 3 · T-107, potom zbytek oddílů 1–2.
@@ -312,6 +313,21 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       když je nejnovější. Výběr timelapse → toast „… selhalo / Soubor není nahrávka z LayerPeeku.“ Zrušení uprostřed (velká
       nahrávka, nebo nahrávka na síťovém disku) nezanechá žádný soubor (ani skrytý `.….partial`, `dir /a`). Během vytváření
       jde spustit i export do JPEG jiného timelapse.
+
+### 2n. Timelapse – spouštěč po vrstvě (z T-159, implementováno na Macu 2026-11-05)
+- [ ] **T-159** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
+      chyb, hlavně Core `LayerChangeDetectorTests` (záznam `Fixtures/z-recordings/coreone-job354-0.2mm.csv` se kopíruje do
+      výstupu, 0 B na vzorek), `CameraTimelapseLayerTriggerTests`, `CameraTimelapseServiceLayerTests` (i se skutečným
+      rekordérem nad falešným proudem), `SettingsMapperTimelapseLayerTests`; App `SettingsTimelapseTriggerTests`; UiTests
+      `SettingsWindowTimelapseUiTests` (výběr spouštěče ve všech jazycích, texty se vejdou do pole se Segoe UI) a rozšířené
+      `SettingsWindowLayoutTests.RecordingTabFitsInEveryLanguage`; `dotnet publish src/LayerPeek.App -c Release -r win-x64`
+      bez nových varování AOT / trim.
+- [ ] **T-159** (snímky UI, sada Windows): spolu s 2k přegenerovat a zkontrolovat `settings-recording.png` (v řádku nadpisu
+      „Timelapse“ pole „Každých N sekund“ místo popisku intervalu).
+- [ ] **T-159** (ruční část Windows): na záložce Nahrávání přepnout „Každých N sekund“ → „Každou N. vrstvu (odhad)“, místo
+      intervalu se ukáže počet vrstev (1), tipy vysvětlují odhad z osy Z; uložit, znovu otevřít – volba zůstane. Simulátor
+      (`--speed 20`) s automatickým timelapse: na Windows zkontrolovat jen, že timelapse vznikne a má snímek začátku a konce
+      (simulátor osu Z nemění po vrstvách, počet snímků po vrstvách ověří T-127 se skutečnou tiskárnou).
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  // T-159: the timelapse takes a frame every second layer change (estimated from the Z axis), not every interval.
+  "recording": {
+    "timelapseTrigger": "layer",
+    "timelapseEveryNthLayer": 2
+  },
+  "printers": [
+    {
+      "id": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "name": "Core One",
+      "connectionType": "PrusaLink",
+      "address": "192.168.0.228",
+      "camera": {
+        "enabled": true,
+        "streamUrl": "rtsp://192.168.0.229/live",
+        "timelapsePrints": true
+      }
+    }
+  ]
+}

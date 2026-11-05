@@ -36,5 +36,7 @@ public static class SettingsFieldIds
 
     public const string SettingsTimelapseInterval = "SettingsTimelapseInterval";
 
+    public const string SettingsTimelapseEveryNthLayer = "SettingsTimelapseEveryNthLayer";
+
     public const string SettingsDetectionInterval = "SettingsDetectionInterval";
 }

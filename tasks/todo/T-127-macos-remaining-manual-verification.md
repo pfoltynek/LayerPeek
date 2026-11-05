@@ -32,7 +32,9 @@ mají přednost. Co z průchodu blokuje vydání, rozhodne uživatel. Každá na
    poplach“ už u prvního poplachu, klik otevře okno kamery, `…_alarm-bed-change.jpg` a `…_dashcam-failure.mp4`). Nakonec
    tisk zastavit na tiskárně → `…_dashcam-stopped.mp4` (oddíl 1 · T-148).
 3. **Tisk B – automatické nahrávání (~15 min, krátký díl):** zapnout „Automaticky nahrávat tisk“ → oddíl 2 · **T-145**
-   (doplněný bod) a zároveň oddíl 2 · **T-155** krok (1) (celý běžný tisk bez poplachu; delší tisk podle času).
+   (doplněný bod) a zároveň oddíl 2 · **T-155** krok (1) (celý běžný tisk bez poplachu; delší tisk podle času). Před tiskem
+   přepnout timelapse na „Každou N. vrstvu (odhad)“ (záložka Nahrávání) → oddíl 2 · **T-159** (timelapse po vrstvách
+   téhož tisku, ideálně s `record-z.sh` vedle, a díl s vrstvou 0,1 mm).
 4. **Po tiscích – přehrání a dialogy souborů (~20 min, nejvyšší priorita):** oddíl 1 · **T-146** (zbytek: tray menu,
    „● REC“, ruční Start / Stop, „Přehrát poslední nahrávku“ v QuickTime, „Otevřít složku s nahrávkami“) → oddíl 2 ·
    **T-147** (přehrání nahrávky z Buddy3D v QuickTime) → oddíl 1 · **T-164** (`NSOpenPanel` „Vytvořit timelapse
@@ -156,6 +158,11 @@ a kritérium.
       v QuickTime Playeru. Nastavení: štítek „Experimentální“ u sekce Timelapse (záložka Nahrávání) a u „Pořizovat timelapse
       tisku“ (podzáložka Kamera), se systémovým písmem nic neuříznuté; notifikace „Timelapse selhal“ při chybě (např. složka
       na odpojeném disku), klik otevře nastavení na záložce Nahrávání. Zapsat, jak vypadá tip zakázané položky v NSMenu.
+- [ ] **T-159** (krit. „volba je v UI a uloží se“, ruční část macOS; sezení agenta nemělo displej): na záložce Nahrávání
+      v řádku „Timelapse“ pole „Každých N sekund“ / „Každou N. vrstvu (odhad)“ se systémovým písmem nic neuřízne (ve všech
+      jazycích to hlídá headless test), přepnutí vymění číslo vedle (interval ↔ počet vrstev), tip vysvětlí odhad z osy Z;
+      VoiceOver přečte „Pořizovat snímek“ a u čísla „Vrstev mezi snímky“. Snímek `settings-recording.png` v
+      `tests/LayerPeek.App.UiTests/Snapshots/macOS/` prohlédnout spolu s T-161.
 - [ ] **T-161** (návrh): uživatel prohlédne `docs/design/timelapse-ui.md` a snímky `settings-recording.png` (zhuštěná sekce
       dashcamu, nová sekce Timelapse), `settings-camera.png`, `camera-timelapse.png`, `camera-mini-timelapse-buttons.png`
       v `tests/LayerPeek.App.UiTests/Snapshots/macOS/`; neblokující otázky v T-161; změny = nový úkol.
@@ -273,6 +280,14 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       `~/Movies/LayerPeek/<tiskárna>/<datum>_<čas>_<název tisku>.mp4`, a skončí asi minutu po konci tisku. „Přehrát poslední
       nahrávku“ ho přehraje v QuickTime Playeru celý (obraz od začátku, posuvník, délka odpovídá). Během nahrávání je
       „Uložit posledních 2 min“ zakázané s tipem „Nahrává se celý tisk.“ (dashcam stojí). Další tisk dá nový soubor.
+- [ ] **T-159** (timelapse po vrstvě se skutečnou tiskárnou; detektor ověřený jen na jednom záznamu Core One s vrstvou
+      0,2 mm): Core One s Buddy3D, „Pořizovat timelapse tisku“ zapnuté, na záložce Nahrávání „Každou N. vrstvu (odhad)“ s N = 1,
+      polling 5 s. Krátký díl (ideálně se slicerem hlášeným počtem vrstev a drobnými vrstvami nahoře, např. kužel nebo
+      pyramida). Hotový `…_timelapse.mp4` má zhruba počet vrstev + 2 snímky (začátek a hotový díl; vrstvy kratší než asi dva
+      dotazy se sloučí) – zapsat počet snímků a počet vrstev ze sliceru do poznámek T-159. Během tisku pauza (snímek pauzy
+      nevznikne). Vedle běžet `~/LayerPeek-samples/tools/record-z.sh` a záznam s vrstvou 0,1 nebo 0,05 mm, se sekvenčním
+      tiskem („complete objects“) a s výměnou nástroje MMU3 uložit do `~/LayerPeek-samples/z-recordings/` jako podklad dalšího
+      ověření (T-159 otázky).
 - [ ] **T-155** (krit. „Poplach z detektoru projde celou cestou“, ruční část se skutečnou tiskárnou a Buddy3D): Core One
       s výchozím výřezem (přední část podložky), zapnutá detekce (po T-154 v nastavení, do té doby v `settings.json`
       `detection.enabled` a `printers[*].detection.enabled` = `true`) a dashcam. (1) Celý běžný tisk včetně první vrstvy
