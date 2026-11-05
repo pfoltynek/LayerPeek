@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-05
+
 ### Added
 
 - **Camera recording** (Windows and macOS): the submenu of a printer with a camera has **Start recording** / **Stop
@@ -434,7 +436,8 @@ released, so the app does not migrate anything; developers who ran the old build
 - The PrusaLink web proxy rejects write requests from other origins.
 - Native libraries are loaded only from the application folder and the system folder.
 
-[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.2.0...v0.3.0
