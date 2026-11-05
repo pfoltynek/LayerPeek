@@ -67,13 +67,26 @@ public readonly record struct DetectionRegion
     /// Whether a printer counts as a Core One for its default region: the model the user chose for its image, otherwise the
     /// detected one (T-154 offers "Default for Core One" only then).
     /// </summary>
-    public static bool IsCoreOne(PrinterImageChoice image, PrinterModelCode? detectedModel)
+    public static bool IsCoreOne(PrinterImageChoice image, PrinterModelCode? detectedModel) => ModelOf(image, detectedModel) == PrinterModel.CoreOne;
+
+    /// <summary>
+    /// The model detection assumes for a printer: the model the user chose for its image, otherwise the detected one
+    /// (<see cref="PrinterModel.Unknown"/> when neither is known). Decides the default region (<see cref="IsCoreOne"/>) and
+    /// which detectors are offered (<see cref="PrintFailureDetectorRegistration.IsOfferedFor(PrinterModel)"/>, T-167).
+    /// </summary>
+    public static PrinterModel ModelOf(PrinterImageChoice image, PrinterModelCode? detectedModel)
     {
         ArgumentNullException.ThrowIfNull(image);
-        PrinterModel model = image.Mode == PrinterImageMode.Model
+        return image.Mode == PrinterImageMode.Model
             ? image.Model
             : detectedModel is { } code ? PrinterModels.FromCode(code) : PrinterModel.Unknown;
-        return model == PrinterModel.CoreOne;
+    }
+
+    /// <summary><see cref="ModelOf(PrinterImageChoice, PrinterModelCode?)"/> of a configured printer.</summary>
+    public static PrinterModel ModelOf(PrinterDefinition printer)
+    {
+        ArgumentNullException.ThrowIfNull(printer);
+        return ModelOf(printer.Image, printer.DetectedModel);
     }
 
     /// <summary>

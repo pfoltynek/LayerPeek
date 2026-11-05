@@ -24,8 +24,9 @@ public interface IPrintFailureDetector
     void Reset(in PrintFailureContext context);
 
     /// <summary>
-    /// Scores one sample: 0 (nothing suspicious) to 1, computed only inside <see cref="DetectionSample.Region"/>. The
-    /// sample's pixels are borrowed until this returns.
+    /// Scores one sample: 0 (nothing suspicious) to 1, computed inside <see cref="DetectionSample.Region"/>, or inside an
+    /// area a detector derives from it and documents (T-167, user decision 2026-11-04: "air-printing" extends it up to the
+    /// nozzle row). The whole frame is passed. The sample's pixels are borrowed until this returns.
     /// </summary>
     DetectionResult Analyze(in DetectionSample sample);
 }
@@ -133,7 +134,10 @@ public readonly ref struct DetectionSample
     /// </summary>
     public TimeSpan Time { get; }
 
-    /// <summary>The bed region in pixels of this sample; scores are computed only inside it.</summary>
+    /// <summary>
+    /// The bed region in pixels of this sample; scores are computed inside it (or in an area derived from it, see
+    /// <see cref="IPrintFailureDetector.Analyze"/>).
+    /// </summary>
     public DetectionPixelRegion Region { get; }
 
     public PrintFailureContext Context { get; }

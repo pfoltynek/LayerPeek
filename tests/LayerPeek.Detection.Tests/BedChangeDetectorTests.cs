@@ -20,7 +20,8 @@ public sealed class BedChangeDetectorTests
     [Fact]
     public void TheAppOffersItWithItsThresholds()
     {
-        PrintFailureDetectorRegistration registration = Assert.Single(PrintFailureDetectors.All);
+        // The first of the list (T-167 adds "air-printing" after it).
+        PrintFailureDetectorRegistration registration = PrintFailureDetectors.All[0];
 
         Assert.Same(BedChangeDetector.Registration, registration);
         Assert.Equal("bed-change", registration.Id);

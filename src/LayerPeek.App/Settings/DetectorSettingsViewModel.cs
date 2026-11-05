@@ -19,19 +19,35 @@ public sealed class DetectorSettingsViewModel : ObservableObject
     private readonly Action _changed;
     private bool _enabled;
     private int _sensitivity;
+    private bool _isOffered = true;
 
-    internal DetectorSettingsViewModel(string id, DetectorSettings settings, Action changed)
+    internal DetectorSettingsViewModel(PrintFailureDetectorRegistration registration, DetectorSettings settings, Action changed)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(changed);
-        Id = id;
+        Registration = registration;
         _enabled = settings.Enabled;
         _sensitivity = settings.Sensitivity;
         _changed = changed;
     }
 
-    public string Id { get; }
+    public string Id => Registration.Id;
+
+    internal PrintFailureDetectorRegistration Registration { get; }
+
+    /// <summary>Shown with the "Experimental" badge (T-167: the badge of T-161 right of the check box).</summary>
+    public bool IsExperimental => Registration.IsExperimental;
+
+    /// <summary>
+    /// Offered for the model of the printer (image choice, else the detected one; T-167: "Printing into the air" only for a
+    /// Core One or an XL). A hidden detector keeps its settings.
+    /// </summary>
+    public bool IsOffered
+    {
+        get => _isOffered;
+        internal set => SetProperty(ref _isOffered, value);
+    }
 
     public static double MinSensitivity => DetectorSettings.MinSensitivity;
 

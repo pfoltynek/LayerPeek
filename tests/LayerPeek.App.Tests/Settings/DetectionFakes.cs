@@ -3,6 +3,7 @@ using Avalonia.Media;
 using LayerPeek.App.Settings;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Detection;
+using LayerPeek.Core.Printers;
 
 namespace LayerPeek.App.Tests.Settings;
 
@@ -11,6 +12,14 @@ internal static class DetectionFakes
 {
     /// <summary>"bed-change" (T-155) as the settings see it: the texts of the real detector, a detector that never runs.</summary>
     public static PrintFailureDetectorRegistration BedChange { get; } = Registration(LayerPeek.App.Detection.DetectorTexts.BedChange);
+
+    /// <summary>"air-printing" (T-167) as the settings see it: off by default, experimental, only for Core One and XL.</summary>
+    public static PrintFailureDetectorRegistration AirPrinting { get; } = Registration(LayerPeek.App.Detection.DetectorTexts.AirPrinting) with
+    {
+        EnabledByDefault = false,
+        IsExperimental = true,
+        Models = [PrinterModel.CoreOne, PrinterModel.Xl],
+    };
 
     /// <summary>A second kind with an id this version has no texts for.</summary>
     public static PrintFailureDetectorRegistration Other { get; } = Registration("other-kind");

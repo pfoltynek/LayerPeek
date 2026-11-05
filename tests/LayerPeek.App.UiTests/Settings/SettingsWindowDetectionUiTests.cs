@@ -32,9 +32,9 @@ public sealed class SettingsWindowDetectionUiTests(HeadlessSession session)
     private static PrinterDefinition CoreOne(string id = "core") =>
         LinkPrinter(id, "Core One") with { Camera = Camera, Image = PrinterImageChoice.ForModel(PrinterModel.CoreOne) };
 
-    private static async Task<(SettingsWindowHarness Ui, DetectionRegionEditor Editor)> OpenAsync(UiTestScope scope, PrinterDefinition printer, ICameraTester? cameraTester = null, ILastCameraFrames? lastFrames = null, FakeEditorStore? store = null)
+    private static async Task<(SettingsWindowHarness Ui, DetectionRegionEditor Editor)> OpenAsync(UiTestScope scope, PrinterDefinition printer, ICameraTester? cameraTester = null, ILastCameraFrames? lastFrames = null, FakeEditorStore? store = null, IReadOnlyList<PrintFailureDetectorRegistration>? detectors = null)
     {
-        SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store ?? SettingsWindowHarness.StoreWith(printer), cameraTester: cameraTester, lastFrames: lastFrames);
+        SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store ?? SettingsWindowHarness.StoreWith(printer), cameraTester: cameraTester, lastFrames: lastFrames, detectors: detectors);
         ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.DetectionPrinterTab;
         ui.Window.Settle();
         return (ui, ui.Find<DetectionRegionEditor>("PrinterDetectionRegion"));
@@ -216,6 +216,31 @@ public sealed class SettingsWindowDetectionUiTests(HeadlessSession session)
             Assert.True(ui.Window.IsShown<Button>("PrinterDetectionFullFrame"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterDetectionNoFrame"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterDetectionGloballyOff"));
+        });
+
+    [Fact]
+    public Task AnExperimentalDetectorForSomeModelsShowsItsBadgeOnlyForThem() =>
+        session.RunAsync(static async scope =>
+        {
+            // T-167: "air-printing" is offered for a Core One (with the "Experimental" badge of T-161), not for an MK4.
+            IReadOnlyList<PrintFailureDetectorRegistration> detectors = [DetectionFakes.BedChange, DetectionFakes.AirPrinting];
+            (SettingsWindowHarness ui, _) = await OpenAsync(scope, CoreOne(), detectors: detectors);
+
+            Assert.True(ui.Window.IsShown<CheckBox>("PrinterDetector-air-printing"));
+            Assert.False(ui.Find<CheckBox>("PrinterDetector-air-printing").IsChecked);
+            Assert.True(ui.Window.IsShown<Border>("PrinterDetectorExperimental-air-printing"));
+            Assert.False(ui.Window.IsShown<Border>("PrinterDetectorExperimental-bed-change"));
+        });
+
+    [Fact]
+    public Task ADetectorForOtherModelsIsHidden() =>
+        session.RunAsync(static async scope =>
+        {
+            PrinterDefinition mk4 = LinkPrinter("mk4", "MK4") with { Camera = Camera, Image = PrinterImageChoice.ForModel(PrinterModel.Mk4) };
+            (SettingsWindowHarness ui, _) = await OpenAsync(scope, mk4, detectors: [DetectionFakes.BedChange, DetectionFakes.AirPrinting]);
+
+            Assert.False(ui.Window.IsShown<CheckBox>("PrinterDetector-air-printing"));
+            Assert.True(ui.Window.IsShown<CheckBox>("PrinterDetector-bed-change"));
         });
 
     [Fact]

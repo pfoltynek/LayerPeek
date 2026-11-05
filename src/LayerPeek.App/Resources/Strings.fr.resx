@@ -1654,6 +1654,15 @@
   <data name="DetectorBedChangeLimitation" xml:space="preserve">
     <value>Limite connue&#160;: moins fiable avec un filament sombre sur une plaque noire.</value>
   </data>
+  <data name="DetectorAirPrinting" xml:space="preserve">
+    <value>Impression dans le vide</value>
+  </data>
+  <data name="DetectorAirPrintingDescription" xml:space="preserve">
+    <value>Détecte que l’imprimante continue d’imprimer (l’axe Z monte) mais que plus rien ne grandit sur le plateau, par exemple quand le filament est épuisé sans être détecté, que l’extrudeur patine ou que la buse est bouchée. Uniquement pour les imprimantes dont le plateau descend pendant l’impression (Core One, XL). Ne détecte pas des parois plus fines, la qualité de surface ni l’arrêt d’une seule pièce parmi plusieurs.</value>
+  </data>
+  <data name="DetectorAirPrintingLimitation" xml:space="preserve">
+    <value>Limite connue&#160;: signale l’erreur seulement après que l’axe Z est monté encore de ~3 mm (quelques minutes, une demi-heure ou plus pour les impressions lentes). N’évalue pas les pièces presque entièrement cachées sous la tête ni les ~4 premiers mm après le démarrage ou une reconnexion de la caméra, et une tour de purge qui continue de grandir peut masquer l’erreur.</value>
+  </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Détecteur {0}</value>
   </data>

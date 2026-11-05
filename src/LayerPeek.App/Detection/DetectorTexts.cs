@@ -15,6 +15,9 @@ internal static class DetectorTexts
     /// <summary>"Change on the bed" (T-155): a part that vanished or moved, new material on the bed.</summary>
     public const string BedChange = "bed-change";
 
+    /// <summary>"Printing into the air" (T-167): the Z axis rises but nothing grows on the bed any more.</summary>
+    public const string AirPrinting = "air-printing";
+
     /// <summary>The name in <paramref name="culture"/> (<see langword="null"/>: the language of the UI).</summary>
     public static string Name(string detectorId, CultureInfo? culture = null)
     {
@@ -22,6 +25,7 @@ internal static class DetectorTexts
         return detectorId switch
         {
             BedChange => Text(nameof(Strings.DetectorBedChange), culture),
+            AirPrinting => Text(nameof(Strings.DetectorAirPrinting), culture),
             _ => string.Format(culture ?? CultureInfo.CurrentCulture, Text(nameof(Strings.DetectorUnknown), culture), detectorId),
         };
     }
@@ -30,6 +34,7 @@ internal static class DetectorTexts
     public static string? Description(string detectorId, CultureInfo? culture = null) => detectorId switch
     {
         BedChange => Text(nameof(Strings.DetectorBedChangeDescription), culture),
+        AirPrinting => Text(nameof(Strings.DetectorAirPrintingDescription), culture),
         _ => null,
     };
 
@@ -37,6 +42,7 @@ internal static class DetectorTexts
     public static string? Limitation(string detectorId, CultureInfo? culture = null) => detectorId switch
     {
         BedChange => Text(nameof(Strings.DetectorBedChangeLimitation), culture),
+        AirPrinting => Text(nameof(Strings.DetectorAirPrintingLimitation), culture),
         _ => null,
     };
 

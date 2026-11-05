@@ -21,28 +21,23 @@ public sealed class BedChangeLocalSamplesTests
 
     private static readonly DateTime PrintEnd = new(2026, 11, 3, 22, 36, 13);
 
-    private static string SamplesFolder =>
-        Environment.GetEnvironmentVariable("LAYERPEEK_SAMPLES") is { Length: > 0 } custom
-            ? custom
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "LayerPeek-samples");
-
     private static float DefaultThreshold => BedChangeDetector.Registration.Thresholds.ThresholdFor(DetectorSettings.DefaultSensitivity);
 
     [Fact]
     public void TheWholeSuccessfulPrintRaisesNoAlarmInTheCoreOneRegion()
     {
-        string folder = Path.Combine(SamplesFolder, "coreone-frames");
+        string folder = Path.Combine(LocalSamples.Folder, "coreone-frames");
         Assert.SkipUnless(Directory.Exists(folder), $"The local series {folder} is missing.");
-        string ffmpeg = FFmpeg();
+        string ffmpeg = LocalSamples.FFmpeg();
         (DateTime Taken, string Path)[] frames =
         [
             .. Directory.GetFiles(folder, "frame-*.jpg")
-                .Select(static path => (Taken: TakenAt(path), Path: path))
+                .Select(static path => (Taken: LocalSamples.TakenAt(path), Path: path))
                 .Where(static f => f.Taken >= PrintStart && f.Taken <= PrintEnd)
                 .OrderBy(static f => f.Taken),
         ];
         Assert.SkipWhen(frames.Length < 100, $"The local series {folder} has only {frames.Length} frames of the print.");
-        byte[] gray = Decode(ffmpeg, ConcatList(frames.Select(static f => f.Path)), "-f", "concat", "-safe", "0");
+        byte[] gray = LocalSamples.Decode(ffmpeg, LocalSamples.ConcatList(frames.Select(static f => f.Path)), "-f", "concat", "-safe", "0");
         Assert.Equal(frames.Length * 57600, gray.Length);
         List<(TimeSpan Time, byte[] Pixels)> samples = [.. frames.Select((f, i) => (f.Taken - frames[0].Taken, gray.AsSpan(i * 57600, 57600).ToArray()))];
         TimeSpan printed = samples[^1].Time;
@@ -73,10 +68,10 @@ public sealed class BedChangeLocalSamplesTests
     [InlineData(5)]
     public void TheLoopedClipOfTheMovingHeadRaisesNoAlarm(int interval)
     {
-        string clip = Path.Combine(SamplesFolder, "clips", "coreone-20261103-1905-60s.mp4");
+        string clip = Path.Combine(LocalSamples.Folder, "clips", "coreone-20261103-1905-60s.mp4");
         Assert.SkipUnless(File.Exists(clip), $"The local clip {clip} is missing.");
         // Two frames per second of the 60 s clip, sampled every 2 or 5 s for half an hour (the clip looped).
-        byte[] gray = Decode(FFmpeg(), clip, "-vf", "fps=2");
+        byte[] gray = LocalSamples.Decode(LocalSamples.FFmpeg(), clip, "-vf", "fps=2");
         byte[][] frames = [.. Enumerable.Range(0, gray.Length / 57600).Select(i => gray.AsSpan(i * 57600, 57600).ToArray())];
         Assert.True(frames.Length > 100, $"{frames.Length} frames decoded.");
 
@@ -94,59 +89,6 @@ public sealed class BedChangeLocalSamplesTests
             string summary = string.Create(CultureInfo.InvariantCulture, $"bed-change, clip looped 30 min at {interval} s, {(region.IsFull ? "whole frame" : "Core One bed region")}{(darkFilament ? ", dark filament mode" : "")}: max score {run.MaxScore():P3}");
             TestContext.Current.TestOutputHelper?.WriteLine(summary);
             Assert.True(run.FirstAlarm is null, $"{summary}, alarm at {run.FirstAlarm}.");
-        }
-    }
-
-    private static DateTime TakenAt(string path) =>
-        DateTime.ParseExact(Path.GetFileNameWithoutExtension(path)["frame-".Length..], "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-
-    /// <summary>The FFmpeg command line tool (as for the fixtures, Fixtures/coreone/README.md); skips the test without it.</summary>
-    private static string FFmpeg()
-    {
-        string name = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
-        IEnumerable<string> folders = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Concat(["/opt/homebrew/bin", "/usr/local/bin"]);
-        string? found = folders.Select(folder => Path.Combine(folder, name)).FirstOrDefault(File.Exists);
-        Assert.SkipWhen(found is null, "The FFmpeg command line tool is not installed (needed to decode the local samples).");
-        return found!;
-    }
-
-    /// <summary>A list file for FFmpeg's concat demuxer (in the temporary folder, deleted with the test run's leftovers).</summary>
-    private static string ConcatList(IEnumerable<string> paths)
-    {
-        string list = Path.Combine(Path.GetTempPath(), $"layerpeek-series-{Guid.NewGuid():N}.txt");
-        File.WriteAllLines(list, paths.Select(static p => $"file '{p.Replace("'", @"'\''", StringComparison.Ordinal)}'"));
-        return list;
-    }
-
-    /// <summary>Decodes into raw 8-bit gray 320×180 frames like the fixtures (area average, Fixtures/coreone/README.md).</summary>
-    private static byte[] Decode(string ffmpeg, string input, params string[] inputOptions)
-    {
-        bool isList = input.EndsWith(".txt", StringComparison.Ordinal);
-        string[] filter = inputOptions.Length > 1 && inputOptions[0] == "-vf" ? ["-vf", inputOptions[1] + ",scale=320:180:flags=area"] : ["-vf", "scale=320:180:flags=area"];
-        string[] before = isList ? inputOptions : [];
-        ProcessStartInfo start = new(ffmpeg) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-        foreach (string argument in (string[])["-v", "error", .. before, "-i", input, .. filter, "-pix_fmt", "gray", "-f", "rawvideo", "pipe:1"])
-        {
-            start.ArgumentList.Add(argument);
-        }
-
-        try
-        {
-            using Process process = Process.Start(start)!;
-            Task<string> errors = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
-            using MemoryStream output = new();
-            process.StandardOutput.BaseStream.CopyTo(output);
-            process.WaitForExit();
-            Assert.True(process.ExitCode == 0, $"FFmpeg failed: {errors.Result}");
-            return output.ToArray();
-        }
-        finally
-        {
-            if (isList)
-            {
-                File.Delete(input);
-            }
         }
     }
 }

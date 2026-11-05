@@ -43,14 +43,15 @@ internal static class DetectionSettingsMapper
         Dictionary<string, DetectorDocument>? detectors = null;
         foreach ((string id, DetectorSettings detector) in settings.Detectors)
         {
-            if (detector != DetectorSettings.Default)
+            // Every entry is a choice of the user (T-167: what differs from the detector's own default, which only the app
+            // knows): one equal to DetectorSettings.Default (a detector that is off by default, switched on) keeps
+            // "enabled": true, so that it is not read back as missing.
+            bool sensitivityDefault = detector.Sensitivity == DetectorSettings.DefaultSensitivity;
+            (detectors ??= new Dictionary<string, DetectorDocument>(StringComparer.Ordinal))[id] = new DetectorDocument
             {
-                (detectors ??= new Dictionary<string, DetectorDocument>(StringComparer.Ordinal))[id] = new DetectorDocument
-                {
-                    Enabled = detector.Enabled ? null : false,
-                    Sensitivity = detector.Sensitivity == DetectorSettings.DefaultSensitivity ? null : detector.Sensitivity,
-                };
-            }
+                Enabled = !detector.Enabled ? false : sensitivityDefault ? true : null,
+                Sensitivity = sensitivityDefault ? null : detector.Sensitivity,
+            };
         }
 
         PrinterDetectionDocument document = new()
@@ -214,10 +215,12 @@ internal static class DetectionSettingsMapper
             }
 
             DetectorSettings settings = DetectorSettings.Default;
+            bool switchedOn = false;
             foreach (JsonProperty property in detector.Value.EnumerateObject())
             {
                 if (Is(property, "enabled"))
                 {
+                    switchedOn = property.Value.ValueKind == JsonValueKind.True;
                     settings = settings with { Enabled = ToBool(property.Value, true, $"Printer '{printerId}': detector '{detector.Name}'", warnings) };
                 }
                 else if (Is(property, "sensitivity"))
@@ -236,7 +239,9 @@ internal static class DetectionSettingsMapper
                 }
             }
 
-            if (settings != DetectorSettings.Default)
+            // Kept also when equal to DetectorSettings.Default if it says "enabled": true (T-167: a detector that is off by
+            // default, switched on); an entry left at the defaults by invalid values is no choice.
+            if (settings != DetectorSettings.Default || switchedOn)
             {
                 detectors[detector.Name] = settings;
             }

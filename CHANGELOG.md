@@ -46,6 +46,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   frame as the region the moving parts of the printer can cause false alarms. It is experimental: tuned on synthetic
   failures and one real successful print of a Core One with a Buddy3D camera, not yet on real failed prints, so it may
   miss a failure or raise a false alarm. The settings mark it with an **Experimental** badge.
+- **Print failure detector "Printing into the air" (experimental, off by default)** (Windows and macOS): a second
+  detector on the printer's **Detection** sub-tab, offered only for printers whose bed moves down while printing
+  (Core One, Core One L, XL, XL+; hidden for other models). It notices that the printer goes on printing (the Z axis
+  rises) but nothing grows on the bed any more, e.g. filament that ran out unnoticed, a slipping extruder or a clogged
+  nozzle: the top edges of the parts stand at the nozzle in a good print and move down with the bed when nothing is
+  extruded. It uses the printer's reported Z height and looks at the bed region extended up to the nozzle. It is off
+  after the update and marked **Experimental**; switch it on per printer. **Limitations:** the alarm comes ~3 mm of Z
+  after the failure (a few minutes on a fast print, about half an hour or more on a slow one), the first ~6 mm of a
+  print (and of a resumed print or after the camera reconnects) are not judged, small parts mostly hidden under the
+  print head are not judged, a wipe tower that keeps growing can hide a failure, and a part whose wider lower step ends
+  (or several parts of which most end earlier) can cause a false alarm. It is tuned on synthetic failures and two real
+  successful Core One prints; there is no real footage of printing into the air yet.
 - **Dark filament mode (experimental)** for print failure detection (Windows and macOS, off by default): **Dark
   filament** with an **Experimental** badge on the printer's Detection sub-tab. For black or very dark filament, the
   "Change on the bed" detector then counts a smaller darkening of the bed as a change (10 instead of 14 gray levels;

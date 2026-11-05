@@ -91,11 +91,15 @@ public sealed class SettingsMapperDetectionTests
         Assert.Equal(new DetectionRegion(0.1, 0.5, 0.8, 0.5), detection.Region);
         Assert.Equal(70, detection.For("bed-change").Sensitivity);
         Assert.False(detection.For("spaghetti").Enabled);
-        // Defaults are not written, so they come back as defaults (and the settings compare equal without them).
-        Assert.Equal(2, detection.Detectors.Count);
+        // T-167: every entry is the user's choice (what differs from the detector's own default, which only the app knows):
+        // one equal to DetectorSettings.Default keeps "enabled": true and comes back, the others only what differs.
+        Assert.Equal(3, detection.Detectors.Count);
+        Assert.Equal(DetectorSettings.Default, detection.Detectors["default-only"]);
+        Assert.Equal(settings.Printers[0].Detection, detection);
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement printer = document.RootElement.GetProperty("printers")[0].GetProperty("detection");
-        Assert.False(printer.GetProperty("detectors").TryGetProperty("default-only", out _));
+        Assert.True(printer.GetProperty("detectors").GetProperty("default-only").GetProperty("enabled").GetBoolean());
+        Assert.False(printer.GetProperty("detectors").GetProperty("default-only").TryGetProperty("sensitivity", out _));
         Assert.False(printer.GetProperty("detectors").GetProperty("bed-change").TryGetProperty("enabled", out _));
         Assert.Equal(3.5, document.RootElement.GetProperty("detection").GetProperty("sampleIntervalSeconds").GetDouble());
     }
@@ -186,6 +190,17 @@ public sealed class SettingsMapperDetectionTests
     }
 
     [Fact]
+    public void ADetectorSwitchedOnExplicitlyIsKeptAlsoAtTheDefaults()
+    {
+        // T-167: a detector that is off by default ("air-printing") switched on by the user; an empty entry is no choice.
+        PrinterDetectionSettings detection = LoadPrinter("""{ "detectors": { "air-printing": { "enabled": true }, "bed-change": {} } }""", out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(DetectorSettings.Default, Assert.Single(detection.Detectors, static d => d.Key == "air-printing").Value);
+        Assert.False(detection.Detectors.ContainsKey("bed-change"));
+    }
+
+    [Fact]
     public void UnknownDetectorsOfANewerVersionAreKept()
     {
         PrinterDetectionSettings detection = LoadPrinter("""{ "detectors": { "first-layer": { "sensitivity": 20 } }, "future": 1 }""", out List<string> warnings);
@@ -209,5 +224,41 @@ public sealed class SettingsMapperDetectionTests
         Assert.True(loaded.DarkFilament);
         Assert.NotEqual(PrinterDetectionSettings.Default, loaded);
         Assert.False(LoadPrinter("""{ "enabled": true }""", out _).DarkFilament);
+    }
+
+    /// <summary>
+    /// T-167 review: the printer detection sections the earlier versions wrote (0.4.0: none; 0.5.0 development builds: what
+    /// differed from <see cref="DetectorSettings.Default"/>, also with the T-163 dark filament mode) load without warnings,
+    /// leave a detector that is off by default ("air-printing") off, and are written back unchanged.
+    /// </summary>
+    [Theory]
+    [InlineData("""{ "enabled": true }""")]
+    [InlineData("""{ "enabled": true, "region": { "x": 0.15, "y": 0.5, "width": 0.7, "height": 0.4 } }""")]
+    [InlineData("""{ "enabled": true, "detectors": { "bed-change": { "sensitivity": 70 } } }""")]
+    [InlineData("""{ "enabled": true, "detectors": { "bed-change": { "enabled": false } } }""")]
+    [InlineData("""{ "enabled": true, "detectors": { "bed-change": { "enabled": false, "sensitivity": 20 } }, "darkFilament": true }""")]
+    public void SettingsOfEarlierVersionsLoadUnchangedWithTheNewDetectorOff(string detection)
+    {
+        PrintFailureDetectorRegistration bedChange = new("bed-change", DetectionFrameSpec.Default, new DetectionThresholds(0.5f, 0.1f), static () => null!);
+        PrintFailureDetectorRegistration airPrinting = new("air-printing", DetectionFrameSpec.Default, new DetectionThresholds(0.8f, 0.2f), static () => null!)
+        {
+            EnabledByDefault = false,
+            IsExperimental = true,
+            Models = [PrinterModel.CoreOne],
+        };
+        string json = $$"""{ "printers": [ { "id": "core-one", "name": "Core One", "connectionType": "PrusaLink", "address": "192.168.0.10", "detection": {{detection}} } ] }""";
+
+        AppSettings loaded = Load(json, out List<string> warnings);
+        PrinterDetectionSettings printer = loaded.Printers[0].Detection;
+
+        Assert.Empty(warnings);
+        Assert.False(printer.For(airPrinting).Enabled);
+        Assert.False(printer.Detectors.ContainsKey(airPrinting.Id));
+        using JsonDocument original = JsonDocument.Parse(detection);
+        using JsonDocument written = JsonDocument.Parse(Serialize(loaded));
+        JsonElement again = written.RootElement.GetProperty("printers")[0].GetProperty("detection");
+        Assert.True(JsonElement.DeepEquals(original.RootElement, again), again.GetRawText());
+        Assert.Equal(printer, Load(Serialize(loaded), out _).Printers[0].Detection);
+        Assert.Equal(original.RootElement.TryGetProperty("detectors", out _) ? printer.Detectors["bed-change"] : bedChange.DefaultSettings, printer.For(bedChange));
     }
 }

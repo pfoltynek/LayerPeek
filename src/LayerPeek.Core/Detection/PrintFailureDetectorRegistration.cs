@@ -1,3 +1,5 @@
+using LayerPeek.Core.Printers;
+
 namespace LayerPeek.Core.Detection;
 
 /// <summary>
@@ -78,4 +80,33 @@ public sealed record PrintFailureDetectorRegistration
 
     /// <summary>A new detector for one printer and one stretch of printing.</summary>
     public Func<IPrintFailureDetector> Create { get; }
+
+    /// <summary>
+    /// Whether the detector of a printer without its own settings is on (T-167, user decision 2026-11-04): <see langword="true"/>
+    /// (the default) for the detectors of the first version; a new, experimental one is off after an update until the user
+    /// switches it on. See <see cref="DefaultSettings"/>.
+    /// </summary>
+    public bool EnabledByDefault { get; init; } = true;
+
+    /// <summary>The settings shows it as experimental (T-167: "Experimental", as the timelapse of T-161).</summary>
+    public bool IsExperimental { get; init; }
+
+    /// <summary>
+    /// The printer models it is offered for (T-167: a detector that needs a bed moving in Z); <see langword="null"/> (the
+    /// default): every printer, also one of an unknown model. A printer of another model neither shows nor runs it.
+    /// </summary>
+    public IReadOnlyList<PrinterModel>? Models
+    {
+        get;
+        init => field = value is null ? null : [.. value];
+    }
+
+    /// <summary>The settings of a printer that has none of its own for this detector.</summary>
+    public DetectorSettings DefaultSettings => EnabledByDefault ? DetectorSettings.Default : DetectorSettings.Disabled;
+
+    /// <summary>Whether a printer of <paramref name="model"/> is offered this detector (see <see cref="Models"/>).</summary>
+    public bool IsOfferedFor(PrinterModel model) => Models is not { } models || models.Contains(model);
+
+    /// <summary>Whether <paramref name="printer"/> is offered this detector (its model: <see cref="DetectionRegion.ModelOf(PrinterDefinition)"/>).</summary>
+    public bool IsOfferedFor(PrinterDefinition printer) => Models is null || IsOfferedFor(DetectionRegion.ModelOf(printer));
 }

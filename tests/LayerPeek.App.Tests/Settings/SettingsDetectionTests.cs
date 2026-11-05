@@ -235,6 +235,101 @@ public sealed class SettingsDetectionTests : IDisposable
         Assert.Equal(Strings.SettingsDetectionRegionName.Replace("{0}", "15", StringComparison.Ordinal).Replace("{1}", "55", StringComparison.Ordinal).Replace("{2}", "70", StringComparison.Ordinal).Replace("{3}", "45", StringComparison.Ordinal), printer.DetectionRegionName);
     }
 
+    [Theory]
+    [InlineData("cs")]
+    [InlineData("de")]
+    [InlineData("en")]
+    [InlineData("es")]
+    [InlineData("fr")]
+    [InlineData("it")]
+    [InlineData("pl")]
+    [InlineData("sk")]
+    public void TheAirPrintingDetectorHasItsTextsInEveryLanguage(string language)
+    {
+        System.Globalization.CultureInfo culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+        string id = LayerPeek.App.Detection.DetectorTexts.AirPrinting;
+
+        string name = LayerPeek.App.Detection.DetectorTexts.Name(id, culture);
+        Assert.False(string.IsNullOrWhiteSpace(name));
+        Assert.DoesNotContain(id, name, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(LayerPeek.App.Detection.DetectorTexts.Description(id, culture)));
+        Assert.False(string.IsNullOrWhiteSpace(LayerPeek.App.Detection.DetectorTexts.Limitation(id, culture)));
+        if (language != "en")
+        {
+            Assert.NotEqual(LayerPeek.App.Detection.DetectorTexts.Name(id, System.Globalization.CultureInfo.GetCultureInfo("en")), name);
+        }
+    }
+
+    [Fact]
+    public async Task ADetectorOffByDefaultIsSavedOnlyWhenSwitchedOn()
+    {
+        // T-167: "air-printing" is off until the user switches it on, so switching it on must be saved and loaded again.
+        PrinterDefinition coreOne = Printer() with { DetectedModel = new PrinterModelCode(7, 1, 0) };
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [coreOne] }, detectors: [DetectionFakes.BedChange, DetectionFakes.AirPrinting]);
+        DetectorSettingsViewModel air = vm.Printers[0].Detectors[1];
+
+        Assert.False(air.Enabled);
+        Assert.True(air.IsExperimental);
+        Assert.False(vm.Printers[0].Detectors[0].IsExperimental);
+        Assert.Equal(DetectorSettings.DefaultSensitivity, air.Sensitivity);
+        air.Enabled = true;
+        AppSettings saved = await SaveAsync(vm);
+
+        Assert.Equal(DetectorSettings.Default, saved.Printers[0].Detection.Detectors[DetectionFakes.AirPrinting.Id]);
+        Assert.False(saved.Printers[0].Detection.Detectors.ContainsKey(DetectionFakes.BedChange.Id));
+        SettingsViewModel again = await LoadAsync(saved, detectors: [DetectionFakes.BedChange, DetectionFakes.AirPrinting]);
+        Assert.True(again.Printers[0].Detectors[1].Enabled);
+
+        // Switched off again: its default, nothing is kept.
+        again.Printers[0].Detectors[1].Enabled = false;
+        AppSettings off = await SaveAsync(again);
+        Assert.Empty(off.Printers[0].Detection.Detectors);
+    }
+
+    [Fact]
+    public async Task AnEarlierDetectionSetupIsSavedUnchangedWithTheNewDetectorOff()
+    {
+        // T-167 review: a Core One watched before the update (bed-change tuned, T-163 dark filament mode on) gets the new
+        // detector offered but off; saving other edits (the name) keeps the printer's detection as it was.
+        PrinterDetectionSettings before = new()
+        {
+            Enabled = true,
+            DarkFilament = true,
+            Detectors = new Dictionary<string, DetectorSettings> { [DetectionFakes.BedChange.Id] = new() { Sensitivity = 70 } },
+        };
+        PrinterDefinition coreOne = Printer() with { DetectedModel = new PrinterModelCode(7, 1, 0), Detection = before };
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [coreOne] }, detectors: [DetectionFakes.BedChange, DetectionFakes.AirPrinting]);
+        PrinterEditorViewModel printer = vm.Printers[0];
+
+        Assert.True(printer.Detectors[1].IsOffered);
+        Assert.False(printer.Detectors[1].Enabled);
+        Assert.Equal(70, printer.Detectors[0].Sensitivity);
+        printer.Name = "Renamed";
+        AppSettings saved = await SaveAsync(vm);
+
+        Assert.Equal(before, saved.Printers[0].Detection);
+        Assert.False(saved.Printers[0].Detection.For(DetectionFakes.AirPrinting).Enabled);
+    }
+
+    [Fact]
+    public async Task ADetectorForSomeModelsIsShownOnlyForThem()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [Printer()] }, detectors: [DetectionFakes.BedChange, DetectionFakes.AirPrinting]);
+        PrinterEditorViewModel printer = vm.Printers[0];
+
+        // Unknown model: hidden; Core One chosen for the image: shown; MK4S: hidden again (its settings kept).
+        Assert.True(printer.Detectors[0].IsOffered);
+        Assert.False(printer.Detectors[1].IsOffered);
+        printer.ModelOptions.Single(static o => o.Model == PrinterModel.CoreOne).Command.Execute(null);
+        Assert.True(printer.Detectors[1].IsOffered);
+        printer.Detectors[1].Enabled = true;
+        printer.ModelOptions.Single(static o => o.Model == PrinterModel.Mk4S).Command.Execute(null);
+        Assert.False(printer.Detectors[1].IsOffered);
+        Assert.True(printer.Detectors[0].IsOffered);
+        AppSettings saved = await SaveAsync(vm);
+        Assert.True(saved.Printers[0].Detection.For(DetectionFakes.AirPrinting).Enabled);
+    }
+
     [Fact]
     public async Task TheDetectedModelCountsLikeTheChosenImage()
     {
