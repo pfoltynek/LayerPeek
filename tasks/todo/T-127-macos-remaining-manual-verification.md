@@ -254,9 +254,9 @@ a kritérium.
 - [ ] **T-170** (snímky UI, sada macOS): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
       a zkontrolovat změněné `Snapshots/macOS/settings-*.png` podzáložky Tiskárna (pole „Připojení“ zmizelo, jméno vede
       přes celou šířku vedle obrázku; `settings-prusaconnect.png` je smazaný). Pak celý `dotnet test` na Macu bez chyb.
-- [ ] **T-170** (`tools/macos-verify.ps1`, kontrola `mac.shortcuts`): upravená kontrola Cmd-. s otevřeným seznamem teď
+- [ ] **T-170** (`tools/macos-verify.ps1`, kontrola `mac.keys`): upravená kontrola Cmd-. s otevřeným seznamem teď
       přejde na záložku Obecné (Cmd-Shift-] dvakrát) a otevře `SettingsLanguage` místo smazaného `PrinterConnectionType`.
-      Na Macu spustit `pwsh tools/macos-verify.ps1 -Only mac.shortcuts` a ověřit, že kontrola proběhne (ne „not checked“).
+      Na Macu spustit `pwsh tools/macos-verify.ps1 -Only mac.keys -Allow mac.keys` a ověřit, že kontrola proběhne (ne „not checked“).
 
 ### 1d. Chyby hlášené uživatelem
 - [ ] **Kontrola aktualizací: text výsledku po skutečném kliknutí (macOS, hlášeno uživatelem 2026-11-05).** Nastavení →
