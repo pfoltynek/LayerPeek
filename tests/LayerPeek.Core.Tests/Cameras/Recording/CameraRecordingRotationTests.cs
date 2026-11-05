@@ -262,6 +262,8 @@ public sealed class CameraRecordingRotationTests : IDisposable
     public void PreparingAFolderWritesTheMarkerOnce()
     {
         string marker = Path.Combine(_printer, CameraRecordingFolders.MarkerFileName);
+        // On Windows the marker is hidden, and a hidden file cannot be overwritten by File.WriteAllText.
+        File.SetAttributes(marker, FileAttributes.Normal);
         File.WriteAllText(marker, "kept");
 
         CameraRecordingStorage.Instance.PrepareFolder(_printer);

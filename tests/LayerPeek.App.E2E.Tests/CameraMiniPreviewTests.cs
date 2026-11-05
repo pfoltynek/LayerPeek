@@ -413,7 +413,8 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
         }
 
         List<string> seen = [];
-        for (int i = 0; i < 6; i++)
+        // Full screen, normal window, timelapse (T-161), record (T-146), topmost, then the strip toggles: room for all of them.
+        for (int i = 0; i < 10; i++)
         {
             string focused = fixture.Automation.FocusedElement()?.Properties.AutomationId.ValueOrDefault ?? string.Empty;
             if (focused == automationId)

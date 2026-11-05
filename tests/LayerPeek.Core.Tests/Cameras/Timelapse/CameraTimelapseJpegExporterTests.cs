@@ -55,10 +55,10 @@ public sealed class CameraTimelapseJpegExporterTests : IDisposable
         TestDirectories.Delete(_folder);
     }
 
-    private async Task<CameraTimelapseExportResult> ExportAsync(string? file = null, string? printerId = "mk4")
+    private async Task<CameraTimelapseExportResult> ExportAsync(string? file = null, string? printerId = "mk4", TimeSpan? timeout = null)
     {
         Assert.True(_exporter.Start(file ?? _timelapse, printerId));
-        return await _completed.Task.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        return await _completed.Task.WaitAsync(timeout ?? TestTimeouts.Wait, TestContext.Current.CancellationToken);
     }
 
     private string[] Entries() => [.. Directory.EnumerateFileSystemEntries(_folder).Select(Path.GetFileName).Order(StringComparer.Ordinal)!];
@@ -129,7 +129,9 @@ public sealed class CameraTimelapseJpegExporterTests : IDisposable
         _files.Width = 1;
         _files.Height = 1;
 
-        CameraTimelapseExportResult result = await ExportAsync();
+        // 10 001 real files: on Windows (antivirus scanning every new file) during the full parallel test run this takes
+        // longer than the usual wait.
+        CameraTimelapseExportResult result = await ExportAsync(timeout: TimeSpan.FromMinutes(1));
 
         Assert.True(result.Succeeded);
         Assert.True(File.Exists(Path.Combine(result.OutputFolder!, "00001.jpg")));
