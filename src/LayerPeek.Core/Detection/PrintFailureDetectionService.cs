@@ -346,8 +346,8 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
         List<string>? enabled = null;
         foreach (PrintFailureDetectorRegistration registration in _registrations)
         {
-            DetectorSettings settings = printer.Detection.For(registration.Id);
-            if (settings.Enabled)
+            DetectorSettings settings = printer.Detection.For(registration);
+            if (settings.Enabled && registration.IsOfferedFor(printer))
             {
                 (enabled ??= []).Add($"{registration.Id}:{settings.Sensitivity}");
             }
@@ -363,8 +363,8 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
         List<ActiveDetector> detectors = [];
         foreach (PrintFailureDetectorRegistration registration in _registrations)
         {
-            DetectorSettings settings = printer.Detection.For(registration.Id);
-            if (!settings.Enabled)
+            DetectorSettings settings = printer.Detection.For(registration);
+            if (!settings.Enabled || !registration.IsOfferedFor(printer))
             {
                 continue;
             }

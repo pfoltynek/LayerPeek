@@ -831,8 +831,18 @@
                               </ItemsControl.ItemsPanel>
                               <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:DetectorSettingsViewModel">
-                                  <StackPanel>
-                                    <CheckBox AutomationProperties.AutomationId="{Binding Id, StringFormat='PrinterDetector-{0}'}" Content="{Binding Name}" IsChecked="{Binding Enabled}" />
+                                  <!-- T-167: a detector the printer's model is not offered is hidden; an experimental one has the badge of T-161. -->
+                                  <StackPanel IsVisible="{Binding IsOffered}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                      <CheckBox AutomationProperties.AutomationId="{Binding Id, StringFormat='PrinterDetector-{0}'}" Content="{Binding Name}" IsChecked="{Binding Enabled}" />
+                                      <Border Classes="badge"
+                                              IsVisible="{Binding IsExperimental}"
+                                              AutomationProperties.AutomationId="{Binding Id, StringFormat='PrinterDetectorExperimental-{0}'}"
+                                              AutomationProperties.HelpText="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                              ToolTip.Tip="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                                        <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                                      </Border>
+                                    </StackPanel>
                                     <Grid ColumnDefinitions="*,8,Auto" RowDefinitions="Auto,Auto" Margin="28,0,0,0" IsEnabled="{Binding Enabled}">
                                       <TextBlock Classes="hint" Margin="0" Text="{Binding [SettingsDetectionSensitivity], Source={x:Static loc:LocalizedStrings.Instance}}" />
                                       <Slider Grid.Row="1"

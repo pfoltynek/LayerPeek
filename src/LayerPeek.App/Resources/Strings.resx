@@ -1770,6 +1770,18 @@
     <value>Known limitation: less reliable with dark filament on a black sheet.</value>
     <comment>T-154: known limitation of 'bed-change', shown marked under its description (T-163 may fix it later).</comment>
   </data>
+  <data name="DetectorAirPrinting" xml:space="preserve">
+    <value>Printing into the air</value>
+    <comment>T-167: name of the detector 'air-printing' in the settings and the notification (user decision 2026-11-04: Czech 'Tisk do vzduchu').</comment>
+  </data>
+  <data name="DetectorAirPrintingDescription" xml:space="preserve">
+    <value>Notices that the printer goes on printing (the Z axis rises) but nothing grows on the bed any more, e.g. filament that ran out unnoticed, a slipping extruder or a clogged nozzle. Only for printers whose bed moves down while printing (Core One, XL). Does not notice thinner walls, the surface quality or one of several parts that stops growing.</value>
+    <comment>T-167: what the detector 'air-printing' detects and what not; it is offered only for printers whose bed moves down in Z (Core One, XL).</comment>
+  </data>
+  <data name="DetectorAirPrintingLimitation" xml:space="preserve">
+    <value>Known limitation: reports the failure only after the Z axis rose another ~3 mm (minutes, half an hour and more on slow prints). Does not judge parts mostly hidden under the head, the first ~6 mm after the start or after the camera reconnects, and a wipe tower that keeps growing can hide the failure.</value>
+    <comment>T-167: known limitations of 'air-printing', shown marked under its description (alarm delay in mm of Z, small parts under the head, the start, the wipe tower).</comment>
+  </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Detector {0}</value>
     <comment>T-154: name of a detector this version has no texts for; {0} = its id.</comment>

@@ -45,6 +45,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   the nozzle or defects inside the part, it is less reliable with dark filament on a black sheet, and with the whole
   frame as the region the moving parts of the printer can cause false alarms. It is tuned on synthetic failures and
   real successful prints of a Core One with a Buddy3D camera; it has not been tried on many real failed prints yet.
+- **Print failure detector "Printing into the air" (experimental, off by default)** (Windows and macOS): a second
+  detector on the printer's **Detection** sub-tab, offered only for printers whose bed moves down while printing
+  (Core One, Core One L, XL, XL+; hidden for other models). It notices that the printer goes on printing (the Z axis
+  rises) but nothing grows on the bed any more, e.g. filament that ran out unnoticed, a slipping extruder or a clogged
+  nozzle: the top edges of the parts stand at the nozzle in a good print and move down with the bed when nothing is
+  extruded. It uses the printer's reported Z height and looks at the bed region extended up to the nozzle. It is off
+  after the update and marked **Experimental**; switch it on per printer. **Limitations:** the alarm comes ~3 mm of Z
+  after the failure (a few minutes on a fast print, about half an hour or more on a slow one), the first ~6 mm of a
+  print (and of a resumed print or after the camera reconnects) are not judged, small parts mostly hidden under the
+  print head are not judged, a wipe tower that keeps growing can hide a failure, and a part whose wider lower step ends
+  (or several parts of which most end earlier) can cause a false alarm. It is tuned on synthetic failures and two real
+  successful Core One prints; there is no real footage of printing into the air yet.
 - **Timelapse (experimental)** (Windows and macOS): **Start timelapse (experimental)** / **Stop timelapse
   (experimental)** in the printer's menu and a stopwatch button in the camera window, which shows an amber **TL**
   while a timelapse is taken (dimmed while the print is paused); **Play last timelapse** in the printer's menu. **Take

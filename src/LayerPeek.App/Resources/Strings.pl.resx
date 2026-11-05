@@ -1654,6 +1654,15 @@
   <data name="DetectorBedChangeLimitation" xml:space="preserve">
     <value>Znane ograniczenie: mniej niezawodny przy ciemnym filamencie na czarnej płycie.</value>
   </data>
+  <data name="DetectorAirPrinting" xml:space="preserve">
+    <value>Drukowanie w powietrzu</value>
+  </data>
+  <data name="DetectorAirPrintingDescription" xml:space="preserve">
+    <value>Wykrywa, że drukarka nadal drukuje (oś Z rośnie), ale na stole nic już nie przybywa, np. gdy niezauważenie skończył się filament, ślizga się ekstruder lub zatkała się dysza. Tylko dla drukarek, których stół podczas druku opuszcza się (Core One, XL). Nie wykrywa cieńszych ścian, jakości powierzchni ani tego, że przestał rosnąć tylko jeden z kilku elementów.</value>
+  </data>
+  <data name="DetectorAirPrintingLimitation" xml:space="preserve">
+    <value>Znane ograniczenie: zgłasza błąd dopiero, gdy oś Z podniesie się o kolejne ~3 mm (minuty, przy wolnych wydrukach pół godziny i więcej). Nie ocenia elementów w większości ukrytych pod głowicą ani pierwszych ~6 mm po starcie lub ponownym połączeniu kamery, a wieża czyszcząca, która dalej rośnie, może zakryć błąd.</value>
+  </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Detektor {0}</value>
   </data>

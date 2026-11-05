@@ -86,6 +86,12 @@ public sealed record DetectorSettings
     /// </summary>
     public static DetectorSettings Default { get; } = new();
 
+    /// <summary>
+    /// <see cref="Default"/> switched off: the default of a detector that is off until the user switches it on
+    /// (<see cref="PrintFailureDetectorRegistration.EnabledByDefault"/>, T-167).
+    /// </summary>
+    public static DetectorSettings Disabled { get; } = new() { Enabled = false };
+
     public bool Enabled { get; init; } = true;
 
     /// <summary>0 (fewest alarms) – 100 (most); see <see cref="DetectionThresholds"/>. Clamped into the range.</summary>
@@ -134,8 +140,9 @@ public sealed record PrinterDetectionSettings
     public DetectionRegion? Region { get; init; }
 
     /// <summary>
-    /// Settings of the detectors that differ from <see cref="DetectorSettings.Default"/>, by detector id (case-sensitive,
-    /// valid ids only). A read-only copy; ids of detectors this version does not know are kept (a newer version wrote them).
+    /// Settings the user chose for detectors, by detector id (case-sensitive, valid ids only): those that differ from the
+    /// detector's default (<see cref="PrintFailureDetectorRegistration.DefaultSettings"/>, T-167). A read-only copy; ids of
+    /// detectors this version does not know are kept (a newer version wrote them).
     /// </summary>
     /// <exception cref="ArgumentException">An id is not valid or a value is <see langword="null"/>.</exception>
     public IReadOnlyDictionary<string, DetectorSettings> Detectors
@@ -159,8 +166,18 @@ public sealed record PrinterDetectionSettings
         }
     } = ReadOnlyDictionary<string, DetectorSettings>.Empty;
 
-    /// <summary>The settings of detector <paramref name="id"/>: its own, or <see cref="DetectorSettings.Default"/>.</summary>
+    /// <summary>
+    /// The settings of detector <paramref name="id"/>: its own, or <see cref="DetectorSettings.Default"/>. For a registered
+    /// detector use <see cref="For(PrintFailureDetectorRegistration)"/>, which knows its default.
+    /// </summary>
     public DetectorSettings For(string id) => Detectors.GetValueOrDefault(id) ?? DetectorSettings.Default;
+
+    /// <summary>The settings of <paramref name="detector"/>: its own, or its <see cref="PrintFailureDetectorRegistration.DefaultSettings"/>.</summary>
+    public DetectorSettings For(PrintFailureDetectorRegistration detector)
+    {
+        ArgumentNullException.ThrowIfNull(detector);
+        return Detectors.GetValueOrDefault(detector.Id) ?? detector.DefaultSettings;
+    }
 
     /// <summary>The region detection uses for <paramref name="printer"/>: <see cref="Region"/>, or its default.</summary>
     public DetectionRegion RegionFor(Printers.PrinterDefinition printer) => Region ?? DetectionRegion.DefaultFor(printer);

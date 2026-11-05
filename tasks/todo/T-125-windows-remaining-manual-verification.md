@@ -14,7 +14,8 @@ nepřeložily ani neotestovaly. `scripts/release-build.ps1` spouští celý `dot
 jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrtávají tam. Co blokuje vydání, rozhodne uživatel.
 
 1. **Build a testy (blokuje build vydání):** 2d · **T-162** (prázdná cache FFmpeg, nový build BtbN) → `dotnet test` na
-   Windows (testovací body 2c–2m: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165).
+   Windows (testovací body 2c–2n: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165,
+   T-167).
 2. **Snímky UI sady Windows (blokuje build vydání; bez nich selžou snímkové testy nastavení):** jeden běh
    `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154 a 2k · T-161 a kontrola souborů
    vyjmenovaných u těchto bodů.
@@ -312,6 +313,23 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       když je nejnovější. Výběr timelapse → toast „… selhalo / Soubor není nahrávka z LayerPeeku.“ Zrušení uprostřed (velká
       nahrávka, nebo nahrávka na síťovém disku) nezanechá žádný soubor (ani skrytý `.….partial`, `dir /a`). Během vytváření
       jde spustit i export do JPEG jiného timelapse.
+
+### 2n. Detekce chyb tisku – detektor „Tisk do vzduchu“ (z T-167, implementováno na Macu 2026-11-05)
+- [ ] **T-167** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `dotnet test` na Windows bez
+      chyb, hlavně `AirPrintingDetectorTests`, `AirPrintingDetectorCostTests` a `AirPrintingSeedSweepTests` v Detection
+      (`AirPrintingLocalSamplesTests` se bez `~/LayerPeek-samples` přeskočí), nové testy registrace a mapperu v Core
+      (`DetectionModelTests`, `SettingsMapperDetectionTests`, `PrintFailureDetectionServiceTests`), `SettingsDetectionTests`
+      v App a UiTests `SettingsWindowDetectionUiTests.AnExperimentalDetectorForSomeModelsShowsItsBadgeOnlyForThem`
+      a `ADetectorForOtherModelsIsHidden`. Snímkové testy podzáložky Detekce se nemění (snímky ukazují jen „Změnu na
+      podložce“). `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim (žádná nová
+      závislost).
+- [ ] **T-167** (ruční, simulátor stačí): podzáložka Detekce tiskárny s obrázkem Core One ukazuje „Tisk do vzduchu“
+      vypnutý se štítkem „Experimentální“ vedle zaškrtávacího pole (stejný vzhled jako u timelapse, čitelný ve světlém
+      i tmavém motivu, Předčítání přečte tip), s obrázkem MK4 se nezobrazí. Zapnutí se uloží a po novém otevření okna
+      zůstane zapnuté.
+- [ ] **T-167** (krit. „CPU obou detektorů“, část win-x64, volitelně): čas `AirPrintingDetector` na vzorek v Release
+      (`AirPrintingDetectorCostTests` s `LAYERPEEK_DETECTION_REPORT=<soubor>`), zapsat ms na vzorek. Mac: 0,58 ms (výřez
+      Core One) a 1,27 ms (celý snímek).
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

@@ -206,6 +206,39 @@ public sealed class PrintFailureDetectionServiceTests : IAsyncDisposable
     }
 
     [Fact]
+    public void ADetectorOffByDefaultRunsOnlyWhenSwitchedOn()
+    {
+        Create([_script.Registration() with { EnabledByDefault = false }]);
+        Apply(Settings());
+        _monitor.Raise(Snapshot(PrinterState.Printing));
+
+        Assert.False(Service.IsWatching("core-one"));
+
+        // Switched on: its own settings, equal to DetectorSettings.Default (T-167).
+        Apply(Settings(Printer(detector: DetectorSettings.Default)));
+        _monitor.Raise(Snapshot(PrinterState.Printing));
+
+        Assert.True(Service.IsWatching("core-one"));
+    }
+
+    [Theory]
+    [InlineData(PrinterModel.CoreOne, true)]
+    [InlineData(PrinterModel.Mk4S, false)]
+    [InlineData(PrinterModel.Unknown, false)]
+    public void ADetectorForOtherModelsNeverRuns(PrinterModel model, bool runs)
+    {
+        Create([_script.Registration() with { Models = [PrinterModel.CoreOne, PrinterModel.Xl] }]);
+        PrinterDefinition printer = Printer() with
+        {
+            Image = model == PrinterModel.Unknown ? PrinterImageChoice.Automatic : PrinterImageChoice.ForModel(model),
+        };
+        Apply(Settings(printer));
+        _monitor.Raise(Snapshot(PrinterState.Printing));
+
+        Assert.Equal(runs, Service.IsWatching("core-one"));
+    }
+
+    [Fact]
     public void DetectionIsOffByDefault()
     {
         Assert.False(AppSettings.Default.Detection.Enabled);

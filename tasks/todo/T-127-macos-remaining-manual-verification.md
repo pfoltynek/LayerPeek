@@ -32,7 +32,8 @@ mají přednost. Co z průchodu blokuje vydání, rozhodne uživatel. Každá na
    poplach“ už u prvního poplachu, klik otevře okno kamery, `…_alarm-bed-change.jpg` a `…_dashcam-failure.mp4`). Nakonec
    tisk zastavit na tiskárně → `…_dashcam-stopped.mp4` (oddíl 1 · T-148).
 3. **Tisk B – automatické nahrávání (~15 min, krátký díl):** zapnout „Automaticky nahrávat tisk“ → oddíl 2 · **T-145**
-   (doplněný bod) a zároveň oddíl 2 · **T-155** krok (1) (celý běžný tisk bez poplachu; delší tisk podle času).
+   (doplněný bod) a zároveň oddíl 2 · **T-155** krok (1) (celý běžný tisk bez poplachu; delší tisk podle času). Před
+   tiskem B zapnout u tiskárny i detektor „Tisk do vzduchu“ (štítek „Experimentální“) → oddíl 2 · **T-167** krok (1).
 4. **Po tiscích – přehrání a dialogy souborů (~20 min, nejvyšší priorita):** oddíl 1 · **T-146** (zbytek: tray menu,
    „● REC“, ruční Start / Stop, „Přehrát poslední nahrávku“ v QuickTime, „Otevřít složku s nahrávkami“) → oddíl 2 ·
    **T-147** (přehrání nahrávky z Buddy3D v QuickTime) → oddíl 1 · **T-164** (`NSOpenPanel` „Vytvořit timelapse
@@ -280,6 +281,16 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       filamentu nebo předmět ~2 cm: do ~1–3 min poplach (toast T-154 se snímkem), v `~/Movies/LayerPeek/<tiskárna>/` snímek
       `…_alarm-bed-change.jpg` a `…_dashcam-failure.mp4`; „Falešný poplach“ uloží záznam do `detection/false-alarms`.
       Výsledek (čas do poplachu, skóre z logu „Print failure suspected … score“) zapsat do poznámek T-155.
+- [ ] **T-167** (experimentální detektor „Tisk do vzduchu“, doplněno 2026-11-05 před vydáním 0.5.0; automatické části
+      a skutečné úspěšné tisky ověřil agent, skutečný tisk do vzduchu zatím nikdo nezaznamenal): podzáložka Detekce u
+      Core One ukazuje „Tisk do vzduchu“ vypnutý se štítkem „Experimentální“ (tip „Experimentální funkce…“), u tiskárny MK4
+      / MINI se nezobrazí (model zvolený pro obrázek). (1) Zapnout ho a nechat běžet celý běžný tisk aspoň ~15 mm vysokého
+      dílu (tisk B): žádný poplach „Možná chyba tisku – Tisk do vzduchu“. (2) Volitelně, rozhodne uživatel (riziko pro
+      tiskárnu malé, ale filament se může zamotat): inscenovaný tisk do vzduchu – krabička ~40 mm, po ~15 mm při vypnutém
+      senzoru filamentu vytáhnout filament z hlavy (nebo ho odstřihnout nad podavačem) a nechat tisknout dál: poplach do
+      ~3 mm Z (při 0,4 mm/min ~8–10 min), snímek `…_alarm-air-printing.jpg`. Výsledek (výška Z při selhání a při poplachu,
+      skóre z logu „Print failure suspected … score“) a nahrávku nebo snímky po 5 s se záznamem Z zapsat do poznámek T-167
+      (data mimo repozitář).
 - [ ] **T-106** (krit. „Ruční krok: na skutečné tiskárně ověřit, že kolísání s minimálním rozsahem 6 °C nepůsobí příliš
       dramaticky“): widget Teploty M a L a řádek grafu malého náhledu během ustáleného tisku; když působí dramaticky,
       zapsat a založit úkol (návrh 8–10 °C, rozhodne uživatel).

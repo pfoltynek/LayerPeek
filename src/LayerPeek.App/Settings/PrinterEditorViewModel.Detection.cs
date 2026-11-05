@@ -124,8 +124,9 @@ public sealed partial class PrinterEditorViewModel
         Dictionary<string, DetectorSettings> detectors = new(_otherDetectors, StringComparer.Ordinal);
         foreach (DetectorSettingsViewModel detector in _detectors)
         {
+            // Only what differs from the detector's own default is kept (T-167: a detector may be off by default).
             DetectorSettings settings = detector.ToSettings();
-            if (settings == DetectorSettings.Default)
+            if (settings == detector.Registration.DefaultSettings)
             {
                 detectors.Remove(detector.Id);
             }
@@ -164,10 +165,11 @@ public sealed partial class PrinterEditorViewModel
         foreach (PrintFailureDetectorRegistration registration in _owner.DetectorRegistrations)
         {
             _otherDetectors.Remove(registration.Id);
-            detectors.Add(new DetectorSettingsViewModel(registration.Id, detection.For(registration.Id), () => _owner.OnPrinterEdited(nameChanged: false)));
+            detectors.Add(new DetectorSettingsViewModel(registration, detection.For(registration), () => _owner.OnPrinterEdited(nameChanged: false)));
         }
 
         _detectors = detectors;
+        UpdateOfferedDetectors();
         DetectionFullFrameCommand = new RelayCommand(() => DetectionRegion = DetectionRegion.Full, () => _owner.IsEditable);
         DetectionCoreOneCommand = new RelayCommand(() => DetectionRegion = DetectionRegion.CoreOneBed, () => _owner.IsEditable);
     }
@@ -176,9 +178,20 @@ public sealed partial class PrinterEditorViewModel
     private void OnDetectionModelChanged()
     {
         OnPropertyChanged(nameof(IsCoreOne));
+        UpdateOfferedDetectors();
         if (_detectionRegion is null)
         {
             OnDetectionRegionChanged();
+        }
+    }
+
+    /// <summary>The detectors offered for the model (image choice, else the detected one) are shown, the others hidden (T-167).</summary>
+    private void UpdateOfferedDetectors()
+    {
+        PrinterModel model = DetectionRegion.ModelOf(_imageChoice, EffectiveDetectedModel);
+        foreach (DetectorSettingsViewModel detector in _detectors)
+        {
+            detector.IsOffered = detector.Registration.IsOfferedFor(model);
         }
     }
 

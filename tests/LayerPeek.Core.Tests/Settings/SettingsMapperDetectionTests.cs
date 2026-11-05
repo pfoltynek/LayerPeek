@@ -91,11 +91,15 @@ public sealed class SettingsMapperDetectionTests
         Assert.Equal(new DetectionRegion(0.1, 0.5, 0.8, 0.5), detection.Region);
         Assert.Equal(70, detection.For("bed-change").Sensitivity);
         Assert.False(detection.For("spaghetti").Enabled);
-        // Defaults are not written, so they come back as defaults (and the settings compare equal without them).
-        Assert.Equal(2, detection.Detectors.Count);
+        // T-167: every entry is the user's choice (what differs from the detector's own default, which only the app knows):
+        // one equal to DetectorSettings.Default keeps "enabled": true and comes back, the others only what differs.
+        Assert.Equal(3, detection.Detectors.Count);
+        Assert.Equal(DetectorSettings.Default, detection.Detectors["default-only"]);
+        Assert.Equal(settings.Printers[0].Detection, detection);
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement printer = document.RootElement.GetProperty("printers")[0].GetProperty("detection");
-        Assert.False(printer.GetProperty("detectors").TryGetProperty("default-only", out _));
+        Assert.True(printer.GetProperty("detectors").GetProperty("default-only").GetProperty("enabled").GetBoolean());
+        Assert.False(printer.GetProperty("detectors").GetProperty("default-only").TryGetProperty("sensitivity", out _));
         Assert.False(printer.GetProperty("detectors").GetProperty("bed-change").TryGetProperty("enabled", out _));
         Assert.Equal(3.5, document.RootElement.GetProperty("detection").GetProperty("sampleIntervalSeconds").GetDouble());
     }
@@ -182,6 +186,17 @@ public sealed class SettingsMapperDetectionTests
 
         Assert.Contains(warning, Assert.Single(warnings), StringComparison.Ordinal);
         Assert.Equal(PrinterDetectionSettings.Default, loaded);
+    }
+
+    [Fact]
+    public void ADetectorSwitchedOnExplicitlyIsKeptAlsoAtTheDefaults()
+    {
+        // T-167: a detector that is off by default ("air-printing") switched on by the user; an empty entry is no choice.
+        PrinterDetectionSettings detection = LoadPrinter("""{ "detectors": { "air-printing": { "enabled": true }, "bed-change": {} } }""", out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(DetectorSettings.Default, Assert.Single(detection.Detectors, static d => d.Key == "air-printing").Value);
+        Assert.False(detection.Detectors.ContainsKey("bed-change"));
     }
 
     [Fact]

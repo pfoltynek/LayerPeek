@@ -108,4 +108,56 @@ public sealed class DetectionModelTests
         DetectionSample sample = new(pixels, 320, 180, 320, TimeSpan.FromSeconds(2), new DetectionPixelRegion(0, 0, 320, 180), context);
         Assert.Equal(320, sample.Row(179).Length);
     }
+
+    [Fact]
+    public void ARegistrationIsOnByDefaultAndOfferedToEveryModel()
+    {
+        PrintFailureDetectorRegistration registration = new("bed-change", DetectionFrameSpec.Default, new DetectionThresholds(0.5f, 0.1f), static () => null!);
+
+        Assert.True(registration.EnabledByDefault);
+        Assert.False(registration.IsExperimental);
+        Assert.Null(registration.Models);
+        Assert.Equal(DetectorSettings.Default, registration.DefaultSettings);
+        Assert.True(registration.IsOfferedFor(PrinterModel.Unknown));
+        Assert.True(registration.IsOfferedFor(PrinterModel.Mini));
+    }
+
+    [Fact]
+    public void ADetectorOffByDefaultAndForSomeModelsOnly()
+    {
+        PrintFailureDetectorRegistration registration = new("air-printing", DetectionFrameSpec.Default, new DetectionThresholds(0.9f, 0.5f), static () => null!)
+        {
+            EnabledByDefault = false,
+            IsExperimental = true,
+            Models = [PrinterModel.CoreOne, PrinterModel.Xl],
+        };
+        PrinterDefinition coreOne = new() { Id = "a", Name = "a", ConnectionType = ConnectionType.PrusaLink, Address = "a", DetectedModel = new PrinterModelCode(7, 1, 0) };
+        PrinterDefinition chosenMk4 = coreOne with { Image = PrinterImageChoice.ForModel(PrinterModel.Mk4) };
+        PrinterDefinition unknown = coreOne with { DetectedModel = null };
+
+        Assert.Equal(DetectorSettings.Disabled, registration.DefaultSettings);
+        Assert.False(DetectorSettings.Disabled.Enabled);
+        Assert.Equal(DetectorSettings.DefaultSensitivity, DetectorSettings.Disabled.Sensitivity);
+        Assert.True(registration.IsOfferedFor(coreOne));
+        // The model chosen for the image wins over the detected one, as for the default region.
+        Assert.False(registration.IsOfferedFor(chosenMk4));
+        Assert.False(registration.IsOfferedFor(unknown));
+        Assert.True(registration.IsOfferedFor(PrinterModel.Xl));
+        Assert.Equal(PrinterModel.CoreOne, DetectionRegion.ModelOf(coreOne));
+        Assert.Equal(PrinterModel.Mk4, DetectionRegion.ModelOf(chosenMk4));
+        Assert.Equal(PrinterModel.Unknown, DetectionRegion.ModelOf(unknown));
+    }
+
+    [Fact]
+    public void ThePrintersSettingsOfADetectorFallBackToItsOwnDefault()
+    {
+        PrintFailureDetectorRegistration offByDefault = new("air-printing", DetectionFrameSpec.Default, new DetectionThresholds(0.9f, 0.5f), static () => null!) { EnabledByDefault = false };
+        PrintFailureDetectorRegistration onByDefault = new("bed-change", DetectionFrameSpec.Default, new DetectionThresholds(0.5f, 0.1f), static () => null!);
+        PrinterDetectionSettings none = PrinterDetectionSettings.Default;
+        PrinterDetectionSettings chosen = new() { Detectors = new Dictionary<string, DetectorSettings> { ["air-printing"] = DetectorSettings.Default } };
+
+        Assert.False(none.For(offByDefault).Enabled);
+        Assert.True(none.For(onByDefault).Enabled);
+        Assert.True(chosen.For(offByDefault).Enabled);
+    }
 }

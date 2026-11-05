@@ -182,7 +182,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-164 | Timelapse z hotové nahrávky (varianta F) (hotovo; Windows a ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-158, T-161 |
 | T-165 | Timelapse – export sekvence snímků JPEG (hotovo; Windows a ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-160, T-161 |
 | T-166 | Detekce chyb tisku – ladění citlivosti „Změna na podložce“ na více semínkách (hotovo) | all | core-dev | P2 | T-155, T-154 |
-| T-167 | Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste; fáze 1 měření, otázky 1 a 2 blokují fázi 2) | all | core-dev | P3 | T-155, T-166, T-154 |
+| T-167 | Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste; implementováno, čeká na rozhodnutí o falešných poplaších u dílů se schodem) | all | core-dev | P3 | T-155, T-166, T-154 |
 
 ### Windows (`windows`)
 

@@ -24,6 +24,16 @@ internal static class DetectorHarness
         DetectionRegion region,
         float[] thresholds,
         int width = 320,
+        int height = 180) =>
+        Run(detector, samples.Select(static s => (s.Time, s.Pixels, (double?)null)), region, thresholds, width, height);
+
+    /// <summary>With the height of the Z axis of every sample (<see cref="PrintFailureContext.AxisZ"/>, T-167).</summary>
+    public static DetectorRun Run(
+        IPrintFailureDetector detector,
+        IEnumerable<(TimeSpan Time, byte[] Pixels, double? Z)> samples,
+        DetectionRegion region,
+        float[] thresholds,
+        int width = 320,
         int height = 180)
     {
         PrintFailureDetectionOptions options = PrintFailureDetectionOptions.Default;
@@ -33,9 +43,9 @@ internal static class DetectorHarness
         PrintFailureContext context = new(1, null, 0, TimeSpan.Zero, region);
         detector.Reset(context);
         List<(TimeSpan Time, float Score)> scores = [];
-        foreach ((TimeSpan time, byte[] frame) in samples)
+        foreach ((TimeSpan time, byte[] frame, double? z) in samples)
         {
-            DetectionResult result = detector.Analyze(new DetectionSample(frame, width, height, width, time, pixels, context with { PrintElapsed = time }));
+            DetectionResult result = detector.Analyze(new DetectionSample(frame, width, height, width, time, pixels, context with { AxisZ = z, PrintElapsed = time }));
             for (int t = 0; t < thresholds.Length; t++)
             {
                 if (!result.IsWarmedUp)
