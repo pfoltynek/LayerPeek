@@ -225,4 +225,40 @@ public sealed class SettingsMapperDetectionTests
         Assert.NotEqual(PrinterDetectionSettings.Default, loaded);
         Assert.False(LoadPrinter("""{ "enabled": true }""", out _).DarkFilament);
     }
+
+    /// <summary>
+    /// T-167 review: the printer detection sections the earlier versions wrote (0.4.0: none; 0.5.0 development builds: what
+    /// differed from <see cref="DetectorSettings.Default"/>, also with the T-163 dark filament mode) load without warnings,
+    /// leave a detector that is off by default ("air-printing") off, and are written back unchanged.
+    /// </summary>
+    [Theory]
+    [InlineData("""{ "enabled": true }""")]
+    [InlineData("""{ "enabled": true, "region": { "x": 0.15, "y": 0.5, "width": 0.7, "height": 0.4 } }""")]
+    [InlineData("""{ "enabled": true, "detectors": { "bed-change": { "sensitivity": 70 } } }""")]
+    [InlineData("""{ "enabled": true, "detectors": { "bed-change": { "enabled": false } } }""")]
+    [InlineData("""{ "enabled": true, "detectors": { "bed-change": { "enabled": false, "sensitivity": 20 } }, "darkFilament": true }""")]
+    public void SettingsOfEarlierVersionsLoadUnchangedWithTheNewDetectorOff(string detection)
+    {
+        PrintFailureDetectorRegistration bedChange = new("bed-change", DetectionFrameSpec.Default, new DetectionThresholds(0.5f, 0.1f), static () => null!);
+        PrintFailureDetectorRegistration airPrinting = new("air-printing", DetectionFrameSpec.Default, new DetectionThresholds(0.8f, 0.2f), static () => null!)
+        {
+            EnabledByDefault = false,
+            IsExperimental = true,
+            Models = [PrinterModel.CoreOne],
+        };
+        string json = $$"""{ "printers": [ { "id": "core-one", "name": "Core One", "connectionType": "PrusaLink", "address": "192.168.0.10", "detection": {{detection}} } ] }""";
+
+        AppSettings loaded = Load(json, out List<string> warnings);
+        PrinterDetectionSettings printer = loaded.Printers[0].Detection;
+
+        Assert.Empty(warnings);
+        Assert.False(printer.For(airPrinting).Enabled);
+        Assert.False(printer.Detectors.ContainsKey(airPrinting.Id));
+        using JsonDocument original = JsonDocument.Parse(detection);
+        using JsonDocument written = JsonDocument.Parse(Serialize(loaded));
+        JsonElement again = written.RootElement.GetProperty("printers")[0].GetProperty("detection");
+        Assert.True(JsonElement.DeepEquals(original.RootElement, again), again.GetRawText());
+        Assert.Equal(printer, Load(Serialize(loaded), out _).Printers[0].Detection);
+        Assert.Equal(original.RootElement.TryGetProperty("detectors", out _) ? printer.Detectors["bed-change"] : bedChange.DefaultSettings, printer.For(bedChange));
+    }
 }

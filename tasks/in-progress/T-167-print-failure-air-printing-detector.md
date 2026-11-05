@@ -292,3 +292,35 @@ Nové otázky (core-dev 2026-11-05, úkol zůstává v `in-progress/`, dokud je 
   `dsymutil` k ladicí mapě runtime se objevují stejně jako dřív.
 - Úkol zůstává v `in-progress/`. Detektor, texty, CHANGELOG a body T-125 / T-127 jsou hotové, ale uživatel musí
   rozhodnout otázku 9 (falešné poplachy u dílů se schodem a u víc dílů), než se úkol uzavře nebo detektor vyřadí z 0.5.0.
+
+## Review
+qa-reviewer 2026-11-05, po sloučení `develop` (T-159, T-163, štítek „Experimentální“ u detekce) do větve úkolu.
+
+- **Sloučení:** konflikty v `CHANGELOG.md`, `PrintFailureDetectionSettings.cs` (`DarkFilament` + `For(registrace)`),
+  `DetectorHarness.cs` (přetížení se Z i `darkFilament`), T-125 (oddíl T-167 přečíslován na **2q**, seznam testovacích bodů
+  2c–2q, AOT 2b–2q) a T-127 (krok 3 tisku B má obě věty). Snímky macOS přegenerované: `settings-detection*.png` beze změny,
+  změnily se jen `camera-layout-mode*.png` (nedeterminismus, vráceno).
+- **Formát nastavení (bez blokujících nálezů):** soubory 0.4.0 (bez detekce) i z vývojových sestavení 0.5.0 (zapnutá
+  detekce, výřez, citlivost / vypnutý `bed-change`, `darkFilament`) se načtou bez varování, „Tisk do vzduchu“ zůstane
+  vypnutý a zapíšou se zpět beze změny. Nové testy: Core
+  `SettingsMapperDetectionTests.SettingsOfEarlierVersionsLoadUnchangedWithTheNewDetectorOff` (5 případů), App
+  `SettingsDetectionTests.AnEarlierDetectionSetupIsSavedUnchangedWithTheNewDetectorOff` (uložení jiné úpravy nezmění
+  detekci tiskárny Core One). JSON jen přes `SettingsJsonContext`.
+- **Návrat na starší 0.5.0-dev (neblokuje):** starší verze nespadne. Položku `"air-printing": { "enabled": true }` ale
+  považuje za výchozí a při dalším uložení ji zahodí, takže po návratu na novou verzi je detektor zase vypnutý (bezpečný
+  směr).
+- **`bed-change` beze změny:** `LAYERPEEK_DETECTION_SWEEP=1` `BedChangeSeedSweepTests` v Release dává stejná čísla jako
+  T-166 (30 sad, práh 0,3 %): Core One 2 s 1 586/1 680, 5 s 1 587, celý snímek 2 s 1 586, 5 s 1 583 s 5 falešnými poplachy
+  za 112 h, úspěšné tisky 0 poplachů. `BedChangeLocalSamplesTests` a `AirPrintingLocalSamplesTests` s `~/LayerPeek-samples`
+  proběhly (nepřeskočeny).
+- **Tmavý filament + tisk do vzduchu:** `PrintFailureContext.DarkFilament` čte jen `BedChangeDetector`, `AirPrintingDetector`
+  ho ignoruje. Přepnutí režimu restartuje běh (`RunConfig`), takže se `air-printing` resetuje a ~6 mm Z nehodnotí
+  (přijatelné, stejné jako obnovení tisku).
+- **Nice-to-have (rozhodnutí patří k otázce 9):** text omezení v UI (`Strings.resx` `DetectorAirPrintingLimitation`)
+  falešné poplachy u dílu se širším spodkem a u víc dílů nezmiňuje. Popis (`DetectorAirPrintingDescription`) jen říká, že
+  zastavení jednoho z víc dílů nepozná. Poznámky výše tvrdí opak. CHANGELOG to uvádí. Když uživatel zvolí 9a, doplnit
+  větu do všech 8 jazyků. Popis uvádí „Core One, XL“, nabízí se i Core One L a XL+ (otázka 11).
+- **Nice-to-have (existovalo už dřív, není z T-167):** výřez, který končí na okraji snímku (např. y 0,55 + výška 0,45), se
+  po ořezu uloží jako 0,44999999999999996, jen kosmetika v `settings.json`.
+- Build 0 varování, `dotnet test` 9 895 testů / 0 neúspěšných, `dotnet publish -r osx-arm64` bez IL2xxx/IL3xxx.
+- Úkol zůstává v `in-progress/` kvůli otázce 9 (rozhodne uživatel), z kódu nic neblokuje.

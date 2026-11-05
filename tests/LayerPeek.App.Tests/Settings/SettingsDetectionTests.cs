@@ -287,6 +287,31 @@ public sealed class SettingsDetectionTests : IDisposable
     }
 
     [Fact]
+    public async Task AnEarlierDetectionSetupIsSavedUnchangedWithTheNewDetectorOff()
+    {
+        // T-167 review: a Core One watched before the update (bed-change tuned, T-163 dark filament mode on) gets the new
+        // detector offered but off; saving other edits (the name) keeps the printer's detection as it was.
+        PrinterDetectionSettings before = new()
+        {
+            Enabled = true,
+            DarkFilament = true,
+            Detectors = new Dictionary<string, DetectorSettings> { [DetectionFakes.BedChange.Id] = new() { Sensitivity = 70 } },
+        };
+        PrinterDefinition coreOne = Printer() with { DetectedModel = new PrinterModelCode(7, 1, 0), Detection = before };
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [coreOne] }, detectors: [DetectionFakes.BedChange, DetectionFakes.AirPrinting]);
+        PrinterEditorViewModel printer = vm.Printers[0];
+
+        Assert.True(printer.Detectors[1].IsOffered);
+        Assert.False(printer.Detectors[1].Enabled);
+        Assert.Equal(70, printer.Detectors[0].Sensitivity);
+        printer.Name = "Renamed";
+        AppSettings saved = await SaveAsync(vm);
+
+        Assert.Equal(before, saved.Printers[0].Detection);
+        Assert.False(saved.Printers[0].Detection.For(DetectionFakes.AirPrinting).Enabled);
+    }
+
+    [Fact]
     public async Task ADetectorForSomeModelsIsShownOnlyForThem()
     {
         SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [Printer()] }, detectors: [DetectionFakes.BedChange, DetectionFakes.AirPrinting]);
