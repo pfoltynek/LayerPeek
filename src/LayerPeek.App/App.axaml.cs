@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml;
 
 using LayerPeek.App.Composition;
 using LayerPeek.App.Diagnostics;
+using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Platform.Windows;
@@ -384,6 +385,17 @@ public partial class App : Application, ITrayAppCommands
 
         // Never throws; the menu item shows the download while it runs.
         _ = host.UpdateOffer.RunAsync();
+    }
+
+    void ITrayAppCommands.OpenManual()
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        // Never throws: launch problems are logged by the launcher.
+        _ = host.UrlLauncher.OpenAsync(UserManual.UriFor(UiLanguage.CurrentTextCulture()));
     }
 
     void ITrayAppCommands.ShowAbout()

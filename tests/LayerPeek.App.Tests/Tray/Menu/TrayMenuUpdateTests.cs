@@ -11,8 +11,8 @@ using static LayerPeek.App.Tests.Tray.TestPrinters;
 namespace LayerPeek.App.Tests.Tray.Menu;
 
 /// <summary>
-/// "New version X.Y.Z available" in the tray menu (T-058): only while a newer version is offered, right above "About", its
-/// tooltip saying what a click does; a click reaches <see cref="ITrayAppCommands.InstallUpdate"/>.
+/// "New version X.Y.Z available" in the tray menu (T-058): only while a newer version is offered, right above "User manual"
+/// (T-172) and "About", its tooltip saying what a click does; a click reaches <see cref="ITrayAppCommands.InstallUpdate"/>.
 /// </summary>
 public sealed class TrayMenuUpdateTests : IDisposable
 {
@@ -71,6 +71,7 @@ public sealed class TrayMenuUpdateTests : IDisposable
                 Assert.False(item.HasAccessKey);
                 Assert.Equal("Opens the release page in the browser.", item.ToolTip);
             },
+            static item => Assert.Equal(TrayMenuCommand.Manual, item.Command),
             static item => Assert.Equal(TrayMenuCommand.About, item.Command),
             static item => Assert.Equal(TrayMenuCommand.Quit, item.Command));
         Assert.Equal(1, rebuilds);

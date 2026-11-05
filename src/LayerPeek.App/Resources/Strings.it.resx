@@ -99,6 +99,9 @@
   <data name="MenuAbout" xml:space="preserve">
     <value>I_nformazioni</value>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_Manuale utente</value>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>_Aggiungi stampante…</value>
   </data>

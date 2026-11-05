@@ -83,6 +83,9 @@ public enum TrayMenuCommand
     /// <summary>"Cancel timelapse from recording (42 %)" (T-164), instead of <see cref="CreateTimelapseFromRecording"/> while one is made.</summary>
     CancelTimelapseFromRecording,
 
+    /// <summary>"User manual" (T-172), right above "About": the manual in the language of the texts in the browser.</summary>
+    Manual,
+
     About,
 
     /// <summary>

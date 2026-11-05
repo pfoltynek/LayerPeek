@@ -107,5 +107,8 @@ internal interface ITrayAppCommands
     /// </summary>
     void InstallUpdate();
 
+    /// <summary>"User manual" (T-172): the manual on GitHub in the current language of the texts, in the browser.</summary>
+    void OpenManual();
+
     void Quit();
 }

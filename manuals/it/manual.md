@@ -178,6 +178,7 @@ Il menu contiene:
 - **Diagnostica…** (vedi [10](#10-diagnostica))
 - **Impostazioni…**
 - **Nuova versione X.Y.Z disponibile** (solo quando è disponibile un aggiornamento, vedi [12](#12-aggiornamenti))
+- **Manuale utente**: apre questo manuale
 - **Informazioni**
 - **Esci**
 

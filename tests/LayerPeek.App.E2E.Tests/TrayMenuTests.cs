@@ -96,10 +96,10 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         TrayMenuWindow menu = await TrayMenu.OpenWithMouseAsync(app);
         AutomationElement[] items = menu.Items();
         string[] names = [.. items.Select(static item => item.Name)];
-        Assert.True(names.Length >= 5, $"Menu items: {string.Join(" | ", names)}");
+        Assert.True(names.Length >= 6, $"Menu items: {string.Join(" | ", names)}");
         Assert.StartsWith("Core One", names[0], StringComparison.Ordinal);
-        Assert.Equal(["Diagnostics…", "Settings…", "About", "Quit"], names[^4..]);
-        Assert.Equal(["D", "S", "A", "Q"], items[^4..].Select(TrayMenu.AccessKeyOf).ToArray());
+        Assert.Equal(["Diagnostics…", "Settings…", "User manual", "About", "Quit"], names[^5..]);
+        Assert.Equal(["D", "S", "U", "A", "Q"], items[^5..].Select(TrayMenu.AccessKeyOf).ToArray());
         if (screenshot is not null)
         {
             Screenshots.Save(menu.Handle, screenshot);

@@ -99,6 +99,9 @@
   <data name="MenuAbout" xml:space="preserve">
     <value>_O aplikácii</value>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>Používateľská p_ríručka</value>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>_Pridať tlačiareň…</value>
   </data>
