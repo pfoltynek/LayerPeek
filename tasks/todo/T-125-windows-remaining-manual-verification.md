@@ -149,7 +149,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] **T-146** (krit. „Automatické nahrávání během tisku běží bez otevřeného okna kamery (E2E se simulátorem)“ a „E2E testy
       po sobě smažou nahrávky i po pádu“): `pwsh tools/run-e2e.ps1 -Class '*CameraRecording*'` = PASS (obě metody; druhá
       trvá kvůli minutě po konci tisku ~2 min); po běhu ve vyhrazeném kořeni E2E nezůstala žádná složka `Recordings`.
-- [ ] **T-146** (změněné podmenu tiskárny): `pwsh tools/run-e2e.ps1 -Class '*TrayMenu*'` a `-Class '*CameraTaskbarAndModeSwitch*'`
+- [x] **T-146** (změněné podmenu tiskárny): `pwsh tools/run-e2e.ps1 -Class '*TrayMenu*'` a `-Class '*CameraTaskbarAndModeSwitch*'`
       = PASS (očekávané položky doplněné o „Start recording“, „Play last recording“, „Open recordings folder“; oddělovač
       není položka menu – kdyby UI Automation hlásilo oddělovač jako `MenuItem`, opravit `TrayMenu.ItemsOf`).
 - [x] **T-146** (krit. „`dotnet build` a `dotnet test` bez chyb …; Native AOT publish bez nových varování“, část Windows):
@@ -254,7 +254,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
 
 ### 2k. Timelapse – UI (z T-161, implementováno na Macu 2026-11-04)
-- [ ] **T-161** (krit. „Headless UI testy a E2E prochází; snímky UI přegenerované“ a „`dotnet build` a `dotnet test`“, část
+- [x] **T-161** (krit. „Headless UI testy a E2E prochází; snímky UI přegenerované“ a „`dotnet build` a `dotnet test`“, část
       Windows): `dotnet test` na Windows bez chyb (nové `TrayMenuRecordingTests` s timelapse, `SettingsTimelapseTests`,
       `RecordingNotificationTests.AFailedTimelapse…`, `CameraRecordingsTests.PlayLastTimelapse…`, UiTests
       `CameraWindowTimelapseUiTests`, `SettingsWindowTimelapseUiTests`, `TrayMenuTests.TheTrayMenuAndTheCameraWindowShowTheSameTimelapse`,
@@ -277,7 +277,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       nic neuřízne a nic se neposouvá. Chyba timelapse (např. složka na odpojeném USB disku) ukáže toast „Timelapse selhal“.
 
 ### 2l. Timelapse – export do JPEG (z T-165, implementováno na Macu 2026-11-04)
-- [ ] **T-165** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb,
+- [x] **T-165** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb,
       hlavně `FFmpegTimelapseJpegExportTests` (demuxer `mov` buildu BtbN čte timelapse, oříznutý soubor dá 4 z 8 snímků),
       `CameraTimelapseJpegExporterTests.FileNamesWithSpecialCharactersReachTheDecoderUnchanged` (cesta s `#`, `%` a
       diakritikou přes `Uri` na Windows), `JpegExportFolderTests`, `CameraRecordingsExportTests`,
@@ -295,7 +295,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       bez výběru nic nespustí; klik na toast nic neotevře a nespadne.
 
 ### 2m. Timelapse z hotové nahrávky (z T-164, implementováno na Macu 2026-11-04)
-- [ ] **T-164** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb,
+- [x] **T-164** (krit. „`dotnet build` a `dotnet test` … AOT publish“, část Windows): `dotnet test` na Windows bez chyb,
       hlavně `FFmpegTimelapseFromRecordingTests` (demuxer `mov` buildu BtbN čte nahrávku jen jako pakety; nahrávka useknutá
       uprostřed dat fragmentu dá 22 z 39 snímků, useknutá uvnitř hlavičky `moof` skončí `Unreadable` – zapsat, jestli BtbN
       takový soubor otevře), `CameraTimelapseFromRecordingMakerTests` (i `AFileWithSpecialCharactersInItsPathIsRead`: `#`, `%`
@@ -444,3 +444,4 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - Neodškrtnuto, protože zbývá ruční část nebo jiný krok: T-145 (skrytí v Průzkumníku, OneDrive; testy `CameraRecording*` PASS),
   T-146 `*CameraRecording*` (E2E PASS, prázdný kořen `Recordings` po běhu nekontrolován), 2n a T-163 (ruční část),
   T-162 (prázdná cache FFmpeg).
+- T-168 hotový (2026-11-05): `TrayMenuTests` PASS, proto jsou teď odškrtnuté i body T-146 (podmenu), T-161, T-165 a T-164.
