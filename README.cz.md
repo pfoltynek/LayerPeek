@@ -66,8 +66,8 @@ z kamery i údaje o tisku zůstávají ve tvé síti: žádná cloudová služba
   kamery), dekódovaný lokálně přes FFmpeg.
 - 📼 **Záznam, když ho potřebuješ.** Nahraj tisk, nech si poslední minuty jako v autokameře a ulož je, když se něco
   pokazí, nebo pořiď timelapse (experimentální). Všechno zůstává na tvém disku v rámci limitu velikosti.
-- 🕵️ **Oko navíc.** Volitelná detekce chyb tisku hlídá kamerou podložku a se snímkem dá vědět, když díl zmizí nebo se
-  objeví špagety. Běží lokálně, bez cloudu.
+- 🕵️ **Oko navíc.** Volitelná detekce chyb tisku (experimentální) hlídá kamerou podložku a se snímkem dá vědět, když
+  díl zmizí nebo se objeví špagety. Běží lokálně, bez cloudu.
 - 🧩 **Widgety si rozmístíš sám. Stav, časy, teploty s grafem, název tisku s náhledem z G-code a chladnutí, každý ve
   třech velikostech, rozmístěné přetažením přímo v okně kamery, pro každou tiskárnu zvlášť.
 - 🔔 **Dozvíš se to, když na tom záleží.** Nativní notifikace na Windows i macOS a připomínka pár minut před koncem
@@ -175,6 +175,8 @@ záznamu kamery Buddy3D a simulovaná data tiskárny), viz [docs/readme-screensh
 
 ### Detekce chyb tisku
 
+- *Experimentální:* vyladěná na simulovaných selháních a jednom skutečném úspěšném tisku, zatím ne na skutečných
+  selháních; může selhání přehlédnout nebo vyhlásit planý poplach.
 - Volitelná (ve výchozím stavu vypnutá), pro každou tiskárnu zvlášť, jen během tisku. Detektor „Změna na podložce“
   pozná zmizení nebo posun dílu a novou hmotu na podložce ve výřezu podložky, který nastavíš v nastavení.
 - Poplach je notifikace se snímkem z kamery a tlačítkem „Falešný poplach“; umí uložit dashcam.

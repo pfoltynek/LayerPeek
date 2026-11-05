@@ -28,8 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   error, when the printer needs attention, when the print is stopped and when the camera detects a print failure (each
   can be switched off), or by hand with **Save the last 2 min** in the printer's menu or in the context menu of the
   camera window. The dashcam is idle while the whole print is being recorded. Only a failed save shows a notification.
-- **Print failure detection** (Windows and macOS, off by default): LayerPeek can watch a print through the camera and
-  warn you when something goes wrong on the bed. Turn on **Look for print failures in the camera image** on the
+- **Print failure detection (experimental)** (Windows and macOS, off by default): LayerPeek can watch a print through
+  the camera and warn you when something goes wrong on the bed. Turn on **Look for print failures in the camera image** on the
   Recording tab and **Watch the prints of this printer with the camera** on the printer's new **Detection** sub-tab.
   The first detector, **Change on the bed**, notices a part that vanished or moved and new material on the bed
   (spaghetti, a part torn off), with a sensitivity slider (0–100, default 50). The sub-tab has an editor for the **bed
@@ -43,8 +43,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   with the chamber light on, checks the camera every 2 s (2–5 s on the Recording tab), decodes only key frames and
   works without an open camera window. **Limitations:** it does not notice the quality of the first layer, problems at
   the nozzle or defects inside the part, it is less reliable with dark filament on a black sheet, and with the whole
-  frame as the region the moving parts of the printer can cause false alarms. It is tuned on synthetic failures and
-  real successful prints of a Core One with a Buddy3D camera; it has not been tried on many real failed prints yet.
+  frame as the region the moving parts of the printer can cause false alarms. It is experimental: tuned on synthetic
+  failures and one real successful print of a Core One with a Buddy3D camera, not yet on real failed prints, so it may
+  miss a failure or raise a false alarm. The settings mark it with an **Experimental** badge.
 - **Timelapse (experimental)** (Windows and macOS): **Start timelapse (experimental)** / **Stop timelapse
   (experimental)** in the printer's menu and a stopwatch button in the camera window, which shows an amber **TL**
   while a timelapse is taken (dimmed while the print is paused); **Play last timelapse** in the printer's menu. **Take

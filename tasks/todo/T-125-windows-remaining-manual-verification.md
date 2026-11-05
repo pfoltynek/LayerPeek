@@ -313,6 +313,15 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       nahrávka, nebo nahrávka na síťovém disku) nezanechá žádný soubor (ani skrytý `.….partial`, `dir /a`). Během vytváření
       jde spustit i export do JPEG jiného timelapse.
 
+### 2n. Detekce chyb tisku označená jako experimentální (vydání 0.5.0, implementováno na Macu 2026-11-05)
+- [ ] **Štítek „Experimentální“ u detekce** (rozhodnutí uživatele 2026-11-04, stejný štítek jako timelapse z T-161):
+      `dotnet test` na Windows bez chyb (nový `SettingsWindowDetectionUiTests.TheDetectionHasTheExperimentalBadge` ve všech
+      jazycích). Snímky UI sady Windows (`LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`,
+      dohromady s body T-154 a T-161 výše): `settings-detection.png`, `settings-detection-camera-off-fr.png` (štítek vpravo
+      od „Hlídat tisk této tiskárny kamerou“) a `settings-recording.png` (štítek vedle nadpisu „Detekce chyb tisku“);
+      macOS sada je hotová. Ručně: štítky se systémovým písmem Segoe UI nic neuříznou, tip ukazuje text o vyladění na
+      simulovaných selháních.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

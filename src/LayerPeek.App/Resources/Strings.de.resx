@@ -1801,6 +1801,9 @@
   <data name="SettingsExperimentalHint" xml:space="preserve">
     <value>Eine experimentelle Funktion: Sie kann sich ändern oder nicht immer zuverlässig funktionieren.</value>
   </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Eine experimentelle Funktion: abgestimmt auf simulierte Fehldrucke und einen echten erfolgreichen Druck. Sie kann einen Fehldruck übersehen oder einen Fehlalarm auslösen.</value>
+  </data>
   <data name="SettingsTimelapseInterval" xml:space="preserve">
     <value>Zeit zwischen Bildern (Sekunden)</value>
   </data>

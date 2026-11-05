@@ -1801,6 +1801,9 @@
   <data name="SettingsExperimentalHint" xml:space="preserve">
     <value>Funkcja eksperymentalna: może się zmienić lub nie zawsze działać niezawodnie.</value>
   </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Funkcja eksperymentalna: dostrojona na symulowanych błędach i jednym prawdziwym udanym wydruku. Może przeoczyć błąd lub zgłosić fałszywy alarm.</value>
+  </data>
   <data name="SettingsTimelapseInterval" xml:space="preserve">
     <value>Czas między klatkami (sekundy)</value>
   </data>
