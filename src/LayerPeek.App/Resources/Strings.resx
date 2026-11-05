@@ -1779,8 +1779,8 @@
     <comment>T-167: what the detector 'air-printing' detects and what not; it is offered only for printers whose bed moves down in Z (Core One, XL).</comment>
   </data>
   <data name="DetectorAirPrintingLimitation" xml:space="preserve">
-    <value>Known limitation: reports the failure only after the Z axis rose another ~3 mm (minutes, half an hour and more on slow prints). Does not judge parts mostly hidden under the head, the first ~6 mm after the start or after the camera reconnects, and a wipe tower that keeps growing can hide the failure.</value>
-    <comment>T-167: known limitations of 'air-printing', shown marked under its description (alarm delay in mm of Z, small parts under the head, the start, the wipe tower).</comment>
+    <value>Known limitation: reports the failure only after the Z axis rose another ~3 mm (minutes, half an hour and more on slow prints). Does not judge parts mostly hidden under the head, the first ~6 mm after the start or after the camera reconnects, and a wipe tower that keeps growing can hide the failure. A part with a wider lower step that ends, or several parts of which most end earlier, can raise a false alarm.</value>
+    <comment>T-167: known limitations of 'air-printing', shown marked under its description (alarm delay in mm of Z, small parts under the head, the start, the wipe tower, false alarms when most of the print ends early; user decision 2026-11-05).</comment>
   </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Detector {0}</value>

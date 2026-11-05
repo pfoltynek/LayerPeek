@@ -124,6 +124,22 @@ public sealed class CameraTimelapseLayerTriggerTests : IAsyncDisposable
         Assert.Equal(2, _timelapse.Requests);
     }
 
+    [Theory]
+    [InlineData(PrinterState.Finished)]
+    [InlineData(PrinterState.Stopped)]
+    public void AnEndAfterThePrinterWaitedForTheUserTakesTheLastFrameToo(PrinterState end)
+    {
+        using CameraTimelapseLayerTrigger trigger = new(_timelapse, 1);
+        trigger.SetCapturing(true);
+        trigger.OnSnapshot(Snapshot(PrinterState.Attention, 1.0));
+        trigger.SetCapturing(false);
+
+        trigger.OnSnapshot(Snapshot(end, 1.0));
+        trigger.SetCapturing(true);
+
+        Assert.Equal(2, _timelapse.Requests);
+    }
+
     [Fact]
     public void WithoutZDataOnlyTheStartAndTheEndTakeFrames()
     {

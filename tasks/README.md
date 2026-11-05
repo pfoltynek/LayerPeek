@@ -178,11 +178,11 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-159 | Detekce změny vrstvy z osy Z (PrusaLink `axis_z`) a spouštěč timelapse po vrstvě (hotovo; Windows a ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-149, T-148, T-160, T-161 |
 | T-160 | Timelapse – služba v Core (spouštěč po čase, automaticky i ručně, složka, rotace) (hotovo) | all | core-dev | P3 | T-158, T-145, T-148 |
 | T-161 | Timelapse – UI (nastavení, tray menu, okno kamery, štítek Experimentální, notifikace) a E2E (hotovo; Windows a ruční ověření v T-125 / T-127) | all | ui-designer + ui-dev | P3 | T-160, T-146, T-148 |
-| T-163 | Detekce chyb: tmavý filament na tmavém plátu (rozpracováno; režim „Tmavý filament“ hotový, otázka 6 – přijetí přesnosti – blokuje uzavření) | all | core-dev | P3 | T-155 |
+| T-163 | Detekce chyb: tmavý filament na tmavém plátu (hotovo; režim „Tmavý filament“, přesnost přijata) | all | core-dev | P3 | T-155 |
 | T-164 | Timelapse z hotové nahrávky (varianta F) (hotovo; Windows a ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-158, T-161 |
 | T-165 | Timelapse – export sekvence snímků JPEG (hotovo; Windows a ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-160, T-161 |
 | T-166 | Detekce chyb tisku – ladění citlivosti „Změna na podložce“ na více semínkách (hotovo) | all | core-dev | P2 | T-155, T-154 |
-| T-167 | Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste; implementováno, čeká na rozhodnutí o falešných poplaších u dílů se schodem) | all | core-dev | P3 | T-155, T-166, T-154 |
+| T-167 | Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste; hotovo, experimentální) | all | core-dev | P3 | T-155, T-166, T-154 |
 
 ### Windows (`windows`)
 
