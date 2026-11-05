@@ -173,6 +173,7 @@ Menu zawiera:
 - **Diagnostyka…** (zob. [10](#10-diagnostyka))
 - **Ustawienia…**
 - **Dostępna nowa wersja X.Y.Z** (tylko gdy jest dostępna aktualizacja, zob. [12](#12-aktualizacje))
+- **Podręcznik użytkownika**: otwiera tę instrukcję
 - **O programie**
 - **Zakończ**
 

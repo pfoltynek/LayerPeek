@@ -174,6 +174,7 @@ El menú contiene:
 - **Diagnóstico…** (consulte [10](#10-diagnóstico))
 - **Configuración…**
 - **Nueva versión X.Y.Z disponible** (solo cuando hay una actualización, consulte [12](#12-actualizaciones))
+- **Manual de usuario**: abre este manual
 - **Acerca de**
 - **Salir**
 

@@ -172,6 +172,7 @@ Ponuka obsahuje:
 - **Diagnostika…** (pozrite [10](#10-diagnostika))
 - **Nastavenia…**
 - **Je dostupná nová verzia X.Y.Z** (iba keď je k dispozícii aktualizácia, pozrite [12](#12-aktualizácie))
+- **Používateľská príručka**: otvorí túto príručku
 - **O aplikácii**
 - **Ukončiť**
 

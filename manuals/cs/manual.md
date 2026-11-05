@@ -173,6 +173,7 @@ Nabídka obsahuje:
 - **Diagnostika…** (viz [10](#10-diagnostika))
 - **Nastavení…**
 - **Je dostupná nová verze X.Y.Z** (jen když je k dispozici aktualizace, viz [12](#12-aktualizace))
+- **Uživatelská příručka**: otevře tuto příručku
 - **O aplikaci**
 - **Ukončit**
 

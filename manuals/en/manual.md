@@ -171,6 +171,7 @@ The menu contains:
 - **Diagnostics…** (see [10](#10-diagnostics))
 - **Settings…**
 - **New version X.Y.Z available** (only when an update is available, see [12](#12-updates))
+- **User manual**: opens this manual
 - **About**
 - **Quit**
 

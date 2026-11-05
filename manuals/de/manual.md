@@ -176,6 +176,7 @@ Das Menü enthält:
 - **Diagnose…** (siehe [10](#10-diagnose))
 - **Einstellungen…**
 - **Neue Version X.Y.Z verfügbar** (nur wenn ein Update verfügbar ist, siehe [12](#12-updates))
+- **Benutzerhandbuch**: öffnet dieses Handbuch
 - **Über**
 - **Beenden**
 

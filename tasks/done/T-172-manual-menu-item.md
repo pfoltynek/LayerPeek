@@ -24,7 +24,7 @@ Uživatel otevře příručku přímo z aplikace, v jazyce, ve kterém má aplik
 - [x] Položka je v menu na Windows i macOS a otevře příručku v jazyce UI (systémový jazyk → jeho příručka, nepodporovaný → en)
 - [x] Řetězec přeložený do všech 8 jazyků
 - [x] Testy menu a URL
-- [ ] Příručka (`manuals/*/manual.md`, kapitola o menu) položku zmiňuje → po sloučení T-171
+- [x] Příručka (`manuals/*/manual.md`, kapitola o menu) položku zmiňuje → po sloučení T-171
 - [x] `dotnet build` a `dotnet test` bez chyb a varování (macOS arm64: build 0 varování, test 9690 úspěšných, 0 neúspěšných, 212 přeskočených)
 
 ## Otevřené otázky

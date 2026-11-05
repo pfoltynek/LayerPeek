@@ -177,6 +177,7 @@ Le menu contient :
 - **Diagnostic…** (voir [10](#10-diagnostic))
 - **Paramètres…**
 - **Nouvelle version X.Y.Z disponible** (uniquement quand une mise à jour est disponible, voir [12](#12-mises-à-jour))
+- **Manuel d'utilisation**: ouvre ce manuel
 - **À propos**
 - **Quitter**
 
