@@ -1,0 +1,85 @@
+name: Printer compatibility report
+description: Tell us how LayerPeek works with your printer model, so we can mark it as tested.
+title: "Compatibility: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing LayerPeek with your printer! Only the CORE One has been tested so far, so every report helps.
+        One run on Windows or macOS is enough. Tick what works; for anything that doesn't, describe it below.
+        The [user manual](https://github.com/pfoltynek/LayerPeek/blob/main/manuals/README.md) shows where each feature is.
+  - type: dropdown
+    id: printer
+    attributes:
+      label: Printer model
+      options:
+        - MK4
+        - MK4S
+        - MK3.9
+        - MK3.9S
+        - MK3.5
+        - MK3.5S
+        - XL (single tool)
+        - XL (multi-tool)
+        - MINI
+        - MINI+
+        - CORE One
+        - CORE One L
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Printer firmware version
+      description: Shown by **Test connection** in the settings, or on the printer's display.
+      placeholder: "6.4.0"
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: LayerPeek version
+      description: Shown in the About window.
+      placeholder: "0.5.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 24H2 x64 / macOS 26.1"
+    validations:
+      required: true
+  - type: input
+    id: camera
+    attributes:
+      label: Camera (optional)
+      placeholder: "Buddy3D / other RTSP camera / none"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: What works
+      description: Tick only what you checked and what worked.
+      options:
+        - label: "**Connection:** Add printer + Test connection report the model and firmware; a wrong password shows Invalid credentials"
+        - label: "**Model:** the printer picture in the settings and diagnostics matches the model"
+        - label: "**States:** the icon shows idle, printing (filling up), paused, finished, stopped, needs attention (e.g. filament change), error and offline; the tooltip shows progress, time left and file name"
+        - label: "**Notifications:** print started, finished, paused, resumed, stopped, N minutes remaining, printer cooled down"
+        - label: "**Diagnostics:** nozzle and bed temperatures, fans, speed, flow, Z height, firmware and the temperature chart"
+        - label: "**Widgets:** status, times, temperatures, print name with the G-code preview, cool-down after the print"
+        - label: "**Open PrusaLink:** the web interface opens already signed in"
+        - label: "**Camera** (if you have one): live picture, recording, dashcam"
+        - label: "**Print failure detection** (if you have a camera): it runs; on an XL the Printing into the air detector is offered, on other models it is not"
+  - type: textarea
+    id: problems
+    attributes:
+      label: What didn't work or looked wrong
+      description: Anything unticked above, wrong values (e.g. on a multi-tool XL), odd states, errors in the log.
+  - type: textarea
+    id: report
+    attributes:
+      label: Short report (optional)
+      description: |
+        In the About window, use **Copy info to clipboard** and paste the report here. Passwords are never included.
+      render: text

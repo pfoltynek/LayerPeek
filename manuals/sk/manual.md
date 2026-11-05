@@ -40,6 +40,8 @@ tam, kde sa Windows a macOS líšia, to text uvádza alebo ukazuje obe varianty.
 LayerPeek funguje iba vo vašej lokálnej sieti. Nepoužíva Prusa Connect ani žiadnu inú cloudovú službu. Mimo domova
 sa k tlačiarňam dostanete cez VPN do domácej siete.
 
+Zatiaľ je otestovaná len CORE One. Máte iný model? Pošlite prosím krátke [hlásenie kompatibility tlačiarne](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (formulár je v angličtine); stačí jedna skúška na Windows alebo macOS.
+
 ## 2. Inštalácia
 
 Najnovšiu verziu si stiahnite zo stránky [Releases](https://github.com/pfoltynek/LayerPeek/releases).

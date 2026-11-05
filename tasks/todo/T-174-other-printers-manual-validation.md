@@ -57,8 +57,9 @@ Pro každý model zapsat do tabulky níže verzi firmwaru, OS a výsledek těcht
 
 ## Otevřené otázky
 1. ~~Ke kterým modelům je přístup?~~ **Odpověď uživatele 2026-11-05: jen k CORE One** (ta je už ověřená). Ostatní modely
-   tedy může ověřit jen komunita. Otevřené: má se k tomu přidat šablona GitHub issue „Hlášení kompatibility tiskárny“
-   s kontrolami 1–9 a výzva v README / příručce?
+   tedy může ověřit jen komunita. Na otázku, zda přidat šablonu GitHub issue s kontrolami
+   1–9 a výzvu v README / příručce, uživatel odpověděl **ano**: šablona `.github/ISSUE_TEMPLATE/printer_compatibility.yml`,
+   odkaz z README (EN i CZ) a z kapitoly 1 všech příruček (2026-11-05). Výsledky se do tabulky přepisují z hlášení.
 2. ~~Stačí pro „✅ tested“ jeden průchod na jednom OS?~~ **Odpověď uživatele 2026-11-05: ano**, jeden průchod na
    Windows nebo macOS stačí.
 

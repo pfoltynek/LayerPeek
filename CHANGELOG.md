@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   The README links to it.
 - **User manual** item in the tray / menu bar menu, above **About**: opens the manual in the language of the app's
   texts (English for any other language).
+- **Printer compatibility report:** a GitHub issue form with a short checklist for printer models other than the
+  CORE One, linked from the README and the manuals.
 
 ### Fixed
 

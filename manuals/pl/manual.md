@@ -40,6 +40,8 @@ systemy; tam, gdzie Windows i macOS się różnią, tekst o tym wspomina albo po
 LayerPeek działa wyłącznie w sieci lokalnej. Nie korzysta z Prusa Connect ani z żadnej innej usługi w chmurze. Poza
 domem możesz połączyć się z drukarkami przez VPN do swojej sieci domowej.
 
+Na razie przetestowano tylko CORE One. Masz inny model? Wyślij krótki [raport zgodności drukarki](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (formularz po angielsku); wystarczy jedna próba w systemie Windows lub macOS.
+
 ## 2. Instalacja
 
 Pobierz najnowszą wersję ze strony [Releases](https://github.com/pfoltynek/LayerPeek/releases).
