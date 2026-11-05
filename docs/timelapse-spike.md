@@ -134,6 +134,13 @@ je pak jen méně.
   spustí na jednom až dvou tiscích. Detektor (minimum *k* posledních vzorků, práh 0,05 mm, reset u nové úlohy) se ověří
   na tomto záznamu. Do té doby je spouštěč po vrstvě **neověřený odhad**. Spouštěč po čase žádné ověření nepotřebuje.
 
+**Ověření na záznamu (T-159, 2026-11-05):** skutečný tisk Core One (0,2 mm, 277 vrstev, ~2,8 h, vzorek ~1 s,
+`tests/LayerPeek.Core.Tests/Fixtures/z-recordings/`). Z-hop je v 1 % vzorků (+0,1 až +0,6 mm, 1–3 s), nejkratší vrstva
+27 s. Navržené minimum *k* vzorků dávalo falešné vrstvy (dva z-hopy za sebou a přechodová hodnota 11,9 mezi 11,8
+a 12,0), proto má detektor `LayerChangeDetector` plató 3 stejných vzorků, záložní „rovnoměrné stoupání“ pro krátké
+vrstvy a strop 1 mm na krok. Při pollingu 2, 3 i 5 s (všechny fáze) 276/276 změn bez falešných, polling se zkracovat
+nemusí. Podrobně T-159.
+
 **Hlava v záběru:** bez parkování hlavy při změně vrstvy (to dělá G-code timelapse v PrusaSliceru / OctoPrintu) bude
 hlava na snímcích na náhodném místě. Parkování by znamenalo úpravu G-code uživatelem a jeho rozpoznání z Z / času,
 mimo rozsah.

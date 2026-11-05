@@ -1810,6 +1810,24 @@
   <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
     <value>Jedna snímka za zvolený čas, počas pauzy tlače žiadna. Video má {0} snímok za sekundu.</value>
   </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Snímať</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Každých N sekúnd</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Každú N. vrstvu (odhad)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Každých N sekúnd: snímka po každom intervale. Každú N-tú vrstvu: snímka na začiatku novej vrstvy, odhadnutá z výšky osi Z, ktorú PrusaLink hlási pri každom dopyte (vrstvy tlačiareň nehlási). Experimentálne.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Vrstiev medzi snímkami</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Snímka každú N-tú vrstvu (1 = každú vrstvu), k tomu jedna na začiatku a jedna hotovej tlače, počas pauzy žiadna. Vrstva sa odhaduje z osi Z pri každom dopyte: vrstvy kratšie ako asi dva dopyty sa zlúčia a výnimočne pridá snímku z-hop alebo výmena filamentu. Video má {0} snímok za sekundu.</value>
+  </data>
   <data name="SettingsTimelapsePrints" xml:space="preserve">
     <value>Zaznamenávať timelapse tlače</value>
   </data>

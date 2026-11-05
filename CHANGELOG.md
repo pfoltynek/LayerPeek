@@ -55,6 +55,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   The frames are key frames of the camera stored without re-encoding (so a frame can be up to about 2 s off the
   interval with a Buddy3D), saved as `…_timelapse.mp4` in the printer's recordings folder and counted in the size
   limit of the recordings. A failed timelapse shows a notification.
+- **Timelapse frames per layer (experimental):** on the Recording tab, **Every N seconds** next to the timelapse heading
+  can be switched to **Every N-th layer (estimate)** (N = 1–100, 1 by default): a frame when a new layer starts, plus
+  one at the start and one of the finished part. PrusaLink reports no layers, so LayerPeek estimates them from the
+  height of the Z axis at every poll (z-hops are filtered out); layers shorter than about two polls merge, and rarely a
+  z-hop or a tool change adds a frame. Tested on a real Core One print: every layer found at 2–5 s polling. The polling
+  interval does not change.
 - **Timelapse from a recording (experimental):** **Create timelapse from recording… (experimental)** in the printer's
   menu asks for a LayerPeek recording and makes a timelapse of it with the same time between frames, saved next to it
   as `…_recording_timelapse.mp4`; a recording split by a camera dropout (`…-2.mp4`) is taken as a whole. The menu item

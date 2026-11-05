@@ -1810,6 +1810,24 @@
   <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
     <value>Un fotograma por intervalo, ninguno con la impresión en pausa. El vídeo se reproduce a {0} fotogramas por segundo.</value>
   </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Tomar un fotograma</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Cada N segundos</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Cada N capas (estimación)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Cada N segundos: un fotograma por intervalo. Cada N capas: un fotograma al empezar una capa nueva, estimado a partir de la altura del eje Z que PrusaLink informa en cada consulta (la impresora no informa de las capas). Experimental.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Capas entre fotogramas</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Un fotograma cada N capas (1 = cada capa), más uno al principio y uno de la impresión terminada, ninguno durante una pausa. La capa se estima a partir del eje Z en cada consulta: las capas más cortas que unas dos consultas se fusionan y, rara vez, un z-hop o un cambio de herramienta añade un fotograma. El vídeo se reproduce a {0} fotogramas por segundo.</value>
+  </data>
   <data name="SettingsTimelapsePrints" xml:space="preserve">
     <value>Crear timelapse de las impresiones</value>
   </data>

@@ -154,6 +154,14 @@ internal sealed class RecordingDocument
     /// <summary>Seconds between two timelapse frames (T-160); not written while it is the default.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? TimelapseIntervalSeconds { get; set; }
+
+    /// <summary>What takes the timelapse frames (T-159): <c>"layer"</c>; not written for the default (by time).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TimelapseTrigger { get; set; }
+
+    /// <summary>A frame every this many layers (T-159); not written while it is the default (1).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TimelapseEveryNthLayer { get; set; }
 }
 
 internal sealed class CameraOverlaySettingsDocument

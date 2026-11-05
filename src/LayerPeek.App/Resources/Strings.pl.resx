@@ -1810,6 +1810,24 @@
   <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
     <value>Jedna klatka na interwał, żadna podczas pauzy wydruku. Wideo ma {0} klatek na sekundę.</value>
   </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Rób klatkę</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Co N sekund</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Co N-tą warstwę (szacunek)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Co N sekund: klatka co interwał. Co N-tą warstwę: klatka na początku nowej warstwy, szacowana na podstawie wysokości osi Z, którą PrusaLink podaje przy każdym zapytaniu (drukarka nie podaje warstw). Eksperymentalne.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Warstwy między klatkami</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Klatka co N-tą warstwę (1 = każda warstwa), do tego jedna na początku i jedna z gotowego wydruku, żadna podczas pauzy. Warstwa jest szacowana na podstawie osi Z przy każdym zapytaniu: warstwy krótsze niż około dwa zapytania są łączone, a rzadko z-hop lub zmiana narzędzia dodaje klatkę. Wideo jest odtwarzane z prędkością {0} klatek na sekundę.</value>
+  </data>
   <data name="SettingsTimelapsePrints" xml:space="preserve">
     <value>Twórz timelapse wydruków</value>
   </data>

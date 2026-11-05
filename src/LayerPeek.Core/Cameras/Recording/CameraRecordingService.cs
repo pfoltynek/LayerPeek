@@ -204,7 +204,9 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IC
                     if (recordedPrints != entry.RecordsPrints || couldRecord != entry.CanRecord || usedDashcam != entry.UsesDashcam
                         || timelapsedPrints != entry.TimelapsesPrints
                         || (entry.UsesDashcam && settings.DashcamMinutes != _settings.DashcamMinutes)
-                        || settings.TimelapseIntervalSeconds != _settings.TimelapseIntervalSeconds)
+                        || settings.TimelapseIntervalSeconds != _settings.TimelapseIntervalSeconds
+                        || settings.TimelapseTrigger != _settings.TimelapseTrigger
+                        || settings.TimelapseEveryNthLayer != _settings.TimelapseEveryNthLayer)
                     {
                         changed.Add(printer.Id);
                     }
@@ -236,9 +238,9 @@ public sealed partial class CameraRecordingService : ICameraRecordingsFolder, IC
             _entries = entries;
             string root = NormalizePath(settings.Folder ?? _options.DefaultRoot);
             bool rotate = !_configured || !string.Equals(root, _root, StringComparison.Ordinal) || settings.SizeLimitGigabytes != _settings.SizeLimitGigabytes;
-            bool newInterval = settings.TimelapseIntervalSeconds != _settings.TimelapseIntervalSeconds;
+            bool newTrigger = !settings.TakesTimelapseFramesLike(_settings);
             _settings = settings;
-            if (newInterval)
+            if (newTrigger)
             {
                 ReplaceTimelapseTriggers();
             }

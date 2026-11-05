@@ -44,6 +44,16 @@ Timelapse [Experimentální]                    Čas mezi snímky (sekundy) [ 30
   pro čtečky každého spouštěče. Sekce je o 57 DIP nižší. Francouzské texty nápovědy dashcamu a limitu nahrávek jsou kratší,
   aby měly jeden / dva řádky.
 - Nejplnější stav (všechny chyby záložky ve francouzštině / italštině / španělštině) má 419 z 422 DIP.
+- **Spouštěč po vrstvě (T-159):** popisek intervalu nahradilo rozbalovací pole (přístupný název „Pořizovat snímek“)
+  s volbami „Každých N sekund“ / „Každou N. vrstvu (odhad)“, vpravo číslo zvoleného spouštěče (interval 5–600 s nebo počet
+  vrstev 1–100, obě 120 DIP na stejném místě). Řádek ani záložka se nezvětšily (výška pole = výška čísla), chyba počtu
+  vrstev je ve stejném řádku pod ním jako chyba intervalu. „(odhad)“ v názvu a tip / nápověda obou prvků říkají, že vrstva
+  se odhaduje z osy Z při každém dotazu. Pole má 234 DIP, texty do ~190 DIP (headless test ve všech jazycích; cs, sk, de
+  a fr mají řadovou tečku nebo „env.“).
+
+```
+Timelapse [Experimentální]                    [Každou N. vrstvu (odhad) ▾] [ 1 ▲▼]
+```
 
 ## 3. Tray menu (podmenu tiskárny s kamerou)
 

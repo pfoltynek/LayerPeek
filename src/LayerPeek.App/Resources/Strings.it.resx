@@ -1810,6 +1810,24 @@
   <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
     <value>Un fotogramma per intervallo, nessuno durante la pausa della stampa. Il video ha {0} fotogrammi al secondo.</value>
   </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Scatta un fotogramma</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Ogni N secondi</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Ogni N strati (stima)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Ogni N secondi: un fotogramma per intervallo. Ogni N strati: un fotogramma all'inizio di un nuovo strato, stimato dall'altezza dell'asse Z che PrusaLink riporta a ogni interrogazione (la stampante non riporta gli strati). Sperimentale.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Strati tra i fotogrammi</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Un fotogramma ogni N strati (1 = ogni strato), più uno all'inizio e uno della stampa finita, nessuno durante la pausa. Lo strato è stimato dall'asse Z a ogni interrogazione: gli strati più brevi di circa due interrogazioni vengono uniti e raramente uno z-hop o un cambio utensile aggiunge un fotogramma. Il video viene riprodotto a {0} fotogrammi al secondo.</value>
+  </data>
   <data name="SettingsTimelapsePrints" xml:space="preserve">
     <value>Crea un timelapse delle stampe</value>
   </data>
