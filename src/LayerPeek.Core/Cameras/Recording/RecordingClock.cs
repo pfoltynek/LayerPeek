@@ -1,0 +1,147 @@
+namespace LayerPeek.Core.Cameras.Recording;
+
+/// <summary>
+/// Turns the timestamps of one connection's packets into those of one recording file: in the file's time base, starting
+/// at 0 with the first packet, the decoding timestamp strictly increasing and the presentation timestamp never below it.
+/// RTSP timestamps can be missing, step back or jump (camera clock, lost packets); such a packet continues one frame
+/// after the previous one and the clock re-anchors there, so that a single bad value does not shift the rest.
+/// A clock made by <see cref="AtFrameRate"/> ignores the packets' timestamps instead: packet <i>n</i> is at <i>n</i> frames
+/// of a constant frame rate (timelapse, T-158).
+/// </summary>
+internal struct RecordingClock
+{
+    /// <summary>A step further than this is a discontinuity, not a real gap (the feed reconnects after a few seconds of silence).</summary>
+    internal static readonly TimeSpan MaxStep = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Longest step taken as the frame duration: a longer one is a gap (a stalled camera, lost packets), and a gap must not
+    /// become the step that a later missing or backwards timestamp continues with.
+    /// </summary>
+    internal static readonly TimeSpan MaxFrameDuration = TimeSpan.FromSeconds(1);
+
+    /// <summary>Assumed frame duration until the stream shows its own (the Buddy3D sends ~22 fps).</summary>
+    private const int AssumedFramesPerSecond = 25;
+
+    private readonly CameraTimeBase _timeBase;
+    private readonly long _maxStep;
+    private readonly long _maxFrameDuration;
+    private readonly int _framesPerSecond;
+    private bool _started;
+    private long _frames;
+    private long _origin;
+    private long _lastDts;
+    private long _frameDuration;
+
+    public RecordingClock(CameraTimeBase timeBase)
+    {
+        _timeBase = timeBase;
+        _maxStep = Math.Max(1, ToTicks(MaxStep, timeBase));
+        _maxFrameDuration = Math.Max(1, ToTicks(MaxFrameDuration, timeBase));
+        _frameDuration = Math.Max(1, ToTicks(TimeSpan.FromSeconds(1.0 / AssumedFramesPerSecond), timeBase));
+    }
+
+    /// <summary>
+    /// A clock that puts packet <i>n</i> at <i>n</i> frames of <paramref name="framesPerSecond"/> (in <paramref name="timeBase"/>,
+    /// rounded to nearest; a time base too coarse for the rate still gets strictly increasing timestamps), each one frame
+    /// long, whatever the packets' own timestamps are.
+    /// </summary>
+    public static RecordingClock AtFrameRate(CameraTimeBase timeBase, int framesPerSecond)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(framesPerSecond, 1);
+        return new RecordingClock(timeBase, framesPerSecond);
+    }
+
+    private RecordingClock(CameraTimeBase timeBase, int framesPerSecond)
+        : this(timeBase)
+    {
+        _framesPerSecond = framesPerSecond;
+    }
+
+    /// <summary>The recorded time so far: up to the end of the last packet.</summary>
+    public readonly TimeSpan Elapsed => _started ? ToTimeSpan(_lastDts + _frameDuration, _timeBase) : TimeSpan.Zero;
+
+    /// <summary>The file's timestamps of <paramref name="packet"/> (its timestamps are converted to the file's time base first).</summary>
+    public void Next(in CameraPacket packet, out long pts, out long dts, out long duration)
+    {
+        if (_framesPerSecond > 0)
+        {
+            NextFrame(out dts, out duration);
+            pts = dts;
+            return;
+        }
+
+        long? rawDts = Convert(packet.Dts, packet.TimeBase);
+        long? rawPts = Convert(packet.Pts, packet.TimeBase);
+        duration = packet.Duration > 0 ? Math.Max(0, Convert(packet.Duration, packet.TimeBase) ?? 0) : 0;
+        long? raw = rawDts ?? rawPts;
+
+        if (!_started)
+        {
+            _started = true;
+            _origin = raw ?? 0;
+            dts = 0;
+            if (duration > 0 && duration <= _maxFrameDuration)
+            {
+                // The stream states its frame duration: better than the assumption until a second packet shows it.
+                _frameDuration = duration;
+            }
+        }
+        else
+        {
+            long step = raw is { } value ? value - _origin - _lastDts : 0;
+            if (raw is null || step <= 0 || step > _maxStep)
+            {
+                // Missing, backwards or a jump: one frame after the previous packet, and later packets follow from here.
+                step = duration > 0 && duration <= _maxFrameDuration ? duration : _frameDuration;
+                if (raw is { } anchor)
+                {
+                    _origin = anchor - (_lastDts + step);
+                }
+            }
+            else if (step <= _maxFrameDuration)
+            {
+                _frameDuration = step;
+            }
+
+            dts = _lastDts + step;
+        }
+
+        _lastDts = dts;
+        // B-frames: the presentation offset is kept when it is sane (the Buddy3D's Baseline profile has none).
+        long offset = rawPts is { } p && rawDts is { } d && p >= d && p - d <= _maxStep ? p - d : 0;
+        pts = dts + offset;
+    }
+
+    /// <summary>The next frame of the constant frame rate: from its start to the start of the frame after it.</summary>
+    private void NextFrame(out long dts, out long duration)
+    {
+        CameraTimeBase frame = new(1, _framesPerSecond);
+        long start = Rescale(_frames, frame, _timeBase);
+        long end = Rescale(_frames + 1, frame, _timeBase);
+        dts = _started ? Math.Max(start, _lastDts + 1) : 0;
+        duration = Math.Max(1, end - dts);
+        _started = true;
+        _frames++;
+        _lastDts = dts;
+        _frameDuration = duration;
+    }
+
+    private readonly long? Convert(long? value, CameraTimeBase from) =>
+        value is not { } ticks ? null : from == _timeBase ? ticks : Rescale(ticks, from, _timeBase);
+
+    /// <summary><paramref name="value"/> ticks of <paramref name="from"/> in ticks of <paramref name="to"/>, rounded to nearest.</summary>
+    internal static long Rescale(long value, CameraTimeBase from, CameraTimeBase to)
+    {
+        Int128 numerator = (Int128)value * from.Numerator * to.Denominator;
+        Int128 denominator = (Int128)from.Denominator * to.Numerator;
+        Int128 half = denominator / 2;
+        Int128 result = numerator >= 0 ? (numerator + half) / denominator : (numerator - half) / denominator;
+        return result > long.MaxValue ? long.MaxValue : result < long.MinValue ? long.MinValue : (long)result;
+    }
+
+    private static long ToTicks(TimeSpan time, CameraTimeBase timeBase) =>
+        Rescale(time.Ticks, new CameraTimeBase(1, (int)TimeSpan.TicksPerSecond), timeBase);
+
+    private static TimeSpan ToTimeSpan(long ticks, CameraTimeBase timeBase) =>
+        TimeSpan.FromTicks(Rescale(ticks, timeBase, new CameraTimeBase(1, (int)TimeSpan.TicksPerSecond)));
+}

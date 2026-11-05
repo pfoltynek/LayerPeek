@@ -24,7 +24,7 @@ public sealed class SimulatorHost : IAsyncDisposable
     public RtspCamera? Camera { get; }
 
     /// <exception cref="IOException">A port is taken, or the clip cannot be read.</exception>
-    /// <exception cref="InvalidDataException">The clip is not H.264 Annex B.</exception>
+    /// <exception cref="InvalidDataException">The clip is neither H.264 Annex B nor an MP4 file with H.264.</exception>
     public static async Task<SimulatorHost> StartAsync(SimulatorOptions options, CancellationToken cancellationToken, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);

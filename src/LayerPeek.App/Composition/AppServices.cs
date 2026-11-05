@@ -6,7 +6,9 @@ using Microsoft.Extensions.Logging;
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Layout;
 using LayerPeek.App.Cameras.Overlay;
+using LayerPeek.App.Cameras.Recording;
 using LayerPeek.App.Cooldown;
+using LayerPeek.App.Detection;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
 using LayerPeek.App.Installer;
@@ -26,7 +28,10 @@ using LayerPeek.App.Updates;
 using LayerPeek.App.Windows;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Recording;
+using LayerPeek.Core.Cameras.Timelapse;
 using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.Detection;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Monitoring;
@@ -131,7 +136,8 @@ internal static partial class AppServices
             logLevel ?? new LogLevelSwitch(LogLevel.Information),
             env.IsIsolated,
             sp.GetRequiredService<ILogger<DebugLoggingObserver>>()));
-        services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
+        // T-146: "Recording" in the tooltip of a printer whose camera is recorded.
+        services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ICameraRecordings>()));
 #if DEBUG
         // The test mode never starts a browser: the addresses go to a file of its data folder (T-067).
         services.AddSingleton<IUrlLauncher>(sp => env.IsIsolated
@@ -142,6 +148,8 @@ internal static partial class AppServices
 #endif
         // The log folder in Explorer / Finder (T-048).
         services.AddSingleton<IFolderLauncher>(static sp => new ProcessFolderLauncher(sp.GetRequiredService<ILogger<ProcessFolderLauncher>>()));
+        // T-146: "Play last recording" opens the file in the system's default app (only .mp4 recordings).
+        services.AddSingleton<IFileLauncher>(static sp => new ProcessFileLauncher(sp.GetRequiredService<ILogger<ProcessFileLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.ForCurrentPlatform);
         // Custom printer images (T-039): files next to settings.json (created on first use, may throw without a data folder) and
@@ -161,17 +169,39 @@ internal static partial class AppServices
             sp.GetRequiredService<TrayMenuOptions>(),
             sp.GetRequiredService<CustomPrinterImages>(),
             // T-058: "A new version X.Y.Z is available" while one is offered.
-            sp.GetRequiredService<UpdateOffer>()));
+            sp.GetRequiredService<UpdateOffer>(),
+            // T-146: start / stop, play the last recording and open the folder in the submenu of a printer with a camera.
+            sp.GetRequiredService<ICameraRecordings>()));
+#if DEBUG
+        // T-133: the stand-in for Windows' notification setting of the test app, only read by the toasts of the test mode.
+        services.AddSingleton(static sp => new PretendedToastSetting(sp.GetRequiredService<ILogger<PretendedToastSetting>>()));
+#endif
+        // T-154: the "False alarm" button of a print failure notification; the detection service is resolved at the first
+        // click (it depends on the notifications, whose clicks come through the router).
+        services.AddSingleton(static sp => new FalseAlarmReporter(
+            sp.GetRequiredService<PrintFailureDetectionService>,
+            sp.GetRequiredService<ILogger<FalseAlarmReporter>>()));
         services.AddSingleton(static sp => new ToastActivationRouter(
             sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<ILogger<ToastActivationRouter>>(),
-            sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<FalseAlarmReporter>(),
+            // T-164 / T-165: the tray menu's "Open recordings folder", resolved at the click (the recordings come after the
+            // notifications, whose clicks come through the router).
+            printerId => sp.GetRequiredService<ICameraRecordings>().OpenPrinterFolderAsync(printerId)));
+        // T-154: the image files of print failure notifications (a file is all a toast or an attachment takes), at most a few.
+        services.AddSingleton(static sp => new AlarmNotificationImages(
+            Path.Combine(sp.GetRequiredService<AppEnvironment>().CacheDirectory(), "notification-images"),
+            sp.GetRequiredService<ILogger<AlarmNotificationImages>>()));
         // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written; with the
         // Debug switch of T-067 toasts of the test app with a shortcut of its own.
         // macOS (T-020): the notification center Program.Main opened for exactly the allowed bundle, or none.
         IUserNotificationCenter? userNotifications = !windows && OperatingSystem.IsMacOS() ? macNotifications ?? (OperatingSystem.IsMacOS() ? MacUserNotificationCenter.Shared : null) : null;
         services.AddSingleton(sp => userNotifications is not null
             ? new UserNotificationService(userNotifications, UiLanguage.CurrentTextCulture, sp.GetRequiredService<ILogger<UserNotificationService>>())
+            {
+                AlarmImages = sp.GetRequiredService<AlarmNotificationImages>(),
+            }
             : CreateNotificationService(sp, windows, env));
         // The warning "turned off in macOS / Windows" of the settings window, its button and the test notification (T-020,
         // T-101); the test mode never opens System Settings or Settings. Windows: only with the toasts of this run (none in the
@@ -224,6 +254,17 @@ internal static partial class AppServices
         services.AddSingleton<IPrinterInfoSource>(static sp => new PrinterInfoSource(sp.GetRequiredService<PrusaLinkClientFactory>()));
         // Cameras (T-014): printers whose camera address lost its credentials at startup, for the settings window.
         services.AddSingleton(static _ => new RemovedCameraCredentials());
+        // T-151: the camera window of a switched-off printer closes and opens again once it is back (T-150 state machine);
+        // the resume after sleep starts its delays again. The app attaches the camera windows once the UI runs.
+        services.AddSingleton(static _ => CreateSystemResumeEvents());
+        services.AddSingleton(sp => new CameraWindowAutoVisibilityObserver(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<ICameraWindowStateStore>(),
+            sp.GetRequiredService<IUiDispatcher>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CameraWindowAutoVisibilityObserver>>(),
+            CameraWindowAutoOptions(env),
+            sp.GetRequiredService<ISystemResumeEvents>()));
         services.AddSingleton(static sp => new MonitoringSession(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<IPrinterMonitor>(),
@@ -231,16 +272,29 @@ internal static partial class AppServices
                 // First: its language switch is posted to the UI thread before the menu and tooltip updates of the same settings.
                 sp.GetRequiredService<UiLanguageObserver>(),
                 sp.GetRequiredService<DebugLoggingObserver>(),
+                // T-145: before the hub, so that a switched-off camera stops its recording before the hub ends the lease;
+                // T-146: before the tray, whose tooltip and menu read the recording state of the new printers.
+                sp.GetRequiredService<CameraRecordingObserver>(),
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
+                // T-146: recording failures as notifications, with the printer names and notification settings of this run.
+                sp.GetRequiredService<RecordingNotificationObserver>(),
+                // T-165 / T-164: the end of a JPEG export or of a timelapse from a recording, with the printer names and
+                // notification settings of this run.
+                sp.GetRequiredService<TimelapseExportNotificationObserver>(),
                 // Before the cool-down monitor: a raised threshold may cool a printer down while it is configured.
                 sp.GetRequiredService<CooldownNotificationObserver>(),
                 sp.GetRequiredService<CooldownObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
                 sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
+                sp.GetRequiredService<CameraWindowAutoVisibilityObserver>(),
+                // Before MonitoredPrinters: the hub knows a new camera address before the open camera windows hear of it.
+                sp.GetRequiredService<CameraStreamHubObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
+                // T-153: after the hub, so that a new camera address is known before detection takes its lease.
+                sp.GetRequiredService<PrintFailureDetectionObserver>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
                 // T-058: automatic checks, pre-releases and the notification switches of the update check.
                 sp.GetRequiredService<UpdateOffer>(),
@@ -382,7 +436,14 @@ internal static partial class AppServices
             platform,
             argument => _ = router.ActivateAsync(argument),
             UiLanguage.CurrentTextCulture,
-            services.GetRequiredService<ILogger<ToastNotificationService>>());
+            services.GetRequiredService<ILogger<ToastNotificationService>>())
+        {
+            AlarmImages = services.GetRequiredService<AlarmNotificationImages>(),
+#if DEBUG
+            // T-133: the end-to-end test pretends that Windows switched the test app's notifications off (never in production).
+            Pretended = environment.IsIsolated ? services.GetRequiredService<PretendedToastSetting>() : null,
+#endif
+        };
     }
 
     /// <summary>
@@ -650,7 +711,63 @@ internal static partial class AppServices
     private static readonly Func<IServiceProvider, ICameraFeedFactory> CreateCameraFeedFactory =
         static _ => new FFmpegCameraFeedFactory();
 
+    /// <summary>
+    /// The test mode (T-044) records into its data folder by default, never into the user's video folder; the E2E tests
+    /// of T-146 delete it with the rest of their data.
+    /// </summary>
+    internal static CameraRecordingServiceOptions CameraRecordingOptions(AppEnvironment environment) => environment.IsIsolated
+        ? new CameraRecordingServiceOptions { DefaultRoot = Path.Combine(environment.DataDirectory(), "Recordings") }
+        : CameraRecordingServiceOptions.Default;
+
+    /// <summary>
+    /// Print failure detection (T-153): the detectors of LayerPeek.Detection (an explicit list, T-155 adds the first), the
+    /// orchestration over the camera hub and its files. Off by default; idle (no lease, no work) unless a watched printer prints.
+    /// Alarm snapshots go into the recording folders and count in their size limit; false alarm records into the data folder.
+    /// </summary>
+    private static void AddPrintFailureDetection(ServiceCollection services)
+    {
+        services.AddSingleton(static sp => new PrintFailureAlarmFiles(
+            CameraRecordingStorage.Instance,
+            Path.Combine(sp.GetRequiredService<AppEnvironment>().DataDirectory(), "detection", "false-alarms"),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrintFailureAlarmFiles>>()));
+        services.AddSingleton(static sp => new PrintFailureDetectionService(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<CameraStreamHub>(),
+            Detectors(sp.GetRequiredService<AppEnvironment>()),
+            sp.GetRequiredService<CameraRecordingService>(),
+            sp.GetRequiredService<PrintFailureAlarmFiles>(),
+            AvaloniaJpegEncoder.Instance,
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrintFailureDetectionService>>()));
+        services.AddSingleton(static sp => new PrintFailureDetectionObserver(sp.GetRequiredService<PrintFailureDetectionService>()));
+        // T-154: one small last camera frame per printer for the bed region editor, written and read only by the settings window.
+        services.AddSingleton<ILastCameraFrames>(static sp => new LastCameraFrameStore(
+            Path.Combine(sp.GetRequiredService<AppEnvironment>().CacheDirectory(), "last-frames"),
+            sp.GetRequiredService<ILogger<LastCameraFrameStore>>()));
+    }
+
+    /// <summary>
+    /// The detectors of LayerPeek.Detection; in the Debug test mode with <see cref="AppEnvironment.TestFakeDetectorVariable"/>
+    /// also the detector of the end-to-end tests (T-154), never in Release builds.
+    /// </summary>
+    private static IReadOnlyList<PrintFailureDetectorRegistration> Detectors(AppEnvironment environment)
+    {
+#if DEBUG
+        if (environment.IsIsolated && environment.TestFakeDetector)
+        {
+            return [.. LayerPeek.Detection.PrintFailureDetectors.All, TestAlarmDetector.Registration];
+        }
+#else
+        _ = environment;
+#endif
+
+        return LayerPeek.Detection.PrintFailureDetectors.All;
+    }
+
     /// <summary>Camera windows and the camera test of the settings window (T-014), on top of <paramref name="cameraFeedFactory"/>.</summary>
+
     private static void AddCameras(
         ServiceCollection services,
         Func<IServiceProvider, ICameraFeedFactory> cameraFeedFactory,
@@ -664,17 +781,93 @@ internal static partial class AppServices
             FrameTimeout = TimeSpan.FromSeconds(10),
             ReconnectDelay = TimeSpan.FromSeconds(5),
         });
-        // Stateless: every camera window enumerates its own connection.
+        // Stateless: every enumeration is its own connection; only the hub below enumerates it.
         services.AddSingleton(static sp => new ReconnectingCameraFeed(
             sp.GetRequiredService<ICameraFeedFactory>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<ReconnectingCameraFeed>>(),
             sp.GetRequiredService<CameraFeedOptions>()));
+        // T-143: one shared connection per printer for the camera window (and its mini preview), the camera test of a saved
+        // camera and later recording and failure detection; closes 10 s after its last lease (user decision 2026-11-03).
+        // Follows the cameras of every monitoring run; stopped with a time limit when quitting (ServiceHost).
+        services.AddSingleton(static sp => new CameraStreamHub(
+            sp.GetRequiredService<ReconnectingCameraFeed>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CameraStreamHub>>()));
+        services.AddSingleton(static sp => new CameraStreamHubObserver(sp.GetRequiredService<CameraStreamHub>()));
+        // T-144: recordings remux the hub's packets into fragmented MP4 (FFmpeg, never an encoder); when and where to
+        // record is decided by T-145. Creating them loads nothing; a build without the muxer reports "not available".
+        services.AddSingleton<ICameraRecordingWriterFactory>(static _ => new FFmpegCameraRecordingWriterFactory());
+        // T-148: the recorder also starts the dashcams (the last minutes in memory, saved on an event).
+        services.AddSingleton<ICameraRecorder>(static sp => new CameraRecorder(
+            sp.GetRequiredService<CameraStreamHub>(),
+            sp.GetRequiredService<ICameraRecordingWriterFactory>(),
+            sp.GetRequiredService<ILogger<CameraRecorder>>(),
+            sp.GetRequiredService<TimeProvider>()));
+        // T-158: timelapses take key frames of the hub's packets (a lease of key frames only, no decoder) into MP4 at 30 fps.
+        services.AddSingleton<ICameraTimelapseRecorder>(static sp => new CameraTimelapseRecorder(
+            sp.GetRequiredService<CameraStreamHub>(),
+            sp.GetRequiredService<ICameraRecordingWriterFactory>(),
+            sp.GetRequiredService<ILogger<CameraTimelapseRecorder>>()));
+        // T-145: when and where to record (manual, automatic during prints), the folder, the size limit and the rotation;
+        // T-160: the same for the timelapses (manual, automatic during prints, a frame every interval).
+        // Idle without recordings; quitting waits for running recordings to complete their files (ServiceHost).
+        services.AddSingleton(static sp => new CameraRecordingService(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<ICameraRecorder>(),
+            CameraRecordingStorage.Instance,
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CameraRecordingService>>(),
+            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>()),
+            sp.GetRequiredService<ICameraTimelapseRecorder>()));
+        services.AddSingleton(static sp => new CameraRecordingObserver(sp.GetRequiredService<CameraRecordingService>()));
+        // T-165: the JPEG export of a finished timelapse, only on demand from the tray menu: the decoder reads the file
+        // (FFmpeg, MP4), Avalonia / Skia encodes (variant A1, nothing native added); idle without an export. The service keeps
+        // the timelapse and the folder being written away from its rotation and counts the folder afterwards.
+        services.AddSingleton(static sp => new CameraTimelapseJpegExporter(
+            sp.GetRequiredService<ICameraFeedFactory>(),
+            AvaloniaJpegSequenceEncoderFactory.Instance,
+            sp.GetRequiredService<ILogger<CameraTimelapseJpegExporter>>(),
+            sp.GetRequiredService<CameraRecordingService>()));
+        // The open dialog of a tray app: a free-standing NSOpenPanel on macOS, Avalonia's dialog with a hidden owner elsewhere.
+        services.AddSingleton<IRecordingFilePicker>(static sp => OperatingSystem.IsMacOS()
+            ? new MacRecordingFilePicker(sp.GetRequiredService<ILogger<MacRecordingFilePicker>>())
+            : new StorageProviderRecordingFilePicker(sp.GetRequiredService<ILogger<StorageProviderRecordingFilePicker>>()));
+        // T-164: a timelapse from a finished recording, only on demand from the tray menu: the demuxer reads the packets (no
+        // decoder), the recording writer remuxes the chosen key frames (MP4, 30 fps); idle without a job. The service keeps the
+        // recording and the file being written away from its rotation and counts the file afterwards.
+        services.AddSingleton(static sp => new CameraTimelapseFromRecordingMaker(
+            sp.GetRequiredService<ICameraFeedFactory>(),
+            sp.GetRequiredService<ICameraRecordingWriterFactory>(),
+            sp.GetRequiredService<ILogger<CameraTimelapseFromRecordingMaker>>(),
+            sp.GetRequiredService<CameraRecordingService>()));
+        services.AddSingleton(static sp => new TimelapseExportNotificationObserver(
+            sp.GetRequiredService<CameraTimelapseJpegExporter>(),
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<ILogger<TimelapseExportNotificationObserver>>(),
+            sp.GetRequiredService<CameraTimelapseFromRecordingMaker>()));
+        // T-146: what the tray menu, the tooltip, the camera window and the settings window use of the recordings.
+        services.AddSingleton<ICameraRecordings>(static sp => new CameraRecordings(
+            sp.GetRequiredService<CameraRecordingService>(),
+            sp.GetRequiredService<IFolderLauncher>(),
+            sp.GetRequiredService<IFileLauncher>(),
+            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>()),
+            sp.GetRequiredService<CameraTimelapseJpegExporter>(),
+            sp.GetRequiredService<IRecordingFilePicker>(),
+            sp.GetRequiredService<CameraTimelapseFromRecordingMaker>()));
+        services.AddSingleton(static sp => new RecordingNotificationObserver(
+            sp.GetRequiredService<CameraRecordingService>(),
+            sp.GetRequiredService<INotificationService>(),
+            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>()).MinFreeBytes,
+            sp.GetRequiredService<ILogger<RecordingNotificationObserver>>()));
+        AddPrintFailureDetection(services);
+        // T-143 decision 3: an unsaved address is tested over a connection of its own, the saved camera through the hub.
         services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
             sp.GetRequiredService<ICameraFeedFactory>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CameraSnapshotTester>>(),
-            localNetwork: sp.GetRequiredService<ILocalNetworkPrivacy>()));
+            localNetwork: sp.GetRequiredService<ILocalNetworkPrivacy>(),
+            hub: sp.GetRequiredService<CameraStreamHub>()));
         // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
         services.AddSingleton(cameraWindowStateStore);
         // The widgets of the camera overlay, an explicit list (T-081).
@@ -694,6 +887,35 @@ internal static partial class AppServices
         services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<ILogger<CameraMonitorPathUpdater>>()));
+    }
+
+    /// <summary>The resume after sleep of this OS (T-151); none elsewhere.</summary>
+    private static ISystemResumeEvents CreateSystemResumeEvents() =>
+        OperatingSystem.IsWindows() ? new WindowsSystemResumeEvents()
+        : OperatingSystem.IsMacOS() ? new MacSystemResumeEvents()
+        : NoSystemResumeEvents.Instance;
+
+    /// <summary>
+    /// The delays of the automatic close and reopen of the camera windows (T-150 decision 1: 30 s / 10 s); the Debug test
+    /// mode may shorten them for the end-to-end tests (T-151).
+    /// </summary>
+    private static CameraWindowAutoVisibilityOptions CameraWindowAutoOptions(AppEnvironment environment)
+    {
+        CameraWindowAutoVisibilityOptions options = CameraWindowAutoVisibilityOptions.Default;
+#if DEBUG
+        if (environment.TestCameraCloseAfter is { } closeAfter)
+        {
+            options = options with { CloseAfterOffline = closeAfter };
+        }
+
+        if (environment.TestCameraOpenAfter is { } openAfter)
+        {
+            options = options with { OpenAfterOnline = openAfter };
+        }
+#else
+        _ = environment;
+#endif
+        return options;
     }
 
     private static IAuxiliaryWindowStateStore CreateAuxiliaryWindowStateStore(IServiceProvider services)
@@ -744,7 +966,7 @@ internal static partial class AppServices
             && CameraTarget.From(printer) is { } target
             ? new CameraViewModel(
                 target,
-                services.GetRequiredService<ReconnectingCameraFeed>(),
+                services.GetRequiredService<CameraStreamHub>(),
                 services.GetRequiredService<IPrinterMonitor>(),
                 services.GetRequiredService<MonitoredPrinters>(),
                 services.GetRequiredService<IUiDispatcher>(),
@@ -759,7 +981,8 @@ internal static partial class AppServices
                 services.GetRequiredService<PrintThumbnails>(),
                 services.GetRequiredService<ICameraOverlayLayoutWriter>(),
                 services.GetRequiredService<ILocalNetworkPrivacy>(),
-                services.GetRequiredService<ICameraWindowTopmostWriter>())
+                services.GetRequiredService<ICameraWindowTopmostWriter>(),
+                services.GetRequiredService<ICameraRecordings>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
@@ -839,6 +1062,11 @@ internal static partial class AppServices
             // T-058: "Check now" (Q4 a) and the hint to move the macOS app to Applications first (Q8 a).
             CheckForUpdatesNow = services.GetRequiredService<UpdateOffer>().CheckNowAsync,
             ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,
+            // T-146: the default folder, whether this build can record and "Open recordings folder".
+            Recordings = services.GetRequiredService<ICameraRecordings>(),
+            // T-154: the detector kinds of this version and the last frames of the bed region editor.
+            DetectorRegistrations = services.GetRequiredService<PrintFailureDetectionService>().Detectors,
+            LastFrames = services.GetRequiredService<ILastCameraFrames>(),
         };
     }
 

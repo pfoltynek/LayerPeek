@@ -84,6 +84,38 @@ public sealed record AppSettings
         }
     } = CameraOverlayOpacity.DefaultPercent;
 
+    /// <summary>
+    /// "Close the camera window when the printer is switched off" (T-150, user decision 2026-11-03: one option for all
+    /// printers, on by default): the open camera window of a printer that stays offline closes and opens again once the
+    /// printer is back, see <see cref="CameraWindowAutoVisibility"/>. Off: the windows stay as the user left them.
+    /// </summary>
+    public bool CameraWindowAutoClose { get; init; } = true;
+
+    /// <summary>Folder and size limit of the camera recordings (T-145); whether a printer records is per printer.</summary>
+    public Cameras.Recording.CameraRecordingSettings Recording
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = Cameras.Recording.CameraRecordingSettings.Default;
+
+    /// <summary>
+    /// Global settings of the print failure detection (T-153): master switch (off by default), alarm repeat, alarm snapshots
+    /// and sampling interval; whether a printer is watched is <see cref="PrinterDefinition.Detection"/>.
+    /// </summary>
+    public Detection.PrintFailureDetectionSettings Detection
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = Core.Detection.PrintFailureDetectionSettings.Default;
+
     public NotificationSettings Notifications
     {
         get;
@@ -253,11 +285,28 @@ public sealed record AppSettings
         && OfferPrereleaseUpdates == other.OfferPrereleaseUpdates
         && CheckForUpdates == other.CheckForUpdates
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
+        && CameraWindowAutoClose == other.CameraWindowAutoClose
+        && Recording == other.Recording
+        && Detection == other.Detection
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
-    public override int GetHashCode() =>
-        HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, CheckForUpdates, CameraOverlayOpacityPercent, Notifications, Printers.Count);
+    public override int GetHashCode()
+    {
+        HashCode hash = default;
+        hash.Add(PollingInterval);
+        hash.Add(Language);
+        hash.Add(DebugLogging);
+        hash.Add(OfferPrereleaseUpdates);
+        hash.Add(CheckForUpdates);
+        hash.Add(CameraOverlayOpacityPercent);
+        hash.Add(CameraWindowAutoClose);
+        hash.Add(Recording);
+        hash.Add(Detection);
+        hash.Add(Notifications);
+        hash.Add(Printers.Count);
+        return hash.ToHashCode();
+    }
 
     private static ReadOnlyCollection<PrinterDefinition> CopyValidated(IReadOnlyList<PrinterDefinition> printers)
     {

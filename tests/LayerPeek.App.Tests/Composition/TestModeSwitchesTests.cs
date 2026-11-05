@@ -164,6 +164,68 @@ public sealed class TestModeSwitchesTests
         Assert.Equal([AppEnvironment.TestNoDisplayVariable], environment.IgnoredTestSwitches);
     }
 
+    /// <summary>T-151: the delays of the automatic close and reopen of the camera windows, only in the test mode, within their limit.</summary>
+    [Theory]
+    [InlineData("0", "0")]
+    [InlineData("1500", "500")]
+    [InlineData("120000", "120000")]
+    public void CameraWindowDelaysInMilliseconds(string closeAfter, string openAfter)
+    {
+        AppEnvironment environment = Read(
+            (AppEnvironment.DataDirectoryVariable, Folder),
+            (AppEnvironment.TestCameraCloseAfterVariable, closeAfter),
+            (AppEnvironment.TestCameraOpenAfterVariable, openAfter));
+
+        Assert.Equal("LAYERPEEK_TEST_CAMERA_CLOSE_AFTER_MS", AppEnvironment.TestCameraCloseAfterVariable);
+        Assert.Equal("LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS", AppEnvironment.TestCameraOpenAfterVariable);
+        Assert.Equal(TimeSpan.FromMilliseconds(int.Parse(closeAfter, System.Globalization.CultureInfo.InvariantCulture)), environment.TestCameraCloseAfter);
+        Assert.Equal(TimeSpan.FromMilliseconds(int.Parse(openAfter, System.Globalization.CultureInfo.InvariantCulture)), environment.TestCameraOpenAfter);
+    }
+
+    [Fact]
+    public void WithoutTheCameraWindowSwitchesTheDelaysAreTheDefaults()
+    {
+        AppEnvironment environment = Read((AppEnvironment.DataDirectoryVariable, Folder));
+
+        Assert.Null(environment.TestCameraCloseAfter);
+        Assert.Null(environment.TestCameraOpenAfter);
+    }
+
+    [Theory]
+    [InlineData(AppEnvironment.TestCameraCloseAfterVariable, "-1")]
+    [InlineData(AppEnvironment.TestCameraCloseAfterVariable, "120001")]
+    [InlineData(AppEnvironment.TestCameraOpenAfterVariable, "1.5")]
+    [InlineData(AppEnvironment.TestCameraOpenAfterVariable, "10s")]
+    public void InvalidCameraWindowDelaysAreAnInvalidTestMode(string variable, string value)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => Read((AppEnvironment.DataDirectoryVariable, Folder), (variable, value)));
+    }
+
+    [Fact]
+    public void CameraWindowDelaysOutsideTheTestModeAreIgnoredAndReported()
+    {
+        AppEnvironment environment = Read((AppEnvironment.TestCameraCloseAfterVariable, "1000"), (AppEnvironment.TestCameraOpenAfterVariable, "1000"));
+
+        Assert.False(environment.IsIsolated);
+        Assert.Null(environment.TestCameraCloseAfter);
+        Assert.Equal([AppEnvironment.TestCameraCloseAfterVariable, AppEnvironment.TestCameraOpenAfterVariable], environment.IgnoredTestSwitches);
+    }
+
+    [Fact]
+    public void TheFakeDetectorIsOnlyForTheTestModeWithItsSwitch()
+    {
+        // T-154: "1" only; anything else, or outside the test mode, leaves the detectors of the app alone.
+        Assert.Equal("LAYERPEEK_TEST_FAKE_DETECTOR", AppEnvironment.TestFakeDetectorVariable);
+        Assert.True(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFakeDetectorVariable, "1")).TestFakeDetector);
+        Assert.False(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFakeDetectorVariable, "yes")).TestFakeDetector);
+        Assert.False(Read((AppEnvironment.DataDirectoryVariable, Folder)).TestFakeDetector);
+
+        AppEnvironment outside = Read((AppEnvironment.TestFakeDetectorVariable, "1"));
+        Assert.False(outside.IsIsolated);
+        Assert.False(outside.TestFakeDetector);
+        Assert.Equal([AppEnvironment.TestFakeDetectorVariable], outside.IgnoredTestSwitches);
+    }
+
     [Fact]
     public void WithoutAnyVariableTheProcessIsProduction()
     {
@@ -182,7 +244,7 @@ public sealed class TestModeSwitchesTests
             await using ServiceProvider services = AppServices.Create(environment: AppEnvironment.ForTests(folder, toasts: true));
 
             WindowsToastPlatform platform = ToastPlatform(services);
-            Assert.Equal("LayerPeek.E2E", platform.AppUserModelId);
+            Assert.Equal(AppEnvironment.TestAppUserModelId, platform.AppUserModelId);
             Assert.Equal(TestToastCleanup.DefaultShortcutPath(), platform.ShortcutPath());
             Assert.Equal("LayerPeek E2E.lnk", Path.GetFileName(platform.ShortcutPath()));
             // T-068: the test app's own COM toast activator, whose start by Windows comes up in this test mode again.

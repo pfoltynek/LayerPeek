@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 
@@ -45,6 +46,9 @@ internal static class SettingsMapper
             CameraOverlay = settings.CameraOverlayOpacityPercent == CameraOverlayOpacity.DefaultPercent
                 ? null
                 : new CameraOverlaySettingsDocument { BackgroundOpacityPercent = settings.CameraOverlayOpacityPercent },
+            CameraWindowAutoClose = settings.CameraWindowAutoClose ? null : false,
+            Recording = ToDocument(settings.Recording),
+            Detection = DetectionSettingsMapper.ToDocument(settings.Detection),
             Printers = [.. settings.Printers.Select(static printer => new PrinterDocument
             {
                 Id = printer.Id,
@@ -59,11 +63,15 @@ internal static class SettingsMapper
                     Window = ToDocument(printer.Camera.Window),
                     Overlay = ToDocument(printer.Camera.Overlay),
                     MiniStrip = ToDocument(printer.Camera.MiniStrip),
+                    RecordPrints = printer.Camera.RecordPrints ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
+                    Dashcam = printer.Camera.Dashcam ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
+                    TimelapsePrints = printer.Camera.TimelapsePrints ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
                 },
                 DetectedModel = printer.DetectedModel?.ToString(),
                 Image = ToDocument(printer.Image),
                 CooldownNozzleThresholdCelsius = printer.CooldownThresholds.NozzleCelsius == CooldownThreshold.DefaultNozzleCelsius ? null : printer.CooldownThresholds.NozzleCelsius,
                 CooldownBedThresholdCelsius = printer.CooldownThresholds.BedCelsius == CooldownThreshold.DefaultBedCelsius ? null : printer.CooldownThresholds.BedCelsius,
+                Detection = DetectionSettingsMapper.ToDocument(printer.Detection),
             })],
         };
     }
@@ -88,6 +96,9 @@ internal static class SettingsMapper
             OfferPrereleaseUpdates = document.OfferPrereleaseUpdates,
             CheckForUpdates = document.CheckForUpdates ?? true,
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
+            CameraWindowAutoClose = document.CameraWindowAutoClose ?? true,
+            Recording = ToRecording(document.Recording, warnings),
+            Detection = DetectionSettingsMapper.ToSettings(document.Detection, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays, ref discardedThresholds),
         };
@@ -110,6 +121,273 @@ internal static class SettingsMapper
         }
 
         return settings;
+    }
+
+    /// <summary><c>recording.timelapseTrigger</c> of the layer trigger (T-159); the time trigger is the default and not written.</summary>
+    private const string LayerTimelapseTrigger = "layer";
+
+    private const string TimeTimelapseTrigger = "time";
+
+    /// <summary>Not written while every value is the default, so that files stay as they were; only values that differ are written.</summary>
+    internal static JsonElement? ToDocument(CameraRecordingSettings recording)
+    {
+        if (recording == CameraRecordingSettings.Default)
+        {
+            return null;
+        }
+
+        RecordingDocument document = new()
+        {
+            Folder = recording.Folder,
+            SizeLimitGigabytes = recording.SizeLimitGigabytes == CameraRecordingSettings.DefaultSizeLimitGigabytes ? null : recording.SizeLimitGigabytes,
+            DashcamMinutes = recording.DashcamMinutes == CameraRecordingSettings.DefaultDashcamMinutes ? null : recording.DashcamMinutes,
+            DashcamOnError = recording.DashcamOnError ? null : false,
+            DashcamOnAttention = recording.DashcamOnAttention ? null : false,
+            DashcamOnStopped = recording.DashcamOnStopped ? null : false,
+            DashcamOnFailureDetection = recording.DashcamOnFailureDetection ? null : false,
+            TimelapseIntervalSeconds = recording.TimelapseIntervalSeconds == CameraRecordingSettings.DefaultTimelapseIntervalSeconds ? null : recording.TimelapseIntervalSeconds,
+            TimelapseTrigger = recording.TimelapseTrigger == CameraTimelapseTriggerKind.Layer ? LayerTimelapseTrigger : null,
+            TimelapseEveryNthLayer = recording.TimelapseEveryNthLayer == CameraRecordingSettings.DefaultTimelapseEveryNthLayer ? null : recording.TimelapseEveryNthLayer,
+        };
+        return JsonSerializer.SerializeToElement(document, SettingsJsonContext.Default.RecordingDocument);
+    }
+
+    /// <summary>
+    /// The recording section read leniently (T-145, T-148, T-160, T-159): a missing section or value is the default; an
+    /// invalid value (a folder that is no absolute path, a limit, a dashcam length, a timelapse interval or layer step that is
+    /// no whole number in range, a timelapse trigger that is neither "time" nor "layer", a dashcam trigger that is no
+    /// boolean, a value of the wrong type) is its default with one warning that never echoes the value (the folder may
+    /// contain the user name). Property names are matched case-insensitively and the last of duplicates wins; unknown names
+    /// (a newer version) are ignored.
+    /// </summary>
+    private static CameraRecordingSettings ToRecording(JsonElement? section, List<string> warnings)
+    {
+        if (!IsPresent(section))
+        {
+            return CameraRecordingSettings.Default;
+        }
+
+        JsonElement value = section!.Value;
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            warnings.Add("Recording settings are invalid; the default folder and size limit are used.");
+            return CameraRecordingSettings.Default;
+        }
+
+        JsonElement? folder = null;
+        JsonElement? limit = null;
+        JsonElement? dashcamMinutes = null;
+        JsonElement? onError = null;
+        JsonElement? onAttention = null;
+        JsonElement? onStopped = null;
+        JsonElement? onFailure = null;
+        JsonElement? timelapseInterval = null;
+        JsonElement? timelapseTrigger = null;
+        JsonElement? everyNthLayer = null;
+        foreach (JsonProperty property in value.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "folder", StringComparison.OrdinalIgnoreCase))
+            {
+                folder = property.Value;
+            }
+            else if (string.Equals(property.Name, "sizeLimitGigabytes", StringComparison.OrdinalIgnoreCase))
+            {
+                limit = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamMinutes", StringComparison.OrdinalIgnoreCase))
+            {
+                dashcamMinutes = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamOnError", StringComparison.OrdinalIgnoreCase))
+            {
+                onError = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamOnAttention", StringComparison.OrdinalIgnoreCase))
+            {
+                onAttention = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamOnStopped", StringComparison.OrdinalIgnoreCase))
+            {
+                onStopped = property.Value;
+            }
+            else if (string.Equals(property.Name, "dashcamOnFailureDetection", StringComparison.OrdinalIgnoreCase))
+            {
+                onFailure = property.Value;
+            }
+            else if (string.Equals(property.Name, "timelapseIntervalSeconds", StringComparison.OrdinalIgnoreCase))
+            {
+                timelapseInterval = property.Value;
+            }
+            else if (string.Equals(property.Name, "timelapseTrigger", StringComparison.OrdinalIgnoreCase))
+            {
+                timelapseTrigger = property.Value;
+            }
+            else if (string.Equals(property.Name, "timelapseEveryNthLayer", StringComparison.OrdinalIgnoreCase))
+            {
+                everyNthLayer = property.Value;
+            }
+        }
+
+        string? folderPath = null;
+        if (IsPresent(folder))
+        {
+            if (folder!.Value.ValueKind == JsonValueKind.String && CameraRecordingSettings.IsValidFolder(folder.Value.GetString()))
+            {
+                folderPath = folder.Value.GetString();
+            }
+            else
+            {
+                warnings.Add("Recording folder is invalid (an absolute folder path); the default folder is used.");
+            }
+        }
+
+        int gigabytes = CameraRecordingSettings.DefaultSizeLimitGigabytes;
+        if (IsPresent(limit))
+        {
+            if (TryGetWholeNumber(limit!.Value, CameraRecordingSettings.MinSizeLimitGigabytes, CameraRecordingSettings.MaxSizeLimitGigabytes, out int whole))
+            {
+                gigabytes = whole;
+            }
+            else
+            {
+                warnings.Add(
+                    $"Recording size limit is invalid (whole number {CameraRecordingSettings.MinSizeLimitGigabytes}–{CameraRecordingSettings.MaxSizeLimitGigabytes} GB); {CameraRecordingSettings.DefaultSizeLimitGigabytes} GB is used.");
+            }
+        }
+
+        int minutes = CameraRecordingSettings.DefaultDashcamMinutes;
+        if (IsPresent(dashcamMinutes))
+        {
+            if (TryGetWholeNumber(dashcamMinutes!.Value, CameraRecordingSettings.MinDashcamMinutes, CameraRecordingSettings.MaxDashcamMinutes, out int whole))
+            {
+                minutes = whole;
+            }
+            else
+            {
+                warnings.Add(
+                    $"Dashcam length is invalid (whole number {CameraRecordingSettings.MinDashcamMinutes}–{CameraRecordingSettings.MaxDashcamMinutes} minutes); {CameraRecordingSettings.DefaultDashcamMinutes} minutes are used.");
+            }
+        }
+
+        int interval = CameraRecordingSettings.DefaultTimelapseIntervalSeconds;
+        if (IsPresent(timelapseInterval))
+        {
+            if (TryGetWholeNumber(timelapseInterval!.Value, CameraRecordingSettings.MinTimelapseIntervalSeconds, CameraRecordingSettings.MaxTimelapseIntervalSeconds, out int whole))
+            {
+                interval = whole;
+            }
+            else
+            {
+                warnings.Add(
+                    $"Timelapse interval is invalid (whole number {CameraRecordingSettings.MinTimelapseIntervalSeconds}–{CameraRecordingSettings.MaxTimelapseIntervalSeconds} seconds); {CameraRecordingSettings.DefaultTimelapseIntervalSeconds} seconds are used.");
+            }
+        }
+
+        CameraTimelapseTriggerKind trigger = CameraTimelapseTriggerKind.Time;
+        if (IsPresent(timelapseTrigger))
+        {
+            string? name = timelapseTrigger!.Value.ValueKind == JsonValueKind.String ? timelapseTrigger.Value.GetString() : null;
+            if (string.Equals(name, LayerTimelapseTrigger, StringComparison.OrdinalIgnoreCase))
+            {
+                trigger = CameraTimelapseTriggerKind.Layer;
+            }
+            else if (!string.Equals(name, TimeTimelapseTrigger, StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add($"Timelapse trigger is invalid (\"{TimeTimelapseTrigger}\" or \"{LayerTimelapseTrigger}\"); a frame every interval is used.");
+            }
+        }
+
+        int layers = CameraRecordingSettings.DefaultTimelapseEveryNthLayer;
+        if (IsPresent(everyNthLayer))
+        {
+            if (TryGetWholeNumber(everyNthLayer!.Value, CameraRecordingSettings.MinTimelapseEveryNthLayer, CameraRecordingSettings.MaxTimelapseEveryNthLayer, out int whole))
+            {
+                layers = whole;
+            }
+            else
+            {
+                warnings.Add(
+                    $"Timelapse layer step is invalid (whole number {CameraRecordingSettings.MinTimelapseEveryNthLayer}–{CameraRecordingSettings.MaxTimelapseEveryNthLayer}); every layer is used.");
+            }
+        }
+
+        CameraRecordingSettings settings = new()
+        {
+            Folder = folderPath,
+            SizeLimitGigabytes = gigabytes,
+            DashcamMinutes = minutes,
+            DashcamOnError = ToDashcamTrigger(onError, "error", warnings),
+            DashcamOnAttention = ToDashcamTrigger(onAttention, "attention", warnings),
+            DashcamOnStopped = ToDashcamTrigger(onStopped, "stopped print", warnings),
+            DashcamOnFailureDetection = ToDashcamTrigger(onFailure, "detected print failure", warnings),
+            TimelapseIntervalSeconds = interval,
+            TimelapseTrigger = trigger,
+            TimelapseEveryNthLayer = layers,
+        };
+        return settings == CameraRecordingSettings.Default ? CameraRecordingSettings.Default : settings;
+    }
+
+    /// <summary>A whole number in range, as a JSON number or a numeric string (invariant culture).</summary>
+    private static bool TryGetWholeNumber(JsonElement value, int min, int max, out int whole)
+    {
+        double? number = value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetDouble(out double parsed) => parsed,
+            JsonValueKind.String when double.TryParse(value.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed) => parsed,
+            _ => null,
+        };
+        return TryGetWholeNumber(number, out whole) && whole >= min && whole <= max;
+    }
+
+    /// <summary>A dashcam trigger (T-148): missing = on; a value that is not a JSON boolean is on with a warning.</summary>
+    private static bool ToDashcamTrigger(JsonElement? value, string trigger, List<string> warnings)
+    {
+        if (!IsPresent(value))
+        {
+            return true;
+        }
+
+        switch (value!.Value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            default:
+                warnings.Add($"Dashcam trigger '{trigger}' is invalid (true / false); it is on.");
+                return true;
+        }
+    }
+
+    /// <summary>Missing = off; a value that is not a JSON boolean is off with a warning (T-145).</summary>
+    private static bool ToRecordPrints(JsonElement? value, string printerId, List<string> warnings) =>
+        ToCameraOption(value, printerId, "automatic recording of prints", warnings);
+
+    /// <summary>Missing = off; a value that is not a JSON boolean is off with a warning (T-148).</summary>
+    private static bool ToDashcam(JsonElement? value, string printerId, List<string> warnings) =>
+        ToCameraOption(value, printerId, "keeping the last minutes of a print", warnings);
+
+    /// <summary>Missing = off; a value that is not a JSON boolean is off with a warning (T-160).</summary>
+    private static bool ToTimelapsePrints(JsonElement? value, string printerId, List<string> warnings) =>
+        ToCameraOption(value, printerId, "timelapse of every print", warnings);
+
+    private static bool ToCameraOption(JsonElement? value, string printerId, string option, List<string> warnings)
+    {
+        if (!IsPresent(value))
+        {
+            return false;
+        }
+
+        switch (value!.Value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            default:
+                warnings.Add($"Camera of printer '{Shorten(printerId)}': {option} is invalid (true / false); it is off.");
+                return false;
+        }
     }
 
     /// <summary>Missing = the default; a fraction or a value out of range falls back to the default with a warning.</summary>
@@ -288,6 +566,21 @@ internal static class SettingsMapper
                     camera = camera with { MiniStrip = miniStrip };
                 }
 
+                if (ToRecordPrints(documents[i]!.Camera?.RecordPrints, printer.Id, warnings))
+                {
+                    camera = camera with { RecordPrints = true };
+                }
+
+                if (ToDashcam(documents[i]!.Camera?.Dashcam, printer.Id, warnings))
+                {
+                    camera = camera with { Dashcam = true };
+                }
+
+                if (ToTimelapsePrints(documents[i]!.Camera?.TimelapsePrints, printer.Id, warnings))
+                {
+                    camera = camera with { TimelapsePrints = true };
+                }
+
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.
                 if (!ReferenceEquals(camera, CameraSettings.Disabled))
                 {
@@ -307,6 +600,12 @@ internal static class SettingsMapper
                 if (thresholds != CooldownThresholds.Default)
                 {
                     printer = printer with { CooldownThresholds = thresholds };
+                }
+
+                Detection.PrinterDetectionSettings detection = DetectionSettingsMapper.ToPrinterSettings(documents[i]!.Detection, Shorten(printer.Id) ?? "", warnings);
+                if (!ReferenceEquals(detection, Detection.PrinterDetectionSettings.Default))
+                {
+                    printer = printer with { Detection = detection };
                 }
 
                 if (documents[i]!.LegacyCooldownThresholdCelsius is { ValueKind: not JsonValueKind.Null })
@@ -346,7 +645,11 @@ internal static class SettingsMapper
 
         if (!TryParseConnectionType(document.ConnectionType, out ConnectionType connectionType))
         {
-            return $"unknown connection type '{Shorten(document.ConnectionType)}'";
+            // T-170: Prusa Connect is no longer supported (user decision 2026-11-05); such a printer is left out like any
+            // other invalid entry and disappears from the file on the next save.
+            return document.ConnectionType.AsSpan().Trim().Equals(PrusaConnectConnectionType, StringComparison.OrdinalIgnoreCase)
+                ? "Prusa Connect is no longer supported"
+                : $"unknown connection type '{Shorten(document.ConnectionType)}'";
         }
 
         printer = new PrinterDefinition
@@ -1227,11 +1530,13 @@ internal static class SettingsMapper
     private static string? Shorten(string? value) =>
         value is { Length: > MaxEchoedValueLength } ? string.Concat(value.AsSpan(0, MaxEchoedValueLength), "…") : value;
 
+    /// <summary>The connection type of Prusa Connect printers in settings written before T-170.</summary>
+    private const string PrusaConnectConnectionType = "PrusaConnect";
+
     // Explicit names instead of Enum.Parse: numeric strings must not be accepted and the format must stay stable.
     private static string FormatConnectionType(ConnectionType connectionType) => connectionType switch
     {
         ConnectionType.PrusaLink => nameof(ConnectionType.PrusaLink),
-        ConnectionType.PrusaConnect => nameof(ConnectionType.PrusaConnect),
         _ => throw new ArgumentOutOfRangeException(nameof(connectionType), connectionType, "Unknown connection type."),
     };
 
@@ -1241,12 +1546,6 @@ internal static class SettingsMapper
         if (name.Equals(nameof(ConnectionType.PrusaLink), StringComparison.OrdinalIgnoreCase))
         {
             connectionType = ConnectionType.PrusaLink;
-            return true;
-        }
-
-        if (name.Equals(nameof(ConnectionType.PrusaConnect), StringComparison.OrdinalIgnoreCase))
-        {
-            connectionType = ConnectionType.PrusaConnect;
             return true;
         }
 

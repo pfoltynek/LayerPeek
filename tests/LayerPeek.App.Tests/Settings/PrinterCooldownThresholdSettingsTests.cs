@@ -204,7 +204,7 @@ public sealed class PrinterCooldownThresholdSettingsTests : IDisposable
     public async Task ApplyToAllCopiesBothThresholdsToTheOtherPrintersAndSavesWithTheRest()
     {
         PrinterDefinition beta = LinkPrinter("b", "Beta", "192.168.1.21") with { CooldownThresholds = new(90, 31) };
-        SettingsViewModel vm = await LoadAsync(LinkPrinter("a", "Alpha"), beta, CloudPrinter("c", "Cloud XL"));
+        SettingsViewModel vm = await LoadAsync(LinkPrinter("a", "Alpha"), beta, LinkPrinter("c", "Gamma XL", "192.168.1.42"));
         PrinterEditorViewModel alpha = vm.Printers[0];
         alpha.CooldownNozzleThresholdCelsius = 42;
         alpha.CooldownBedThresholdCelsius = 36;

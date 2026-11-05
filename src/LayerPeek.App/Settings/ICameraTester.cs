@@ -39,4 +39,12 @@ internal interface ICameraTester
     /// <summary>Never blocks the caller (all stream work runs on the thread pool) and never throws for stream failures.</summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
     Task<CameraTestResult> TestAsync(Uri streamUri, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Like <see cref="TestAsync(Uri, CancellationToken)"/> for the camera of <paramref name="printerId"/> (T-143 decision 3):
+    /// when <paramref name="streamUri"/> is that printer's saved, enabled camera, the test may share its open connection;
+    /// any other (unsaved) address gets a connection of its own. Default: always a connection of its own.
+    /// </summary>
+    Task<CameraTestResult> TestAsync(Uri streamUri, string? printerId, CancellationToken cancellationToken) =>
+        TestAsync(streamUri, cancellationToken);
 }

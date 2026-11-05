@@ -208,8 +208,11 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         TrayMenu.Press(app, VirtualKeyShort.RIGHT);
         (AutomationElement[] submenu, nint submenuWindow) = await TrayMenu.SubmenuAsync(app, menu, menu.Items()[0], before);
         Screenshots.Save(submenuWindow, "menu-keyboard-4-submenu");
-        Assert.Equal([TrayMenu.ShownText(TrayMenu.Resource("MenuOpenPrusaLink")), TrayMenu.ShownText(TrayMenu.Resource("MenuShowCamera"))], submenu.Select(static item => item.Name).ToArray());
-        Assert.Equal([TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuOpenPrusaLink")), TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuShowCamera"))], submenu.Select(TrayMenu.AccessKeyOf).ToArray());
+        // T-146: the recording items follow after a separator (T-161: with the timelapse; T-165: and its JPEG export;
+        // T-164: and the timelapse from a recording).
+        string[] keys = ["MenuOpenPrusaLink", "MenuShowCamera", "MenuStartRecording", "MenuStartTimelapse", "MenuPlayLastRecording", "MenuPlayLastTimelapse", "MenuExportTimelapseJpeg", "MenuCreateTimelapseFromRecording", "MenuOpenRecordingsFolder"];
+        Assert.Equal(keys.Select(static key => TrayMenu.ShownText(TrayMenu.Resource(key))).ToArray(), submenu.Select(static item => item.Name).ToArray());
+        Assert.Equal(keys.Select(static key => TrayMenu.AccessKeyLetter(TrayMenu.Resource(key))).ToArray(), submenu.Select(TrayMenu.AccessKeyOf).ToArray());
         TrayMenu.Press(app, TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuShowCamera"))!));
         nint cameraWindow = await app.WaitForWindowAsync(AppWindowKind.Camera);
         await app.CloseWindowAsync(cameraWindow);
@@ -357,8 +360,12 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         Assert.DoesNotContain(name, TrayMenu.IsHidden);
         Assert.DoesNotContain("__", name, StringComparison.Ordinal);
         Assert.Equal(string.Empty, TrayMenu.WithoutWordJoiner(TrayMenu.AccessKeyOf(row)));
-        Assert.Equal(["Open PrusaLink", "Show camera"], submenu.Select(static item => item.Name).ToArray());
-        Assert.Equal(["O", "C"], submenu.Select(TrayMenu.AccessKeyOf).ToArray());
+        // T-146: the recording items follow after a separator (not a menu item); T-161: with the timelapse; T-165: and its
+        // JPEG export; T-164: and the timelapse from a recording.
+        Assert.Equal(
+            ["Open PrusaLink", "Show camera", "Start recording", "Start timelapse (experimental)", "Play last recording", "Play last timelapse", "Export timelapse to JPEG… (experimental)", "Create timelapse from recording… (experimental)", "Open recordings folder"],
+            submenu.Select(static item => item.Name).ToArray());
+        Assert.Equal(["O", "C", "R", "T", "P", "L", "E", "M", "D"], submenu.Select(TrayMenu.AccessKeyOf).ToArray());
         await TrayMenu.CloseAsync(menu);
     }
 

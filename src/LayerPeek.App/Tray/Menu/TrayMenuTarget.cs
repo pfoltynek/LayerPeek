@@ -117,7 +117,8 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
     private sealed class Slot
     {
         private readonly TrayMenuTarget _owner;
-        private readonly Slot[]? _children;
+        // A null child is a separator (T-146: the recording items of a printer submenu are a group of their own).
+        private readonly Slot?[]? _children;
         private TrayMenuEntry _entry;
         private bool _detached;
 
@@ -137,25 +138,52 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             if (entry.Submenu is { } submenu)
             {
                 INativeTrayMenu native = Item.CreateSubmenu();
-                _children = new Slot[submenu.Count];
+                _children = new Slot?[submenu.Count];
                 for (int i = 0; i < _children.Length; i++)
                 {
-                    if (submenu[i].IsSeparator || submenu[i].Submenu is not null)
+                    if (submenu[i].Submenu is not null)
                     {
-                        throw new ArgumentException("Submenu items must be plain items.", nameof(entry));
+                        throw new ArgumentException("Submenu items must be plain items or separators.", nameof(entry));
                     }
 
-                    _children[i] = new Slot(owner, native, submenu[i]);
-                    native.Add(_children[i].Item);
+                    if (submenu[i].IsSeparator)
+                    {
+                        native.AddSeparator();
+                        continue;
+                    }
+
+                    Slot child = new(owner, native, submenu[i]);
+                    _children[i] = child;
+                    native.Add(child.Item);
                 }
             }
         }
 
         public INativeTrayMenuItem Item { get; }
 
-        /// <summary>Whether <paramref name="entry"/> can be shown by this platform item (same submenu shape).</summary>
-        public bool HasSameStructure(TrayMenuEntry entry) =>
-            entry.Submenu is null ? _children is null : _children is not null && _children.Length == entry.Submenu.Count;
+        /// <summary>Whether <paramref name="entry"/> can be shown by this platform item (same submenu shape, separators at the same places).</summary>
+        public bool HasSameStructure(TrayMenuEntry entry)
+        {
+            if (entry.Submenu is not { } submenu)
+            {
+                return _children is null;
+            }
+
+            if (_children is null || _children.Length != submenu.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _children.Length; i++)
+            {
+                if ((_children[i] is null) != submenu[i].IsSeparator)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
 
         public void Update(TrayMenuEntry entry)
         {
@@ -184,7 +212,7 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             {
                 for (int i = 0; i < _children.Length; i++)
                 {
-                    _children[i].Update(submenu[i]);
+                    _children[i]?.Update(submenu[i]);
                 }
             }
 
@@ -198,9 +226,9 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             Item.Detach();
             if (_children is not null)
             {
-                foreach (Slot child in _children)
+                foreach (Slot? child in _children)
                 {
-                    child.Detach();
+                    child?.Detach();
                 }
             }
         }

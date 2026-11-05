@@ -55,6 +55,9 @@ public sealed class ReadmeScreenshots(HeadlessSession session)
     /// <summary>White space between the crops of the widget sizes image, in DIP.</summary>
     private const double SizesGap = 8;
 
+    /// <summary>The height of the top band of the camera window in the recording image, in DIP (below the top cards).</summary>
+    private const double RecordingBandHeight = 156;
+
     private static readonly CameraWindowDefaults Normal = CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Normal };
 
     /// <summary>The layout of the hero image: the default one with the temperatures in L (with the chart).</summary>
@@ -82,7 +85,7 @@ public sealed class ReadmeScreenshots(HeadlessSession session)
     }
 
     /// <summary>Camera windows of the scenario's printer with the real widgets, the real picture and the preview.</summary>
-    private static async Task<CameraHarness> CameraHarnessAsync(CameraWindowDefaults window, CameraOverlayLayout overlay, IScreenCatalog? screens = null)
+    private static async Task<CameraHarness> CameraHarnessAsync(CameraWindowDefaults window, CameraOverlayLayout overlay, IScreenCatalog? screens = null, LayerPeek.App.Cameras.Recording.ICameraRecordings? recordings = null)
     {
         CameraImage picture = await ReadmeCamera.FrameAsync();
         CameraHarness harness = new(
@@ -92,6 +95,7 @@ public sealed class ReadmeScreenshots(HeadlessSession session)
             widgets: OverlayWidgets.CreateRegistry(),
             thumbnails: ReadmeScenario.Thumbnails(),
             feeds: new StillCameraFeedFactory(picture),
+            recordings: recordings,
             first: static printer => printer with { Name = ReadmeScenario.PrinterName, DetectedModel = ReadmeScenario.CoreOne });
         // The clock is at "now" before the stream starts: moving it later would make the frame stale ("No signal").
         harness.Time.SetUtcNow(Now);
@@ -180,8 +184,10 @@ public sealed class ReadmeScreenshots(HeadlessSession session)
             Assert.True(mode.OpenPopover(temperatures));
             window.Settle();
             MouseAway(window);
+            Assert.True(window.LayoutModeView.PopoverFlyout.IsOpen);
 
-            using ReadmeImage image = ReadmeImage.Capture(window);
+            // The popover is a popup of its own (not in the window's frame): drawn over the window at its place.
+            using ReadmeImage image = ReadmeImage.Capture(window, window.LayoutModeView.Popover);
             image.SaveJpeg(language, "camera-layout-mode");
         });
 
@@ -276,23 +282,125 @@ public sealed class ReadmeScreenshots(HeadlessSession session)
             return Task.CompletedTask;
         });
 
+    /// <summary>
+    /// The camera window while the print is recorded and a timelapse is taken: the red REC and the amber TL indicators
+    /// stay in the top right corner without the pointer. Only the top band of the window (the status and print name cards
+    /// and the indicators).
+    /// </summary>
+    [Theory(Skip = ReadmeScreenshotSwitch.SkipReason, SkipType = typeof(ReadmeScreenshotSwitch), SkipUnless = nameof(ReadmeScreenshotSwitch.IsOn))]
+    [MemberData(nameof(Languages))]
+    public Task CameraRecording(string language) =>
+        session.RunAsync(async scope =>
+        {
+            ReadmeScenario.UseLanguage(language);
+            LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings recordings = new();
+            recordings.SetActivity("a", LayerPeek.Core.Cameras.Recording.CameraRecordingActivity.Recording, raise: false);
+            recordings.SetTimelapse("a", LayerPeek.Core.Cameras.Recording.CameraRecordingActivity.Recording, raise: false);
+            await using CameraHarness harness = await CameraHarnessAsync(Normal, HeroLayout, recordings: recordings);
+            CameraWindow window = await OpenNormalAsync(harness);
+            await Ui.UntilAsync(() => { window.Settle(); return window.IsShown<TextBlock>("CameraRecordingIndicator") && window.IsShown<TextBlock>("CameraTimelapseIndicator"); }, "indicators shown");
+            MouseAway(window);
+
+            using ReadmeImage frame = ReadmeImage.Capture(window);
+            using ReadmeImage image = frame.Crop(0, 0, window.Bounds.Width, RecordingBandHeight);
+            image.SaveJpeg(language, "camera-recording");
+        });
+
+    /// <summary>
+    /// The Recording tab of the settings: the folder and size limit, the dashcam, the timelapse and the print failure
+    /// detection (switched on), the last two with their Experimental badge.
+    /// </summary>
+    [Theory(Skip = ReadmeScreenshotSwitch.SkipReason, SkipType = typeof(ReadmeScreenshotSwitch), SkipUnless = nameof(ReadmeScreenshotSwitch.IsOn))]
+    [MemberData(nameof(Languages))]
+    public Task SettingsRecording(string language) =>
+        session.RunAsync(async scope =>
+        {
+            ReadmeScenario.UseLanguage(language);
+            SettingsWindowHarness ui = await OpenSettingsAsync(scope, detection: true);
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.RecordingTab;
+            ui.Window.Settle();
+
+            using ReadmeImage image = ReadmeImage.Capture(ui.Window);
+            image.SavePng(language, "settings-recording");
+        });
+
+    /// <summary>
+    /// The Camera sub-tab of the CORE One: automatic recording, the dashcam and the timelapse of prints switched on.
+    /// </summary>
+    [Theory(Skip = ReadmeScreenshotSwitch.SkipReason, SkipType = typeof(ReadmeScreenshotSwitch), SkipUnless = nameof(ReadmeScreenshotSwitch.IsOn))]
+    [MemberData(nameof(Languages))]
+    public Task SettingsCamera(string language) =>
+        session.RunAsync(async scope =>
+        {
+            ReadmeScenario.UseLanguage(language);
+            SettingsWindowHarness ui = await OpenSettingsAsync(scope, detection: true);
+            ui.ViewModel.SelectedPrinter = ui.ViewModel.Printers[0];
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraPrinterTab;
+            ui.Window.Settle();
+
+            using ReadmeImage image = ReadmeImage.Capture(ui.Window);
+            image.SavePng(language, "settings-camera");
+        });
+
+    /// <summary>
+    /// The Detection sub-tab of the CORE One: detection on, the bed region (the Core One preset) over a frame of the real
+    /// camera recording loaded with "Load frame", the "Change on the bed" detector and the dark filament mode. JPEG like the
+    /// images with the camera picture (as PNG the photo in the region editor alone would weigh about 250 kB).
+    /// </summary>
+    [Theory(Skip = ReadmeScreenshotSwitch.SkipReason, SkipType = typeof(ReadmeScreenshotSwitch), SkipUnless = nameof(ReadmeScreenshotSwitch.IsOn))]
+    [MemberData(nameof(Languages))]
+    public Task SettingsDetection(string language) =>
+        session.RunAsync(async scope =>
+        {
+            ReadmeScenario.UseLanguage(language);
+            CameraImage picture = await ReadmeCamera.FrameAsync();
+            FakeCameraTester camera = new() { Immediate = new CameraTestResult(CameraTestOutcome.Success, picture.Width, picture.Height, Image: picture) };
+            SettingsWindowHarness ui = await OpenSettingsAsync(scope, detection: true, camera);
+            ui.ViewModel.SelectedPrinter = ui.ViewModel.Printers[0];
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.DetectionPrinterTab;
+            ui.Window.Settle();
+            ui.Click("PrinterDetectionLoadFrame");
+            await Ui.UntilAsync(() => { ui.Window.Settle(); return ui.ViewModel.SelectedPrinter!.HasRegionEditorImage; }, "the frame is shown");
+            Assert.False(ui.Window.IsShown<TextBlock>("PrinterDetectionLastFrame"));
+            Assert.False(ui.Window.IsShown<TextBlock>("PrinterDetectionGloballyOff"));
+
+            using ReadmeImage image = ReadmeImage.Capture(ui.Window);
+            image.SaveJpeg(language, "settings-detection");
+        });
+
     /// <summary>The printers of the settings and diagnostics images: the scenario's CORE One with its camera, an MK4S and a MINI+.</summary>
-    private static PrinterDefinition[] Printers() =>
+    private static PrinterDefinition[] Printers(bool detection = false) =>
     [
         LinkPrinter("a", ReadmeScenario.PrinterName, ReadmeScenario.PrinterAddress) with
         {
             DetectedModel = ReadmeScenario.CoreOne,
-            Camera = new CameraSettings(enabled: true, CameraHarness.StreamUri) { Overlay = HeroLayout },
+            Camera = new CameraSettings(enabled: true, detection ? ReadmeScenario.CameraAddress : CameraHarness.StreamUri)
+            {
+                Overlay = HeroLayout,
+                RecordPrints = detection,
+                Dashcam = detection,
+                TimelapsePrints = detection,
+            },
+            Detection = new LayerPeek.Core.Detection.PrinterDetectionSettings { Enabled = detection },
         },
         LinkPrinter("b", ReadmeScenario.SecondPrinterName, ReadmeScenario.SecondPrinterAddress) with { DetectedModel = new PrinterModelCode(1, 4, 1) },
         LinkPrinter("c", ReadmeScenario.ThirdPrinterName, ReadmeScenario.ThirdPrinterAddress) with { DetectedModel = new PrinterModelCode(2, 1, 0) },
     ];
 
-    private static async Task<SettingsWindowHarness> OpenSettingsAsync(UiTestScope scope)
+    /// <summary>
+    /// The settings window with <see cref="Printers"/>; with <paramref name="detection"/> the recording features of the
+    /// CORE One (automatic recording, dashcam, timelapse of prints) and the print failure detection (for all printers and
+    /// for the CORE One) are switched on.
+    /// </summary>
+    private static async Task<SettingsWindowHarness> OpenSettingsAsync(UiTestScope scope, bool detection = false, ICameraTester? cameraTester = null)
     {
-        FakeEditorStore store = SettingsWindowHarness.StoreWith(Printers());
+        FakeEditorStore store = SettingsWindowHarness.StoreWith(Printers(detection));
         // The passwords are saved (shown as such, never as text).
-        store.Data = store.Data with { PrintersWithPassword = Ids("a", "b", "c") };
-        return await SettingsWindowHarness.OpenAsync(scope, store, macTerms: OperatingSystem.IsMacOS());
+        store.Data = store.Data with
+        {
+            PrintersWithPassword = Ids("a", "b", "c"),
+            Settings = store.Data.Settings with { Detection = LayerPeek.Core.Detection.PrintFailureDetectionSettings.Default with { Enabled = detection } },
+        };
+        return await SettingsWindowHarness.OpenAsync(scope, store, cameraTester: cameraTester, macTerms: OperatingSystem.IsMacOS());
     }
 }

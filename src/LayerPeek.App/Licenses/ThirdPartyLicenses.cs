@@ -222,7 +222,7 @@ internal static class ThirdPartyLicenses
         /// Windows: the pinned BtbN build; must equal <c>LayerPeekFFmpegUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
         /// </summary>
         public static Uri WindowsBuildUri { get; } =
-            new("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip");
+            new("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip");
 
         /// <summary>Windows: the configuration and build scripts of the BtbN builds (part of the corresponding source).</summary>
         public static Uri WindowsBuildScriptsUri { get; } = new("https://github.com/BtbN/FFmpeg-Builds");

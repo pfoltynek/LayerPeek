@@ -105,9 +105,6 @@
   <data name="MenuOpenPrusaLink" xml:space="preserve">
     <value>_PrusaLink öffnen</value>
   </data>
-  <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Prusa Connect öffnen</value>
-  </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Die Druckeradresse ist ungültig</value>
   </data>
@@ -264,9 +261,6 @@
   <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
     <value>Die sichere (https-)Verbindung zum Drucker ist fehlgeschlagen.</value>
   </data>
-  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
-    <value>Für Prusa Connect nicht verfügbar</value>
-  </data>
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Schließen</value>
   </data>
@@ -300,15 +294,6 @@
   <data name="SettingsName" xml:space="preserve">
     <value>Name</value>
   </data>
-  <data name="SettingsConnectionType" xml:space="preserve">
-    <value>Verbindung</value>
-  </data>
-  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
-    <value>PrusaLink (lokales Netzwerk)</value>
-  </data>
-  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect (noch nicht verfügbar)</value>
-  </data>
   <data name="SettingsAddress" xml:space="preserve">
     <value>Adresse</value>
   </data>
@@ -320,9 +305,6 @@
   </data>
   <data name="SettingsUserNameHint" xml:space="preserve">
     <value>PrusaLink-Benutzername aus den Druckereinstellungen. Standard ist „maker“.</value>
-  </data>
-  <data name="SettingsUserNameNotUsed" xml:space="preserve">
-    <value>Prusa Connect verwendet keinen Druckerbenutzernamen.</value>
   </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Passwort</value>
@@ -341,9 +323,6 @@
   </data>
   <data name="SettingsPasswordUnsupported" xml:space="preserve">
     <value>Auf diesem System können noch keine Passwörter gespeichert werden. Drucker, die ein Passwort benötigen, melden, dass es fehlt.</value>
-  </data>
-  <data name="SettingsPasswordNotUsed" xml:space="preserve">
-    <value>Prusa Connect verwendet kein Druckerpasswort.</value>
   </data>
   <data name="SettingsTestConnection" xml:space="preserve">
     <value>Verbindung testen</value>
@@ -383,9 +362,6 @@
   </data>
   <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
     <value>Unter dieser Adresse antwortet etwas, aber es sieht nicht nach einem Drucker mit PrusaLink aus.</value>
-  </data>
-  <data name="SettingsTestNotSupported" xml:space="preserve">
-    <value>Für Prusa Connect ist der Test noch nicht verfügbar.</value>
   </data>
   <data name="SettingsTestCancelled" xml:space="preserve">
     <value>Test abgebrochen.</value>
@@ -660,6 +636,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Autostart und Updates</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Aufnahme</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Nach der Anmeldung bei Windows starten</value>
   </data>
@@ -929,6 +908,12 @@
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
     <value>Wenn aktiviert, gelten die Werte unten nur, solange keine Position gespeichert ist. Speichern wirkt beim nächsten Öffnen, Übernehmen sofort.</value>
+  </data>
+  <data name="SettingsCameraWindowAutoClose" xml:space="preserve">
+    <value>Bei ausgeschaltetem Drucker schließen, nach dem Einschalten wieder öffnen</value>
+  </data>
+  <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
+    <value>Gilt für alle Drucker. Ein selbst geschlossenes Fenster bleibt geschlossen.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Öffnen als</value>
@@ -1464,5 +1449,461 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Verschieben Sie LayerPeek in den Ordner „Programme“; dann kann es sich selbst aktualisieren.</value>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>_Aufnahme starten</value>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>_Aufnahme beenden</value>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>_Letzte Aufnahme abspielen</value>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>_Ordner mit Aufnahmen öffnen</value>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>Dieser Drucker hat noch keine Aufnahme.</value>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Aufnahme starten</value>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Aufnahme beenden</value>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>Die Aufnahme startet…</value>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>Die Aufnahme wird abgeschlossen…</value>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>Diese Version von LayerPeek kann die Kamera nicht aufnehmen.</value>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Aufnahme läuft</value>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, Aufnahme läuft</value>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>Kameraaufnahme fehlgeschlagen</value>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>Diese Version von LayerPeek kann die Kamera nicht aufnehmen.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>Die Kamera des Druckers ist nicht verfügbar.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>In den Aufnahmeordner kann nicht geschrieben werden. Prüfen Sie das Laufwerk oder wählen Sie in den Einstellungen einen anderen Ordner.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Auf dem Laufwerk sind weniger als {0} GB frei.</value>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>Das Laufwerk ist voll.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>Die Aufnahmedatei konnte nicht geschrieben werden.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>Das Schreiben auf das Laufwerk kam mit der Kamera nicht mit.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>Der Kamerastream ist abgebrochen oder kann nicht gespeichert werden.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>Die Aufnahme allein ist größer als die Größengrenze aller Aufnahmen ({0} GB).</value>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Aufnahme</value>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Ordner mit Aufnahmen öffnen</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Ordner für Aufnahmen</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Ändern…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Standard</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Wieder den Videoordner des Systems verwenden.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Jeder Drucker erhält darin einen eigenen Unterordner.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Ordner für Aufnahmen auswählen</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>Der gewählte Ordner liegt auf keinem Laufwerk dieses Computers.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>Dieser Ordner kann nicht verwendet werden: Der Pfad ist länger als {0} Zeichen oder enthält unzulässige Zeichen.</value>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>In den gewählten Ordner kann nicht geschrieben werden.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Größengrenze aller Aufnahmen (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Über der Grenze werden die ältesten Aufnahmen gelöscht. Bei weniger als {0} GB freiem Speicher stoppt die Aufnahme.</value>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Geben Sie eine ganze Zahl von {0} bis {1} ein.</value>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Drucke automatisch aufnehmen</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Nimmt vom Beginn eines Drucks bis eine Minute nach seinem Ende auf, auch ohne geöffnetes Kamerafenster.</value>
+  </data>
+  <data name="MenuSaveDashcam" xml:space="preserve">
+    <value>Letzte {0}&#160;Min. _speichern</value>
+  </data>
+  <data name="DashcamNotPrinting" xml:space="preserve">
+    <value>Die letzten Minuten werden nur während eines Drucks gehalten.</value>
+  </data>
+  <data name="DashcamWholePrintRecorded" xml:space="preserve">
+    <value>Der ganze Druck wird aufgenommen.</value>
+  </data>
+  <data name="DashcamSaving" xml:space="preserve">
+    <value>Die letzten Minuten werden gespeichert…</value>
+  </data>
+  <data name="SettingsDashcam" xml:space="preserve">
+    <value>Letzte Minuten eines Drucks (Dashcam)</value>
+  </data>
+  <data name="SettingsDashcamMinutes" xml:space="preserve">
+    <value>Länge (Minuten)</value>
+  </data>
+  <data name="SettingsDashcamMinutesHint" xml:space="preserve">
+    <value>Während eines Drucks im Speicher gehalten (etwa 8&#160;MB pro Minute und Drucker) und mit {0}&#160;s nach dem Ereignis gespeichert.</value>
+  </data>
+  <data name="SettingsDashcamTriggers" xml:space="preserve">
+    <value>Automatisch speichern</value>
+  </data>
+  <data name="SettingsDashcamOnError" xml:space="preserve">
+    <value>Bei einem Druckfehler</value>
+  </data>
+  <data name="SettingsDashcamOnAttention" xml:space="preserve">
+    <value>Wenn der Drucker Aufmerksamkeit braucht</value>
+  </data>
+  <data name="SettingsDashcamOnStopped" xml:space="preserve">
+    <value>Wenn der Druck gestoppt wird</value>
+  </data>
+  <data name="SettingsDashcamOnFailureDetection" xml:space="preserve">
+    <value>Wenn die Kamera einen Druckfehler erkennt</value>
+  </data>
+  <data name="SettingsDashcamTriggersHint" xml:space="preserve">
+    <value>Von Hand speichern geht immer: im Menü des Druckers oder im Menü des Kamerafensters.</value>
+  </data>
+  <data name="SettingsDashcamPrinter" xml:space="preserve">
+    <value>Letzte Minuten behalten (Dashcam)</value>
+  </data>
+  <data name="SettingsDashcamPrinterHint" xml:space="preserve">
+    <value>Hält während eines Drucks die letzten Minuten der Kamera im Speicher und speichert sie, wenn etwas schiefgeht (Registerkarte Aufnahme). Ruht, während der ganze Druck aufgenommen wird.</value>
+  </data>
+  <data name="NotificationDashcamFailed" xml:space="preserve">
+    <value>Speichern der letzten Minuten fehlgeschlagen</value>
+  </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Möglicher Druckfehler – {0}</value>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>Fehlalarm</value>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Veränderung auf dem Druckbett</value>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Erkennt ein verschwundenes oder verschobenes Teil und neues Material auf dem Druckbett. Erkennt weder die Qualität der ersten Schicht noch Probleme an der Düse oder Fehler im Inneren des Teils.</value>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Bekannte Einschränkung: Bei dunklem Filament auf einer schwarzen Druckplatte weniger zuverlässig.</value>
+  </data>
+  <data name="DetectorAirPrinting" xml:space="preserve">
+    <value>Drucken ins Leere</value>
+  </data>
+  <data name="DetectorAirPrintingDescription" xml:space="preserve">
+    <value>Erkennt, dass der Drucker weiterdruckt (die Z-Achse steigt), auf dem Druckbett aber nichts mehr wächst, z. B. weil das Filament unbemerkt ausging, der Extruder durchrutscht oder die Düse verstopft ist. Nur für Drucker, deren Druckbett beim Drucken nach unten fährt (Core One, XL). Erkennt keine dünneren Wände, keine Oberflächenqualität und nicht, wenn nur eines von mehreren Teilen aufhört zu wachsen.</value>
+  </data>
+  <data name="DetectorAirPrintingLimitation" xml:space="preserve">
+    <value>Bekannte Einschränkung: meldet den Fehler erst, nachdem die Z-Achse um weitere ~3 mm gestiegen ist (Minuten, bei langsamen Drucken eine halbe Stunde und mehr). Teile, die größtenteils unter dem Druckkopf verborgen sind, und die ersten ~6 mm nach dem Start oder nach einer neuen Verbindung der Kamera werden nicht bewertet; ein weiter wachsender Reinigungsturm kann den Fehler verdecken. Ein Teil mit einem breiteren unteren Abschnitt, der früher endet, oder mehrere Teile, von denen die meisten früher enden, können einen Fehlalarm auslösen.</value>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Detektor {0}</value>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Erkennung</value>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Drucke dieses Druckers mit der Kamera überwachen</value>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Läuft nur während des Drucks und bei eingeschalteter Kammerbeleuchtung. Das Kamerabild bleibt auf diesem Computer.</value>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Die Erkennung braucht die Kamera des Druckers: Schalten Sie sie im Unterreiter Kamera ein.</value>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Die Erkennung von Druckfehlern ist für alle Drucker aus: Schalten Sie sie im Reiter Aufnahme ein.</value>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Bereich des Druckbetts</value>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Ziehen Sie außerhalb des Rechtecks, um ein neues zu zeichnen, innerhalb, um es zu verschieben, an einer Ecke, um die Größe zu ändern. Tastatur: Pfeiltasten verschieben, Umschalt+Pfeiltasten ändern die Größe.</value>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Bereich des Druckbetts: {0}&#160;% von links, {1}&#160;% von oben, {2}&#160;% breit, {3}&#160;% hoch</value>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Ganzes Bild</value>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Standard für Core One</value>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Bild laden</value>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Holt ein neues Bild von der Kamera (wie Kamera testen im Unterreiter Kamera) und behält es für das nächste Mal.</value>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>Noch kein Bild. Laden Sie eines von der Kamera.</value>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Zuletzt gespeichertes Bild – die Kamera kann sich seitdem bewegt haben.</value>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>Was erkannt wird</value>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>Diese Version von LayerPeek hat noch keine Detektoren.</value>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Empfindlichkeit</value>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Empfindlichkeit – {0}</value>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Höher: mehr Alarme, auch Fehlalarme. Niedriger: weniger Alarme, ein Fehler kann übersehen werden.</value>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Erkennung von Druckfehlern</value>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Druckfehler im Kamerabild suchen</value>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Schalten Sie sie auch für jeden Drucker in dessen Unterreiter Erkennung ein.</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Bild jedes Alarms speichern</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>In den Aufnahmeordner des Druckers, zählt zur Größenbegrenzung der Aufnahmen.</value>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Alarm</value>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Einmal pro Druck und Fehlerart</value>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Alle {0} Min. erneut, solange er anhält</value>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Kamera prüfen alle (s)</value>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Kürzer erkennt einen Fehler früher, länger belastet den Prozessor weniger.</value>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Geben Sie eine Zahl von {0} bis {1} ein.</value>
+  </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>_Zeitraffer starten (experimentell)</value>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>_Zeitraffer beenden (experimentell)</value>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Letzten Zeit_raffer abspielen</value>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>Dieser Drucker hat noch keinen Zeitraffer.</value>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Zeitraffer starten (experimentell)</value>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Zeitraffer beenden (experimentell)</value>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>Der Zeitraffer startet…</value>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>Der Zeitraffer wird abgeschlossen…</value>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>Während der Druck pausiert, werden keine Bilder aufgenommen.</value>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>Diese Version von LayerPeek kann keine Zeitraffer aufnehmen.</value>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Zeitraffer fehlgeschlagen</value>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>Diese Version von LayerPeek kann keine Zeitraffer aufnehmen.</value>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>Die Zeitraffer-Datei konnte nicht geschrieben werden.</value>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>Der Zeitraffer allein ist größer als die Größengrenze aller Aufnahmen ({0}&#160;GB).</value>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Zeitraffer</value>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Experimentell</value>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>Eine experimentelle Funktion: Sie kann sich ändern oder nicht immer zuverlässig funktionieren.</value>
+  </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Eine experimentelle Funktion: abgestimmt auf simulierte Fehldrucke und einen echten erfolgreichen Druck. Sie kann einen Fehldruck übersehen oder einen Fehlalarm auslösen.</value>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Zeit zwischen Bildern (Sekunden)</value>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>Ein Bild pro Intervall, keines während der Druck pausiert. Das Video läuft mit {0} Bildern pro Sekunde.</value>
+  </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Bild aufnehmen</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Alle N Sekunden</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Jede N. Schicht (geschätzt)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Alle N Sekunden: ein Bild pro Intervall. Jede N-te Schicht: ein Bild, wenn eine neue Schicht beginnt, geschätzt aus der Höhe der Z-Achse, die PrusaLink bei jeder Abfrage meldet (der Drucker meldet keine Schichten). Experimentell.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Schichten zwischen Bildern</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Ein Bild jede N-te Schicht (1 = jede Schicht), dazu eines zu Beginn und eines vom fertigen Druck, keines während der Druck pausiert. Die Schicht wird bei jeder Abfrage aus der Z-Achse geschätzt: Schichten kürzer als etwa zwei Abfragen werden zusammengefasst, und selten fügt ein Z-Hop oder ein Werkzeugwechsel ein Bild hinzu. Das Video läuft mit {0} Bildern pro Sekunde.</value>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Zeitraffer von Drucken aufnehmen</value>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Nimmt vom Beginn eines Drucks bis eine Minute nach seinem Ende einen Zeitraffer auf, auch ohne geöffnetes Kamerafenster. Die Zeit zwischen Bildern steht auf der Registerkarte Aufnahme.</value>
+  </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>Zeitraffer als JPEG _exportieren… (experimentell)</value>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>JPEG-_Export abbrechen ({0} %)</value>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Exportiert {0}</value>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>Der JPEG-Export ist in dieser Version nicht verfügbar.</value>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Zeitraffer für den JPEG-Export wählen (experimentell)</value>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Zeitraffer (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Zeitraffer als JPEG exportiert</value>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>{0} Bilder in einem Ordner neben dem Zeitraffer.</value>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Export des Zeitraffers als JPEG fehlgeschlagen</value>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>Die Datei ist kein Zeitraffer von LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>Der Zeitraffer kann nicht gelesen werden (Datei fehlt oder ist beschädigt).</value>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>In dieser Version fehlt der Videodecoder.</value>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>Der Ordner neben dem Zeitraffer ist nicht beschreibbar.</value>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>Ein unerwarteter Fehler ist aufgetreten, siehe Protokoll.</value>
+  </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>Zeitraffer aus Aufnahme ers_tellen… (experimentell)</value>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>Ers_tellen des Zeitraffers abbrechen ({0} %)</value>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Erstellt einen Zeitraffer aus {0}</value>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Zeitraffer aus Aufnahmen sind in dieser Version nicht verfügbar.</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Aufnahme für den Zeitraffer wählen (experimentell)</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Aufnahme (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Zeitraffer aus Aufnahme erstellt</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>{0} Bilder, neben der Aufnahme.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Erstellen des Zeitraffers aus der Aufnahme fehlgeschlagen</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>Die Datei ist keine Aufnahme von LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>Die Aufnahme kann nicht gelesen werden (Datei fehlt oder ist beschädigt).</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>In dieser Version fehlt die Videobibliothek.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>Der Ordner neben der Aufnahme ist nicht beschreibbar.</value>
+  </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Dunkles Filament</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Schwarzes oder sehr dunkles Filament: Schon eine geringere Verdunkelung auf dem Druckbett zählt als Änderung. Findet auf einer dunklen Druckplatte etwas mehr, mit höherem Risiko für Fehlalarme.</value>
   </data>
 </root>

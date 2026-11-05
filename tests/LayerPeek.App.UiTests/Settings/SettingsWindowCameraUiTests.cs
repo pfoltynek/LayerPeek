@@ -180,8 +180,8 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
 
             Assert.False(harness.Window.IsShown<Border>("PrinterCameraPreviewFrame"));
             Assert.Empty(harness.Factory.Feeds);
-            // Nothing reserved: the button starts at the left edge of the sub-tab, under the address field.
-            Assert.Equal(PositionOf(harness.UrlField, harness.Window).X, PositionOf(harness.Button("Test camera"), harness.Window).X, 1);
+            // Nothing reserved: the button starts at the left edge of the sub-tab, under the address row (T-161: its label is left of the field).
+            Assert.Equal(PositionOf((Control)harness.UrlField.Parent!, harness.Window).X, PositionOf(harness.Button("Test camera"), harness.Window).X, 1);
         });
 
     [Fact]
@@ -197,8 +197,8 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             Assert.Equal(new Size(320, 180), frame.Bounds.Size);
             Assert.Equal(new Size(320, 180), harness.Window.Find<Image>("PrinterCameraPreview").Bounds.Size);
             Point origin = PositionOf(frame, harness.Window);
-            // Left of the button and its result, aligned with the address field above.
-            Assert.Equal(PositionOf(harness.UrlField, harness.Window).X, origin.X, 1);
+            // Left of the button and its result, aligned with the address row above.
+            Assert.Equal(PositionOf((Control)harness.UrlField.Parent!, harness.Window).X, origin.X, 1);
             Assert.True(PositionOf(harness.Button("Test camera"), harness.Window).X >= origin.X + 320);
             using WriteableBitmap rendered = harness.Window.CaptureRenderedFrame()!;
             // 16:9 in the 16:9 frame: red everywhere, no bands.

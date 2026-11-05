@@ -105,9 +105,6 @@
   <data name="MenuOpenPrusaLink" xml:space="preserve">
     <value>_Otvoriť PrusaLink</value>
   </data>
-  <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Otvoriť Prusa Connect</value>
-  </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Adresa tlačiarne nie je platná</value>
   </data>
@@ -264,9 +261,6 @@
   <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
     <value>Zabezpečené (https) spojenie s tlačiarňou zlyhalo.</value>
   </data>
-  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
-    <value>Pre Prusa Connect nie je k dispozícii</value>
-  </data>
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Zavrieť</value>
   </data>
@@ -300,15 +294,6 @@
   <data name="SettingsName" xml:space="preserve">
     <value>Názov</value>
   </data>
-  <data name="SettingsConnectionType" xml:space="preserve">
-    <value>Pripojenie</value>
-  </data>
-  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
-    <value>PrusaLink (miestna sieť)</value>
-  </data>
-  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect (zatiaľ nie je k dispozícii)</value>
-  </data>
   <data name="SettingsAddress" xml:space="preserve">
     <value>Adresa</value>
   </data>
@@ -320,9 +305,6 @@
   </data>
   <data name="SettingsUserNameHint" xml:space="preserve">
     <value>Používateľské meno PrusaLink z nastavení tlačiarne. Predvolené je „maker“.</value>
-  </data>
-  <data name="SettingsUserNameNotUsed" xml:space="preserve">
-    <value>Prusa Connect používateľské meno tlačiarne nepoužíva.</value>
   </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Heslo</value>
@@ -341,9 +323,6 @@
   </data>
   <data name="SettingsPasswordUnsupported" xml:space="preserve">
     <value>V tomto systéme zatiaľ nie je možné ukladať heslá. Tlačiarne, ktoré heslo vyžadujú, ohlásia, že chýba.</value>
-  </data>
-  <data name="SettingsPasswordNotUsed" xml:space="preserve">
-    <value>Prusa Connect heslo tlačiarne nepoužíva.</value>
   </data>
   <data name="SettingsTestConnection" xml:space="preserve">
     <value>Otestovať spojenie</value>
@@ -383,9 +362,6 @@
   </data>
   <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
     <value>Na tejto adrese niečo odpovedá, ale nevyzerá to ako tlačiareň s PrusaLink.</value>
-  </data>
-  <data name="SettingsTestNotSupported" xml:space="preserve">
-    <value>Pre Prusa Connect zatiaľ test nie je k dispozícii.</value>
   </data>
   <data name="SettingsTestCancelled" xml:space="preserve">
     <value>Test bol zrušený.</value>
@@ -660,6 +636,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Spustenie a aktualizácie</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Nahrávanie</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Spúšťať po prihlásení do Windows</value>
   </data>
@@ -929,6 +908,12 @@
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
     <value>Keď je zapnuté, hodnoty nižšie sa použijú, len kým okno nemá zapamätanú polohu. Uložiť ich použije pri ďalšom otvorení okna, Použiť hneď.</value>
+  </data>
+  <data name="SettingsCameraWindowAutoClose" xml:space="preserve">
+    <value>Zatvoriť, keď sa tlačiareň vypne, a znova otvoriť po jej zapnutí</value>
+  </data>
+  <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
+    <value>Platí pre všetky tlačiarne. Okno, ktoré zatvoríte sami, zostane zatvorené.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otvoriť ako</value>
@@ -1464,5 +1449,461 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Presuňte LayerPeek do priečinka Aplikácie, potom sa bude aktualizovať sám.</value>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>_Nahrávať</value>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Zastaviť _nahrávanie</value>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>Prehrať pos_lednú nahrávku</value>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Otvoriť p_riečinok s nahrávkami</value>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>Tlačiareň zatiaľ nemá žiadnu nahrávku.</value>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Nahrávať</value>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Zastaviť nahrávanie</value>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>Nahrávanie sa spúšťa…</value>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>Nahrávanie sa ukončuje…</value>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>Táto verzia LayerPeeku nevie nahrávať kameru.</value>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Nahráva sa</value>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, nahráva sa</value>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>Nahrávanie kamery zlyhalo</value>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>Táto verzia LayerPeeku nevie nahrávať kameru.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>Kamera tlačiarne nie je k dispozícii.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>Do priečinka s nahrávkami nemožno zapisovať. Skontrolujte disk alebo v nastaveniach vyberte iný priečinok.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Na disku zostáva menej ako {0} GB voľného miesta.</value>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>Disk je plný.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>Súbor nahrávky nemožno zapísať.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>Zápis na disk nestíhal obraz z kamery.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>Obraz z kamery sa prerušil alebo ho nemožno uložiť.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>Samotná nahrávka je väčšia ako limit veľkosti všetkých nahrávok ({0} GB).</value>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Nahrávanie</value>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Otvoriť priečinok s nahrávkami</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Priečinok na nahrávky</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Zmeniť…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Predvolený</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Znova použiť systémový priečinok s videami.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Každá tlačiareň má v priečinku vlastný podpriečinok.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Vyberte priečinok na nahrávky</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>Vybraný priečinok nie je na disku tohto počítača.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>Tento priečinok nemožno použiť: cesta je dlhšia ako {0} znakov alebo obsahuje nepovolené znaky.</value>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>Do vybraného priečinka nemožno zapisovať.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Limit veľkosti všetkých nahrávok (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Nad limitom sa zmažú najstaršie nahrávky. Pri menej ako {0} GB voľného miesta sa nahrávanie zastaví.</value>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Zadajte celé číslo od {0} do {1}.</value>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Automaticky nahrávať tlač</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Nahráva od začiatku tlače do minúty po jej skončení, aj keď okno kamery nie je otvorené.</value>
+  </data>
+  <data name="MenuSaveDashcam" xml:space="preserve">
+    <value>Uložiť posle_dných {0}&#160;min</value>
+  </data>
+  <data name="DashcamNotPrinting" xml:space="preserve">
+    <value>Posledné minúty sa uchovávajú len počas tlače.</value>
+  </data>
+  <data name="DashcamWholePrintRecorded" xml:space="preserve">
+    <value>Nahráva sa celá tlač.</value>
+  </data>
+  <data name="DashcamSaving" xml:space="preserve">
+    <value>Posledné minúty sa ukladajú…</value>
+  </data>
+  <data name="SettingsDashcam" xml:space="preserve">
+    <value>Posledné minúty tlače (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamMinutes" xml:space="preserve">
+    <value>Dĺžka (minúty)</value>
+  </data>
+  <data name="SettingsDashcamMinutesHint" xml:space="preserve">
+    <value>Počas tlače sa držia v pamäti (asi 8&#160;MB za minútu a tlačiareň) a ukladajú sa aj s {0}&#160;s po udalosti.</value>
+  </data>
+  <data name="SettingsDashcamTriggers" xml:space="preserve">
+    <value>Ukladať automaticky</value>
+  </data>
+  <data name="SettingsDashcamOnError" xml:space="preserve">
+    <value>Pri chybe tlače</value>
+  </data>
+  <data name="SettingsDashcamOnAttention" xml:space="preserve">
+    <value>Keď tlačiareň čaká na zásah</value>
+  </data>
+  <data name="SettingsDashcamOnStopped" xml:space="preserve">
+    <value>Pri zastavení tlače</value>
+  </data>
+  <data name="SettingsDashcamOnFailureDetection" xml:space="preserve">
+    <value>Keď kamera rozpozná chybu tlače</value>
+  </data>
+  <data name="SettingsDashcamTriggersHint" xml:space="preserve">
+    <value>Ručne sa dá uložiť vždy: v menu tlačiarne alebo v ponuke okna kamery.</value>
+  </data>
+  <data name="SettingsDashcamPrinter" xml:space="preserve">
+    <value>Uchovávať posledné minúty (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamPrinterHint" xml:space="preserve">
+    <value>Počas tlače drží posledné minúty kamery v pamäti a uloží ich, keď sa niečo pokazí (karta Nahrávanie). Nebeží, keď sa nahráva celá tlač.</value>
+  </data>
+  <data name="NotificationDashcamFailed" xml:space="preserve">
+    <value>Uloženie posledných minút zlyhalo</value>
+  </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Možná chyba tlače – {0}</value>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>Falošný poplach</value>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Zmena na podložke</value>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Spozná zmiznutie alebo posun dielu a novú hmotu na podložke. Nespozná kvalitu prvej vrstvy, problémy na tryske ani chyby vo vnútri dielu.</value>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Známe obmedzenie: pri tmavom filamente na čiernom pláte je menej spoľahlivý.</value>
+  </data>
+  <data name="DetectorAirPrinting" xml:space="preserve">
+    <value>Tlač do vzduchu</value>
+  </data>
+  <data name="DetectorAirPrintingDescription" xml:space="preserve">
+    <value>Rozpozná, že tlačiareň ďalej tlačí (os Z stúpa), ale na podložke už nič nepribúda, napríklad keď nepozorovane došiel filament, prešmykuje podávač alebo sa upchala tryska. Len pre tlačiarne, ktorých podložka pri tlači klesá (Core One, XL). Nerozpozná tenšie steny, kvalitu povrchu ani to, že prestal rásť len jeden z viacerých dielov.</value>
+  </data>
+  <data name="DetectorAirPrintingLimitation" xml:space="preserve">
+    <value>Známe obmedzenie: chybu nahlási až potom, čo os Z vystúpi o ďalšie ~3 mm (minúty, pri pomalých tlačiach aj pol hodiny a viac). Nehodnotí diely skryté prevažne pod hlavou ani prvé ~6 mm po štarte alebo po novom pripojení kamery a čistiaca veža, ktorá ďalej rastie, môže chybu zakryť. Diel so širšou spodnou časťou, ktorá skončí skôr, alebo niekoľko dielov, z ktorých väčšina skončí skôr, môže vyvolať planý poplach.</value>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Detektor {0}</value>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Detekcia</value>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Strážiť tlač tejto tlačiarne kamerou</value>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Beží len počas tlače a so svietiacim osvetlením komory. Obraz kamery zostáva v tomto počítači.</value>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Detekcia potrebuje kameru tlačiarne: zapnite ju na podzáložke Kamera.</value>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Detekcia chýb tlače je vypnutá pre všetky tlačiarne: zapnite ju na záložke Nahrávanie.</value>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Výrez podložky</value>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Ťahaním mimo obdĺžnika nakreslíte nový, vnútri ho presuniete, za roh zmeníte jeho veľkosť. Klávesnica: šípky ho posúvajú, Shift+šípky menia veľkosť.</value>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Výrez podložky: {0}&#160;% zľava, {1}&#160;% zhora, šírka {2}&#160;%, výška {3}&#160;%</value>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Celá snímka</value>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Predvolený pre Core One</value>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Načítať snímku</value>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Vezme novú snímku z kamery (ako Otestovať kameru na podzáložke Kamera) a ponechá si ju na budúce.</value>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>Zatiaľ žiadna snímka. Načítajte ju z kamery.</value>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Posledná uložená snímka – kamera sa mohla medzitým pohnúť.</value>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>Čo hľadať</value>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>Táto verzia LayerPeeku zatiaľ nemá žiadny detektor.</value>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Citlivosť</value>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Citlivosť – {0}</value>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Vyššia: viac poplachov, aj falošných. Nižšia: menej poplachov, chyba môže uniknúť.</value>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Detekcia chýb tlače</value>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Hľadať chyby tlače v obraze kamery</value>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Zapnite ju aj pri jednotlivých tlačiarňach na podzáložke Detekcia.</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Ukladať snímku každého poplachu</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>Do priečinka s nahrávkami tlačiarne, počíta sa do limitu veľkosti nahrávok.</value>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Poplach</value>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Raz za tlač a druh chyby</value>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Znova každých {0}&#160;min, kým trvá</value>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Kontrolovať kameru každých (s)</value>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Kratší spozná chybu skôr, dlhší menej zaťaží procesor.</value>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Zadajte číslo od {0} do {1}.</value>
+  </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>Spustiť _timelapse (experimentálne)</value>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>Zastaviť _timelapse (experimentálne)</value>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Prehrať posledný ti_melapse</value>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>Tlačiareň zatiaľ nemá žiadny timelapse.</value>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Spustiť timelapse (experimentálne)</value>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Zastaviť timelapse (experimentálne)</value>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>Timelapse sa spúšťa…</value>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>Timelapse sa dokončuje…</value>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>Počas pauzy tlače sa snímky nezaznamenávajú.</value>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>Táto verzia LayerPeeku nevie zaznamenávať timelapse.</value>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Timelapse zlyhal</value>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>Táto verzia LayerPeeku nevie zaznamenávať timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>Súbor timelapse sa nepodarilo zapísať.</value>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>Samotný timelapse je väčší než limit veľkosti všetkých nahrávok ({0}&#160;GB).</value>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Timelapse</value>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Experimentálne</value>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>Experimentálna funkcia: môže sa zmeniť alebo nemusí vždy fungovať spoľahlivo.</value>
+  </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Experimentálna funkcia: vyladená na simulovaných zlyhaniach a jednej skutočnej úspešnej tlači. Môže zlyhanie prehliadnuť alebo vyhlásiť planý poplach.</value>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Čas medzi snímkami (sekundy)</value>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>Jedna snímka za zvolený čas, počas pauzy tlače žiadna. Video má {0} snímok za sekundu.</value>
+  </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Snímať</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Každých N sekúnd</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Každú N. vrstvu (odhad)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Každých N sekúnd: snímka po každom intervale. Každú N-tú vrstvu: snímka na začiatku novej vrstvy, odhadnutá z výšky osi Z, ktorú PrusaLink hlási pri každom dopyte (vrstvy tlačiareň nehlási). Experimentálne.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Vrstiev medzi snímkami</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Snímka každú N-tú vrstvu (1 = každú vrstvu), k tomu jedna na začiatku a jedna hotovej tlače, počas pauzy žiadna. Vrstva sa odhaduje z osi Z pri každom dopyte: vrstvy kratšie ako asi dva dopyty sa zlúčia a výnimočne pridá snímku z-hop alebo výmena filamentu. Video má {0} snímok za sekundu.</value>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Zaznamenávať timelapse tlače</value>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Zaznamenáva timelapse od začiatku tlače do minúty po jej konci, aj bez otvoreného okna kamery. Čas medzi snímkami je na karte Nahrávanie.</value>
+  </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>_Exportovať timelapse do JPEG… (experimentálne)</value>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>Zrušiť _export do JPEG ({0} %)</value>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Exportuje sa {0}</value>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>Export do JPEG nie je v tejto verzii k dispozícii.</value>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Vyberte timelapse na export do JPEG (experimentálne)</value>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Timelapse (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Timelapse exportovaný do JPEG</value>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>Snímok: {0}, v priečinku vedľa timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Export timelapse do JPEG zlyhal</value>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>Súbor nie je timelapse z LayerPeeku.</value>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>Timelapse sa nedá prečítať (súbor chýba alebo je poškodený).</value>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>V tejto verzii chýba dekodér videa.</value>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>Do priečinka vedľa timelapse sa nedá zapisovať.</value>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>Nastala neočakávaná chyba, podrobnosti sú v logu.</value>
+  </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>_Vytvoriť timelapse z nahrávky… (experimentálne)</value>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>Zrušiť _vytváranie timelapse ({0} %)</value>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Vytvára sa timelapse z {0}</value>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Vytvorenie timelapse z nahrávky nie je v tejto verzii k dispozícii.</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Vyberte nahrávku na vytvorenie timelapse (experimentálne)</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Nahrávka (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Timelapse z nahrávky vytvorený</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>Snímok: {0}, vedľa nahrávky.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Vytvorenie timelapse z nahrávky zlyhalo</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>Súbor nie je nahrávka z LayerPeeku.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>Nahrávka sa nedá prečítať (súbor chýba alebo je poškodený).</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>V tejto verzii chýba knižnica videa.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>Do priečinka vedľa nahrávky sa nedá zapisovať.</value>
+  </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Tmavý filament</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Čierny alebo veľmi tmavý filament: ako zmena sa počíta aj menšie stmavnutie na podložke. Na tmavom pláte nájde o niečo viac, s vyšším rizikom falošných poplachov.</value>
   </data>
 </root>

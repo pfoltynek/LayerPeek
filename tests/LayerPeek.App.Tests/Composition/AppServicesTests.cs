@@ -23,6 +23,7 @@ using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Monitoring;
@@ -385,6 +386,73 @@ public sealed class AppServicesTests
     }
 
     /// <summary>
+    /// T-143: one shared camera hub with the decided linger time, told about the cameras of every run before the camera
+    /// windows hear of them; the camera test uses it for saved cameras.
+    /// </summary>
+    [Fact]
+    public async Task CameraStreamHubIsASingletonConfiguredBeforeTheCameraWindows()
+    {
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+
+        CameraStreamHub hub = services.GetRequiredService<CameraStreamHub>();
+        Assert.Same(hub, services.GetRequiredService<CameraStreamHub>());
+        Assert.Equal(TimeSpan.FromSeconds(10), hub.Linger);
+        List<IMonitoringObserver> observers = [.. services.GetRequiredService<MonitoringSession>().Observers];
+        int hubObserver = observers.IndexOf(services.GetRequiredService<CameraStreamHubObserver>());
+        int monitored = observers.IndexOf(services.GetRequiredService<MonitoredPrinters>());
+        Assert.True(hubObserver >= 0, "The hub gets no settings.");
+        Assert.True(hubObserver < monitored, "Camera windows would hear of a new address before the hub.");
+
+        ((IMonitoringObserver)services.GetRequiredService<CameraStreamHubObserver>()).ApplySettings(new AppSettings
+        {
+            Printers = [new() { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }],
+        });
+        Assert.True(hub.IsConfigured("a", new Uri("rtsp://192.168.0.227/live")));
+    }
+
+    /// <summary>
+    /// T-145: one recording service over the recorder, told about every run before the hub (a switched-off camera stops its
+    /// recording on the service's account); the test mode records into its data folder, never into the user's videos.
+    /// </summary>
+    [Fact]
+    public async Task CameraRecordingServiceIsWiredBeforeTheHub()
+    {
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+
+        CameraRecordingService recordings = services.GetRequiredService<CameraRecordingService>();
+        Assert.Same(recordings, services.GetRequiredService<CameraRecordingService>());
+        List<IMonitoringObserver> observers = [.. services.GetRequiredService<MonitoringSession>().Observers];
+        int recordingObserver = observers.IndexOf(services.GetRequiredService<CameraRecordingObserver>());
+        int hubObserver = observers.IndexOf(services.GetRequiredService<CameraStreamHubObserver>());
+        Assert.True(recordingObserver >= 0, "The recording service gets no settings.");
+        Assert.True(recordingObserver < hubObserver, "The hub would end the lease of a switched-off camera before the recording stops.");
+        Assert.Equal(CameraRecordingFolders.DefaultRoot(), recordings.RecordingsFolder);
+
+#if DEBUG
+        // AppEnvironment.ForTests exists only in Debug builds.
+        AppEnvironment isolated = AppEnvironment.ForTests(Path.Combine(Path.GetTempPath(), "LayerPeek-test-data"));
+        Assert.Equal(Path.Combine(isolated.DataDirectory(), "Recordings"), AppServices.CameraRecordingOptions(isolated).DefaultRoot);
+#endif
+        Assert.Same(CameraRecordingServiceOptions.Default, AppServices.CameraRecordingOptions(AppEnvironment.Production));
+    }
+
+    /// <summary>A start that failed after the services were created disposes the container synchronously (DisposeAfterFailedStart).</summary>
+    [Fact]
+    public void TheContainerWithTheRecordingServiceCanBeDisposedSynchronously()
+    {
+        ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+        services.GetRequiredService<CameraRecordingService>();
+
+        services.Dispose();
+    }
+
+    /// <summary>
     /// T-087: one in-memory preview cache over the PrusaLink fetcher (T-086), fed with every snapshot and the printers of
     /// every run, and one shared store of decoded thumbnails that the Print name widget of every camera window uses.
     /// </summary>
@@ -405,6 +473,22 @@ public sealed class AppServicesTests
         Assert.NotNull(camera);
         PrintNameWidgetViewModel widget = Assert.IsType<PrintNameWidgetViewModel>(camera.Overlay.Widgets.Single(static widget => widget.Id == LayerPeek.Core.Cameras.Overlay.OverlayWidgetIds.PrintName));
         Assert.Same(services.GetRequiredService<PrintThumbnails>(), widget.Thumbnails);
+    }
+
+    /// <summary>T-151: one observer of the automatic close and reopen of the camera windows, told about every monitoring run.</summary>
+    [Fact]
+    public async Task CameraWindowAutoVisibilityIsWiredToMonitoring()
+    {
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+
+        CameraWindowAutoVisibilityObserver observer = services.GetRequiredService<CameraWindowAutoVisibilityObserver>();
+        Assert.Same(observer, services.GetRequiredService<CameraWindowAutoVisibilityObserver>());
+        Assert.Contains(observer, services.GetRequiredService<MonitoringSession>().Observers);
+        // The windows are attached by the app once its UI runs.
+        Assert.False(observer.IsRunning);
+        Assert.NotNull(services.GetRequiredService<LayerPeek.App.Platform.ISystemResumeEvents>());
     }
 
     [Fact]

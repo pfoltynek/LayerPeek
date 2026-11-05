@@ -34,7 +34,7 @@ public sealed class SettingsWindowImageUiTests(HeadlessSession session)
                 SettingsWindowHarness.StoreWith(
                     LinkPrinter("a", "Alpha") with { DetectedModel = Mk4SCode },
                     LinkPrinter("b", "Beta", "192.168.1.21") with { Image = PrinterImageChoice.ForModel(PrinterModel.Xl) },
-                    CloudPrinter("c", "Cloud")));
+                    LinkPrinter("c", "Gamma", "192.168.1.42")));
 
             PrinterImageView[] images = [.. ui.Window.GetVisualDescendantsOf<PrinterImageView>("PrinterListImage")];
 

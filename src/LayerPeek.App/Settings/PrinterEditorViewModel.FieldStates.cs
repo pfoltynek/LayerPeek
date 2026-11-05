@@ -36,7 +36,7 @@ public sealed partial class PrinterEditorViewModel
 
     public string? AddressHelpText => AddressError ?? (ShowsAddressHint ? Strings.SettingsAddressHint : null);
 
-    public string? UserNameHelpText => UserNameError ?? (ShowsUserNameHint ? UserNameHint : null);
+    public string? UserNameHelpText => UserNameError ?? (ShowsUserNameHint ? Strings.SettingsUserNameHint : null);
 
     public string? PasswordHelpText => PasswordError ?? (ShowsPasswordHint ? PasswordHint : null);
 

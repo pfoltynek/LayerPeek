@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "recording": {
+    "folder": "relative/folder",
+    "sizeLimitGigabytes": 0.5,
+    "futureOption": 1
+  },
+  "printers": [
+    {
+      "id": "3f1c2b0a9d8e4f6a8b7c6d5e4f3a2b1c",
+      "name": "Workshop MK4",
+      "connectionType": "PrusaLink",
+      "address": "192.168.0.226",
+      "camera": {
+        "enabled": true,
+        "streamUrl": "rtsp://192.168.0.227/live",
+        "recordPrints": "yes"
+      }
+    }
+  ]
+}

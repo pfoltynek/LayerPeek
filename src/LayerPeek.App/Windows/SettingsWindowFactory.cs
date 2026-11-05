@@ -25,6 +25,8 @@ internal static class SettingsWindowFactory
             viewModel = createViewModel(new AvaloniaScreenCatalog(window));
             // The file dialog of custom printer images (T-039) belongs to this window.
             viewModel.ImageFilePicker = new StorageProviderImageFilePicker(window);
+            // The folder dialog of the recordings (T-146) too.
+            viewModel.RecordingFolderPicker = new StorageProviderRecordingFolderPicker(window);
             window.DataContext = viewModel;
             return (window, viewModel);
         }

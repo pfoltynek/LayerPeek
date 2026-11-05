@@ -2,7 +2,8 @@
 #
 # Builds the native FFmpeg libraries of the camera for osx-arm64 (T-026) from the official FFmpeg source tarball:
 # shared, LGPL version 3 or later (no --enable-gpl, no --enable-nonfree), software decoding only (no VideoToolbox),
-# only what LayerPeek.Camera.FFmpeg uses (RTSP over TCP and raw H.264 files, the H.264 decoder, swscale to BGRA).
+# only what LayerPeek.Camera.FFmpeg uses (RTSP over TCP and raw H.264 files, the H.264 decoder, swscale to BGRA) and,
+# since T-147, the MP4 muxer for camera recording (remux of the H.264 packets into fragmented MP4, no encoder).
 #
 # Called by build/FFmpeg.targets on the first macOS build (the tarball is already downloaded and SHA256-verified there);
 # it can also be run by hand with the same arguments. Needs only the Xcode Command Line Tools (clang, make, otool, lipo)
@@ -33,7 +34,11 @@ MIN_MACOS="14.0"
 # The libraries the application loads (FFmpeg.AutoGen names avformat-63, avcodec-63, avutil-61, swscale-10).
 LIBRARIES="libavformat.63.dylib libavcodec.63.dylib libavutil.61.dylib libswscale.10.dylib"
 
-# The configure line (documented in tasks/done/T-026 and docs/prerequisites.md; keep them in sync).
+# The configure line (documented in docs/prerequisites.md; keep it in sync; tasks/done/T-026 has the original line).
+# --enable-muxer=mp4 (T-147): recording remuxes the RTSP H.264 packets (Annex B, SPS/PPS in the extradata) into
+# fragmented MP4. The mov muxer converts Annex B to length-prefixed NAL units and the extradata to avcC itself
+# (movenc.c: ff_nal_parse_units, ff_isom_write_avcc), so no bitstream filter is needed for H.264; configure adds the
+# mov muxer and its fixed dependencies (mov_muxer_select) on its own. Writing uses the file protocol enabled below.
 CONFIGURE_FLAGS=(
     --enable-shared --disable-static
     --enable-version3
@@ -44,6 +49,7 @@ CONFIGURE_FLAGS=(
     --enable-network
     --enable-protocol=tcp,file
     --enable-demuxer=rtsp,h264
+    --enable-muxer=mp4
     --enable-parser=h264
     --enable-decoder=h264
     --arch=aarch64

@@ -120,10 +120,6 @@
     <value>_Open PrusaLink</value>
     <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
   </data>
-  <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Open Prusa Connect</value>
-    <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
-  </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>The printer address is not valid</value>
   </data>
@@ -336,9 +332,6 @@
   <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
     <value>The secure (https) connection to the printer failed.</value>
   </data>
-  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
-    <value>Not available for Prusa Connect</value>
-  </data>
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Close</value>
   </data>
@@ -372,15 +365,6 @@
   <data name="SettingsName" xml:space="preserve">
     <value>Name</value>
   </data>
-  <data name="SettingsConnectionType" xml:space="preserve">
-    <value>Connection</value>
-  </data>
-  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
-    <value>PrusaLink (local network)</value>
-  </data>
-  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect (not available yet)</value>
-  </data>
   <data name="SettingsAddress" xml:space="preserve">
     <value>Address</value>
   </data>
@@ -392,9 +376,6 @@
   </data>
   <data name="SettingsUserNameHint" xml:space="preserve">
     <value>PrusaLink user name from the printer settings. The default is “maker”.</value>
-  </data>
-  <data name="SettingsUserNameNotUsed" xml:space="preserve">
-    <value>Prusa Connect does not use a printer user name.</value>
   </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Password</value>
@@ -413,9 +394,6 @@
   </data>
   <data name="SettingsPasswordUnsupported" xml:space="preserve">
     <value>Passwords cannot be saved on this system yet. Printers that require a password will report that it is missing.</value>
-  </data>
-  <data name="SettingsPasswordNotUsed" xml:space="preserve">
-    <value>Prusa Connect does not use a printer password.</value>
   </data>
   <data name="SettingsTestConnection" xml:space="preserve">
     <value>Test connection</value>
@@ -455,9 +433,6 @@
   </data>
   <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
     <value>Something answers at this address, but it does not look like a PrusaLink printer.</value>
-  </data>
-  <data name="SettingsTestNotSupported" xml:space="preserve">
-    <value>Testing is not available for Prusa Connect yet.</value>
   </data>
   <data name="SettingsTestCancelled" xml:space="preserve">
     <value>Test cancelled.</value>
@@ -737,6 +712,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Startup and updates</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Recording</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Start automatically when I sign in to Windows</value>
   </data>
@@ -966,6 +944,12 @@
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
     <value>When on, the values below are used only until the window has a remembered position. Save applies changes the next time the window opens, Apply right away.</value>
+  </data>
+  <data name="SettingsCameraWindowAutoClose" xml:space="preserve">
+    <value>Close when the printer turns off, reopen when it is back on</value>
+  </data>
+  <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
+    <value>For all printers. A window you close yourself stays closed.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Open as</value>
@@ -1555,5 +1539,578 @@
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Move LayerPeek to the Applications folder; then it can update itself.</value>
     <comment>T-058 (macOS, Q8 a): hint on the Startup and updates tab when the app runs from the disk image or Downloads (translocated) and cannot update itself.</comment>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>Start _recording</value>
+    <comment>Item of a printer submenu (T-146) while its camera is not recorded; starts a manual recording. "_" marks the access key: unique within the submenu and the same as in MenuStopRecording.</comment>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Stop _recording</value>
+    <comment>Item of a printer submenu while its camera is recorded (manually or during a print); stops the recording. Same access key as MenuStartRecording.</comment>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>_Play last recording</value>
+    <comment>Item of a printer submenu: opens the newest recording of the printer in the system's video player. Access key unique within the submenu.</comment>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Open recordings fol_der</value>
+    <comment>Item of a printer submenu: shows the folder of all recordings in Explorer / Finder. Access key unique within the submenu.</comment>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>This printer has no recording yet.</value>
+    <comment>Tooltip of the disabled MenuPlayLastRecording.</comment>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Start recording</value>
+    <comment>Tooltip and accessible name of the record button of the camera window while nothing records.</comment>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Stop recording</value>
+    <comment>Tooltip and accessible name of the record button while the camera is recorded.</comment>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>The recording is starting…</value>
+    <comment>Tooltip of the disabled record button / menu item while a recording waits for its first key frame.</comment>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>The recording is being finished…</value>
+    <comment>Tooltip of the disabled record button / menu item while a recording completes its file.</comment>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>This version of LayerPeek cannot record the camera.</value>
+    <comment>Shown where recording options are disabled because this build has no MP4 muxer.</comment>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+    <comment>The short indicator next to the red dot in the camera window while recording; keep it 3-4 characters.</comment>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Recording</value>
+    <comment>Line of the tray tooltip of a printer whose camera is recorded.</comment>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, recording</value>
+    <comment>One printer line of the multi-printer tooltip while its camera is recorded. {0} = "Name: State – 42%".</comment>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>Camera recording failed</value>
+    <comment>Second line of the notification of a failed recording (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>This version of LayerPeek cannot record the camera.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>The printer's camera is not available.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>The recordings folder cannot be written to. Check the drive or choose another folder in the settings.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Less than {0} GB of free space is left on the drive.</value>
+    <comment>{0} = free space the recordings need in GB (5).</comment>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>The drive is full.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>The recording file could not be written.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>Writing to the drive could not keep up with the camera.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>The camera stream broke off or cannot be stored.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>The recording alone is larger than the size limit of all recordings ({0} GB).</value>
+    <comment>{0} = the size limit of all recordings in GB.</comment>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Recording</value>
+    <comment>Heading of the recording section of the settings window.</comment>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Open recordings folder</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Folder for recordings</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Change…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Use the system's video folder again.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Every printer gets a subfolder of its own.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Choose the folder for recordings</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>The chosen folder is not on a drive of this computer.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>This folder cannot be used: its path is longer than {0} characters or contains characters that are not allowed.</value>
+    <comment>{0} = longest accepted path length.</comment>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>The chosen folder cannot be written to.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Size limit of all recordings (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Above the limit the oldest recordings are deleted. With less than {0} GB of free space, recording stops.</value>
+    <comment>{0} = free space the recordings need in GB (5).</comment>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Enter a whole number from {0} to {1}.</value>
+    <comment>{0} = minimum, {1} = maximum; shared by the size limit (GB), the dashcam length (minutes) and the timelapse interval (seconds).</comment>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Record prints automatically</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Records from the start of a print until a minute after its end, also without an open camera window.</value>
+  </data>
+  <data name="MenuSaveDashcam" xml:space="preserve">
+    <value>_Save the last {0}&#160;min</value>
+  </data>
+  <data name="DashcamNotPrinting" xml:space="preserve">
+    <value>The last minutes are kept only during a print.</value>
+  </data>
+  <data name="DashcamWholePrintRecorded" xml:space="preserve">
+    <value>The whole print is being recorded.</value>
+  </data>
+  <data name="DashcamSaving" xml:space="preserve">
+    <value>The last minutes are being saved…</value>
+  </data>
+  <data name="SettingsDashcam" xml:space="preserve">
+    <value>Last minutes of a print (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamMinutes" xml:space="preserve">
+    <value>Length (minutes)</value>
+  </data>
+  <data name="SettingsDashcamMinutesHint" xml:space="preserve">
+    <value>Kept in memory during a print (about 8&#160;MB per minute and printer) and saved with {0}&#160;s after the event.</value>
+  </data>
+  <data name="SettingsDashcamTriggers" xml:space="preserve">
+    <value>Save automatically</value>
+  </data>
+  <data name="SettingsDashcamOnError" xml:space="preserve">
+    <value>On a print error</value>
+  </data>
+  <data name="SettingsDashcamOnAttention" xml:space="preserve">
+    <value>When the printer needs attention</value>
+  </data>
+  <data name="SettingsDashcamOnStopped" xml:space="preserve">
+    <value>When the print is stopped</value>
+  </data>
+  <data name="SettingsDashcamOnFailureDetection" xml:space="preserve">
+    <value>When the camera detects a print failure</value>
+  </data>
+  <data name="SettingsDashcamTriggersHint" xml:space="preserve">
+    <value>Saving by hand always works: in the printer's menu or in the menu of the camera window.</value>
+  </data>
+  <data name="SettingsDashcamPrinter" xml:space="preserve">
+    <value>Keep the last minutes (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamPrinterHint" xml:space="preserve">
+    <value>During a print, keeps the last minutes of the camera in memory and saves them when something goes wrong (Recording tab). Idle while the whole print is recorded.</value>
+  </data>
+  <data name="NotificationDashcamFailed" xml:space="preserve">
+    <value>Saving the last minutes failed</value>
+  </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Possible print failure – {0}</value>
+    <comment>T-154: body line of the notification of a suspected print failure; {0} = the detector name (DetectorBedChange...).</comment>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>False alarm</value>
+    <comment>T-154: button of the print failure notification; records the alarm locally as a false alarm (nothing else changes). Short: a toast button.</comment>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Change on the bed</value>
+    <comment>T-154: name of the detector 'bed-change' (T-155) in the settings and the notification.</comment>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Notices a part that vanished or moved and new material on the bed. Does not notice the quality of the first layer, problems at the nozzle or defects inside the part.</value>
+    <comment>T-154: what the detector 'bed-change' detects and what not (from the T-152 spike).</comment>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Known limitation: less reliable with dark filament on a black sheet.</value>
+    <comment>T-154: known limitation of 'bed-change', shown marked under its description (T-163 may fix it later).</comment>
+  </data>
+  <data name="DetectorAirPrinting" xml:space="preserve">
+    <value>Printing into the air</value>
+    <comment>T-167: name of the detector 'air-printing' in the settings and the notification (user decision 2026-11-04: Czech 'Tisk do vzduchu').</comment>
+  </data>
+  <data name="DetectorAirPrintingDescription" xml:space="preserve">
+    <value>Notices that the printer goes on printing (the Z axis rises) but nothing grows on the bed any more, e.g. filament that ran out unnoticed, a slipping extruder or a clogged nozzle. Only for printers whose bed moves down while printing (Core One, XL). Does not notice thinner walls, the surface quality or one of several parts that stops growing.</value>
+    <comment>T-167: what the detector 'air-printing' detects and what not; it is offered only for printers whose bed moves down in Z (Core One, XL).</comment>
+  </data>
+  <data name="DetectorAirPrintingLimitation" xml:space="preserve">
+    <value>Known limitation: reports the failure only after the Z axis rose another ~3 mm (minutes, half an hour and more on slow prints). Does not judge parts mostly hidden under the head, the first ~6 mm after the start or after the camera reconnects, and a wipe tower that keeps growing can hide the failure. A part with a wider lower step that ends, or several parts of which most end earlier, can raise a false alarm.</value>
+    <comment>T-167: known limitations of 'air-printing', shown marked under its description (alarm delay in mm of Z, small parts under the head, the start, the wipe tower, false alarms when most of the print ends early; user decision 2026-11-05).</comment>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Detector {0}</value>
+    <comment>T-154: name of a detector this version has no texts for; {0} = its id.</comment>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Detection</value>
+    <comment>T-154: printer sub-tab with the print failure detection (after 'Camera window').</comment>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Watch the prints of this printer with the camera</value>
+    <comment>T-154: check box on the Detection sub-tab (off by default).</comment>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Runs only while printing, with the chamber light on. The camera image stays on this computer.</value>
+    <comment>T-154: hint under SettingsDetectionPrinterEnabled while the camera and the global switch are on.</comment>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Detection needs the printer's camera: turn it on on the Camera sub-tab.</value>
+    <comment>T-154: hint on the Detection sub-tab while the printer's camera is off (the fields are disabled).</comment>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Print failure detection is off for all printers: turn it on on the Recording tab.</value>
+    <comment>T-154: hint on the Detection sub-tab while the global switch of the Recording tab is off.</comment>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Bed region</value>
+    <comment>T-154: label above the bed region editor.</comment>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Drag outside the rectangle to draw a new one, inside it to move it, at a corner to change its size. Keyboard: arrows move it, Shift+arrows change its size.</value>
+    <comment>T-154: tooltip and screen reader help of the bed region editor.</comment>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Bed region: {0}&#160;% from the left, {1}&#160;% from the top, {2}&#160;% wide, {3}&#160;% high</value>
+    <comment>T-154: screen reader name of the bed region editor; {0}–{3} = whole percent of the frame.</comment>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Whole frame</value>
+    <comment>T-154: button under the bed region editor: the whole frame.</comment>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Default for Core One</value>
+    <comment>T-154: button under the bed region editor, only for a Core One: the region of its standard camera mount.</comment>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Load frame</value>
+    <comment>T-154: button under the bed region editor; takes a new frame from the camera.</comment>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Takes a new frame from the camera (like Test camera on the Camera sub-tab) and keeps it for next time.</value>
+    <comment>T-154: tooltip and screen reader help of SettingsDetectionLoadFrame.</comment>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>No frame yet. Load one from the camera.</value>
+    <comment>T-154: shown inside the black bed region editor while there is no frame.</comment>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Last saved frame – the camera may have moved since.</value>
+    <comment>T-154: caption under the bed region editor while it shows the last saved frame (the camera is not connected).</comment>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>What to detect</value>
+    <comment>T-154: heading of the detector list on the Detection sub-tab.</comment>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>This version of LayerPeek has no detectors yet.</value>
+    <comment>T-154: in place of the detector list while this build has none.</comment>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Sensitivity</value>
+    <comment>T-154: label of the sensitivity slider of a detector.</comment>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Sensitivity – {0}</value>
+    <comment>T-154: screen reader name of a sensitivity slider; {0} = the detector name.</comment>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Higher: more alarms, also false ones. Lower: fewer alarms, a failure may be missed.</value>
+    <comment>T-154: tooltip and screen reader help of a sensitivity slider.</comment>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Print failure detection</value>
+    <comment>T-154: heading of the print failure detection section on the Recording tab.</comment>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Look for print failures in the camera image</value>
+    <comment>T-154: the global switch of the detection (off after installation).</comment>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Turn it on for each printer too, on its Detection sub-tab.</value>
+    <comment>T-154: hint under SettingsDetectionEnabled.</comment>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Save a snapshot of every alarm</value>
+    <comment>T-154: check box (on by default).</comment>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>Into the printer's recordings folder, counted in the size limit of the recordings.</value>
+    <comment>T-154: hint under SettingsDetectionSaveSnapshots.</comment>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Alarm</value>
+    <comment>T-154: label of the combo box SettingsDetectionRepeatOnce / SettingsDetectionRepeatWhile.</comment>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Once per print and kind of failure</value>
+    <comment>T-154: item of SettingsDetectionRepeat (the default).</comment>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Again every {0}&#160;min while it lasts</value>
+    <comment>T-154: item of SettingsDetectionRepeat; {0} = minutes (10).</comment>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Check the camera every (s)</value>
+    <comment>T-154: label of the sampling interval in seconds (2–5).</comment>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Shorter notices a failure sooner, longer uses less CPU.</value>
+    <comment>T-154: hint under SettingsDetectionInterval; {0}, {1} = the bounds in seconds.</comment>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Enter a number from {0} to {1}.</value>
+    <comment>T-154: error of SettingsDetectionInterval; {0}, {1} = the bounds in seconds (decimals allowed).</comment>
+  </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>Start _timelapse (experimental)</value>
+    <comment>T-161: item of a printer submenu while no timelapse runs; starts a manual timelapse. The whole feature is experimental (user decision 2026-11-04): keep the label. "_" marks the access key: unique within the submenu and the same as in MenuStopTimelapse.</comment>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>Stop _timelapse (experimental)</value>
+    <comment>T-161: item of a printer submenu while its timelapse runs (manual or automatic); stops it. Same access key as MenuStartTimelapse.</comment>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Play _last timelapse</value>
+    <comment>T-161: item of a printer submenu: opens the newest timelapse of the printer in the system's video player. Access key unique within the submenu.</comment>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>This printer has no timelapse yet.</value>
+    <comment>T-161: tooltip of the disabled MenuPlayLastTimelapse.</comment>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Start timelapse (experimental)</value>
+    <comment>T-161: tooltip and accessible name of the timelapse button of the camera window while no timelapse runs (experimental, user decision 2026-11-04).</comment>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Stop timelapse (experimental)</value>
+    <comment>T-161: tooltip and accessible name of the timelapse button while a timelapse runs.</comment>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>The timelapse is starting…</value>
+    <comment>T-161: tooltip of the disabled timelapse button / menu item while a timelapse waits for its first frame.</comment>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>The timelapse is being finished…</value>
+    <comment>T-161: tooltip of the disabled timelapse button / menu item while a timelapse completes its file.</comment>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>No frames are taken while the print is paused.</value>
+    <comment>T-161: tip of the running timelapse while the printer is paused or waits for the user (no frames are taken, the file stays open).</comment>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>This version of LayerPeek cannot take timelapses.</value>
+    <comment>T-161: shown where the timelapse controls are disabled because this build has no MP4 muxer.</comment>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+    <comment>T-161: the short indicator next to the timelapse symbol in the camera window while a timelapse runs (like REC); keep it 2-4 characters.</comment>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Timelapse failed</value>
+    <comment>T-161: second line of the notification of a failed timelapse (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>This version of LayerPeek cannot take timelapses.</value>
+    <comment>T-161: reason of a failed timelapse: this build has no MP4 muxer.</comment>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>The timelapse file could not be written.</value>
+    <comment>T-161: reason of a failed timelapse: its file could not be written.</comment>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>The timelapse alone is larger than the size limit of all recordings ({0}&#160;GB).</value>
+    <comment>T-161: reason of a failed timelapse: it alone exceeds the size limit. {0} = the size limit of all recordings in GB.</comment>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Timelapse</value>
+    <comment>T-161: heading of the timelapse section on the Recording tab (next to the SettingsExperimental badge).</comment>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Experimental</value>
+    <comment>T-161: the badge next to every timelapse option (user decision 2026-11-04: the whole feature is experimental). Short: one word.</comment>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>An experimental feature: it may change or not always work reliably.</value>
+    <comment>T-161: tooltip and help text of the SettingsExperimental badge.</comment>
+  </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>An experimental feature: tuned on simulated failures and one real successful print. It may miss a failure or raise a false alarm.</value>
+    <comment>Release 0.5.0 (user decision 2026-11-04): tooltip and help text of the SettingsExperimental badge of the print failure detection (Detection sub-tab and section on the Recording tab).</comment>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Time between frames (seconds)</value>
+    <comment>T-161: label of the time between two timelapse frames (whole seconds, 5-600).</comment>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>One frame per interval, none while the print is paused. The video plays at {0} frames per second.</value>
+    <comment>T-161: hint of the interval. {0} = frames per second of the video (30).</comment>
+  </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Take a frame</value>
+    <comment>T-159: accessible name of the combo box that chooses what takes the timelapse frames (in place of the SettingsTimelapseInterval label).</comment>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Every N seconds</value>
+    <comment>T-159: item of the timelapse trigger combo box; the number of seconds is the field next to it. Keep it short (combo box of ~200 DIP).</comment>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Every N-th layer (estimate)</value>
+    <comment>T-159: item of the timelapse trigger combo box: a frame every N-th layer change, estimated (not reported by the printer); N is the field next to it. Keep it short (combo box of ~200 DIP).</comment>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Every N seconds: a frame every interval. Every N-th layer: a frame when a new layer starts, estimated from the height of the Z axis that PrusaLink reports at every poll (the printer reports no layers). Experimental.</value>
+    <comment>T-159: tooltip and help text of the timelapse trigger combo box.</comment>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Layers between frames</value>
+    <comment>T-159: accessible name of the number of layers between two timelapse frames (whole number 1-100, 1 = every layer).</comment>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>A frame every N-th layer (1 = every layer), plus one at the start and one of the finished print, none while the print is paused. The layer is estimated from the Z axis at every poll: layers shorter than about two polls merge, and rarely a z-hop or a tool change adds a frame. The video plays at {0} frames per second.</value>
+    <comment>T-159: tooltip and help text of the number of layers. {0} = frames per second of the video (30).</comment>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Take a timelapse of prints</value>
+    <comment>T-161: check box on the Camera sub-tab of a printer (next to the SettingsExperimental badge): a timelapse of every print.</comment>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Takes a timelapse from the start of a print until a minute after its end, also without an open camera window. The time between frames is on the Recording tab.</value>
+    <comment>T-161: tooltip and help text of SettingsTimelapsePrints.</comment>
+  </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>_Export timelapse to JPEG… (experimental)</value>
+    <comment>T-165: item of a printer submenu: opens the open dialog for a timelapse file and exports its frames as JPEG files next to it. Experimental (user decision 2026-11-04): keep the label. "_" marks the access key: unique within the submenu and the same as in MenuCancelTimelapseJpegExport. The ellipsis says that a dialog follows.</comment>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>Cancel JPEG _export ({0}%)</value>
+    <comment>T-165: the same item while an export runs: cancels it. {0} = percent done (0–100). Same access key as MenuExportTimelapseJpeg.</comment>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Exporting {0}</value>
+    <comment>T-165: tooltip of the cancel item while an export runs. {0} = file name of the timelapse.</comment>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>JPEG export is not available in this build.</value>
+    <comment>T-165: tooltip of the disabled export item when this build cannot decode or encode.</comment>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Choose a timelapse to export to JPEG (experimental)</value>
+    <comment>T-165: title (and macOS message) of the open dialog for the timelapse file. Experimental: keep the label.</comment>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Timelapse (MP4)</value>
+    <comment>T-165: name of the file type filter of the open dialog (Windows).</comment>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Timelapse exported to JPEG</value>
+    <comment>T-165: second line of the notification of a finished JPEG export (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>{0} frames in a folder next to the timelapse.</value>
+    <comment>T-165: third line of the notification of a finished JPEG export. {0} = number of frames (a number, no plural forms needed).</comment>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Timelapse export to JPEG failed</value>
+    <comment>T-165: second line of the notification of a failed JPEG export (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>The file is not a LayerPeek timelapse.</value>
+    <comment>T-165: reason: the chosen file is no timelapse of LayerPeek (its name does not end with _timelapse).</comment>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>The timelapse cannot be read (missing or damaged file).</value>
+    <comment>T-165: reason: the file is missing, damaged or no video the app can read.</comment>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>The video decoder is missing in this build.</value>
+    <comment>T-165: reason: the video decoder is missing in this build.</comment>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>The folder next to the timelapse cannot be written.</value>
+    <comment>T-165: reason: the folder next to the timelapse cannot be written.</comment>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>An unexpected error occurred, see the log.</value>
+    <comment>T-165: reason of any other failure (details in the log).</comment>
+  </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>Create ti_melapse from recording… (experimental)</value>
+    <comment>T-164: item of a printer submenu, after MenuExportTimelapseJpeg: opens the open dialog for a recording file and makes a timelapse of it next to it. Experimental (user decision 2026-11-04): keep the label. "_" marks the access key: unique within the submenu and the same as in MenuCancelTimelapseFromRecording. The ellipsis says that a dialog follows.</comment>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>Cancel ti_melapse from recording ({0}%)</value>
+    <comment>T-164: the same item while a timelapse is made from a recording: cancels it. {0} = percent done (0–100). Same access key as MenuCreateTimelapseFromRecording.</comment>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Creating a timelapse from {0}</value>
+    <comment>T-164: tooltip of the cancel item while a timelapse is made. {0} = file name of the recording.</comment>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Creating timelapses from recordings is not available in this build.</value>
+    <comment>T-164: tooltip of the disabled item when this build cannot write timelapses (no MP4 muxer) or has no open dialog.</comment>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Choose a recording to create a timelapse from (experimental)</value>
+    <comment>T-164: title (and macOS message) of the open dialog for the recording file. Experimental: keep the label.</comment>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Recording (MP4)</value>
+    <comment>T-164: name of the file type filter of the open dialog (Windows).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Timelapse created from recording</value>
+    <comment>T-164: second line of the notification of a finished timelapse from a recording (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>{0} frames, next to the recording.</value>
+    <comment>T-164: third line of the notification of a finished timelapse from a recording. {0} = number of frames (a number, no plural forms needed).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Creating a timelapse from the recording failed</value>
+    <comment>T-164: second line of the notification of a failed timelapse from a recording (the title is the printer name).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>The file is not a LayerPeek recording.</value>
+    <comment>T-164: reason: the chosen file is no recording of LayerPeek (or a timelapse already).</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>The recording cannot be read (missing or damaged file).</value>
+    <comment>T-164: reason: the recording is missing, damaged or no video the app can read.</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>The video library is missing in this build.</value>
+    <comment>T-164: reason: the video library (FFmpeg) is missing in this build.</comment>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>The folder next to the recording cannot be written.</value>
+    <comment>T-164: reason: the folder next to the recording cannot be written.</comment>
+  </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Dark filament</value>
+    <comment>T-163: check box of a printer's print failure detection (next to the SettingsExperimental badge): the experimental dark filament mode. Short.</comment>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Black or very dark filament: smaller darkening on the bed counts as a change. Finds a little more on a dark sheet, with a higher risk of false alarms.</value>
+    <comment>T-163: tooltip and screen reader help of SettingsDetectionDarkFilament.</comment>
   </data>
 </root>

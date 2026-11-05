@@ -136,7 +136,6 @@ public sealed class SettingsLanguageTests : IDisposable
             Assert.Equal(Cs(nameof(Strings.SettingsPasswordUnchanged)), printer.PasswordWatermark);
             Assert.Equal(string.Format(CultureInfo.CurrentCulture, Cs(nameof(Strings.SettingsErrorPollingInterval)), 1m, 300m), vm.PollingIntervalError);
             Assert.Equal(Cs(nameof(Strings.SettingsSoundImportantOnly)), sound.Text);
-            Assert.Equal(Cs(nameof(Strings.SettingsConnectionPrusaLink)), printer.SelectedConnectionType.Text);
             Assert.Equal("Podle systému", vm.LanguageOptions[0].Text);
             Assert.Equal("Deutsch", vm.LanguageOptions[2].Text);
         }
@@ -165,11 +164,11 @@ public sealed class SettingsLanguageTests : IDisposable
             vm.RefreshTexts();
 
             Assert.Equal(Cs(nameof(Strings.SettingsErrorUserNameColon)), printer.UserNameError);
-            Assert.Equal(Cs(nameof(Strings.SettingsUserNameHint)), printer.UserNameHint);
+            Assert.Equal(Cs(nameof(Strings.SettingsErrorUserNameColon)), printer.UserNameHelpText);
         }
 
         Assert.Contains(nameof(PrinterEditorViewModel.UserNameError), changes);
-        Assert.Contains(nameof(PrinterEditorViewModel.UserNameHint), changes);
+        Assert.Contains(nameof(PrinterEditorViewModel.UserNameHelpText), changes);
         Assert.Equal("john:doe", printer.UserName);
     }
 

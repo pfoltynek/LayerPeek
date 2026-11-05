@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 
 using LayerPeek.App.Notifications;
+using LayerPeek.App.Settings;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tests.Tray.Menu;
 using LayerPeek.App.Tray;
@@ -59,15 +60,6 @@ public sealed class ToastActivationRouterTests : IDisposable
 
         Assert.True(await _router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4")));
         Assert.Single(_launcher.Opened);
-    }
-
-    [Fact]
-    public async Task PrusaConnectPrinterOpensPrusaConnect()
-    {
-        Apply(Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee" });
-
-        Assert.True(await _router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4")));
-        Assert.Equal(new Uri("https://connect.prusa3d.com/"), Assert.Single(_launcher.Opened));
     }
 
     [Fact]
@@ -241,7 +233,7 @@ public sealed class ToastActivationRouterTests : IDisposable
     {
         Apply(Definition());
         int opened = 0;
-        _router.AttachSettingsOpener(() => opened++);
+        _router.AttachSettingsOpener(_ => opened++);
 
         Assert.True(await _router.ActivateAsync(ToastLaunchArgument.Settings));
 
@@ -249,6 +241,35 @@ public sealed class ToastActivationRouterTests : IDisposable
         Assert.Empty(_launcher.Opened);
         Assert.Empty(_launcher.OpenedSecret);
         Assert.Empty(_gateway.Opened);
+    }
+
+    /// <summary>T-146: a click on a failed recording opens the settings window on the Recording tab, the test one on General.</summary>
+    [Fact]
+    public async Task EachSettingsNotificationOpensItsTab()
+    {
+        List<SettingsPage> opened = [];
+        _router.AttachSettingsOpener(opened.Add);
+
+        Assert.True(await _router.ActivateAsync(ToastLaunchArgument.RecordingSettings));
+        Assert.True(await _router.ActivateAsync(ToastLaunchArgument.Settings));
+
+        Assert.Equal([SettingsPage.Recording, SettingsPage.General], opened);
+        Assert.Empty(_launcher.Opened);
+        Assert.Empty(_gateway.Opened);
+    }
+
+    /// <summary>Clicks on different notifications before the UI runs open one window, on the tab of the last click.</summary>
+    [Fact]
+    public async Task HeldClicksOpenTheTabOfTheLastOne()
+    {
+        using ToastActivationRouter router = new(TestWebOpener.Create(_launcher, _gateway), _logger, new FakeTimeProvider());
+
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.Settings));
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.RecordingSettings));
+        List<SettingsPage> opened = [];
+        router.AttachSettingsOpener(opened.Add);
+
+        Assert.Equal([SettingsPage.Recording], opened);
     }
 
     /// <summary>
@@ -265,7 +286,7 @@ public sealed class ToastActivationRouterTests : IDisposable
         time.Advance(ToastActivationRouter.DuplicateWindow);
         Assert.True(await router.ActivateAsync(ToastLaunchArgument.Settings));
         int opened = 0;
-        router.AttachSettingsOpener(() => opened++);
+        router.AttachSettingsOpener(_ => opened++);
 
         Assert.Equal(1, opened);
         Assert.Contains(_logger.Entries, static e => e.Message.Contains("waits for the UI", StringComparison.Ordinal));
@@ -273,14 +294,14 @@ public sealed class ToastActivationRouterTests : IDisposable
         time.Advance(ToastActivationRouter.DuplicateWindow);
         Assert.True(await router.ActivateAsync(ToastLaunchArgument.Settings));
         Assert.Equal(2, opened);
-        Assert.Throws<InvalidOperationException>(() => router.AttachSettingsOpener(() => { }));
+        Assert.Throws<InvalidOperationException>(() => router.AttachSettingsOpener(_ => { }));
     }
 
     [Fact]
     public async Task TheSameClickOnTheTestNotificationReportedTwiceOpensOnce()
     {
         int opened = 0;
-        _router.AttachSettingsOpener(() => opened++);
+        _router.AttachSettingsOpener(_ => opened++);
 
         Assert.True(await _router.ActivateAsync(ToastLaunchArgument.Settings));
         Assert.False(await _router.ActivateAsync(ToastLaunchArgument.Settings));
@@ -297,7 +318,7 @@ public sealed class ToastActivationRouterTests : IDisposable
         Assert.True(await router.ActivateAsync(ToastLaunchArgument.Settings));
         router.Dispose();
         int opened = 0;
-        router.AttachSettingsOpener(() => opened++);
+        router.AttachSettingsOpener(_ => opened++);
 
         time.Advance(ToastActivationRouter.DuplicateWindow);
         Assert.False(await router.ActivateAsync(ToastLaunchArgument.Settings));
@@ -307,7 +328,7 @@ public sealed class ToastActivationRouterTests : IDisposable
     [Fact]
     public async Task AFailingOpenerIsOnlyLogged()
     {
-        _router.AttachSettingsOpener(static () => throw new InvalidOperationException("no window"));
+        _router.AttachSettingsOpener(static _ => throw new InvalidOperationException("no window"));
 
         Assert.True(await _router.ActivateAsync(ToastLaunchArgument.Settings));
         Assert.Contains(_logger.Entries, static e => e.Exception is InvalidOperationException);

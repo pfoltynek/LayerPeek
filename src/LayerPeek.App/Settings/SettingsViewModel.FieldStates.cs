@@ -57,5 +57,10 @@ public sealed partial class SettingsViewModel
     private string? FirstInvalidGeneralField() =>
         HasPollingIntervalError ? SettingsFieldIds.SettingsPollingInterval
         : HasRemainingTimeError ? SettingsFieldIds.SettingsRemainingTime
+        : HasRecordingLimitError ? SettingsFieldIds.SettingsRecordingLimit
+        : HasDashcamMinutesError ? SettingsFieldIds.SettingsDashcamMinutes
+        : HasTimelapseIntervalError ? SettingsFieldIds.SettingsTimelapseInterval
+        : HasTimelapseEveryNthLayerError ? SettingsFieldIds.SettingsTimelapseEveryNthLayer
+        : HasDetectionIntervalError ? SettingsFieldIds.SettingsDetectionInterval
         : null;
 }

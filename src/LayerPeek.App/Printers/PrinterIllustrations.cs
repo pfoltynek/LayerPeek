@@ -9,7 +9,7 @@ namespace LayerPeek.App.Printers;
 /// </summary>
 public static class PrinterIllustrations
 {
-    /// <summary>The generic printer (app motif in a dashed outline): unknown model, iX, Core One INDX, Prusa Connect.</summary>
+    /// <summary>The generic printer (app motif in a dashed outline): unknown model, iX, Core One INDX.</summary>
     public const string Generic = "generic";
 
     /// <summary>Illustration ids, i.e. the file name prefixes in <c>Assets/Printers</c>.</summary>

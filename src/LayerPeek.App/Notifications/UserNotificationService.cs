@@ -68,6 +68,12 @@ internal sealed partial class UserNotificationService : INotificationService, ID
     internal IUserNotificationCenter Center => _center;
 
     /// <summary>
+    /// The image files of print failure notifications (T-154; always a copy, macOS moves an attached file);
+    /// <see langword="null"/>: those notifications have no image. Used only by the task.
+    /// </summary>
+    internal AlarmNotificationImages? AlarmImages { get; init; }
+
+    /// <summary>
     /// Completes once the task has ended for good (after <see cref="Dispose"/>; right then when it never started), so nothing
     /// is handed to the OS any more. Never faults.
     /// </summary>
@@ -121,6 +127,72 @@ internal sealed partial class UserNotificationService : INotificationService, ID
         }
     }
 
+    /// <summary>
+    /// The notification about a failed camera recording (T-146), queued like a printer notification, with the launch argument
+    /// <see cref="ToastLaunchArgument.RecordingSettings"/> (a click opens the settings window on the Recording tab).
+    /// </summary>
+    public void ShowRecordingFailed(RecordingNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Writer.TryWrite(notification))
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _started = true;
+                _ = Task.Run(RunAsync, CancellationToken.None);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The notification about a finished JPEG export of a timelapse (T-165) or timelapse from a recording (T-164), queued like
+    /// a printer notification; its click opens the printer's recordings folder (<see cref="ToastContentBuilder.TimelapseExportLaunchArgument"/>).
+    /// </summary>
+    public void ShowTimelapseExportFinished(TimelapseExportNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Writer.TryWrite(notification))
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _started = true;
+                _ = Task.Run(RunAsync, CancellationToken.None);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The notification of a suspected print failure (T-154), queued like a printer notification: the snapshot as an
+    /// attachment, the button "False alarm" and the launch argument of the camera window.
+    /// </summary>
+    public void ShowPrintFailure(Core.Detection.PrintFailureNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Writer.TryWrite(notification))
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _started = true;
+                _ = Task.Run(RunAsync, CancellationToken.None);
+            }
+        }
+    }
+
     public void Dispose()
     {
         lock (_gate)
@@ -155,6 +227,18 @@ internal sealed partial class UserNotificationService : INotificationService, ID
                     if (notification is UpdateNotification update)
                     {
                         await ShowUpdateNowAsync(update, stop).ConfigureAwait(false);
+                    }
+                    else if (notification is RecordingNotification recording)
+                    {
+                        await ShowRecordingNowAsync(recording, stop).ConfigureAwait(false);
+                    }
+                    else if (notification is TimelapseExportNotification export)
+                    {
+                        await ShowTimelapseExportNowAsync(export, stop).ConfigureAwait(false);
+                    }
+                    else if (notification is Core.Detection.PrintFailureNotification failure)
+                    {
+                        await ShowPrintFailureNowAsync(failure, stop).ConfigureAwait(false);
                     }
                     else
                     {
@@ -242,6 +326,106 @@ internal sealed partial class UserNotificationService : INotificationService, ID
             LogUpdateShowFailed(ex, notification.Version);
         }
     }
+
+    private async Task ShowRecordingNowAsync(RecordingNotification notification, CancellationToken stop)
+    {
+        if (!await IsAllowedAsync(stop).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            NotificationLines lines = ToastContentBuilder.RecordingLines(notification, _textCulture());
+            string body = lines.Detail is { } detail ? lines.Body + "\n" + detail : lines.Body;
+            stop.ThrowIfCancellationRequested();
+            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, ToastLaunchArgument.RecordingSettings));
+            LogRecordingShown(notification.Problem, notification.PrinterId);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogRecordingShowFailed(ex, notification.Problem, notification.PrinterId);
+        }
+    }
+
+    private async Task ShowTimelapseExportNowAsync(TimelapseExportNotification notification, CancellationToken stop)
+    {
+        if (!await IsAllowedAsync(stop).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            NotificationLines lines = ToastContentBuilder.TimelapseExportLines(notification, _textCulture());
+            string body = lines.Detail is { } detail ? lines.Body + "\n" + detail : lines.Body;
+            stop.ThrowIfCancellationRequested();
+            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, ToastContentBuilder.TimelapseExportLaunchArgument(notification)));
+            LogTimelapseExportShown(notification.Problem);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogTimelapseExportShowFailed(ex, notification.Problem);
+        }
+    }
+
+    private async Task ShowPrintFailureNowAsync(Core.Detection.PrintFailureNotification notification, CancellationToken stop)
+    {
+        Core.Detection.PrintFailureAlarm alarm = notification.Alarm;
+        if (!await IsAllowedAsync(stop).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            CultureInfo culture = _textCulture();
+            NotificationLines lines = ToastContentBuilder.PrintFailureLines(notification, culture);
+            string body = lines.Detail is { } detail ? lines.Body + "\n" + detail : lines.Body;
+            string? launch = ToastLaunchArgument.TryForCamera(alarm.PrinterId, out string? argument) ? argument : null;
+            UserNotificationAction? action = ToastLaunchArgument.IsValidAlarmId(alarm.Id)
+                ? new UserNotificationAction(PrintFailureNotificationText.FalseAlarmAction(culture), ToastLaunchArgument.ForFalseAlarm(alarm.Id))
+                : null;
+            stop.ThrowIfCancellationRequested();
+            string? image = AlarmImages?.Prepare(alarm, useSavedSnapshot: false);
+            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, launch) { AttachmentPath = image, Action = action });
+            LogPrintFailureShown(alarm.DetectorId, alarm.PrinterId, image is not null);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogPrintFailureShowFailed(ex, alarm.DetectorId, alarm.PrinterId);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the suspected print failure ({DetectorId}) of printer '{PrinterId}' (image: {HasImage}).")]
+    private partial void LogPrintFailureShown(string detectorId, string printerId, bool hasImage);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the suspected print failure ({DetectorId}) of printer '{PrinterId}' could not be shown.")]
+    private partial void LogPrintFailureShowFailed(Exception exception, string detectorId, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the JPEG export of a timelapse ({Problem}).")]
+    private partial void LogTimelapseExportShown(Core.Cameras.Timelapse.CameraTimelapseExportProblem problem);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the JPEG export of a timelapse ({Problem}) could not be shown.")]
+    private partial void LogTimelapseExportShowFailed(Exception exception, Core.Cameras.Timelapse.CameraTimelapseExportProblem problem);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the recording failure ({Problem}) of printer '{PrinterId}'.")]
+    private partial void LogRecordingShown(Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the recording failure ({Problem}) of printer '{PrinterId}' could not be shown.")]
+    private partial void LogRecordingShowFailed(Exception exception, Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the new version {Version}.")]
     private partial void LogUpdateShown(string version);

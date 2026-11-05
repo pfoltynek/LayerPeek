@@ -5,7 +5,9 @@ namespace LayerPeek.App.E2E.Tests.Infrastructure;
 /// <summary>A printer of a <c>settings.json</c> fixture.</summary>
 /// <param name="Camera">RTSP address of an enabled camera, or <see langword="null"/>.</param>
 /// <param name="CameraWindow">The <c>camera.window</c> section (T-035/T-037), or <see langword="null"/> for the defaults.</param>
-internal sealed record TestPrinter(string Id, string Name, string Address, Uri? Camera = null, JsonObject? CameraWindow = null, string? DisabledCamera = null)
+/// <param name="RecordPrints">"Record prints automatically" of the camera (T-146).</param>
+/// <param name="TimelapsePrints">"Take a timelapse of prints" of the camera (T-161).</param>
+internal sealed record TestPrinter(string Id, string Name, string Address, Uri? Camera = null, JsonObject? CameraWindow = null, string? DisabledCamera = null, bool RecordPrints = false, bool TimelapsePrints = false)
 {
     public JsonObject ToJson()
     {
@@ -27,6 +29,16 @@ internal sealed record TestPrinter(string Id, string Name, string Address, Uri? 
             if (CameraWindow is not null)
             {
                 camera["window"] = CameraWindow.DeepClone();
+            }
+
+            if (RecordPrints)
+            {
+                camera["recordPrints"] = true;
+            }
+
+            if (TimelapsePrints)
+            {
+                camera["timelapsePrints"] = true;
             }
 
             printer["camera"] = camera;

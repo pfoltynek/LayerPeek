@@ -28,9 +28,17 @@ public sealed class H264Clip
     /// <summary>Frames played per loop (<see cref="Frames"/> from <see cref="LoopStart"/>).</summary>
     public int LoopLength => Frames.Count - LoopStart;
 
+    /// <summary>
+    /// A raw H.264 stream (Annex B, e.g. <c>.h264</c>) or the H.264 track of an MP4 file (T-155: LayerPeek's recordings
+    /// and dashcam saves, or any other MP4 with H.264), told apart by the content, not the extension.
+    /// </summary>
     /// <exception cref="IOException">The file cannot be read.</exception>
-    /// <exception cref="InvalidDataException">The file is not an H.264 Annex B stream with SPS, PPS and an IDR frame.</exception>
-    public static H264Clip Load(string path) => Parse(File.ReadAllBytes(path));
+    /// <exception cref="InvalidDataException">The file is neither an H.264 Annex B stream nor an MP4 file with an H.264 track, each with SPS, PPS and an IDR frame.</exception>
+    public static H264Clip Load(string path)
+    {
+        byte[] data = File.ReadAllBytes(path);
+        return Parse(Mp4H264Reader.IsMp4(data) ? Mp4H264Reader.ToAnnexB(data) : data);
+    }
 
     /// <exception cref="InvalidDataException">The data is not an H.264 Annex B stream with SPS, PPS and an IDR frame.</exception>
     public static H264Clip Parse(ReadOnlySpan<byte> annexB)

@@ -45,7 +45,127 @@ internal sealed class SettingsDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CameraOverlaySettingsDocument? CameraOverlay { get; set; }
 
+    /// <summary>
+    /// "Close the camera window when the printer is switched off" (T-150); written only when off, missing (older files,
+    /// the default) = on.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CameraWindowAutoClose { get; set; }
+
+    /// <summary>
+    /// Folder and size limit of the camera recordings (T-145): a <see cref="RecordingDocument"/> object; missing in older
+    /// files and not written while both are the defaults. Kept as raw JSON and read leniently by <see cref="SettingsMapper"/>
+    /// (a value of the wrong type is a warning and its default, not a corrupted file).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Recording { get; set; }
+
+    /// <summary>
+    /// Global settings of the print failure detection (T-153): a <see cref="DetectionDocument"/> object; missing in older
+    /// files and not written while all are the defaults. Read leniently by <see cref="DetectionSettingsMapper"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Detection { get; set; }
+
     public List<PrinterDocument?>? Printers { get; set; }
+}
+
+/// <summary><see cref="SettingsDocument.Detection"/> as written: only the values that differ from the defaults.</summary>
+internal sealed class DetectionDocument
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Enabled { get; set; }
+
+    /// <summary><see cref="Detection.PrintFailureAlarmRepeat"/> name.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AlarmRepeat { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SaveSnapshots { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? SampleIntervalSeconds { get; set; }
+}
+
+/// <summary><see cref="PrinterDocument.Detection"/> as written: only the values that differ from the defaults.</summary>
+internal sealed class PrinterDetectionDocument
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Enabled { get; set; }
+
+    /// <summary>Not written while the user never set a region (the printer's default region applies).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DetectionRegionDocument? Region { get; set; }
+
+    /// <summary>By detector id; only detectors whose settings differ from the defaults.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, DetectorDocument>? Detectors { get; set; }
+
+    /// <summary>T-163: written only while on.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DarkFilament { get; set; }
+}
+
+/// <summary>A <see cref="Detection.DetectionRegion"/>: fractions of the frame.</summary>
+internal sealed class DetectionRegionDocument
+{
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    public double Width { get; set; }
+
+    public double Height { get; set; }
+}
+
+internal sealed class DetectorDocument
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Enabled { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Sensitivity { get; set; }
+}
+
+/// <summary><see cref="SettingsDocument.Recording"/> as written: only the values that differ from the defaults.</summary>
+internal sealed class RecordingDocument
+{
+    /// <summary>The folder chosen by the user; not written for the default folder.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Folder { get; set; }
+
+    /// <summary>Size limit in whole gigabytes; not written while it is the default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? SizeLimitGigabytes { get; set; }
+
+    /// <summary>Minutes the dashcam holds (T-148); not written while it is the default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? DashcamMinutes { get; set; }
+
+    /// <summary>The dashcam triggers (T-148): written only when off (<see langword="false"/>), missing = on.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DashcamOnError { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DashcamOnAttention { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DashcamOnStopped { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DashcamOnFailureDetection { get; set; }
+
+    /// <summary>Seconds between two timelapse frames (T-160); not written while it is the default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TimelapseIntervalSeconds { get; set; }
+
+    /// <summary>What takes the timelapse frames (T-159): <c>"layer"</c>; not written for the default (by time).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TimelapseTrigger { get; set; }
+
+    /// <summary>A frame every this many layers (T-159); not written while it is the default (1).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TimelapseEveryNthLayer { get; set; }
 }
 
 internal sealed class CameraOverlaySettingsDocument
@@ -135,6 +255,13 @@ internal sealed class PrinterDocument
     [JsonPropertyName("cooldownThresholdCelsius")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? LegacyCooldownThresholdCelsius { get; set; }
+
+    /// <summary>
+    /// Print failure detection of the printer (T-153): a <see cref="PrinterDetectionDocument"/> object; missing in older
+    /// files and not written while it is the default (off). Read leniently by <see cref="DetectionSettingsMapper"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Detection { get; set; }
 }
 
 /// <summary>Missing or invalid values mean the automatic image (invalid ones with a warning).</summary>
@@ -178,6 +305,26 @@ internal sealed class CameraDocument
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? MiniStrip { get; set; }
+
+    /// <summary>
+    /// "Record prints automatically" (T-145); written only when on, missing (older files, the default) = off. Kept as raw
+    /// JSON: a value that is not <see langword="true"/> / <see langword="false"/> is off with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? RecordPrints { get; set; }
+
+    /// <summary>
+    /// "Keep the last minutes of a print" (T-148); written only when on, missing = off. Raw JSON like
+    /// <see cref="RecordPrints"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Dashcam { get; set; }
+
+    /// <summary>
+    /// "Timelapse of every print" (T-160); written only when on, missing = off. Raw JSON like <see cref="RecordPrints"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? TimelapsePrints { get; set; }
 }
 
 /// <summary>
@@ -317,4 +464,8 @@ internal sealed class CameraWindowLayoutDocument
 [JsonSerializable(typeof(CameraOverlayDocument))]
 [JsonSerializable(typeof(List<OverlayWidgetDocument>))]
 [JsonSerializable(typeof(CameraMiniStripDocument))]
+[JsonSerializable(typeof(RecordingDocument))]
+[JsonSerializable(typeof(DetectionDocument))]
+[JsonSerializable(typeof(PrinterDetectionDocument))]
+[JsonSerializable(typeof(bool))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext;

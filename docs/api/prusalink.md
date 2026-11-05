@@ -146,14 +146,32 @@ Ověřeno v tazích `v6.5.1`, `v6.6.0`, `v6.8.0`, `v6.9.x`, `v6.10.0`, `v6.10.3`
 
 **Neověřeno na skutečné tiskárně:** nahrané odpovědi (`Fixtures/recorded/`) zatím nemáme. Tabulka vychází jen ze zdrojového kódu. Starší fixture `version.json` měla vymyšlený kód `7.0.0`, opraveno na `7.1.0` (Core One).
 
-**Prusa Connect:** vrací `printer_model` a `printer_type_name` (viz [prusa-connect.md](prusa-connect.md)). Automatickou detekci u Prusa Connect podle rozhodnutí T-039 neděláme, takže hodnoty jsme neověřovali.
-
 **V aplikaci:**
 - Převod je `Core/Printers/PrinterModels.FromCode`, kód je `PrinterModelCode`.
 - Klient: `PrusaLinkClient.DetectModelAsync` (jen `/api/version`) a `PrusaLinkPrinterInfo.ModelCode` (test spojení).
 - Monitor se zeptá jednou za běh, po prvním úspěšném dotazu na stav, a vyvolá `IPrinterMonitor.ModelDetected`. Selhaný dotaz zkusí znovu po dalším úspěšném dotazu na stav, nejvýš 3× za běh. Firmware bez pole `printer` se už znovu neptá.
 - Uložený kód je `printers[*].detectedModel` v `settings.json`.
 - Kód zjištěný monitoringem uloží App (`MonitoringSession`) na pozadí, jen když se změnil. Do souboru zapíše jen tuto hodnotu, a jen do položky se stejnou adresou a typem připojení, pro které byl kód zjištěn (`ISettingsStore.SetDetectedModelAsync`, zbytek souboru zůstane bajt po bajtu). Monitoring kvůli tomu nerestartuje. Test spojení v okně nastavení kód uloží spolu s nastavením. Nová adresa nebo typ připojení v editoru kód zahodí do další detekce (T-039).
+
+## Osa Z, vrstvy a timelapse (průzkum 2026-11-03, T-149)
+
+Ověřeno ve zdrojích firmwaru na `master` (commit `baac5e67`, 2026-11-03). Na skutečné tiskárně zatím neověřeno (T-159).
+
+- `printer.axis_z` v `GET /api/v1/status` je `marlin_vars().logical_curr_pos[2]` s jedním desetinným místem
+  (`status_renderer.cpp`). Plní se z Marlin `current_position` v `_server_update_vars` (`src/common/marlin_server.cpp`).
+  Je to cíl posledního zařazeného pohybu (ne skutečná poloha), bez korekce mesh levelingu, **včetně z-hopu**.
+  `axis_x` / `axis_y` firmware během tisku neposílá.
+- Číslo vrstvy, výšku vrstvy ani počet vrstev Buddy nehlásí (ani ve `status`, ani v `job`, `file.meta` chybí).
+  Změnu vrstvy jde jen odhadnout z řady vzorků `axis_z` (T-159). Core One (PrusaSlicer 2.5.14, `Prusa CORE One HF0.4 nozzle`)
+  má `retract_lift = 0.2` a rampovaný zdvih při přejezdu až `travel_max_lift = 1.5` mm.
+- `PUT /api/v1/job/{id}/continue` ze specifikace („Continue in job with given id after timelapse capture“) Buddy
+  neimplementuje: `handle_command` v `lib/WUI/link_content/prusa_link_api_v1.cpp` zná jen `pause` a `resume`, jinak
+  vrátí **400**. Totéž platí pro `CameraConfig.trigger_scheme` (`EACH_LAYER` …), `/api/v1/cameras` je na Buddy 404.
+- Zdroje:
+  - https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/baac5e6710204cc726b298be557c376f2abbee33/lib/WUI/nhttp/status_renderer.cpp
+  - https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/baac5e6710204cc726b298be557c376f2abbee33/src/common/marlin_server.cpp
+  - https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/baac5e6710204cc726b298be557c376f2abbee33/lib/WUI/link_content/prusa_link_api_v1.cpp
+  - https://github.com/prusa3d/PrusaSlicer-settings-prusa-fff/blob/main/PrusaResearch/2.5.14.ini
 
 ## Stavy (`printer.state`)
 
@@ -212,7 +230,7 @@ Ověřeno v tazích `v6.5.1`, `v6.6.0`, `v6.8.0`, `v6.9.x`, `v6.10.0`, `v6.10.3`
 Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWebGateway` spouští pro každou tiskárnu vlastní `PrusaLinkWebProxy` (Kestrel ze sdíleného frameworku ASP.NET Core, bez YARP).
 
 **Otevření (`OpenAsync`):**
-- Prusa Connect vrátí `NotSupported`, neplatná adresa `InvalidAddress`. V obou případech bez adresy.
+- Neplatná adresa vrátí `InvalidAddress` (bez adresy). `NotSupported` je jen pro typ připojení, který brána nezná (od T-170 existuje jen PrusaLink).
 - Před otevřením prohlížeče proběhne přihlášený `GET /api/version` (kontrola hesla, limit 5 s).
 - Při chybě se vrátí holá adresa tiskárny s důvodem: `PasswordMissing`, `PasswordUnreadable`, `PasswordRejected`, `AccessDenied`, `UnsupportedAuthentication`, `NotReachable`, `UnexpectedResponse`. Když proxy nejde spustit, důvod je `ProxyUnavailable`.
 - Při úspěchu se vrátí `http://127.0.0.1:<port>/<token>/`. Opakované otevření použije běžící proxy, stejný port i token.

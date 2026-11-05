@@ -9,8 +9,9 @@ namespace LayerPeek.Camera.FFmpeg;
 /// Supported addresses:
 /// <list type="bullet">
 /// <item><c>rtsp://</c> – camera stream over RTSP with TCP transport (the camera settings only allow this scheme).</item>
-/// <item><c>file://</c> – a local recording (e.g. raw H.264); played as fast as it decodes, without real-time pacing.
-/// Meant for tests and diagnostics, not offered in the settings.</item>
+/// <item><c>file://</c> – a local file: raw H.264 (tests and diagnostics) or H.264 in MP4 (the app's recordings and
+/// timelapses, T-165: the JPEG export); played as fast as it decodes, without real-time pacing. Not offered in the
+/// camera settings.</item>
 /// </list>
 /// Frames are 32-bit BGRA (see <see cref="CameraFrame"/>). A stream that stays silent fails after an I/O timeout of
 /// 20 s at the latest; callers such as <see cref="ReconnectingCameraFeed"/> normally cancel earlier.

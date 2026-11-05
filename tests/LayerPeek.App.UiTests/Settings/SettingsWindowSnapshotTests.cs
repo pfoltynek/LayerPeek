@@ -4,6 +4,7 @@ using LayerPeek.App.Tests.Cameras;
 using LayerPeek.App.Tests.Settings;
 using LayerPeek.App.UiTests.Infrastructure;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Printers;
 
 using static LayerPeek.App.Tests.Settings.SettingsTestData;
 
@@ -23,7 +24,7 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
         {
             FakeEditorStore store = SettingsWindowHarness.StoreWith(
                 LinkPrinter("a", "MK4 workshop", address: "192.168.1.30", userName: "operator"),
-                CloudPrinter("c1", "Cloud XL"));
+                LinkPrinter("c1", "Studio XL", "192.168.1.41"));
             store.Data = store.Data with { PrintersWithPassword = Ids("a") };
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store);
 
@@ -42,21 +43,12 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
                 LinkPrinter("c", "XL 5T", address: "192.168.1.32") with { DetectedModel = new Core.Printers.PrinterModelCode(3, 1, 1) },
                 LinkPrinter("d", "MINI kitchen", address: "192.168.1.33") with { DetectedModel = new Core.Printers.PrinterModelCode(2, 1, 0) },
                 LinkPrinter("e", "Garage printer", address: "192.168.1.34") with { Image = Core.Printers.PrinterImageChoice.Custom },
-                CloudPrinter("f", "Cloud iX"));
+                LinkPrinter("f", "Spare iX", address: "192.168.1.35"));
             store.Data = store.Data with { CustomImages = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase) { ["e"] = custom } };
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store);
             ui.ViewModel.SelectedPrinter = ui.ViewModel.Printers[4];
 
             SnapshotAssert.Matches(ui.Window, "settings-printer-images");
-        });
-
-    [Fact]
-    public Task PrusaConnectPrinterWithDisabledLoginFields() =>
-        session.RunAsync(static async scope =>
-        {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(CloudPrinter("c1", "Cloud XL")));
-
-            SnapshotAssert.Matches(ui.Window, "settings-prusaconnect");
         });
 
     [Fact]
@@ -241,6 +233,56 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-startup-updates-not-installed");
         });
 
+    /// <summary>T-146 (user decision 2026-11-04): the Recording tab of its own, with the default folder and limit.</summary>
+    [Fact]
+    public Task RecordingTab() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.RecordingTab;
+            ui.Window.Settle();
+
+            Assert.True(ui.Find<Avalonia.Controls.TabItem>("SettingsTabRecording").IsSelected);
+            Assert.Equal(LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings.FixedDefaultFolder, ui.ViewModel.RecordingFolderText);
+            SnapshotAssert.Matches(ui.Window, "settings-recording");
+        });
+
+    [Fact]
+    public Task DetectionSubTabOfACoreOneWithItsLastFrame() =>
+        session.RunAsync(static async scope =>
+        {
+            // T-154: the Core One region over a 16:9 frame (four colours), the caption of the last saved frame, the three buttons.
+            CameraImage image = TestCameraImages.Quadrants(1280, 720, 0xFFE05A1E, 0xFF2E7D32, 0xFF1565C0, 0xFFF9A825);
+            FakeLastCameraFrames frames = new() { Frame = _ => BitmapCameraPreviewRenderer.Instance.Render(image) };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "Core One") with
+                {
+                    Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")),
+                    Image = PrinterImageChoice.ForModel(PrinterModel.CoreOne),
+                    Detection = new LayerPeek.Core.Detection.PrinterDetectionSettings { Enabled = true },
+                }),
+                lastFrames: frames);
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.DetectionPrinterTab;
+            await Ui.UntilAsync(() => ui.ViewModel.SelectedPrinter!.HasRegionEditorImage, "the last frame is shown");
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-detection");
+        });
+
+    [Fact]
+    public Task DetectionSubTabWithTheCameraOffInFrench() =>
+        session.RunAsync(static async scope =>
+        {
+            // French has the longest texts: the reason, the detector description and its limitation; no frame yet.
+            new UiLanguage().Apply("fr");
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.DetectionPrinterTab;
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-detection-camera-off-fr");
+        });
+
     [Fact]
     public Task GeneralTabWithErrors() =>
         session.RunAsync(static async scope =>
@@ -320,7 +362,7 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
                 scope,
                 LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) { Overlay = Core.Cameras.Overlay.CameraOverlayLayout.Default.WithVisible("times", visible: false) } },
                 LinkPrinter("b", "Beta", "192.168.1.21"),
-                CloudPrinter("c", "Cloud XL"));
+                LinkPrinter("c", "Studio XL", "192.168.1.42"));
 
             SnapshotAssert.Matches(ui.Window, "settings-widgets");
         });
@@ -469,7 +511,7 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
         {
             FakeEditorStore store = SettingsWindowHarness.StoreWith(
                 LinkPrinter("a", "MK4 workshop", address: "192.168.1.30", userName: "operator"),
-                CloudPrinter("c1", "Cloud XL"));
+                LinkPrinter("c1", "Studio XL", "192.168.1.41"));
             store.Data = store.Data with { PrintersWithPassword = Ids("a") };
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store);
             ui.Window.WindowState = Avalonia.Controls.WindowState.Maximized;

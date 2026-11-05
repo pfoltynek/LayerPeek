@@ -105,9 +105,6 @@
   <data name="MenuOpenPrusaLink" xml:space="preserve">
     <value>_Otwórz PrusaLink</value>
   </data>
-  <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Otwórz Prusa Connect</value>
-  </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Adres drukarki jest nieprawidłowy</value>
   </data>
@@ -264,9 +261,6 @@
   <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
     <value>Bezpieczne połączenie (https) z drukarką nie powiodło się.</value>
   </data>
-  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
-    <value>Niedostępne dla Prusa Connect</value>
-  </data>
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Zamknij</value>
   </data>
@@ -300,15 +294,6 @@
   <data name="SettingsName" xml:space="preserve">
     <value>Nazwa</value>
   </data>
-  <data name="SettingsConnectionType" xml:space="preserve">
-    <value>Połączenie</value>
-  </data>
-  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
-    <value>PrusaLink (sieć lokalna)</value>
-  </data>
-  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect (jeszcze niedostępne)</value>
-  </data>
   <data name="SettingsAddress" xml:space="preserve">
     <value>Adres</value>
   </data>
@@ -320,9 +305,6 @@
   </data>
   <data name="SettingsUserNameHint" xml:space="preserve">
     <value>Nazwa użytkownika PrusaLink z ustawień drukarki. Domyślnie „maker”.</value>
-  </data>
-  <data name="SettingsUserNameNotUsed" xml:space="preserve">
-    <value>Prusa Connect nie używa nazwy użytkownika drukarki.</value>
   </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Hasło</value>
@@ -341,9 +323,6 @@
   </data>
   <data name="SettingsPasswordUnsupported" xml:space="preserve">
     <value>W tym systemie nie można jeszcze zapisywać haseł. Drukarki wymagające hasła zgłoszą, że go brakuje.</value>
-  </data>
-  <data name="SettingsPasswordNotUsed" xml:space="preserve">
-    <value>Prusa Connect nie używa hasła drukarki.</value>
   </data>
   <data name="SettingsTestConnection" xml:space="preserve">
     <value>Testuj połączenie</value>
@@ -383,9 +362,6 @@
   </data>
   <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
     <value>Pod tym adresem coś odpowiada, ale nie wygląda to na drukarkę z PrusaLink.</value>
-  </data>
-  <data name="SettingsTestNotSupported" xml:space="preserve">
-    <value>Test nie jest jeszcze dostępny dla Prusa Connect.</value>
   </data>
   <data name="SettingsTestCancelled" xml:space="preserve">
     <value>Test anulowany.</value>
@@ -660,6 +636,9 @@
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
     <value>Uruchamianie i aktualizacje</value>
   </data>
+  <data name="SettingsTabRecording" xml:space="preserve">
+    <value>Nagrywanie</value>
+  </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Uruchamiaj po zalogowaniu się do systemu Windows</value>
   </data>
@@ -929,6 +908,12 @@
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
     <value>Gdy włączone, poniższe wartości są używane tylko, dopóki okno nie ma zapamiętanej pozycji. Zapisz stosuje je przy następnym otwarciu, Zastosuj od razu.</value>
+  </data>
+  <data name="SettingsCameraWindowAutoClose" xml:space="preserve">
+    <value>Zamknij, gdy drukarka się wyłączy, i otwórz ponownie po jej włączeniu</value>
+  </data>
+  <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
+    <value>Dotyczy wszystkich drukarek. Okno zamknięte ręcznie pozostaje zamknięte.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otwórz jako</value>
@@ -1464,5 +1449,461 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Przenieś LayerPeek do folderu Aplikacje; wtedy będzie mógł się sam aktualizować.</value>
+  </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>_Nagrywaj</value>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Zatrzymaj _nagrywanie</value>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>Od_twórz ostatnie nagranie</value>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Otwórz _folder z nagraniami</value>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>Ta drukarka nie ma jeszcze żadnego nagrania.</value>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Nagrywaj</value>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Zatrzymaj nagrywanie</value>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>Nagrywanie się uruchamia…</value>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>Nagrywanie się kończy…</value>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>Ta wersja LayerPeek nie może nagrywać kamery.</value>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Trwa nagrywanie</value>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, trwa nagrywanie</value>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>Nagrywanie kamery nie powiodło się</value>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>Ta wersja LayerPeek nie może nagrywać kamery.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>Kamera drukarki jest niedostępna.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>Nie można zapisywać w folderze z nagraniami. Sprawdź dysk lub wybierz inny folder w ustawieniach.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Na dysku zostało mniej niż {0} GB wolnego miejsca.</value>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>Dysk jest pełny.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>Nie można zapisać pliku nagrania.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>Zapis na dysk nie nadążał za kamerą.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>Strumień kamery został przerwany lub nie można go zapisać.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>Samo nagranie przekracza limit rozmiaru wszystkich nagrań ({0} GB).</value>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Nagrywanie</value>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Otwórz folder z nagraniami</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Folder na nagrania</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Zmień…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Domyślny</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Ponownie używaj systemowego folderu wideo.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Każda drukarka ma w nim własny podfolder.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Wybierz folder na nagrania</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>Wybrany folder nie znajduje się na dysku tego komputera.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>Nie można użyć tego folderu: ścieżka jest dłuższa niż {0} znaków lub zawiera niedozwolone znaki.</value>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>Nie można zapisywać w wybranym folderze.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Limit rozmiaru wszystkich nagrań (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Po przekroczeniu limitu usuwane są najstarsze nagrania. Przy mniej niż {0} GB wolnego miejsca nagrywanie się zatrzymuje.</value>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Wpisz liczbę całkowitą od {0} do {1}.</value>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Automatycznie nagrywaj wydruki</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Nagrywa od początku wydruku do minuty po jego zakończeniu, także bez otwartego okna kamery.</value>
+  </data>
+  <data name="MenuSaveDashcam" xml:space="preserve">
+    <value>_Zapisz ostatnie {0}&#160;min</value>
+  </data>
+  <data name="DashcamNotPrinting" xml:space="preserve">
+    <value>Ostatnie minuty są przechowywane tylko podczas drukowania.</value>
+  </data>
+  <data name="DashcamWholePrintRecorded" xml:space="preserve">
+    <value>Nagrywany jest cały wydruk.</value>
+  </data>
+  <data name="DashcamSaving" xml:space="preserve">
+    <value>Zapisywanie ostatnich minut…</value>
+  </data>
+  <data name="SettingsDashcam" xml:space="preserve">
+    <value>Ostatnie minuty wydruku (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamMinutes" xml:space="preserve">
+    <value>Długość (minuty)</value>
+  </data>
+  <data name="SettingsDashcamMinutesHint" xml:space="preserve">
+    <value>Przechowywane w pamięci podczas drukowania (ok. 8&#160;MB na minutę i drukarkę) i zapisywane z {0}&#160;s po zdarzeniu.</value>
+  </data>
+  <data name="SettingsDashcamTriggers" xml:space="preserve">
+    <value>Zapisuj automatycznie</value>
+  </data>
+  <data name="SettingsDashcamOnError" xml:space="preserve">
+    <value>Przy błędzie drukowania</value>
+  </data>
+  <data name="SettingsDashcamOnAttention" xml:space="preserve">
+    <value>Gdy drukarka wymaga uwagi</value>
+  </data>
+  <data name="SettingsDashcamOnStopped" xml:space="preserve">
+    <value>Gdy wydruk zostanie zatrzymany</value>
+  </data>
+  <data name="SettingsDashcamOnFailureDetection" xml:space="preserve">
+    <value>Gdy kamera wykryje błąd wydruku</value>
+  </data>
+  <data name="SettingsDashcamTriggersHint" xml:space="preserve">
+    <value>Ręczny zapis jest zawsze możliwy: w menu drukarki lub w menu okna kamery.</value>
+  </data>
+  <data name="SettingsDashcamPrinter" xml:space="preserve">
+    <value>Zachowuj ostatnie minuty (dashcam)</value>
+  </data>
+  <data name="SettingsDashcamPrinterHint" xml:space="preserve">
+    <value>Podczas drukowania trzyma w pamięci ostatnie minuty z kamery i zapisuje je, gdy coś pójdzie nie tak (karta Nagrywanie). Nieaktywne, gdy nagrywany jest cały wydruk.</value>
+  </data>
+  <data name="NotificationDashcamFailed" xml:space="preserve">
+    <value>Nie udało się zapisać ostatnich minut</value>
+  </data>
+  <data name="NotificationPrintFailure" xml:space="preserve">
+    <value>Możliwy błąd wydruku – {0}</value>
+  </data>
+  <data name="NotificationFalseAlarm" xml:space="preserve">
+    <value>Fałszywy alarm</value>
+  </data>
+  <data name="DetectorBedChange" xml:space="preserve">
+    <value>Zmiana na stole</value>
+  </data>
+  <data name="DetectorBedChangeDescription" xml:space="preserve">
+    <value>Wykrywa część, która zniknęła lub się przesunęła, oraz nowy materiał na stole. Nie wykrywa jakości pierwszej warstwy, problemów z dyszą ani wad wewnątrz części.</value>
+  </data>
+  <data name="DetectorBedChangeLimitation" xml:space="preserve">
+    <value>Znane ograniczenie: mniej niezawodny przy ciemnym filamencie na czarnej płycie.</value>
+  </data>
+  <data name="DetectorAirPrinting" xml:space="preserve">
+    <value>Drukowanie w powietrzu</value>
+  </data>
+  <data name="DetectorAirPrintingDescription" xml:space="preserve">
+    <value>Wykrywa, że drukarka nadal drukuje (oś Z rośnie), ale na stole nic już nie przybywa, np. gdy niezauważenie skończył się filament, ślizga się ekstruder lub zatkała się dysza. Tylko dla drukarek, których stół podczas druku opuszcza się (Core One, XL). Nie wykrywa cieńszych ścian, jakości powierzchni ani tego, że przestał rosnąć tylko jeden z kilku elementów.</value>
+  </data>
+  <data name="DetectorAirPrintingLimitation" xml:space="preserve">
+    <value>Znane ograniczenie: zgłasza błąd dopiero, gdy oś Z podniesie się o kolejne ~3 mm (minuty, przy wolnych wydrukach pół godziny i więcej). Nie ocenia elementów w większości ukrytych pod głowicą ani pierwszych ~6 mm po starcie lub ponownym połączeniu kamery, a wieża czyszcząca, która dalej rośnie, może zakryć błąd. Element z szerszą dolną częścią, która kończy się wcześniej, albo kilka elementów, z których większość kończy się wcześniej, może wywołać fałszywy alarm.</value>
+  </data>
+  <data name="DetectorUnknown" xml:space="preserve">
+    <value>Detektor {0}</value>
+  </data>
+  <data name="SettingsPrinterTabDetection" xml:space="preserve">
+    <value>Wykrywanie</value>
+  </data>
+  <data name="SettingsDetectionPrinterEnabled" xml:space="preserve">
+    <value>Pilnuj wydruków tej drukarki kamerą</value>
+  </data>
+  <data name="SettingsDetectionRunsHint" xml:space="preserve">
+    <value>Działa tylko podczas drukowania i przy włączonym oświetleniu komory. Obraz z kamery pozostaje na tym komputerze.</value>
+  </data>
+  <data name="SettingsDetectionCameraOff" xml:space="preserve">
+    <value>Wykrywanie wymaga kamery drukarki: włącz ją w podkarcie Kamera.</value>
+  </data>
+  <data name="SettingsDetectionGloballyOff" xml:space="preserve">
+    <value>Wykrywanie błędów wydruku jest wyłączone dla wszystkich drukarek: włącz je na karcie Nagrywanie.</value>
+  </data>
+  <data name="SettingsDetectionRegion" xml:space="preserve">
+    <value>Obszar stołu</value>
+  </data>
+  <data name="SettingsDetectionRegionHint" xml:space="preserve">
+    <value>Przeciągnij poza prostokątem, aby narysować nowy, wewnątrz, aby go przesunąć, za róg, aby zmienić rozmiar. Klawiatura: strzałki przesuwają, Shift+strzałki zmieniają rozmiar.</value>
+  </data>
+  <data name="SettingsDetectionRegionName" xml:space="preserve">
+    <value>Obszar stołu: {0}&#160;% od lewej, {1}&#160;% od góry, szerokość {2}&#160;%, wysokość {3}&#160;%</value>
+  </data>
+  <data name="SettingsDetectionRegionFull" xml:space="preserve">
+    <value>Cały obraz</value>
+  </data>
+  <data name="SettingsDetectionRegionCoreOne" xml:space="preserve">
+    <value>Domyślny dla Core One</value>
+  </data>
+  <data name="SettingsDetectionLoadFrame" xml:space="preserve">
+    <value>Wczytaj obraz</value>
+  </data>
+  <data name="SettingsDetectionLoadFrameHint" xml:space="preserve">
+    <value>Pobiera nowy obraz z kamery (jak Testuj kamerę w podkarcie Kamera) i zachowuje go na następny raz.</value>
+  </data>
+  <data name="SettingsDetectionNoFrame" xml:space="preserve">
+    <value>Brak obrazu. Wczytaj go z kamery.</value>
+  </data>
+  <data name="SettingsDetectionLastFrame" xml:space="preserve">
+    <value>Ostatni zapisany obraz – kamera mogła się od tego czasu przesunąć.</value>
+  </data>
+  <data name="SettingsDetectionDetectors" xml:space="preserve">
+    <value>Co wykrywać</value>
+  </data>
+  <data name="SettingsDetectionNoDetectors" xml:space="preserve">
+    <value>Ta wersja LayerPeek nie ma jeszcze żadnych detektorów.</value>
+  </data>
+  <data name="SettingsDetectionSensitivity" xml:space="preserve">
+    <value>Czułość</value>
+  </data>
+  <data name="SettingsDetectionSensitivityName" xml:space="preserve">
+    <value>Czułość – {0}</value>
+  </data>
+  <data name="SettingsDetectionSensitivityHint" xml:space="preserve">
+    <value>Wyższa: więcej alarmów, także fałszywych. Niższa: mniej alarmów, błąd może zostać przeoczony.</value>
+  </data>
+  <data name="SettingsDetection" xml:space="preserve">
+    <value>Wykrywanie błędów wydruku</value>
+  </data>
+  <data name="SettingsDetectionEnabled" xml:space="preserve">
+    <value>Szukaj błędów wydruku w obrazie z kamery</value>
+  </data>
+  <data name="SettingsDetectionEnabledHint" xml:space="preserve">
+    <value>Włącz je też dla każdej drukarki w jej podkarcie Wykrywanie.</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshots" xml:space="preserve">
+    <value>Zapisuj obraz każdego alarmu</value>
+  </data>
+  <data name="SettingsDetectionSaveSnapshotsHint" xml:space="preserve">
+    <value>Do folderu nagrań drukarki, wliczany do limitu rozmiaru nagrań.</value>
+  </data>
+  <data name="SettingsDetectionRepeat" xml:space="preserve">
+    <value>Alarm</value>
+  </data>
+  <data name="SettingsDetectionRepeatOnce" xml:space="preserve">
+    <value>Raz na wydruk i rodzaj błędu</value>
+  </data>
+  <data name="SettingsDetectionRepeatWhile" xml:space="preserve">
+    <value>Ponownie co {0}&#160;min, dopóki trwa</value>
+  </data>
+  <data name="SettingsDetectionInterval" xml:space="preserve">
+    <value>Sprawdzaj kamerę co (s)</value>
+  </data>
+  <data name="SettingsDetectionIntervalHint" xml:space="preserve">
+    <value>{0}–{1}&#160;s. Krótszy wykrywa błąd wcześniej, dłuższy mniej obciąża procesor.</value>
+  </data>
+  <data name="SettingsDetectionIntervalError" xml:space="preserve">
+    <value>Wpisz liczbę od {0} do {1}.</value>
+  </data>
+  <data name="MenuStartTimelapse" xml:space="preserve">
+    <value>Uruchom time_lapse (eksperymentalny)</value>
+  </data>
+  <data name="MenuStopTimelapse" xml:space="preserve">
+    <value>Zatrzymaj time_lapse (eksperymentalny)</value>
+  </data>
+  <data name="MenuPlayLastTimelapse" xml:space="preserve">
+    <value>Odtwórz ostatni ti_melapse</value>
+  </data>
+  <data name="MenuNoTimelapseYet" xml:space="preserve">
+    <value>Ta drukarka nie ma jeszcze żadnego timelapse.</value>
+  </data>
+  <data name="TimelapseStart" xml:space="preserve">
+    <value>Uruchom timelapse (eksperymentalny)</value>
+  </data>
+  <data name="TimelapseStop" xml:space="preserve">
+    <value>Zatrzymaj timelapse (eksperymentalny)</value>
+  </data>
+  <data name="TimelapseStarting" xml:space="preserve">
+    <value>Timelapse się uruchamia…</value>
+  </data>
+  <data name="TimelapseStopping" xml:space="preserve">
+    <value>Timelapse jest kończony…</value>
+  </data>
+  <data name="TimelapsePaused" xml:space="preserve">
+    <value>Podczas pauzy wydruku klatki nie są wykonywane.</value>
+  </data>
+  <data name="TimelapseUnavailable" xml:space="preserve">
+    <value>Ta wersja LayerPeek nie potrafi tworzyć timelapse.</value>
+  </data>
+  <data name="CameraTimelapseIndicator" xml:space="preserve">
+    <value>TL</value>
+  </data>
+  <data name="NotificationTimelapseFailed" xml:space="preserve">
+    <value>Timelapse nie powiódł się</value>
+  </data>
+  <data name="NotificationTimelapseUnavailable" xml:space="preserve">
+    <value>Ta wersja LayerPeek nie potrafi tworzyć timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseWriteFailed" xml:space="preserve">
+    <value>Nie udało się zapisać pliku timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseSizeLimitReached" xml:space="preserve">
+    <value>Sam timelapse przekracza limit rozmiaru wszystkich nagrań ({0}&#160;GB).</value>
+  </data>
+  <data name="SettingsTimelapse" xml:space="preserve">
+    <value>Timelapse</value>
+  </data>
+  <data name="SettingsExperimental" xml:space="preserve">
+    <value>Eksperymentalne</value>
+  </data>
+  <data name="SettingsExperimentalHint" xml:space="preserve">
+    <value>Funkcja eksperymentalna: może się zmienić lub nie zawsze działać niezawodnie.</value>
+  </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Funkcja eksperymentalna: dostrojona na symulowanych błędach i jednym prawdziwym udanym wydruku. Może przeoczyć błąd lub zgłosić fałszywy alarm.</value>
+  </data>
+  <data name="SettingsTimelapseInterval" xml:space="preserve">
+    <value>Czas między klatkami (sekundy)</value>
+  </data>
+  <data name="SettingsTimelapseIntervalHint" xml:space="preserve">
+    <value>Jedna klatka na interwał, żadna podczas pauzy wydruku. Wideo ma {0} klatek na sekundę.</value>
+  </data>
+  <data name="SettingsTimelapseTrigger" xml:space="preserve">
+    <value>Rób klatkę</value>
+  </data>
+  <data name="SettingsTimelapseTriggerTime" xml:space="preserve">
+    <value>Co N sekund</value>
+  </data>
+  <data name="SettingsTimelapseTriggerLayer" xml:space="preserve">
+    <value>Co N-tą warstwę (szacunek)</value>
+  </data>
+  <data name="SettingsTimelapseTriggerHint" xml:space="preserve">
+    <value>Co N sekund: klatka co interwał. Co N-tą warstwę: klatka na początku nowej warstwy, szacowana na podstawie wysokości osi Z, którą PrusaLink podaje przy każdym zapytaniu (drukarka nie podaje warstw). Eksperymentalne.</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayer" xml:space="preserve">
+    <value>Warstwy między klatkami</value>
+  </data>
+  <data name="SettingsTimelapseEveryNthLayerHint" xml:space="preserve">
+    <value>Klatka co N-tą warstwę (1 = każda warstwa), do tego jedna na początku i jedna z gotowego wydruku, żadna podczas pauzy. Warstwa jest szacowana na podstawie osi Z przy każdym zapytaniu: warstwy krótsze niż około dwa zapytania są łączone, a rzadko z-hop lub zmiana narzędzia dodaje klatkę. Wideo jest odtwarzane z prędkością {0} klatek na sekundę.</value>
+  </data>
+  <data name="SettingsTimelapsePrints" xml:space="preserve">
+    <value>Twórz timelapse wydruków</value>
+  </data>
+  <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
+    <value>Tworzy timelapse od początku wydruku do minuty po jego zakończeniu, także bez otwartego okna kamery. Czas między klatkami jest na karcie Nagrywanie.</value>
+  </data>
+  <data name="MenuExportTimelapseJpeg" xml:space="preserve">
+    <value>_Eksportuj timelapse do JPEG… (eksperymentalny)</value>
+  </data>
+  <data name="MenuCancelTimelapseJpegExport" xml:space="preserve">
+    <value>Anuluj _eksport do JPEG ({0}%)</value>
+  </data>
+  <data name="TimelapseExportRunning" xml:space="preserve">
+    <value>Eksportowanie {0}</value>
+  </data>
+  <data name="TimelapseExportUnavailable" xml:space="preserve">
+    <value>Eksport do JPEG nie jest dostępny w tej wersji.</value>
+  </data>
+  <data name="TimelapseExportPickerTitle" xml:space="preserve">
+    <value>Wybierz timelapse do eksportu do JPEG (eksperymentalny)</value>
+  </data>
+  <data name="TimelapseExportPickerFilter" xml:space="preserve">
+    <value>Timelapse (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseExportDone" xml:space="preserve">
+    <value>Timelapse wyeksportowany do JPEG</value>
+  </data>
+  <data name="NotificationTimelapseExportFrames" xml:space="preserve">
+    <value>Klatki: {0}, w folderze obok timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseExportFailed" xml:space="preserve">
+    <value>Eksport timelapse do JPEG nie powiódł się</value>
+  </data>
+  <data name="NotificationTimelapseExportNotATimelapse" xml:space="preserve">
+    <value>Plik nie jest timelapse z LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseExportUnreadable" xml:space="preserve">
+    <value>Nie można odczytać timelapse (brak pliku lub plik uszkodzony).</value>
+  </data>
+  <data name="NotificationTimelapseExportUnavailable" xml:space="preserve">
+    <value>W tej wersji brakuje dekodera wideo.</value>
+  </data>
+  <data name="NotificationTimelapseExportWriteFailed" xml:space="preserve">
+    <value>Nie można zapisywać w folderze obok timelapse.</value>
+  </data>
+  <data name="NotificationTimelapseExportError" xml:space="preserve">
+    <value>Wystąpił nieoczekiwany błąd, szczegóły w dzienniku.</value>
+  </data>
+  <data name="MenuCreateTimelapseFromRecording" xml:space="preserve">
+    <value>_Utwórz timelapse z nagrania… (eksperymentalny)</value>
+  </data>
+  <data name="MenuCancelTimelapseFromRecording" xml:space="preserve">
+    <value>An_uluj tworzenie timelapse ({0}%)</value>
+  </data>
+  <data name="TimelapseFromRecordingRunning" xml:space="preserve">
+    <value>Tworzenie timelapse z {0}</value>
+  </data>
+  <data name="TimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>Tworzenie timelapse z nagrań nie jest dostępne w tej wersji.</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerTitle" xml:space="preserve">
+    <value>Wybierz nagranie do utworzenia timelapse (eksperymentalny)</value>
+  </data>
+  <data name="TimelapseFromRecordingPickerFilter" xml:space="preserve">
+    <value>Nagranie (MP4)</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingDone" xml:space="preserve">
+    <value>Utworzono timelapse z nagrania</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFrames" xml:space="preserve">
+    <value>Klatki: {0}, obok nagrania.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingFailed" xml:space="preserve">
+    <value>Tworzenie timelapse z nagrania nie powiodło się</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingNotARecording" xml:space="preserve">
+    <value>Plik nie jest nagraniem z LayerPeek.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnreadable" xml:space="preserve">
+    <value>Nie można odczytać nagrania (brak pliku lub plik uszkodzony).</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingUnavailable" xml:space="preserve">
+    <value>W tej wersji brakuje biblioteki wideo.</value>
+  </data>
+  <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
+    <value>Nie można zapisywać w folderze obok nagrania.</value>
+  </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Ciemny filament</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Czarny lub bardzo ciemny filament: jako zmiana liczy się także mniejsze pociemnienie na stole. Na ciemnej płycie wykrywa nieco więcej, przy większym ryzyku fałszywych alarmów.</value>
   </data>
 </root>

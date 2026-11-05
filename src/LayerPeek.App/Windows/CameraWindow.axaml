@@ -30,7 +30,7 @@
     "Always on top" (T-117) in both, always enabled, checked like the pin.
   -->
   <Window.ContextMenu>
-    <ContextMenu AutomationProperties.AutomationId="CameraContextMenu" Opening="OnContextMenuOpening">
+    <ContextMenu AutomationProperties.AutomationId="CameraContextMenu" Opening="OnContextMenuOpening" Opened="OnContextMenuOpened" Closed="OnContextMenuClosed">
       <MenuItem AutomationProperties.AutomationId="CameraLayoutMenuItem"
                 Header="{Binding [CameraLayoutEditMenu], Source={x:Static loc:LocalizedStrings.Instance}}"
                 Command="{Binding EditLayoutCommand}"
@@ -42,6 +42,17 @@
           <ov:OverlayIcon Width="16" Height="16" Data="{DynamicResource IconLayoutCellFour16Regular}" Foreground="{DynamicResource MenuFlyoutItemForeground}" />
         </MenuItem.Icon>
       </MenuItem>
+      <!--
+        T-148: "Save the last N min" of a printer with a dashcam; disabled with the reason as its tip while the dashcam holds
+        nothing (no print, the whole print is recorded) or saves.
+      -->
+      <MenuItem AutomationProperties.AutomationId="CameraSaveDashcamMenuItem"
+                Header="{Binding SaveDashcamText}"
+                Command="{Binding SaveDashcamCommand}"
+                IsVisible="{Binding HasDashcam}"
+                ToolTip.Tip="{Binding SaveDashcamToolTip}"
+                ToolTip.ShowOnDisabled="True"
+                ToolTip.ServiceEnabled="{Binding SaveDashcamToolTip, Converter={x:Static ObjectConverters.IsNotNull}}" />
       <!-- No icon: the check mark takes the icon column. -->
       <MenuItem AutomationProperties.AutomationId="CameraTopmostMenuItem"
                 Header="{Binding [CameraTopmostMenu], Source={x:Static loc:LocalizedStrings.Instance}}"
@@ -72,6 +83,14 @@
     <Style Selector="StackPanel.windowButtons > ToggleButton.topmostPin:checked">
       <Setter Property="Opacity" Value="0.85" />
     </Style>
+    <!-- T-146: while anything records, the record button is the REC indicator and stays fully visible (also in the mini preview). -->
+    <Style Selector="StackPanel.windowButtons > Button.record.recording">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <!-- T-161: so is the timelapse button while a timelapse runs (its indicator). -->
+    <Style Selector="StackPanel.windowButtons > Button.timelapse.active">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
     <Style Selector="Grid#Root:pointerover StackPanel.windowButtons > :is(Button), StackPanel.windowButtons:focus-within > :is(Button)">
       <Setter Property="Opacity" Value="1" />
     </Style>
@@ -100,6 +119,47 @@
       <Setter Property="Background" Value="#CC000000" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleButtonBorderBrushPressed}" />
     </Style>
+    <!--
+      T-146: the record button keeps the dark look while it is disabled (starting, stopping, no recorder), dimmed; the red dot
+      is the record symbol, "REC" shows while recording. Over a recording button the dot becomes the stop square, so the
+      click target says what it does. Static: no animation, nothing runs while idle.
+    -->
+    <Style Selector="StackPanel.windowButtons > Button.record:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#99000000" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.record:disabled StackPanel.recordContent">
+      <Setter Property="Opacity" Value="0.6" />
+    </Style>
+    <Style Selector="Button.record Rectangle.stop">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.record.recording:pointerover Ellipse.dot, Button.record.recording:focus-visible Ellipse.dot">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.record.recording:pointerover Rectangle.stop, Button.record.recording:focus-visible Rectangle.stop">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!--
+      T-161: the timelapse button like the record button: dark while disabled, the stopwatch symbol (amber while a timelapse
+      runs, with "TL"), dimmed while no frames are taken (the print is paused); over a running one the stop square. Static.
+    -->
+    <Style Selector="StackPanel.windowButtons > Button.timelapse:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#99000000" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.timelapse:disabled StackPanel.timelapseContent, Button.timelapse.paused StackPanel.timelapseContent">
+      <Setter Property="Opacity" Value="0.6" />
+    </Style>
+    <Style Selector="Button.timelapse Rectangle.stop">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.timelapse.active:pointerover Path.stopwatch, Button.timelapse.active:focus-visible Path.stopwatch">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.timelapse.active:pointerover Rectangle.stop, Button.timelapse.active:focus-visible Rectangle.stop">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
     <!-- The pin: filled while "always on top" is on, regular while it is off; the state is the shape, not the colour. -->
     <Style Selector="ToggleButton.topmostPin ov|OverlayIcon">
       <Setter Property="Data" Value="{DynamicResource IconPin16Regular}" />
@@ -113,6 +173,10 @@
       <Setter Property="Width" Value="16" />
       <Setter Property="Height" Value="16" />
       <Setter Property="Stretch" Value="None" />
+    </Style>
+    <!-- T-161: after Path.icon, which it overrides: the stopwatch of a running timelapse is amber. -->
+    <Style Selector="Button.timelapse.active Path.stopwatch">
+      <Setter Property="Stroke" Value="#F5A524" />
     </Style>
     <Style Selector="Border.overlay">
       <Setter Property="Background" Value="#A6000000" />
@@ -244,6 +308,61 @@
           <Path Classes="icon" Data="M1,2 H15 V14 H1 Z" />
           <Path Classes="icon" Fill="White" Data="M8,8 H13 V12 H8 Z" />
         </Grid>
+      </Button>
+      <!--
+        Timelapse (T-161, experimental): in every mode, right before the record button; the amber stopwatch with "TL" while
+        a timelapse runs, which keeps it visible. Starts a manual timelapse, stops a running one (also an automatic one).
+      -->
+      <Button Classes="timelapse"
+              Classes.active="{Binding IsTakingTimelapse}"
+              Classes.paused="{Binding IsTimelapsePaused}"
+              AutomationProperties.AutomationId="CameraTimelapseButton"
+              Command="{Binding ToggleTimelapseCommand}"
+              IsVisible="{Binding HasTimelapseButton}"
+              ToolTip.Tip="{Binding TimelapseToolTip}"
+              ToolTip.ShowOnDisabled="True"
+              AutomationProperties.Name="{Binding TimelapseToolTip}">
+        <StackPanel Classes="timelapseContent" Orientation="Horizontal" Spacing="5" Height="16">
+          <Panel Width="16" Height="16">
+            <Path Classes="icon stopwatch" Data="M2.5,9.5 A5.5,5.5 0 1 1 13.5,9.5 A5.5,5.5 0 1 1 2.5,9.5 Z M6.25,1.5 H9.75 M8,1.5 V4 M8,9.5 V6.5" />
+            <Rectangle Classes="stop" Width="10" Height="10" RadiusX="1.5" RadiusY="1.5" Fill="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Panel>
+          <TextBlock AutomationProperties.AutomationId="CameraTimelapseIndicator"
+                     Text="{Binding [CameraTimelapseIndicator], Source={x:Static loc:LocalizedStrings.Instance}}"
+                     IsVisible="{Binding IsTakingTimelapse}"
+                     Foreground="White"
+                     FontSize="11"
+                     FontWeight="Bold"
+                     VerticalAlignment="Center"
+                     Margin="0,0,2,0" />
+        </StackPanel>
+      </Button>
+      <!--
+        Record (T-146): in every mode, right before the pin (in the corner in full screen); the red dot with "REC" while
+        anything records, which keeps it visible. Starts a manual recording, stops a running one (also an automatic one).
+      -->
+      <Button Classes="record"
+              Classes.recording="{Binding IsRecording}"
+              AutomationProperties.AutomationId="CameraRecordButton"
+              Command="{Binding ToggleRecordingCommand}"
+              IsVisible="{Binding HasRecordingButton}"
+              ToolTip.Tip="{Binding RecordingToolTip}"
+              ToolTip.ShowOnDisabled="True"
+              AutomationProperties.Name="{Binding RecordingToolTip}">
+        <StackPanel Classes="recordContent" Orientation="Horizontal" Spacing="5" Height="16">
+          <Panel Width="16" Height="16">
+            <Ellipse Classes="dot" Width="10" Height="10" Fill="#E5484D" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Rectangle Classes="stop" Width="10" Height="10" RadiusX="1.5" RadiusY="1.5" Fill="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Panel>
+          <TextBlock AutomationProperties.AutomationId="CameraRecordingIndicator"
+                     Text="{Binding [CameraRecordingIndicator], Source={x:Static loc:LocalizedStrings.Instance}}"
+                     IsVisible="{Binding IsRecording}"
+                     Foreground="White"
+                     FontSize="11"
+                     FontWeight="Bold"
+                     VerticalAlignment="Center"
+                     Margin="0,0,2,0" />
+        </StackPanel>
       </Button>
       <!--
         The pin (T-117): always last, in the corner, so that the dimmed pin stays where it is in both modes; not in full

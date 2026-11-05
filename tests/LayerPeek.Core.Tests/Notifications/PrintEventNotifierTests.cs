@@ -206,18 +206,6 @@ public sealed class PrintEventNotifierTests : IDisposable
     }
 
     [Fact]
-    public void ChangedConnectionTypeStartsFromNewBaseline()
-    {
-        _notifier.Configure([Mk4], new NotificationSettings());
-        _monitor.Raise(Snapshot(PrinterState.Printing, Start, Job("a") with { Id = 5 }));
-
-        _notifier.Configure([Mk4 with { ConnectionType = ConnectionType.PrusaConnect }], new NotificationSettings());
-        _monitor.Raise(Snapshot(PrinterState.Finished, Start.AddSeconds(5), Job("c") with { Id = 9 }));
-
-        Assert.Empty(_service.Notifications);
-    }
-
-    [Fact]
     public void RenamedPrinterKeepsTracking()
     {
         _notifier.Configure([Mk4], new NotificationSettings());

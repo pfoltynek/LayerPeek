@@ -12,7 +12,7 @@
     The started apps run in the isolated test mode: their own data folder in %TEMP% (reserved per worktree, removed after
     the run and swept after a crash), their own instance names, no Credential Manager, no toasts, no Start menu shortcut
     (except the tests that opt in, which are system changes with the warning below: silent toasts of the test app
-    LayerPeek.E2E with its own Start menu shortcut "LayerPeek E2E" and its own COM toast activator
+    LayerPeek.E2E.2 (T-133; formerly LayerPeek.E2E) with its own Start menu shortcut "LayerPeek E2E" and its own COM toast activator
     under HKCU\Software\Classes\CLSID, T-067/T-068; session-only Credential Manager entries LayerPeek.E2E/...,
     T-073; all are removed after the test, also after a crash).
     The user's running LayerPeek is never touched. The crash tests of T-046 end two test apps on purpose:
@@ -34,7 +34,7 @@
     and restored afterwards - also after a failed test, by the next run's start, by the script's own cleanup (even after
     Ctrl+C), and by a hidden watchdog process (this script with -RestoreOnly -AfterProcess) that outlives a killed test
     process. -NoSystemChanges skips those tests without the warning. Known traces Windows may keep: the test app
-    LayerPeek.E2E in the notification database %LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db
+    LayerPeek.E2E.2 (and the former LayerPeek.E2E) in the notification database %LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db
     and in the app list of Settings > System > Notifications (T-068, accepted 2026-10-22; the run reports every trace it
     finds in system-state-end.txt of the results folder).
 

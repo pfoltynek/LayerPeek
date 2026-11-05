@@ -152,7 +152,6 @@ public sealed class SettingsViewModelTests : IDisposable
         Assert.True(added.IsNew);
         Assert.Equal("new1", added.Id);
         Assert.Equal("New printer", added.DisplayName);
-        Assert.Equal(ConnectionType.PrusaLink, added.SelectedConnectionType.Value);
         Assert.Equal(string.Empty, added.PasswordWatermark);
         Assert.True(vm.IsDirty);
         // Errors of an untouched new printer are not shouted at the user yet.
@@ -644,21 +643,6 @@ public sealed class SettingsViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task SwitchingToPrusaConnectForgetsATypedPassword()
-    {
-        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [CloudPrinter("c", "Cloud")] });
-        PrinterEditorViewModel printer = vm.Printers[0];
-        printer.SelectedConnectionType = printer.ConnectionTypes.Single(static o => o.Value == ConnectionType.PrusaLink);
-        printer.Address = "192.168.1.40";
-        printer.Password = "typed";
-
-        printer.SelectedConnectionType = printer.ConnectionTypes.Single(static o => o.Value == ConnectionType.PrusaConnect);
-
-        Assert.Equal(string.Empty, printer.Password);
-        Assert.False(printer.HasNewPassword);
-    }
-
-    [Fact]
     public async Task CancelDiscardsEverything()
     {
         SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] });
@@ -739,38 +723,6 @@ public sealed class SettingsViewModelTests : IDisposable
         Assert.Empty(Assert.Single(_store.Saves).NewPasswords);
     }
 
-    // ---- Prusa Connect ----
-
-    [Fact]
-    public async Task PrusaConnectIsOfferedButNotSelectableForNewPrinters()
-    {
-        SettingsViewModel vm = await LoadAsync(AppSettings.Default);
-        vm.AddPrinterCommand.Execute(null);
-
-        ConnectionTypeOption connect = vm.SelectedPrinter!.ConnectionTypes.Single(static o => o.Value == ConnectionType.PrusaConnect);
-        Assert.False(connect.IsEnabled);
-        Assert.Equal("Prusa Connect (not available yet)", connect.Text);
-        Assert.True(vm.SelectedPrinter.ConnectionTypes.Single(static o => o.Value == ConnectionType.PrusaLink).IsEnabled);
-    }
-
-    [Fact]
-    public async Task ExistingPrusaConnectPrinterIsKeptAsIs()
-    {
-        PrinterDefinition cloud = CloudPrinter("c", "Cloud");
-        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [cloud] });
-        PrinterEditorViewModel printer = vm.Printers[0];
-
-        Assert.Equal(ConnectionType.PrusaConnect, printer.SelectedConnectionType.Value);
-        Assert.False(printer.IsPrusaLink);
-        Assert.False(printer.IsPasswordEnabled);
-        Assert.False(printer.TestConnectionCommand.CanExecute(null));
-        Assert.Null(printer.AddressError);
-
-        printer.Name = "Cloud 2";
-        await vm.SaveCommand.ExecuteAsync(null);
-        Assert.Equal(cloud with { Name = "Cloud 2" }, Assert.Single(Assert.Single(_store.Saves).Updated.Printers));
-    }
-
     // ---- PrusaLink user name ----
 
     [Fact]
@@ -792,7 +744,6 @@ public sealed class SettingsViewModelTests : IDisposable
 
         Assert.Equal("maker", added.UserName);
         Assert.Null(added.UserNameError);
-        Assert.Equal("PrusaLink user name from the printer settings. The default is “maker”.", added.UserNameHint);
         Assert.Equal("PrusaLink password from the printer settings.", added.PasswordHint);
     }
 
@@ -905,45 +856,6 @@ public sealed class SettingsViewModelTests : IDisposable
         Assert.True(vm.StatusIsError);
         Assert.Equal("Some values are not valid. Fix the highlighted fields.", vm.StatusText);
         Assert.Equal(0, _closeRequests);
-    }
-
-    [Fact]
-    public async Task ExistingPrusaConnectPrinterIgnoresTheUserName()
-    {
-        PrinterDefinition cloud = CloudPrinter("c", "Cloud");
-        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [cloud] });
-        PrinterEditorViewModel printer = vm.Printers[0];
-
-        Assert.False(printer.IsPrusaLink);
-        Assert.Equal("Prusa Connect does not use a printer user name.", printer.UserNameHint);
-
-        // The disabled field is not validated and never changes the saved definition.
-        printer.UserName = string.Empty;
-        Assert.Null(printer.UserNameError);
-        Assert.False(printer.HasErrors);
-        printer.Name = "Cloud 2";
-        await vm.SaveCommand.ExecuteAsync(null);
-
-        Assert.Equal(cloud with { Name = "Cloud 2" }, Assert.Single(Assert.Single(_store.Saves).Updated.Printers));
-    }
-
-    [Fact]
-    public async Task SwitchingToPrusaConnectRestoresTheSavedUserName()
-    {
-        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [CloudPrinter("c", "Cloud")] });
-        PrinterEditorViewModel printer = vm.Printers[0];
-        printer.SelectedConnectionType = printer.ConnectionTypes.Single(static o => o.Value == ConnectionType.PrusaLink);
-        printer.Address = "192.168.1.40";
-        printer.UserName = "a:b";
-        Assert.NotNull(printer.UserNameError);
-
-        printer.SelectedConnectionType = printer.ConnectionTypes.Single(static o => o.Value == ConnectionType.PrusaConnect);
-        printer.Address = "c0ffee00-0000-4000-8000-000000000001";
-
-        Assert.Equal("maker", printer.UserName);
-        Assert.Null(printer.UserNameError);
-        Assert.False(printer.HasErrors);
-        Assert.False(vm.IsDirty);
     }
 
     [Fact]
@@ -1070,7 +982,6 @@ public sealed class SettingsViewModelTests : IDisposable
     [InlineData(ConnectionTestOutcome.UnsupportedAuthentication, "The printer requires an unsupported sign-in method.")]
     [InlineData(ConnectionTestOutcome.UnexpectedResponse, "Something answers at this address, but it does not look like a PrusaLink printer.")]
     [InlineData(ConnectionTestOutcome.InvalidAddress, AddressInvalid)]
-    [InlineData(ConnectionTestOutcome.NotSupported, "Testing is not available for Prusa Connect yet.")]
     [InlineData(ConnectionTestOutcome.LocalNetworkAccessMayBeOff, "No connection. Local Network access for LayerPeek may be turned off in System Settings > Privacy & Security > Local Network.")]
     public async Task FailedTestIsExplained(ConnectionTestOutcome outcome, string expected)
     {

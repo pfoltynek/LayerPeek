@@ -62,6 +62,9 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
             Assert.Equal("PrinterTabCamera", FocusedId(window));
             Press(window, Key.Left, PhysicalKey.ArrowLeft, Command | RawInputModifiers.Alt);
             Press(window, Key.Left, PhysicalKey.ArrowLeft, Command | RawInputModifiers.Alt);
+            // T-154: the last sub-tab is Detection.
+            Assert.True(ui.Find<TabItem>("PrinterTabDetection").IsSelected);
+            Press(window, Key.Left, PhysicalKey.ArrowLeft, Command | RawInputModifiers.Alt);
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").IsSelected);
 
             // ⌘⇧] on a US layout: the logical key is the bracket (⇧ makes it "}").
@@ -71,11 +74,11 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
             Press(window, Key.OemOpenBrackets, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "{");
             Assert.True(ui.Find<TabItem>("SettingsTabPrinters").IsSelected);
             Press(window, Key.OemOpenBrackets, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "{");
-            Assert.True(ui.Find<TabItem>("SettingsTabStartupUpdates").IsSelected);
+            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
 
             // ⌘⌥→ outside the printer form does nothing.
             Press(window, Key.Right, PhysicalKey.ArrowRight, Command | RawInputModifiers.Alt);
-            Assert.True(ui.Find<TabItem>("SettingsTabStartupUpdates").IsSelected);
+            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
 
             // The keys of Windows stay: Ctrl+Tab.
             Press(window, Key.Tab, PhysicalKey.Tab, RawInputModifiers.Control);
@@ -91,7 +94,7 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
 
             // Czech layout: the keys right of P type ú and ) — with ⇧ "/" and "(" — so the logical key is no bracket.
             Press(window, Key.OemQuestion, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "/");
-            Assert.True(ui.Find<TabItem>("SettingsTabStartupUpdates").IsSelected);
+            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
             Press(window, Key.None, PhysicalKey.BracketRight, Command | RawInputModifiers.Shift, "(");
             Assert.True(ui.Find<TabItem>("SettingsTabPrinters").IsSelected);
 
@@ -128,7 +131,10 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
             LayerPeek.App.Tests.Settings.FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
             SettingsWindowHarness ui = await OpenAsync(scope, mac: true, store);
             Window window = ui.Window;
-            ComboBox comboBox = ui.Find<ComboBox>("PrinterConnectionType");
+            // The language drop-down on the General tab (T-170 removed the connection type drop-down of the printer).
+            ui.ViewModel.SelectedTabIndex = LayerPeek.App.Settings.SettingsViewModel.GeneralTab;
+            window.Settle();
+            ComboBox comboBox = ui.Find<ComboBox>("SettingsLanguage");
 
             // Esc as the reference: only the drop-down closes.
             Assert.True(comboBox.Focus());
@@ -158,7 +164,9 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
         {
             LayerPeek.App.Tests.Settings.FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
             SettingsWindowHarness ui = await OpenAsync(scope, mac: true, store);
-            ComboBox comboBox = ui.Find<ComboBox>("PrinterConnectionType");
+            ui.ViewModel.SelectedTabIndex = LayerPeek.App.Settings.SettingsViewModel.GeneralTab;
+            ui.Window.Settle();
+            ComboBox comboBox = ui.Find<ComboBox>("SettingsLanguage");
             Assert.True(comboBox.Focus());
             comboBox.IsDropDownOpen = true;
             ui.Window.Settle();

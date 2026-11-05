@@ -25,8 +25,36 @@ internal static class AppSwitches
     /// <summary>Marker argument of every app process these tests start (a start with it but without the test data folder exits with 4, T-074).</summary>
     public const string MarkerArgument = "--layerpeek-e2e-run=";
 
-    /// <summary>AppUserModelID of the app in the test mode (T-044); production uses "LayerPeek".</summary>
-    public const string AppUserModelId = "LayerPeek.E2E";
+    /// <summary>
+    /// AppUserModelID of the app in the test mode (T-044); production uses "LayerPeek". Must equal
+    /// <c>AppEnvironment.TestAppUserModelId</c> (a test reads it from the app's source). <c>.2</c> since T-133: Windows keeps
+    /// the notifications of the former <c>LayerPeek.E2E</c> switched off for good; raising the number is the recovery should
+    /// it ever happen again (docs/troubleshooting.md).
+    /// </summary>
+    public const string AppUserModelId = TestAppUserModelIdRoot + ".2";
+
+    /// <summary>Every app id of the test app, former and current, is this or starts with it and a dot (T-133).</summary>
+    public const string TestAppUserModelIdRoot = "LayerPeek.E2E";
+
+    /// <summary>
+    /// Whether <paramref name="appUserModelId"/> is an app id of the test app (<see cref="TestAppUserModelIdRoot"/>, alone or
+    /// with a suffix after a dot, without a backslash or white space): the guard of every helper that reads or changes
+    /// Windows' state of an app id, so that it never touches the production app or another app.
+    /// </summary>
+    public static bool IsTestAppUserModelId(string? appUserModelId) =>
+        appUserModelId is { Length: > 0 }
+        && (appUserModelId == TestAppUserModelIdRoot || appUserModelId.StartsWith(TestAppUserModelIdRoot + ".", StringComparison.Ordinal))
+        && !appUserModelId.Contains('\\', StringComparison.Ordinal)
+        && !appUserModelId.Any(char.IsWhiteSpace);
+
+    /// <summary>
+    /// Debug-only test command (T-133): the app pretends that Windows switched its notifications off
+    /// (<c>ToastNotifierSetting.DisabledForApplication</c>) instead of reading Windows' setting; nothing changes in Windows.
+    /// </summary>
+    public const string NotificationsOffCommand = "notifications:off";
+
+    /// <summary>Debug-only test command (T-133): the app reads Windows' own notification setting again.</summary>
+    public const string NotificationsOnCommand = "notifications:on";
 
     /// <summary>Secrets file of the test mode: key, tab, secret per line.</summary>
     public const string SecretsFileName = "test-secrets.txt";
@@ -51,6 +79,15 @@ internal static class AppSwitches
 
     /// <summary>Monitoring starts this many milliseconds later, 0 to 60000 (T-067).</summary>
     public const string TestStartDelayVariable = "LAYERPEEK_TEST_START_DELAY_MS";
+
+    /// <summary>The camera window of a printer offline this many milliseconds closes automatically, 0 to 120000 (T-151; default 30 s).</summary>
+    public const string TestCameraCloseAfterVariable = "LAYERPEEK_TEST_CAMERA_CLOSE_AFTER_MS";
+
+    /// <summary>An automatically closed camera window opens again after this many milliseconds online, 0 to 120000 (T-151; default 10 s).</summary>
+    public const string TestCameraOpenAfterVariable = "LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS";
+
+    /// <summary><c>1</c>: the detector of the end-to-end tests raises a print failure alarm during every print (T-154).</summary>
+    public const string TestFakeDetectorVariable = "LAYERPEEK_TEST_FAKE_DETECTOR";
 
     /// <summary>
     /// Command line mode of the exe (T-067): removes the toasts of the test app and its Start menu shortcut, starts nothing

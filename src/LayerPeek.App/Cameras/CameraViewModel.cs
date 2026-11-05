@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras.Mini;
+using LayerPeek.App.Cameras.Recording;
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Platform;
@@ -70,12 +71,13 @@ internal interface ICameraFrameSink
 /// </summary>
 /// <remarks>
 /// <para>
-/// Streaming runs only while the window is active (shown and not minimized, <see cref="SetActive"/>), on the thread pool
-/// through <see cref="ReconnectingCameraFeed"/>, which reconnects by itself. Each borrowed frame is copied once into a
-/// reused buffer of a <see cref="CameraFrameExchange"/>; normally at most one UI callback is queued, and it hands only the newest
-/// frame to the <see cref="ICameraFrameSink"/>, so a busy UI drops frames instead of queueing them. Pausing, closing and
-/// disposing cancel the stream, which closes the connection; a new run starts only after the previous one ended, so
-/// there is never more than one connection per window.
+/// The window takes frames only while it is active (shown and not minimized, <see cref="SetActive"/>): it holds a lease
+/// on the printer's shared connection of the <see cref="CameraStreamHub"/> (T-143), which reconnects by itself and keeps
+/// the connection for other consumers (and for the hub's linger time). Each borrowed frame is copied once into the lease's
+/// reused buffers (<see cref="CameraFrameExchange"/>); normally at most one UI callback is queued, and it hands only the
+/// newest frame to the <see cref="ICameraFrameSink"/>, so a busy UI drops frames instead of queueing them. Pausing,
+/// closing and disposing release the lease (a "run"); a lease the hub ended because of a failure is taken again after the
+/// reconnect delay.
 /// </para>
 /// <para>
 /// The widget overlay (<see cref="Overlay"/>, T-081) follows <see cref="IPrinterMonitor"/> snapshots of this printer
@@ -87,7 +89,7 @@ internal interface ICameraFrameSink
 /// </remarks>
 public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILanguageAware
 {
-    private readonly ReconnectingCameraFeed _feed;
+    private readonly CameraStreamHub _hub;
     private readonly IPrinterMonitor _monitor;
     private readonly MonitoredPrinters _printers;
     private readonly IUiDispatcher _dispatcher;
@@ -97,8 +99,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _retryDelay;
     private readonly Action _retry;
-    private readonly CameraFrameExchange _exchange = new();
     private readonly Action _presentFrame;
+    private readonly Action _requestPresent;
     private readonly Action _applyPrinters;
     private readonly Lock _gate = new();
     private readonly ILocalNetworkPrivacy _localNetwork;
@@ -110,10 +112,10 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private Uri _streamUri;
     private string _name;
     private ICameraFrameSink? _sink;
-    private CancellationTokenSource? _run;
+    private CameraFrameSubscription? _lease;
     private ITimer? _retryTimer;
     private int _runId;
-    private Task _streaming = Task.CompletedTask;
+    private TaskCompletionSource _runEnded = CompletedRun();
     private bool _active;
     private CameraWindowMode _mode;
 
@@ -132,8 +134,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private bool _hasFrame;
     private bool _usesMacShortcuts = Windows.MacShortcuts.IsPlatformDefault;
 
-    // Thread of the ending run (runs never overlap) and the UI thread (cleared by a shown frame): the last failure that
-    // ended a run by itself, as "type: message", so that a repeated one is logged briefly.
+    // Streaming thread of the ending lease (the hub ends one lease at a time) and the UI thread (cleared by a shown frame):
+    // the last failure that ended a run by itself, as "type: message", so that a repeated one is logged briefly.
     private string? _lastRunFailure;
 
     /// <param name="widgets">The overlay widgets the window can draw (T-081); <see langword="null"/> = none.</param>
@@ -143,9 +145,10 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <param name="layoutWriter">Saves the layout of the layout mode (T-091); <see langword="null"/> = saving fails.</param>
     /// <param name="localNetwork">Whether "no route to host" may be the denied local network permission (T-097); <see langword="null"/> = never.</param>
     /// <param name="topmostWriter">Saves "always on top" switched by the pin (T-117); <see langword="null"/> = saving fails.</param>
+    /// <param name="recordings">The camera recordings (T-146); <see langword="null"/> = no recording button.</param>
     internal CameraViewModel(
         CameraTarget target,
-        ReconnectingCameraFeed feed,
+        CameraStreamHub hub,
         IPrinterMonitor monitor,
         MonitoredPrinters printers,
         IUiDispatcher dispatcher,
@@ -160,10 +163,11 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         PrintThumbnails? thumbnails = null,
         ICameraOverlayLayoutWriter? layoutWriter = null,
         ILocalNetworkPrivacy? localNetwork = null,
-        ICameraWindowTopmostWriter? topmostWriter = null)
+        ICameraWindowTopmostWriter? topmostWriter = null,
+        ICameraRecordings? recordings = null)
     {
         ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(feed);
+        ArgumentNullException.ThrowIfNull(hub);
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(printers);
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -173,7 +177,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _name = target.Name;
         _streamUri = target.StreamUri;
         _localNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
-        _feed = feed;
+        _hub = hub;
         _monitor = monitor;
         _printers = printers;
         _dispatcher = dispatcher;
@@ -186,6 +190,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _logger = logger;
         _monitorPaths = monitorPaths;
         _presentFrame = PresentFrame;
+        // Streaming thread: posting may throw (the UI is gone); the hub then ends the lease (see OnLeaseEnded).
+        _requestPresent = () => _dispatcher.Post(_presentFrame);
         _applyPrinters = ApplyPrinters;
 
         // T-035: the remembered state (when the defaults allow it) or the defaults; the window places itself from these.
@@ -208,6 +214,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         EscapeCommand = new RelayCommand(Escape, () => _mode != CameraWindowMode.Normal);
         // T-117: the pin switches and saves "always on top" of the current mode.
         CreateTopmost(topmostWriter);
+        // T-146: the recording button with the REC indicator.
+        CreateRecording(recordings);
 
         // T-081: the widgets of the printer's layout with the global card opacity.
         Overlay = new CameraOverlayViewModel(
@@ -276,6 +284,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(StatusDetail));
         OnPropertyChanged(nameof(LayoutToolTip));
         OnPropertyChanged(nameof(TopmostToolTip));
+        RefreshRecordingTexts();
         Overlay.RefreshTexts();
         LayoutMode.RefreshTexts();
         MiniStrip.RefreshTexts();
@@ -443,11 +452,14 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         private set => SetProperty(ref _hasFrame, value);
     }
 
-    /// <summary>Completes when the current (or last) stream run ended and its connection was closed.</summary>
-    internal Task StreamCompletion => _streaming;
+    /// <summary>
+    /// Completes when the current (or last) stream run ended: the window released its lease (paused, closed, another
+    /// address), or the hub ended it (then after the window's reaction was posted to the UI thread).
+    /// </summary>
+    internal Task StreamCompletion => _runEnded.Task;
 
     /// <summary>Whether a stream run is active (not paused, not closed).</summary>
-    internal bool IsStreaming => _run is not null;
+    internal bool IsStreaming => _lease is not null;
 
     /// <summary>
     /// The window is shown and not minimized (<see langword="true"/>): the stream runs; minimized (<see langword="false"/>):
@@ -588,6 +600,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
         _printers.Changed -= OnPrintersChanged;
+        DisposeRecording();
         // An open edit is discarded (T-091).
         DisposeLayoutMode();
         Overlay.Dispose();
@@ -619,59 +632,107 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     private void Escape() => Mode = _mode == CameraWindowMode.FullScreen ? _fullScreenOrigin : CameraWindowMode.Normal;
 
+    private static TaskCompletionSource CompletedRun()
+    {
+        TaskCompletionSource completed = new();
+        completed.SetResult();
+        return completed;
+    }
+
     private void StartStream()
     {
-        if (_run is not null)
+        if (_lease is not null)
         {
             return;
         }
 
-        // Owned by the UI thread: cancelled by StopStream, disposed by OnRunEnded once the run has ended.
-        CancellationTokenSource run = new();
-        _run = run;
         int runId = ++_runId;
-        Uri uri = _streamUri;
-        Task previous = _streaming;
+        TaskCompletionSource ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _runEnded = ended;
         SetStatus(CameraStatus.Connecting);
-        StatusReporter status = new(this, runId);
-        // Task.Run: a decoder may block while connecting; nothing of the stream runs on the UI thread.
-        _streaming = Task.Run(() => RunStreamAsync(previous, uri, status, run, runId), CancellationToken.None);
+        // The window's address: the hub switches the printer's connection to it if it still has another one (Apply, T-040).
+        CameraFrameSubscription lease = _hub.SubscribeFrames(PrinterId, _streamUri, new CameraFrameSubscriptionOptions
+        {
+            FrameAvailable = _requestPresent,
+            Status = new StatusReporter(this, runId),
+            Ended = subscription => OnLeaseEnded(subscription, ended),
+        });
+        if (lease.IsEnded)
+        {
+            // The hub is stopping (quitting): nothing to show any more.
+            _runId++;
+            ended.TrySetResult();
+            return;
+        }
+
+        _lease = lease;
     }
 
     private void StopStream()
     {
         // Minimized, closed or another address: an automatic retry of an ended run is no longer wanted.
         CancelRetry();
-        if (_run is not { } run)
+        if (_lease is not { } lease)
         {
             return;
         }
 
-        _run = null;
-        // Statuses and frames of the stopped run are ignored from now on.
+        _lease = null;
+        // Statuses and frames of the released lease are ignored from now on.
         _runId++;
-        // Never disposed yet: only OnRunEnded disposes it, after clearing _run on this thread.
-        run.Cancel();
+        lease.Dispose();
+        _runEnded.TrySetResult();
     }
 
     /// <summary>
-    /// UI thread, after a run ended (stopped, or by itself after an unexpected failure): a run that ended by itself is
-    /// no longer active, so the next activation or address change starts a new one. Disposes the run's token source.
+    /// Streaming thread (or the thread that changed the settings or stopped the hub): the hub ended the lease. A failure (the
+    /// window's own frame callback threw, e.g. the UI is shutting down) is logged and retried after the reconnect delay.
     /// </summary>
-    private void OnRunEnded(CancellationTokenSource run)
+    private void OnLeaseEnded(CameraStreamSubscription lease, TaskCompletionSource ended)
     {
-        if (ReferenceEquals(_run, run))
+        Exception? failure = lease.EndReason == CameraStreamEndReason.Failed ? lease.Failure : null;
+        try
         {
-            _run = null;
-            _runId++;
-            if (_active && !_disposed)
+            if (failure is not null)
+            {
+                LogRunFailure(failure);
+            }
+
+            _dispatcher.Post(() => OnRunEnded(lease, failure));
+        }
+        catch (Exception ex)
+        {
+            // The UI is gone (quitting).
+            LogStreamFailed(ex);
+        }
+        finally
+        {
+            ended.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    /// UI thread, after the hub ended a lease: a run that ended by itself is no longer active, so the next activation or
+    /// address change starts a new one; after a failure an active window retries after the reconnect delay.
+    /// </summary>
+    private void OnRunEnded(CameraStreamSubscription lease, Exception? failure)
+    {
+        if (!ReferenceEquals(_lease, lease))
+        {
+            return;
+        }
+
+        _lease = null;
+        _runId++;
+        if (failure is not null && !_disposed)
+        {
+            SetStatus(new CameraStatus(CameraConnectionState.Error, $"The camera stream failed ({failure.GetType().Name})."));
+            if (_active)
             {
                 // User decision (T-014): an unexpected internal error is retried after the reconnect delay.
                 ScheduleRetry();
             }
         }
-
-        run.Dispose();
     }
 
     private void ScheduleRetry()
@@ -704,62 +765,16 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private void Retry()
     {
         CancelRetry();
-        if (_active && !_disposed && _run is null)
+        if (_active && !_disposed && _lease is null)
         {
             StartStream();
-        }
-    }
-
-    private async Task RunStreamAsync(Task previous, Uri uri, StatusReporter status, CancellationTokenSource run, int runId)
-    {
-        CancellationToken token = run.Token;
-        try
-        {
-            // One connection per window: the previous run must have closed its connection first.
-            await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-            // Only this run produces frames now; a notification lost by an earlier run must not block it.
-            _exchange.ResetNotification();
-            await foreach (CameraFrame frame in _feed.ReadFramesAsync(uri, status, token).ConfigureAwait(false))
-            {
-                if (token.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                if (_exchange.Publish(frame, runId))
-                {
-                    _dispatcher.Post(_presentFrame);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !token.IsCancellationRequested)
-        {
-            // The feed reports stream failures as statuses; this is only a safety net (e.g. a broken frame).
-            LogRunFailure(ex);
-            TryReport(status, new CameraStatus(CameraConnectionState.Error, $"The camera stream failed ({ex.GetType().Name})."));
-        }
-        catch (OperationCanceledException)
-        {
-            // Paused or closed.
-        }
-        finally
-        {
-            try
-            {
-                _dispatcher.Post(() => OnRunEnded(run));
-            }
-            catch (Exception ex)
-            {
-                // The UI is gone (quitting); the token source holds no unmanaged resources.
-                LogStreamFailed(ex);
-            }
         }
     }
 
     /// <summary>
     /// The full exception once, then a short line while runs keep ending with the same failure (the automatic retry would
     /// otherwise log the same stack trace every few seconds); a frame shown in between starts over. Like the repeated
-    /// failures of <see cref="ReconnectingCameraFeed"/>. Runs never overlap, so only one thread at a time sets the key.
+    /// failures of <see cref="ReconnectingCameraFeed"/>. The hub ends one lease at a time, so only one thread at a time sets the key.
     /// </summary>
     private void LogRunFailure(Exception exception)
     {
@@ -774,23 +789,11 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         }
     }
 
-    private void TryReport(StatusReporter status, CameraStatus value)
-    {
-        try
-        {
-            status.Report(value);
-        }
-        catch (Exception ex)
-        {
-            LogStreamFailed(ex);
-        }
-    }
-
     private void PresentFrame()
     {
-        CameraFrameBuffer? frame = _exchange.TakeLatest();
-        // Frames of a stopped run (paused, or the previous camera address) are not drawn any more.
-        if (frame is null || _disposed || _sink is not { } sink || frame.Generation != _runId)
+        // Only the current lease's frames: a callback of a released one (paused, or the previous address) finds nothing.
+        CameraFrameBuffer? frame = _disposed ? null : _lease?.TakeLatest();
+        if (frame is null || _sink is not { } sink)
         {
             return;
         }

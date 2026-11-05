@@ -1,10 +1,12 @@
 using System.Collections.ObjectModel;
 
+using LayerPeek.App.Cameras.Recording;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Updates;
+using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
@@ -14,7 +16,7 @@ namespace LayerPeek.App.Tray.Menu;
 /// <summary>
 /// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress,
 /// followed by the fixed items (diagnostics, settings, about, quit). Every printer is a submenu, also when it is the only
-/// one (T-042): "Open PrusaLink" / "Open Prusa Connect" and "Show camera" / "Hide camera" when its camera is enabled
+/// one (T-042): "Open PrusaLink" and "Show camera" / "Hide camera" when its camera is enabled
 /// (T-014; the text follows whether the camera window is open, 2026-10-22; an open window also has "Bring camera to front" bringing
 /// it to the front, T-102). "Diagnostics…" is a single main menu item
 /// (user decision 2026-10-21: the window has its own printer combo), enabled only while the menu shows printers (not while starting, after a monitoring failure or without
@@ -29,6 +31,11 @@ namespace LayerPeek.App.Tray.Menu;
 /// T-058: while a new version is offered (<see cref="UpdateOffer"/>), "A new version X.Y.Z is available" stands right above
 /// "About…"; it appearing or disappearing replaces the fixed items (a rebuild, once per found version), its text changing
 /// while an update downloads updates it in place.
+/// T-146: with recordings, a printer with a camera also has, after a separator, "Start recording" / "Stop recording"
+/// (disabled with the reason while it starts or stops, or when this build cannot record), "Play last recording" and "Open
+/// recordings folder"; a change of its recording (rare: start, stop, failure) formats only that printer's submenu again,
+/// updated in place. T-161: the same for its timelapse ("Start / Stop timelapse (experimental)", "Play last timelapse"),
+/// which the same change event reports.
 /// <see cref="PrinterItems"/> and <see cref="FixedItems"/> change on the UI thread only.
 /// </summary>
 internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, IDisposable, ILanguageAware
@@ -43,6 +50,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private readonly CancellationTokenSource _disposing = new();
     private readonly CustomPrinterImages? _images;
     private readonly UpdateOffer? _updates;
+    private readonly ICameraRecordings? _recordings;
 
     // UI thread only: the update item shown now (T-058), or null.
     private TrayMenuEntry? _updateEntry;
@@ -66,7 +74,15 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     /// <param name="images">Stored custom printer images for the printer icons (T-039); <see langword="null"/>: illustrations only.</param>
     /// <param name="updates">The update the app offers (T-058); <see langword="null"/>: no update item.</param>
-    public TrayMenuViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher, PrinterWebOpener webOpener, TrayMenuOptions options, CustomPrinterImages? images = null, UpdateOffer? updates = null)
+    /// <param name="recordings">The camera recordings (T-146); <see langword="null"/>: no recording items.</param>
+    public TrayMenuViewModel(
+        IPrinterMonitor monitor,
+        IUiDispatcher dispatcher,
+        PrinterWebOpener webOpener,
+        TrayMenuOptions options,
+        CustomPrinterImages? images = null,
+        UpdateOffer? updates = null,
+        ICameraRecordings? recordings = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -93,6 +109,13 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         if (_updates is not null)
         {
             _updates.Changed += OnUpdateChanged;
+        }
+
+        _recordings = recordings;
+        if (_recordings is not null)
+        {
+            _recordings.Changed += OnRecordingChanged;
+            _recordings.TimelapseExportChanged += OnTimelapseExportChanged;
         }
     }
 
@@ -254,6 +277,134 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     }
 
     /// <summary>
+    /// UI thread (T-146): a recording item was clicked. Start and Stop act on what the item showed (never a toggle of a state
+    /// that changed meanwhile); the service ignores a Start while it records and a Stop while it does not. Playing and opening
+    /// run off the UI thread and never throw.
+    /// </summary>
+    public void RunRecordingCommand(TrayMenuEntry entry)
+    {
+        if (_recordings is not { } recordings || entry is not { IsEnabled: true })
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+        }
+
+        switch (entry.Command)
+        {
+            case TrayMenuCommand.StartRecording when entry.PrinterId is { } id:
+                recordings.Start(id);
+                break;
+            case TrayMenuCommand.StopRecording when entry.PrinterId is { } id:
+                recordings.Stop(id);
+                break;
+            case TrayMenuCommand.PlayLastRecording when entry.PrinterId is { } id:
+                _ = recordings.PlayLastAsync(id);
+                break;
+            case TrayMenuCommand.OpenRecordingsFolder when entry.PrinterId is { } id:
+                _ = recordings.OpenPrinterFolderAsync(id);
+                break;
+            case TrayMenuCommand.SaveDashcam when entry.PrinterId is { } id:
+                recordings.SaveDashcam(id);
+                break;
+            case TrayMenuCommand.StartTimelapse when entry.PrinterId is { } id:
+                recordings.StartTimelapse(id);
+                break;
+            case TrayMenuCommand.StopTimelapse when entry.PrinterId is { } id:
+                recordings.StopTimelapse(id);
+                break;
+            case TrayMenuCommand.PlayLastTimelapse when entry.PrinterId is { } id:
+                _ = recordings.PlayLastTimelapseAsync(id);
+                break;
+            case TrayMenuCommand.ExportTimelapseJpeg when entry.PrinterId is { } id:
+                _ = recordings.ExportTimelapseToJpegAsync(id);
+                break;
+            case TrayMenuCommand.CancelTimelapseJpegExport:
+                recordings.CancelTimelapseExport();
+                break;
+            case TrayMenuCommand.CreateTimelapseFromRecording when entry.PrinterId is { } id:
+                _ = recordings.CreateTimelapseFromRecordingAsync(id);
+                break;
+            case TrayMenuCommand.CancelTimelapseFromRecording:
+                recordings.CancelTimelapseFromRecording();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Any thread (T-146): the recording of a printer changed. Only that printer is formatted again (its submenu too), in
+    /// the UI update of the next burst; nothing while the menu shows a status message.
+    /// </summary>
+    private void OnRecordingChanged(object? sender, string printerId)
+    {
+        if (printerId is null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_disposed || _slots is null || !_slotById.TryGetValue(printerId, out int index))
+            {
+                return;
+            }
+
+            Slot slot = _slots[index];
+            slot.RecordingChanged = true;
+            if (_monitoringFailed || slot.Dirty)
+            {
+                return;
+            }
+
+            slot.Dirty = true;
+            _dirtySlots.Add(index);
+            ScheduleApplyLocked();
+        }
+    }
+
+    /// <summary>
+    /// Any thread (T-165, T-164): the JPEG export or the timelapse from a recording started, made progress or ended. Its item is
+    /// in every printer's submenu (one job of each at a time), so every printer is formatted again in the UI update of the next burst; nothing while the menu shows a
+    /// status message.
+    /// </summary>
+    private void OnTimelapseExportChanged(object? sender, EventArgs e)
+    {
+        lock (_gate)
+        {
+            if (_disposed || _slots is null)
+            {
+                return;
+            }
+
+            bool scheduled = false;
+            for (int index = 0; index < _slots.Length; index++)
+            {
+                Slot slot = _slots[index];
+                slot.RecordingChanged = true;
+                if (_monitoringFailed || slot.Dirty)
+                {
+                    continue;
+                }
+
+                slot.Dirty = true;
+                _dirtySlots.Add(index);
+                scheduled = true;
+            }
+
+            if (scheduled)
+            {
+                ScheduleApplyLocked();
+            }
+        }
+    }
+
+    /// <summary>
     /// UI thread: the language changed. Every printer item (including its cached submenu) and the fixed items are
     /// formatted again; the presenter then rebuilds the platform menu once.
     /// </summary>
@@ -389,6 +540,12 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             _updates.Changed -= OnUpdateChanged;
         }
 
+        if (_recordings is not null)
+        {
+            _recordings.Changed -= OnRecordingChanged;
+            _recordings.TimelapseExportChanged -= OnTimelapseExportChanged;
+        }
+
         lock (_gate)
         {
             if (_disposed)
@@ -444,20 +601,28 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// built once per configuration and reused, so a state change only formats the header. Clicking the header only opens
     /// the submenu (T-042; before, a single printer opened its web interface).
     /// </summary>
-    private TrayMenuEntry PrinterEntry(PrinterLine line) =>
+    private TrayMenuEntry PrinterEntry(PrinterLine line)
+    {
+        if (line.RecordingChanged)
+        {
+            // The cached submenu holds the old recording items (T-146).
+            line.Owner.Submenu = null;
+        }
+
         // Enabled even when the address is invalid: the submenu shows the disabled web item with the reason.
-        new(TrayMenuCommand.None, TrayMenuFormatter.PrinterHeader(line.Name, line.Content), IsEnabled: true, TrayMenuFormatter.PrinterToolTip(line.Name), PrinterId: line.Id)
+        return new(TrayMenuCommand.None, TrayMenuFormatter.PrinterHeader(line.Name, line.Content), IsEnabled: true, TrayMenuFormatter.PrinterToolTip(line.Name), PrinterId: line.Id)
         {
             Submenu = line.Owner.Submenu ??= PrinterSubmenu(line),
             Icon = line.Picture,
         };
+    }
 
     private TrayMenuEntryList PrinterSubmenu(PrinterLine line)
     {
         bool canOpenWeb = line.WebUri is not null;
         TrayMenuEntry web = new(
             TrayMenuCommand.OpenWeb,
-            TrayMenuFormatter.OpenWebText(line.ConnectionType),
+            TrayMenuFormatter.OpenWebText(),
             canOpenWeb,
             canOpenWeb ? null : Strings.MenuInvalidAddress,
             line.WebUri,
@@ -472,9 +637,102 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         }
 
         // T-102: "Bring camera to front" brings the open window to the front, right above "Hide camera".
-        return new TrayMenuEntryList(_options.CameraToFront && _openCameras.Contains(line.Id)
+        List<TrayMenuEntry> items = _options.CameraToFront && _openCameras.Contains(line.Id)
             ? [web, CameraToFrontEntry(line.Id), CameraEntry(line.Id)]
-            : [web, CameraEntry(line.Id)]);
+            : [web, CameraEntry(line.Id)];
+        if (_recordings is { } recordings)
+        {
+            AddRecordingEntries(items, recordings, line.Id);
+        }
+
+        return new TrayMenuEntryList(items);
+    }
+
+    /// <summary>
+    /// T-146 (user decisions 2026-11-03): after a separator, "Start recording" / "Stop recording" with one access key in both
+    /// states (disabled with the reason while it starts or stops, or when this build cannot record), "Save the last N min"
+    /// of a printer with a dashcam (T-148, disabled with the reason while it does not buffer), "Play last recording"
+    /// (disabled until the printer has a recording) and "Open recordings folder". T-161: "Start timelapse" / "Stop timelapse"
+    /// (experimental) after the recording controls, "Play last timelapse" after "Play last recording"; the folder is shared.
+    /// T-165: "Export timelapse to JPEG… (experimental)" (or "Cancel JPEG export (42 %)") after "Play last timelapse".
+    /// T-164: "Create timelapse from recording… (experimental)" (or "Cancel timelapse from recording (42 %)") after it.
+    /// </summary>
+    private static void AddRecordingEntries(List<TrayMenuEntry> items, ICameraRecordings recordings, string printerId)
+    {
+        CameraRecordingStatus status = recordings.GetStatus(printerId);
+        RecordingControlState state = new(recordings.IsAvailable, status.Activity);
+        items.Add(TrayMenuEntry.Separator);
+        items.Add(new TrayMenuEntry(
+            state.IsActive ? TrayMenuCommand.StopRecording : TrayMenuCommand.StartRecording,
+            state.IsActive ? Strings.MenuStopRecording : Strings.MenuStartRecording,
+            state.IsEnabled,
+            state.DisabledReason,
+            PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        // T-148: "Save the last N min" right below, only for a printer with a dashcam.
+        DashcamControlState dashcam = new(status.Dashcam, status.IsActive, status.DashcamMinutes);
+        if (dashcam.IsShown)
+        {
+            items.Add(new TrayMenuEntry(TrayMenuCommand.SaveDashcam, dashcam.Text, dashcam.IsEnabled, dashcam.DisabledReason, PrinterId: printerId)
+            {
+                HasAccessKey = true,
+            });
+        }
+
+        // T-161: the timelapse (experimental, the label is in the text) below the recording, one access key in both states.
+        TimelapseControlState timelapse = TimelapseControlState.Of(recordings.IsTimelapseAvailable, status.Timelapse);
+        items.Add(new TrayMenuEntry(
+            timelapse.IsActive ? TrayMenuCommand.StopTimelapse : TrayMenuCommand.StartTimelapse,
+            timelapse.IsActive ? Strings.MenuStopTimelapse : Strings.MenuStartTimelapse,
+            timelapse.IsEnabled,
+            timelapse.MenuToolTip,
+            PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        bool hasLast = status.LastFile is not null;
+        items.Add(new TrayMenuEntry(TrayMenuCommand.PlayLastRecording, Strings.MenuPlayLastRecording, hasLast, hasLast ? null : Strings.MenuNoRecordingYet, PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        bool hasLastTimelapse = status.Timelapse.LastFile is not null;
+        items.Add(new TrayMenuEntry(
+            TrayMenuCommand.PlayLastTimelapse,
+            Strings.MenuPlayLastTimelapse,
+            hasLastTimelapse,
+            hasLastTimelapse ? null : Strings.MenuNoTimelapseYet,
+            PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        // T-165: the JPEG export of a timelapse file (experimental, the label is in the text), the same item for every printer.
+        TimelapseExportControlState export = new(recordings.IsTimelapseExportAvailable, recordings.TimelapseExport);
+        items.Add(new TrayMenuEntry(
+            export.IsRunning ? TrayMenuCommand.CancelTimelapseJpegExport : TrayMenuCommand.ExportTimelapseJpeg,
+            export.Text,
+            export.IsEnabled,
+            export.ToolTip,
+            PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        // T-164: a timelapse from a recording file (experimental, the label is in the text), the same item for every printer.
+        TimelapseFromRecordingControlState fromRecording = new(recordings.IsTimelapseFromRecordingAvailable, recordings.TimelapseFromRecording);
+        items.Add(new TrayMenuEntry(
+            fromRecording.IsRunning ? TrayMenuCommand.CancelTimelapseFromRecording : TrayMenuCommand.CreateTimelapseFromRecording,
+            fromRecording.Text,
+            fromRecording.IsEnabled,
+            fromRecording.ToolTip,
+            PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
+        items.Add(new TrayMenuEntry(TrayMenuCommand.OpenRecordingsFolder, Strings.MenuOpenRecordingsFolder, IsEnabled: true, PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        });
     }
 
     /// <summary>
@@ -676,15 +934,16 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     /// <summary>What one printer item needs; copied out of the lock for formatting.</summary>
     /// <param name="HasCamera">The printer has an enabled camera: the menu offers "Camera".</param>
+    /// <param name="RecordingChanged">Its recording changed since the submenu was built (T-146): the submenu is built again.</param>
     private readonly record struct PrinterLine(
         Slot Owner,
         string Id,
         string Name,
-        ConnectionType ConnectionType,
         Uri? WebUri,
         PrinterMenuContent Content,
         bool HasCamera,
-        PrinterPicture? Picture);
+        PrinterPicture? Picture,
+        bool RecordingChanged);
 
     /// <summary>Mutable per-printer state, guarded by the owner's lock (except <see cref="Submenu"/>).</summary>
     private sealed class Slot(PrinterDefinition definition, Uri? webUri)
@@ -704,7 +963,15 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         /// <summary>The icon of the printer item (T-039); <see langword="null"/> without printer icons.</summary>
         public PrinterPicture? Picture { get; set; }
 
-        public PrinterLine ToLine() =>
-            new(this, definition.Id, definition.Name, definition.ConnectionType, webUri, Content, definition.Camera is { Enabled: true, StreamUri: not null }, Picture);
+        /// <summary>Its recording changed (T-146); cleared by <see cref="ToLine"/>, which hands it to the UI update.</summary>
+        public bool RecordingChanged { get; set; }
+
+        /// <summary>Under the owner's lock.</summary>
+        public PrinterLine ToLine()
+        {
+            bool recordingChanged = RecordingChanged;
+            RecordingChanged = false;
+            return new(this, definition.Id, definition.Name, webUri, Content, definition.Camera is { Enabled: true, StreamUri: not null }, Picture, recordingChanged);
+        }
     }
 }

@@ -31,14 +31,14 @@ public sealed class LocalNetworkPrivacyObserverTests : IDisposable
     }
 
     [Fact]
-    public void OtherProblemsUnknownPrintersAndCloudPrintersAreNotAsked()
+    public void OtherProblemsUnknownPrintersAndPrintersWithoutAHostAreNotAsked()
     {
         _observer.ApplySettings(new AppSettings
         {
             Printers =
             [
                 Definition("mk4"),
-                new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee00-0000-4000-8000-000000000001" },
+                Definition("xl") with { Address = "ftp://printer" },
             ],
         });
 

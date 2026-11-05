@@ -37,7 +37,7 @@ internal sealed class AppEnvironment
 
     /// <summary>
     /// The AppUserModelID of the process and its windows on Windows: <c>LayerPeek</c> (T-010, T-043), in the test
-    /// mode <c>LayerPeek.E2E</c>, so that test windows never group with the user's instance on the taskbar.
+    /// mode <see cref="TestAppUserModelId"/>, so that test windows never group with the user's instance on the taskbar.
     /// </summary>
     public string AppUserModelId => IsIsolated ? TestAppUserModelId : ProductionAppUserModelId;
 
@@ -47,8 +47,14 @@ internal sealed class AppEnvironment
     /// <summary>Same value as <c>WindowsAppIdentity.AppUserModelId</c> (a unit test keeps them equal).</summary>
     internal const string ProductionAppUserModelId = "LayerPeek";
 
-    /// <summary>The AppUserModelID of the test mode (never used by Release builds).</summary>
-    internal const string TestAppUserModelId = "LayerPeek.E2E";
+    /// <summary>
+    /// The AppUserModelID of the test mode (never used by Release builds); the one place of the app that names it (the
+    /// end-to-end tests keep <c>AppSwitches.AppUserModelId</c> equal, checked by a test). <c>.2</c> since T-133: Windows
+    /// keeps the notifications of the former test app id <c>LayerPeek.E2E</c> switched off for good (no program can switch
+    /// them on again), and a new app id starts switched on. Should Windows ever keep this one off, raising the number is the
+    /// recovery (docs/troubleshooting.md).
+    /// </summary>
+    internal const string TestAppUserModelId = "LayerPeek.E2E.2";
 
     /// <summary>
     /// The CLSID of the COM toast activator on Windows (T-068), carried by the Start menu shortcut and registered under
@@ -88,6 +94,16 @@ internal sealed class AppEnvironment
 
     /// <summary>The log folder inside the test data folder.</summary>
     internal const string TestLogFolderName = "logs";
+
+    /// <summary>
+    /// The folder of caches (T-154: the images of print failure notifications, the last camera frames of the bed region
+    /// editor): the standard cache folder of the OS, in the test mode the <c>cache</c> folder in the test data folder.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The OS does not provide a per-user cache folder.</exception>
+    public string CacheDirectory() => _dataDirectory is null ? AppDataPaths.GetDefaultCacheDirectory() : Path.Combine(_dataDirectory, TestCacheFolderName);
+
+    /// <summary>The cache folder inside the test data folder.</summary>
+    internal const string TestCacheFolderName = "cache";
 
     /// <summary>
     /// The autostart shortcut (T-017, Windows): <c>LayerPeek.lnk</c> in the user's Startup folder, in the test mode in the
@@ -214,6 +230,25 @@ internal sealed class AppEnvironment
     public const string TestUpdateSourceVariable = Installer.UpdateSource.TestVariable;
 
     /// <summary>
+    /// Debug builds only (T-151): the camera window of a printer offline this many milliseconds (0 to
+    /// <see cref="MaxTestCameraAutoDelayMilliseconds"/>) closes automatically, instead of after 30 s, so that the end-to-end
+    /// test does not wait that long.
+    /// </summary>
+    public const string TestCameraCloseAfterVariable = "LAYERPEEK_TEST_CAMERA_CLOSE_AFTER_MS";
+
+    /// <summary>
+    /// Debug builds only (T-151): an automatically closed camera window opens again after the printer has been online this
+    /// many milliseconds (0 to <see cref="MaxTestCameraAutoDelayMilliseconds"/>), instead of after 10 s.
+    /// </summary>
+    public const string TestCameraOpenAfterVariable = "LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS";
+
+    /// <summary>
+    /// Debug builds only (T-154): <c>1</c> adds the detector of the end-to-end tests (<c>e2e-alarm</c>, it reports a failure
+    /// in every sample of a lit camera), so that a print of the simulator raises a print failure alarm with its notification.
+    /// </summary>
+    public const string TestFakeDetectorVariable = "LAYERPEEK_TEST_FAKE_DETECTOR";
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
     /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
@@ -261,6 +296,9 @@ internal sealed class AppEnvironment
     /// <summary>The longest pretended time without a display in the test mode.</summary>
     public const int MaxTestNoDisplayMilliseconds = 120_000;
 
+    /// <summary>The longest delay of the automatic close and reopen of the camera windows in the test mode (T-151).</summary>
+    public const int MaxTestCameraAutoDelayMilliseconds = 120_000;
+
     /// <summary>
     /// Exit code of a test-mode start without an instance name suffix, with a relative data folder or an invalid test switch,
     /// and of a test start (<see cref="IsTestStart"/>) without the test data folder.
@@ -302,6 +340,15 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestUpdateSourceVariable"/>: the update feed of the test; otherwise <see langword="null"/>.</summary>
     public Installer.UpdateSource? TestUpdateSource { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestCameraCloseAfterVariable"/>: the offline delay of the camera windows; otherwise <see langword="null"/>.</summary>
+    public TimeSpan? TestCameraCloseAfter { get; private init; }
+
+    /// <summary>Test mode with <see cref="TestCameraOpenAfterVariable"/>: the online delay of the camera windows; otherwise <see langword="null"/>.</summary>
+    public TimeSpan? TestCameraOpenAfter { get; private init; }
+
+    /// <summary>Test mode with <see cref="TestFakeDetectorVariable"/>: the detector of the end-to-end tests is registered.</summary>
+    public bool TestFakeDetector { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -311,6 +358,9 @@ internal sealed class AppEnvironment
     /// <param name="startDelay">How much later monitoring starts (T-067).</param>
     /// <param name="noDisplay">How long macOS reports no active display (T-099).</param>
     /// <param name="updateSource">The update feed of the test (T-058).</param>
+    /// <param name="cameraCloseAfter">The offline delay of the automatic close of the camera windows (T-151).</param>
+    /// <param name="cameraOpenAfter">The online delay of their automatic reopen (T-151).</param>
+    /// <param name="fakeDetector">The detector of the end-to-end tests (T-154).</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
     public static AppEnvironment ForTests(
         string dataDirectory,
@@ -318,7 +368,10 @@ internal sealed class AppEnvironment
         string? credentialPrefix = null,
         TimeSpan startDelay = default,
         TimeSpan noDisplay = default,
-        Installer.UpdateSource? updateSource = null)
+        Installer.UpdateSource? updateSource = null,
+        TimeSpan? cameraCloseAfter = null,
+        TimeSpan? cameraOpenAfter = null,
+        bool fakeDetector = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -341,13 +394,24 @@ internal sealed class AppEnvironment
             throw new ArgumentOutOfRangeException(nameof(noDisplay), noDisplay, "The time without a display of the test mode is out of range.");
         }
 
+        foreach ((TimeSpan? delay, string name) in new[] { (cameraCloseAfter, nameof(cameraCloseAfter)), (cameraOpenAfter, nameof(cameraOpenAfter)) })
+        {
+            if (delay is { } value && (value < TimeSpan.Zero || value > TimeSpan.FromMilliseconds(MaxTestCameraAutoDelayMilliseconds)))
+            {
+                throw new ArgumentOutOfRangeException(name, value, "The camera window delay of the test mode is out of range.");
+            }
+        }
+
         return new AppEnvironment(Path.GetFullPath(dataDirectory), isolated: true)
         {
+            TestCameraCloseAfter = cameraCloseAfter,
+            TestCameraOpenAfter = cameraOpenAfter,
             TestToasts = toasts,
             TestCredentialPrefix = credentialPrefix,
             TestStartDelay = startDelay,
             TestNoDisplay = noDisplay,
             TestUpdateSource = updateSource,
+            TestFakeDetector = fakeDetector,
         };
     }
 
@@ -365,10 +429,13 @@ internal sealed class AppEnvironment
         string? startDelay = read(TestStartDelayVariable);
         string? noDisplay = read(TestNoDisplayVariable);
         string? updateSource = read(TestUpdateSourceVariable);
+        string? cameraCloseAfter = read(TestCameraCloseAfterVariable);
+        string? cameraOpenAfter = read(TestCameraOpenAfterVariable);
+        string? fakeDetector = read(TestFakeDetectorVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter), (TestFakeDetectorVariable, fakeDetector) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -385,7 +452,10 @@ internal sealed class AppEnvironment
             credentialPrefix: string.IsNullOrEmpty(credentialPrefix) ? null : credentialPrefix,
             startDelay: ParseMilliseconds(startDelay, TestStartDelayVariable, MaxTestStartDelayMilliseconds),
             noDisplay: ParseMilliseconds(noDisplay, TestNoDisplayVariable, MaxTestNoDisplayMilliseconds),
-            updateSource: ParseUpdateSource(updateSource));
+            updateSource: ParseUpdateSource(updateSource),
+            cameraCloseAfter: string.IsNullOrEmpty(cameraCloseAfter) ? null : ParseMilliseconds(cameraCloseAfter, TestCameraCloseAfterVariable, MaxTestCameraAutoDelayMilliseconds),
+            cameraOpenAfter: string.IsNullOrEmpty(cameraOpenAfter) ? null : ParseMilliseconds(cameraOpenAfter, TestCameraOpenAfterVariable, MaxTestCameraAutoDelayMilliseconds),
+            fakeDetector: fakeDetector == "1");
     }
 
     /// <summary>Only the loopback or an existing local folder; anything else refuses the start (never GitHub, never another host).</summary>

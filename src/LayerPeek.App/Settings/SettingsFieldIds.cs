@@ -29,4 +29,14 @@ public static class SettingsFieldIds
     public const string SettingsPollingInterval = "SettingsPollingInterval";
 
     public const string SettingsRemainingTime = "SettingsRemainingTime";
+
+    public const string SettingsRecordingLimit = "SettingsRecordingLimit";
+
+    public const string SettingsDashcamMinutes = "SettingsDashcamMinutes";
+
+    public const string SettingsTimelapseInterval = "SettingsTimelapseInterval";
+
+    public const string SettingsTimelapseEveryNthLayer = "SettingsTimelapseEveryNthLayer";
+
+    public const string SettingsDetectionInterval = "SettingsDetectionInterval";
 }

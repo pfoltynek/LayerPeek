@@ -10,7 +10,7 @@ public enum TrayMenuCommand
     /// <summary>Informational item, separator or the header of a submenu (every printer item, T-042).</summary>
     None,
 
-    /// <summary>Opens <see cref="TrayMenuEntry.WebUri"/> (PrusaLink / Prusa Connect) in the browser.</summary>
+    /// <summary>Opens <see cref="TrayMenuEntry.WebUri"/> (PrusaLink) in the browser.</summary>
     OpenWeb,
 
     /// <summary>Settings window (T-015).</summary>
@@ -40,6 +40,49 @@ public enum TrayMenuCommand
     /// opens it when it closed meanwhile.
     /// </summary>
     CameraToFront,
+
+    /// <summary>"Start recording" of <see cref="TrayMenuEntry.PrinterId"/> (T-146): a manual recording of its camera.</summary>
+    StartRecording,
+
+    /// <summary>"Stop recording" of <see cref="TrayMenuEntry.PrinterId"/> (T-146): ends its recording, manual or automatic.</summary>
+    StopRecording,
+
+    /// <summary>"Play last recording" (T-146): the newest recording of <see cref="TrayMenuEntry.PrinterId"/> in the system's default app.</summary>
+    PlayLastRecording,
+
+    /// <summary>"Open recordings folder" (T-146): the printer's recordings folder in Explorer / Finder (the root while it has none).</summary>
+    OpenRecordingsFolder,
+
+    /// <summary>"Save the last N min" (T-148): the dashcam of <see cref="TrayMenuEntry.PrinterId"/> saves the last minutes now.</summary>
+    SaveDashcam,
+
+    /// <summary>"Start timelapse (experimental)" of <see cref="TrayMenuEntry.PrinterId"/> (T-161): a manual timelapse of its camera.</summary>
+    StartTimelapse,
+
+    /// <summary>"Stop timelapse (experimental)" of <see cref="TrayMenuEntry.PrinterId"/> (T-161): ends its timelapse, manual or automatic.</summary>
+    StopTimelapse,
+
+    /// <summary>"Play last timelapse" (T-161): the newest timelapse of <see cref="TrayMenuEntry.PrinterId"/> in the system's default app.</summary>
+    PlayLastTimelapse,
+
+    /// <summary>
+    /// "Export timelapse to JPEG… (experimental)" (T-165): the open dialog for a timelapse file (in the recordings folder of
+    /// <see cref="TrayMenuEntry.PrinterId"/>), then its frames as JPEG files next to it.
+    /// </summary>
+    ExportTimelapseJpeg,
+
+    /// <summary>"Cancel JPEG export (42 %)" (T-165), instead of <see cref="ExportTimelapseJpeg"/> while an export runs.</summary>
+    CancelTimelapseJpegExport,
+
+    /// <summary>
+    /// "Create timelapse from recording… (experimental)" (T-164): the open dialog for a recording file (in the recordings folder
+    /// of <see cref="TrayMenuEntry.PrinterId"/>), then a timelapse of it next to it.
+    /// </summary>
+    CreateTimelapseFromRecording,
+
+    /// <summary>"Cancel timelapse from recording (42 %)" (T-164), instead of <see cref="CreateTimelapseFromRecording"/> while one is made.</summary>
+    CancelTimelapseFromRecording,
+
     About,
 
     /// <summary>

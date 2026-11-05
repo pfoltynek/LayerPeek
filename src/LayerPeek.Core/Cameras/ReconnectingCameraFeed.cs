@@ -8,7 +8,8 @@ namespace LayerPeek.Core.Cameras;
 /// <summary>
 /// Keeps a camera stream running: opens it through an <see cref="ICameraFeedFactory"/>, forwards its frames,
 /// detects a stalled stream and reconnects after <see cref="CameraFeedOptions.ReconnectDelay"/> whenever an attempt
-/// fails or ends, until cancelled. Stateless: concurrent enumerations are independent connections.
+/// fails or ends, until cancelled. Stateless: concurrent enumerations are independent connections (share one through
+/// <see cref="CameraStreamHub"/>).
 /// </summary>
 /// <remarks>
 /// Status rules: <see cref="CameraConnectionState.Connecting"/> at the start of every attempt,
@@ -64,17 +65,51 @@ public sealed partial class ReconnectingCameraFeed
     /// <returns>Borrowed frames, valid until the enumerator advances (see <see cref="CameraFrame"/>).</returns>
     public IAsyncEnumerable<CameraFrame> ReadFramesAsync(Uri streamUri, IProgress<CameraStatus>? status, CancellationToken cancellationToken)
     {
+        Validate(streamUri);
+        return FramesOnlyAsync(streamUri, status, cancellationToken);
+    }
+
+    /// <summary>
+    /// Like <see cref="ReadFramesAsync"/>, but yields the items of <see cref="ICameraFeed.ReadAsync"/> by
+    /// <paramref name="demand"/> (T-143): one <see cref="CameraStreamItemKind.StreamStarted"/> per connection, packets and
+    /// frames. The first packet or frame of an attempt counts as <see cref="CameraConnectionState.Streaming"/>; the
+    /// timeouts apply to the gaps between any items. <paramref name="demand"/> is passed to every attempt and may change
+    /// at any time.
+    /// </summary>
+    public IAsyncEnumerable<CameraStreamItem> ReadAsync(Uri streamUri, CameraStreamDemand demand, IProgress<CameraStatus>? status, CancellationToken cancellationToken)
+    {
+        Validate(streamUri);
+        ArgumentNullException.ThrowIfNull(demand);
+        return ReadCoreAsync(streamUri, demand, status, cancellationToken);
+    }
+
+    private static void Validate(Uri streamUri)
+    {
         ArgumentNullException.ThrowIfNull(streamUri);
         if (!streamUri.IsAbsoluteUri)
         {
             throw new ArgumentException("The stream address must be absolute.", nameof(streamUri));
         }
-
-        return ReadCoreAsync(streamUri, status, cancellationToken);
     }
 
-    private async IAsyncEnumerable<CameraFrame> ReadCoreAsync(
+    private async IAsyncEnumerable<CameraFrame> FramesOnlyAsync(
         Uri streamUri,
+        IProgress<CameraStatus>? progress,
+        [EnumeratorCancellation] CancellationToken stopToken)
+    {
+        // Awaited right here like below: the state machines of both iterators are reused for every frame.
+        await foreach (CameraStreamItem item in ReadCoreAsync(streamUri, new CameraStreamDemand(frames: true, packets: false), progress, stopToken).ConfigureAwait(false))
+        {
+            if (item.Kind == CameraStreamItemKind.Frame)
+            {
+                yield return item.Frame;
+            }
+        }
+    }
+
+    private async IAsyncEnumerable<CameraStreamItem> ReadCoreAsync(
+        Uri streamUri,
+        CameraStreamDemand demand,
         IProgress<CameraStatus>? progress,
         [EnumeratorCancellation] CancellationToken stopToken)
     {
@@ -87,24 +122,24 @@ public sealed partial class ReconnectingCameraFeed
             status.Report(CameraStatus.Connecting);
             CameraStatus? failure;
             ICameraFeed? stream = null;
-            IAsyncEnumerator<CameraFrame>? frames = null;
+            IAsyncEnumerator<CameraStreamItem>? items = null;
             using (CancellationTokenSource attempt = CancellationTokenSource.CreateLinkedTokenSource(stopToken))
             {
                 watchdog.Attach(attempt);
                 try
                 {
-                    failure = TryOpen(streamUri, address, status, attempt.Token, out stream, out frames);
+                    failure = TryOpen(streamUri, demand, address, status, attempt.Token, out stream, out items);
                     bool streaming = false;
-                    while (frames is not null)
+                    while (items is not null)
                     {
-                        // Armed only while waiting for the stream: the consumer's time between frames is not counted.
+                        // Armed only while waiting for the stream: the consumer's time between items is not counted.
                         watchdog.Arm(streaming ? _options.FrameTimeout : _options.ConnectTimeout);
                         bool moved;
                         try
                         {
-                            // Awaited right here: the iterator's own state machine is reused for every frame, so a read
+                            // Awaited right here: the iterator's own state machine is reused for every item, so a read
                             // that completes asynchronously (the normal case with a real decoder) allocates nothing.
-                            moved = await frames.MoveNextAsync().ConfigureAwait(false);
+                            moved = await items.MoveNextAsync().ConfigureAwait(false);
                         }
                         catch (Exception ex)
                         {
@@ -122,20 +157,21 @@ public sealed partial class ReconnectingCameraFeed
                             break;
                         }
 
-                        if (!streaming)
+                        CameraStreamItem item = items.Current;
+                        if (!streaming && item.Kind != CameraStreamItemKind.StreamStarted)
                         {
                             streaming = true;
                             status.Report(CameraStatus.Streaming);
                             status.ClearFailures();
                         }
 
-                        yield return frames.Current;
+                        yield return item;
                     }
                 }
                 finally
                 {
                     watchdog.Detach();
-                    await CloseAsync(frames, stream, address).ConfigureAwait(false);
+                    await CloseAsync(items, stream, address).ConfigureAwait(false);
                 }
             }
 
@@ -161,18 +197,19 @@ public sealed partial class ReconnectingCameraFeed
     /// <returns><see langword="null"/> when the stream was opened, otherwise the failure status.</returns>
     private CameraStatus? TryOpen(
         Uri streamUri,
+        CameraStreamDemand demand,
         string address,
         StatusReporter status,
         CancellationToken attemptToken,
         out ICameraFeed? stream,
-        out IAsyncEnumerator<CameraFrame>? frames)
+        out IAsyncEnumerator<CameraStreamItem>? items)
     {
         stream = null;
-        frames = null;
+        items = null;
         try
         {
             stream = _factory.Create(streamUri) ?? throw new CameraFeedException("No camera stream is available.");
-            frames = stream.ReadFramesAsync(attemptToken).GetAsyncEnumerator(attemptToken);
+            items = stream.ReadAsync(demand, attemptToken).GetAsyncEnumerator(attemptToken);
             return null;
         }
         catch (Exception ex)
@@ -230,13 +267,13 @@ public sealed partial class ReconnectingCameraFeed
         return Failed(exception);
     }
 
-    private async Task CloseAsync(IAsyncEnumerator<CameraFrame>? frames, ICameraFeed? stream, string address)
+    private async Task CloseAsync(IAsyncEnumerator<CameraStreamItem>? items, ICameraFeed? stream, string address)
     {
         try
         {
-            if (frames is not null)
+            if (items is not null)
             {
-                await frames.DisposeAsync().ConfigureAwait(false);
+                await items.DisposeAsync().ConfigureAwait(false);
             }
         }
         catch (Exception ex)

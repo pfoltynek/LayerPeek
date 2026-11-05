@@ -11,6 +11,7 @@ using LayerPeek.App.Settings;
 using LayerPeek.App.Support;
 using LayerPeek.App.Tray;
 using LayerPeek.App.Windows;
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Notifications;
 using LayerPeek.Core.Settings;
@@ -206,7 +207,13 @@ internal sealed partial class ServiceHost
     /// The UI runs (T-101): a click on the test notification brings the settings window to the front through
     /// <paramref name="open"/> (any thread; it posts to the UI thread itself); one that came earlier is handled now. Once.
     /// </summary>
-    public void AttachSettingsOpener(Action open) => Services.GetRequiredService<ToastActivationRouter>().AttachSettingsOpener(open);
+    public void AttachSettingsOpener(Action<SettingsPage> open) => Services.GetRequiredService<ToastActivationRouter>().AttachSettingsOpener(open);
+
+    /// <summary>
+    /// The UI runs (T-154): a click on a print failure notification opens the camera window of its printer through
+    /// <paramref name="open"/> (any thread; it posts to the UI thread itself); one that came earlier is handled now. Once.
+    /// </summary>
+    public void AttachCameraOpener(Action<string> open) => Services.GetRequiredService<ToastActivationRouter>().AttachCameraOpener(open);
 
     /// <summary>The update the app offers (T-058): the menu item, the notification and the settings window.</summary>
     public Updates.UpdateOffer UpdateOffer => Services.GetRequiredService<Updates.UpdateOffer>();
@@ -236,8 +243,9 @@ internal sealed partial class ServiceHost
         await Services.GetRequiredService<ICameraMonitorPathUpdater>().WaitForPendingAsync(PendingSaveTimeout).ConfigureAwait(true);
         await WaitForCameraWindowStateAsync().ConfigureAwait(true);
         await WaitForWindowStateAsync().ConfigureAwait(true);
-        // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
-        await Task.WhenAll(_session?.StopAsync(timeout) ?? Task.CompletedTask, StopWebProxiesAsync()).ConfigureAwait(true);
+        // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close; the shared
+        // camera connections (T-143) close too, each within the same limit.
+        await Task.WhenAll(_session?.StopAsync(timeout) ?? Task.CompletedTask, StopWebProxiesAsync(), StopCameraStreamsAsync(timeout)).ConfigureAwait(true);
 #if DEBUG
         // Read before the container goes: the toast thread may still be registering the test app (writing its shortcut).
         Task toastThreadEnded = _testToastCleanup is not null && Services.GetRequiredService<INotificationService>() is ToastNotificationService toastService
@@ -266,6 +274,35 @@ internal sealed partial class ServiceHost
 #endif
 
         _backgroundWork.Dispose();
+    }
+
+    /// <summary>
+    /// Stops the recordings (T-145), then ends every camera lease, waiting at most <paramref name="timeout"/> for both together
+    /// (a decoder that does not react is left to the process exit). Never throws.
+    /// </summary>
+    private async Task StopCameraStreamsAsync(TimeSpan timeout)
+    {
+        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            // T-145: running recordings first complete their files (the last fragment and the end), before their
+            // connections close; within the same limit.
+            await Services.GetRequiredService<Core.Cameras.Recording.CameraRecordingService>().StopAllAsync().WaitAsync(timeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        }
+        catch (Exception ex)
+        {
+            LogDisposeFailed(ex);
+        }
+
+        TimeSpan remaining = timeout - elapsed.Elapsed;
+        try
+        {
+            await Services.GetRequiredService<CameraStreamHub>().DisposeAsync().AsTask().WaitAsync(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        }
+        catch (Exception ex)
+        {
+            LogDisposeFailed(ex);
+        }
     }
 
     /// <summary>A start that failed after <see cref="CreateAsync"/> (the tray could not be created): releases without waiting.</summary>

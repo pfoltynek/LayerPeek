@@ -175,6 +175,9 @@ public partial class App : Application, ITrayAppCommands
                 case InstanceCommandKind.Crash:
                     TestCrash.Run(command.Argument);
                     break;
+                case InstanceCommandKind.Notifications:
+                    _host?.PretendNotificationsOff(command.Argument == InstanceProtocol.NotificationsOffArgument);
+                    break;
             }
         }
 #endif
@@ -223,13 +226,18 @@ public partial class App : Application, ITrayAppCommands
         _windows = new AuxiliaryWindowFactory(_windowTracker.Track, host.WindowStates, OperatingSystem.IsMacOS() ? Platform.MacOS.MacAppActivation.Activate : null, activator);
         _activation = new InstanceActivation(_windowTracker.Recent, () => ((ITrayAppCommands)this).ShowSettings());
         _host = host;
+        // T-151: the camera window of a switched-off printer closes and opens again once it is back.
+        host.AttachCameraWindows(CameraWindowsFor(host));
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());
         host.LanguageChanged += OnLanguageChanged;
         _commandLogger = host.CreateLogger<App>();
         // T-101: a click on the test notification (from any thread) brings the settings window to the front on its General
-        // tab; one that came while the app had no UI yet (macOS waiting for a display, T-099) is handled now.
+        // tab, T-146: one on a failed recording on the Recording tab; one that came while the app had no UI yet (macOS
+        // waiting for a display, T-099) is handled now.
         AvaloniaUiDispatcher settingsDispatcher = new();
-        host.AttachSettingsOpener(() => settingsDispatcher.Post(() => ShowSettings(addPrinter: false, generalTab: true)));
+        host.AttachSettingsOpener(page => settingsDispatcher.Post(() => ShowSettings(addPrinter: false, page)));
+        // T-154: a click on a print failure notification opens (or brings to the front) the camera window of its printer.
+        host.AttachCameraOpener(printerId => settingsDispatcher.Post(() => ShowCameraFromNotification(printerId)));
         // T-058: the update of a Velopack installation quits through the normal quit of the Quit item from now on (a click on
         // the update notification reaches the update with the services, ServiceHost).
         host.UpdateOffer.AttachQuit(() => _quit?.QuitAsync() ?? Task.CompletedTask);
@@ -301,8 +309,8 @@ public partial class App : Application, ITrayAppCommands
     void ITrayAppCommands.AddPrinter() => ShowSettings(addPrinter: true);
 
     /// <param name="addPrinter">"Add printer…" (T-042), see <see cref="SettingsWindowCommand.Show"/>.</param>
-    /// <param name="generalTab">A click on the test notification (T-101): the General tab.</param>
-    private void ShowSettings(bool addPrinter, bool generalTab = false)
+    /// <param name="page">A click on a notification (T-101, T-146): the tab to show.</param>
+    private void ShowSettings(bool addPrinter, SettingsPage? page = null)
     {
         if (_host is not { } host || _windows is not { } windows || _quit is { IsQuitting: true })
         {
@@ -317,7 +325,7 @@ public partial class App : Application, ITrayAppCommands
             _settingsWindow,
             () => windows.Settings(screens => host.CreateSettingsViewModel(screens, cameraWindows, cameraWindows)),
             addPrinter,
-            generalTab);
+            page);
     }
 
     void ITrayAppCommands.ToggleCamera(string printerId)
@@ -328,6 +336,18 @@ public partial class App : Application, ITrayAppCommands
         }
 
         CameraWindowsFor(host).Toggle(printerId);
+    }
+
+    /// <summary>UI thread: a click on a print failure notification (T-154): the printer's camera window, opened or to the front.</summary>
+    private void ShowCameraFromNotification(string printerId)
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        // Restores a minimized window, opens a closed one.
+        CameraWindowsFor(host).BringToFront(printerId);
     }
 
     void ITrayAppCommands.BringCameraToFront(string printerId)
@@ -394,7 +414,9 @@ public partial class App : Application, ITrayAppCommands
         // model unsubscribes from the monitor before the services are released.
         _settingsWindow.Shutdown();
         _diagnosticsWindow.Shutdown();
-        // Stops the streams; the window state is saved and awaited by the host below.
+        // Stops the streams; the window state is saved and awaited by the host below. Closes of quitting are no closes by
+        // the user (T-151): the automatic close and reopen lets the windows go first.
+        _host?.DetachCameraWindows();
         _cameraWindows?.Shutdown();
 
         _aboutWindow.Shutdown();

@@ -3,8 +3,8 @@ using LayerPeek.App.Windows;
 namespace LayerPeek.App.Settings;
 
 /// <summary>
-/// "Settings…" and "Add printer…" of the tray menu (T-015, T-042) and a click on the test notification (T-101) on the
-/// single settings window: opens it or activates the open one. Kept apart from <c>App</c> so that both paths are testable with a real window. UI thread only.
+/// "Settings…" and "Add printer…" of the tray menu (T-015, T-042) and a click on the test or recording notification (T-101,
+/// T-146) on the single settings window: opens it or activates the open one. Kept apart from <c>App</c> so that both paths are testable with a real window. UI thread only.
 /// </summary>
 internal static class SettingsWindowCommand
 {
@@ -17,11 +17,12 @@ internal static class SettingsWindowCommand
     /// "Add printer…": the window (new or already open) shows the Printers tab with a new printer
     /// (<see cref="SettingsViewModel.AddPrinterFromTray"/>; a new window adds it once its settings are loaded).
     /// </param>
-    /// <param name="generalTab">
-    /// A click on the test notification (T-101): the window (new or already open) shows the General tab, where the test came
-    /// from; the edits of an open window are kept.
+    /// <param name="page">
+    /// A click on a notification: the window (new or already open) shows this tab (<see cref="SettingsViewModel.ShowPage"/>:
+    /// the General tab of the test notification, T-101, the Recording tab of a failed recording, T-146); the edits of an open
+    /// window are kept.
     /// </param>
-    public static void Show(AuxiliaryWindowSlot slot, Func<(IAuxiliaryWindow Window, SettingsViewModel ViewModel)> create, bool addPrinter, bool generalTab = false)
+    public static void Show(AuxiliaryWindowSlot slot, Func<(IAuxiliaryWindow Window, SettingsViewModel ViewModel)> create, bool addPrinter, SettingsPage? page = null)
     {
         ArgumentNullException.ThrowIfNull(slot);
         ArgumentNullException.ThrowIfNull(create);
@@ -41,9 +42,9 @@ internal static class SettingsWindowCommand
                     open.AddPrinterFromTray();
                 }
 
-                if (generalTab && owned is SettingsViewModel shown)
+                if (page is { } shownPage && owned is SettingsViewModel shown)
                 {
-                    shown.ShowGeneralTab();
+                    shown.ShowPage(shownPage);
                 }
             });
 
@@ -52,9 +53,9 @@ internal static class SettingsWindowCommand
             created?.AddPrinterFromTray();
         }
 
-        if (generalTab)
+        if (page is { } createdPage)
         {
-            created?.ShowGeneralTab();
+            created?.ShowPage(createdPage);
         }
 
         // Loads after the window is shown (reading the file and the credential store runs off the UI thread); never throws.

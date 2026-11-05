@@ -3,6 +3,7 @@ using LayerPeek.App.Settings;
 using LayerPeek.App.Tests.Cameras;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -70,6 +71,95 @@ public sealed class CameraWindowSettingsTests : IDisposable
     {
         await vm.SaveCommand.ExecuteAsync(null);
         return Assert.Single(_store.Saves).Updated;
+    }
+
+    // ---- T-150 / T-151: the global "close when switched off" option ----
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SavingKeepsTheAutoCloseOption(bool autoClose)
+    {
+        _store.Data = new SettingsEditorData(
+            new AppSettings { Printers = [Printer("a", "Alpha", Camera())], CameraWindowAutoClose = autoClose },
+            SettingsLoadStatus.Loaded,
+            [],
+            Ids());
+        SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported, cameraTester: new FakeCameraTester(), cameraWindowStates: _states);
+        _viewModel = vm;
+        await vm.LoadAsync();
+        Assert.False(vm.IsDirty);
+
+        vm.Printers[0].RememberLastPlacement = false;
+
+        Assert.Equal(autoClose, (await SaveAsync(vm)).CameraWindowAutoClose);
+    }
+
+    /// <summary>T-145: the recording settings have no fields in the window yet (T-146); a save keeps them as loaded.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SavingKeepsTheRecordingSettings(bool cameraEnabled)
+    {
+        CameraRecordingSettings recording = new() { Folder = Path.Combine(Path.GetTempPath(), "Recordings"), SizeLimitGigabytes = 12 };
+        CameraSettings camera = cameraEnabled ? Camera() with { RecordPrints = true } : CameraSettings.Disabled with { RecordPrints = true };
+        _store.Data = new SettingsEditorData(
+            new AppSettings { Printers = [Printer("a", "Alpha", camera)], Recording = recording },
+            SettingsLoadStatus.Loaded,
+            [],
+            Ids());
+        SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported, cameraTester: new FakeCameraTester(), cameraWindowStates: _states);
+        _viewModel = vm;
+        await vm.LoadAsync();
+
+        vm.Printers[0].RememberLastPlacement = false;
+        AppSettings saved = await SaveAsync(vm);
+
+        Assert.Equal(recording, saved.Recording);
+        Assert.True(saved.Printers[0].Camera.RecordPrints);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheAutoCloseOptionIsShownChangedAndSaved(bool loaded)
+    {
+        _store.Data = new SettingsEditorData(
+            new AppSettings { Printers = [Printer("a", "Alpha", Camera())], CameraWindowAutoClose = loaded },
+            SettingsLoadStatus.Loaded,
+            [],
+            Ids());
+        SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported, cameraTester: new FakeCameraTester(), cameraWindowStates: _states);
+        _viewModel = vm;
+        await vm.LoadAsync();
+        Assert.Equal(loaded, vm.CameraWindowAutoClose);
+        Assert.False(vm.IsDirty);
+
+        vm.CameraWindowAutoClose = !loaded;
+        Assert.True(vm.IsDirty);
+        vm.CameraWindowAutoClose = loaded;
+        Assert.False(vm.IsDirty);
+        vm.CameraWindowAutoClose = !loaded;
+
+        Assert.Equal(!loaded, (await SaveAsync(vm)).CameraWindowAutoClose);
+    }
+
+    [Fact]
+    public async Task ResettingTheCameraWindowOfAPrinterKeepsTheGlobalAutoCloseOption()
+    {
+        _store.Data = new SettingsEditorData(
+            new AppSettings { Printers = [Printer("a", "Alpha", Camera())] },
+            SettingsLoadStatus.Loaded,
+            [],
+            Ids());
+        SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported, cameraTester: new FakeCameraTester(), cameraWindowStates: _states);
+        _viewModel = vm;
+        await vm.LoadAsync();
+        vm.CameraWindowAutoClose = false;
+
+        vm.Printers[0].ResetCameraWindowCommand.Execute(null);
+
+        Assert.False(vm.CameraWindowAutoClose);
     }
 
     // ---- Loading ----

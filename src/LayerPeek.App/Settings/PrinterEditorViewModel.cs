@@ -26,11 +26,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private string _name;
     private string _address;
     private string _userName;
-
-    // The saved user name (default for a new printer); kept for Prusa Connect, which does not use it.
-    private readonly string _savedUserName;
     private string _password = string.Empty;
-    private ConnectionTypeOption _connectionType;
     private bool _isNew;
     private bool? _hasSavedPassword;
 
@@ -100,7 +96,16 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     // The widget layout of the camera overlay (T-077) as edited on the Widgets tab (T-092); _savedCameraEnabled: the camera
     // is on in the saved settings, which "Edit layout in camera window…" needs (the camera window works with them).
     private CameraOverlayLayout _overlayLayout;
+
+    /// <summary>"Record prints automatically" (T-145), switched on the Camera sub-tab (T-146).</summary>
+    private bool _recordPrints;
+    private bool _dashcam;
+
+    private bool _timelapsePrints;
     private bool _savedCameraEnabled;
+
+    // Removed or the window closed: nothing loaded later is kept (T-154, the last frame).
+    private bool _detached;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
@@ -116,14 +121,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _hasSavedPassword = hasSavedPassword;
         _name = saved?.Name ?? string.Empty;
         _address = saved?.Address ?? string.Empty;
-        _savedUserName = saved?.UserName ?? PrinterUserName.Default;
-        _userName = _savedUserName;
+        _userName = saved?.UserName ?? PrinterUserName.Default;
         InitializeCooldown(saved);
-        ConnectionType type = saved?.ConnectionType ?? ConnectionType.PrusaLink;
-        ConnectionTypes = owner.ConnectionTypesFor(type);
-        _connectionType = Array.Find((ConnectionTypeOption[])ConnectionTypes, option => option.Value == type)!;
         _showErrors = saved is not null;
-        TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => IsPrusaLink && !_isTesting && !_owner.IsDisposed);
+        TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => !_isTesting && !_owner.IsDisposed);
         CancelTestCommand = new RelayCommand(CancelTest, () => _isTesting);
         OpenLocalNetworkSettingsCommand = new RelayCommand(OpenLocalNetworkSettings, () => _showsLocalNetworkSettings || _showsCameraLocalNetworkSettings);
         CameraSettings camera = saved?.Camera ?? CameraSettings.Disabled;
@@ -146,8 +147,12 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled && _owner.IsEditable);
         ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled && _owner.IsEditable);
         _overlayLayout = camera.Overlay;
+        _recordPrints = camera.RecordPrints;
+        _dashcam = camera.Dashcam;
+        _timelapsePrints = camera.TimelapsePrints;
         InitializeMiniStrip(camera);
         _savedCameraEnabled = saved is not null && camera.Enabled;
+        InitializeDetection(saved);
         InitializeImage(saved, storedCustomImage);
         FormatCellNames();
         ValidateAddress();
@@ -192,50 +197,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>Name for the list; "New printer" while the name is empty.</summary>
     public string DisplayName => _name.Trim() is { Length: > 0 } name ? name : Strings.SettingsNewPrinter;
 
-    public IReadOnlyList<ConnectionTypeOption> ConnectionTypes { get; }
-
-    public ConnectionTypeOption SelectedConnectionType
-    {
-        get => _connectionType;
-        set
-        {
-            // Disabled choices (Prusa Connect for a PrusaLink printer, T-005) and a transient null from a ComboBox are ignored.
-            if (value is null || !value.IsEnabled || !SetProperty(ref _connectionType, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(IsPrusaLink));
-            OnPropertyChanged(nameof(IsPasswordEnabled));
-            OnPropertyChanged(nameof(ShowsAddressHint));
-            if (!IsPasswordEnabled)
-            {
-                // A disabled field must not keep a typed password around (it would not be saved anyway).
-                ForgetPassword();
-            }
-
-            if (!IsPrusaLink)
-            {
-                // Prusa Connect does not use the disabled field, so it shows (and keeps) the saved user name.
-                SetProperty(ref _userName, _savedUserName, nameof(UserName));
-            }
-
-            OnPropertyChanged(nameof(UserNameHint));
-            OnPasswordPresentationChanged();
-            OnFieldStatesChanged();
-            TestConnectionCommand.NotifyCanExecuteChanged();
-            InvalidateTest();
-            ValidateAddress();
-            ValidateUserName();
-            ValidatePassword();
-            OnMachineChanged();
-            RevealErrors();
-            _owner.OnPrinterEdited(nameChanged: false);
-        }
-    }
-
-    public bool IsPrusaLink => _connectionType.Value == ConnectionType.PrusaLink;
-
     public string Address
     {
         get => _address;
@@ -253,8 +214,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     }
 
     /// <summary>
-    /// PrusaLink user name (not a secret; saved trimmed with the definition). Validated by <see cref="PrinterUserName"/>;
-    /// ignored for Prusa Connect, which keeps the saved one.
+    /// PrusaLink user name (not a secret; saved trimmed with the definition). Validated by <see cref="PrinterUserName"/>.
     /// </summary>
     public string UserName
     {
@@ -270,9 +230,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             }
         }
     }
-
-    /// <summary>Explanation under the user name field.</summary>
-    public string UserNameHint => IsPrusaLink ? Strings.SettingsUserNameHint : Strings.SettingsUserNameNotUsed;
 
     /// <summary>A new password (not saved yet); empty keeps the saved one. Never logged.</summary>
     public string Password
@@ -290,8 +247,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         }
     }
 
-    /// <summary>PrusaLink printer on an OS that can store passwords.</summary>
-    public bool IsPasswordEnabled => _owner.IsPasswordSupported && IsPrusaLink;
+    /// <summary>An OS that can store passwords.</summary>
+    public bool IsPasswordEnabled => _owner.IsPasswordSupported;
 
     /// <summary>Placeholder of the empty password field: "Unchanged" when a password is (or may be) saved.</summary>
     public string PasswordWatermark =>
@@ -301,8 +258,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>Explanation under the password field.</summary>
     public string PasswordHint =>
-        !IsPrusaLink ? Strings.SettingsPasswordNotUsed
-        : !_owner.IsPasswordSupported ? Strings.SettingsPasswordUnsupported
+        !_owner.IsPasswordSupported ? Strings.SettingsPasswordUnsupported
         : _isNew || _hasSavedPassword == false ? Strings.SettingsPasswordNewHint
         : Strings.SettingsPasswordKeepHint;
 
@@ -339,8 +295,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>Accessible name of the Camera sub-tab header.</summary>
     public string CameraTabName => TabName(Strings.SettingsCamera, ShowsCameraErrorMarker);
 
-    /// <summary>The address hint (PrusaLink only) gives way to the address error (T-033).</summary>
-    public bool ShowsAddressHint => IsPrusaLink && AddressError is null;
+    /// <summary>The address hint gives way to the address error (T-033).</summary>
+    public bool ShowsAddressHint => AddressError is null;
 
     /// <summary>The user name hint gives way to the user name error.</summary>
     public bool ShowsUserNameHint => UserNameError is null;
@@ -416,10 +372,83 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 // T-040: the camera window buttons work only while the camera is on, like the fields next to them.
                 ResetCameraWindowCommand.NotifyCanExecuteChanged();
                 ApplyCameraWindowCommand.NotifyCanExecuteChanged();
+                // T-146: recording needs the camera.
+                OnPropertyChanged(nameof(CanEditRecordPrints));
+                OnPropertyChanged(nameof(CanEditDashcam));
+                OnPropertyChanged(nameof(CanEditTimelapsePrints));
+                // T-154: so does the detection.
+                OnDetectionStateChanged();
                 _owner.OnPrinterEdited(nameChanged: false);
             }
         }
     }
+
+    /// <summary>
+    /// "Record prints automatically" (T-145, T-146; off by default, user decision 2026-11-03): from the start of a print to a
+    /// minute after its end, also without an open camera window. Kept while the camera is off (the check box is disabled).
+    /// </summary>
+    public bool RecordPrints
+    {
+        get => _recordPrints;
+        set
+        {
+            if (SetProperty(ref _recordPrints, value))
+            {
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>The check box can be switched: the camera is on and this build can record (otherwise disabled with the reason).</summary>
+    public bool CanEditRecordPrints => _cameraEnabled && _owner.IsRecordingAvailable;
+
+    /// <summary>The tip (and help text) of "Record prints automatically": what it does, or why it is disabled.</summary>
+    public string RecordPrintsHint => _owner.IsRecordingAvailable ? Strings.SettingsRecordPrintsHint : Strings.RecordingUnavailable;
+
+    /// <summary>
+    /// "Keep the last minutes of a print" (T-148; off by default, user decision 2026-11-04): the dashcam of this printer. Kept
+    /// while the camera is off (the check box is disabled).
+    /// </summary>
+    public bool Dashcam
+    {
+        get => _dashcam;
+        set
+        {
+            if (SetProperty(ref _dashcam, value))
+            {
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>The check box can be switched: the camera is on and this build can record (otherwise disabled with the reason).</summary>
+    public bool CanEditDashcam => _cameraEnabled && _owner.IsRecordingAvailable;
+
+    /// <summary>The tip (and help text) of "Keep the last minutes of a print": what it does, or why it is disabled.</summary>
+    public string DashcamHint => _owner.IsRecordingAvailable ? Strings.SettingsDashcamPrinterHint : Strings.RecordingUnavailable;
+
+    /// <summary>
+    /// "Take a timelapse of prints" (T-160, T-161; experimental, off by default, user decision 2026-11-04): from the start of a
+    /// print to a minute after its end, like "Record prints automatically". Kept while the camera is off (the check box is
+    /// disabled).
+    /// </summary>
+    public bool TimelapsePrints
+    {
+        get => _timelapsePrints;
+        set
+        {
+            if (SetProperty(ref _timelapsePrints, value))
+            {
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>The check box can be switched: the camera is on and this build can take timelapses (otherwise disabled with the reason).</summary>
+    public bool CanEditTimelapsePrints => _cameraEnabled && _owner.IsTimelapseAvailable;
+
+    /// <summary>The tip (and help text) of "Take a timelapse of prints": what it does, or why it is disabled.</summary>
+    public string TimelapsePrintsHint => _owner.IsTimelapseAvailable ? Strings.SettingsTimelapsePrintsHint : Strings.TimelapseUnavailable;
 
     /// <summary>RTSP address of the stream (an invalid address loaded from the file is shown here for correction).</summary>
     public string CameraUrl
@@ -767,17 +796,15 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             {
                 Id = Id,
                 Name = _name,
-                ConnectionType = _connectionType.Value,
+                ConnectionType = ConnectionType.PrusaLink,
                 Address = _address,
-                UserName = EffectiveUserName,
+                UserName = _userName,
                 Camera = camera,
                 DetectedModel = EffectiveDetectedModel,
                 Image = _imageChoice,
                 CooldownThresholds = cooldownThresholds,
+                Detection = BuildDetection(),
             };
-
-    /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
-    private string EffectiveUserName => IsPrusaLink ? _userName : _savedUserName;
 
     /// <summary>
     /// The camera as entered, with its window defaults; <see langword="null"/> when it cannot be saved (an enabled camera
@@ -794,9 +821,12 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         CameraOverlayLayout layout = _overlayLayout;
         CameraMiniStripSettings strip = _miniStrip;
+        bool recordPrints = _recordPrints;
+        bool dashcam = _dashcam;
+        bool timelapsePrints = _timelapsePrints;
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam, TimelapsePrints = timelapsePrints };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -808,13 +838,14 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             // No address and the default window and layout: the shared "no camera" value.
             return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay && strip == CameraSettings.Disabled.MiniStrip
+                && !recordPrints && !dashcam && !timelapsePrints
                 ? CameraSettings.Disabled
-                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip };
+                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam, TimelapsePrints = timelapsePrints };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints, Dashcam = dashcam, TimelapsePrints = timelapsePrints };
         }
         catch (ArgumentException)
         {
@@ -900,6 +931,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ResetCameraWindowCommand.NotifyCanExecuteChanged();
         ApplyCameraWindowCommand.NotifyCanExecuteChanged();
         ApplyCooldownThresholdsToAllCommand.NotifyCanExecuteChanged();
+        OnDetectionEditableChanged();
     }
 
     /// <summary>A save after "Factory settings" forgot the remembered camera window.</summary>
@@ -1018,6 +1050,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// </summary>
     internal void RefreshTexts()
     {
+        OnPropertyChanged(nameof(RecordPrintsHint));
+        OnPropertyChanged(nameof(DashcamHint));
+        OnPropertyChanged(nameof(TimelapsePrintsHint));
         ValidateAddress();
         ValidateUserName();
         ValidatePassword();
@@ -1035,7 +1070,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(DisplayName));
-        OnPropertyChanged(nameof(UserNameHint));
         OnPropertyChanged(nameof(ConnectionTabName));
         OnPropertyChanged(nameof(CameraTabName));
         OnPasswordPresentationChanged();
@@ -1065,6 +1099,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
         // T-112: the help texts of the fields (their errors and hints) for screen readers.
         OnFieldStatesChanged();
+
+        // T-154: the detector texts and the region editor's name.
+        RefreshDetectionTexts();
     }
 
     /// <summary>
@@ -1077,6 +1114,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _cameraTest?.Cancel();
         ForgetPassword();
         SetCameraPreview(null);
+        _detached = true;
+        SetLastFrame(null);
     }
 
     private void ForgetPassword()
@@ -1111,9 +1150,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             Id = Id,
             Name = _name.Trim() is { Length: > 0 } name ? name : Id,
-            ConnectionType = _connectionType.Value,
+            ConnectionType = ConnectionType.PrusaLink,
             Address = _address,
-            UserName = EffectiveUserName,
+            UserName = _userName,
         };
 
         // Typed password, else the saved one (null); a printer that has none is tested without one.
@@ -1200,7 +1239,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         SetCameraTestResult(static () => Strings.SettingsCameraTesting, TestResultKind.Running);
         try
         {
-            CameraTestResult result = await _owner.CameraTester.TestAsync(uri, test.Token).ConfigureAwait(true);
+            CameraTestResult result = await _owner.CameraTester.TestAsync(uri, Id, test.Token).ConfigureAwait(true);
             if (!test.IsCancellationRequested)
             {
                 bool success = result.Outcome == CameraTestOutcome.Success;
@@ -1215,6 +1254,11 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                     // The address works without the removed credentials: the notice did its job.
                     CameraCredentialsRemoved = false;
                     ShowCameraPreview(result.Image);
+                    // T-154: the frame of the bed region editor while the camera is not available later.
+                    if (result.Image is { } image)
+                    {
+                        SaveLastFrame(image);
+                    }
                 }
             }
             else if (_cameraTestCancelledByUser)
@@ -1311,6 +1355,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(HasCameraPreview));
         }
+
+        OnRegionEditorImageChanged();
 
         (old as IDisposable)?.Dispose();
     }
@@ -1426,7 +1472,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ConnectionTestOutcome.PasswordMissing => Strings.SettingsTestPasswordMissing,
         ConnectionTestOutcome.PasswordUnavailable => Strings.SettingsTestPasswordUnavailable,
         ConnectionTestOutcome.UnsupportedAuthentication => Strings.SettingsTestUnsupportedAuthentication,
-        ConnectionTestOutcome.NotSupported => Strings.SettingsTestNotSupported,
         _ => Strings.SettingsTestUnexpectedResponse,
     };
 
@@ -1462,7 +1507,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private string? AddressProblem() =>
         _address.Trim().Length == 0 ? Strings.SettingsErrorAddressRequired
         // Exactly the rules of the PrusaLink client and the tray menu (credentials, query, fragment, scheme).
-        : IsPrusaLink && !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
+        : !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
         : null;
 
     private void ValidateAddress()
@@ -1477,7 +1522,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     // The rules live in Core (PrinterUserName); only the wording is decided here.
     private string? UserNameProblem() =>
-        (IsPrusaLink ? PrinterUserName.Validate(_userName) : PrinterUserNameError.None) switch
+        PrinterUserName.Validate(_userName) switch
         {
             PrinterUserNameError.None => null,
             PrinterUserNameError.Empty => Strings.SettingsErrorUserNameRequired,

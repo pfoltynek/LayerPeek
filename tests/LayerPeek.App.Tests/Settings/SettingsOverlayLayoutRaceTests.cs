@@ -98,7 +98,7 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
     /// <summary>The camera window of <paramref name="printer"/> with the app's layout writer, as the launcher opens it.</summary>
     private CameraViewModel CameraWindow(PrinterDefinition printer, ICameraOverlayLayoutWriter writer)
     {
-        ReconnectingCameraFeed feed = new(_feeds, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        CameraStreamHub feed = CameraHubs.Immediate(new ReconnectingCameraFeed(_feeds, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
         CameraViewModel camera = new(
             CameraTarget.From(printer)!,
             feed,

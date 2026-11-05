@@ -6,6 +6,7 @@ using Avalonia.VisualTree;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Localization;
+using LayerPeek.App.Resources;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Tests.Cameras;
 using LayerPeek.App.Tests.Settings;
@@ -156,6 +157,30 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task TheGlobalAutoCloseOptionStaysUsableWithTheCameraOffAndIsSaved() =>
+        session.RunAsync(static async scope =>
+        {
+            // T-151: for every printer, so not disabled with the fields of a printer whose camera is off.
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(Printer(cameraEnabled: false));
+            SettingsWindowHarness ui = await OpenAsync(scope, Printer(cameraEnabled: false), store);
+            CheckBox option = ui.Find<CheckBox>("CameraWindowAutoClose");
+
+            Assert.True(ui.Window.IsShown<CheckBox>("CameraWindowAutoClose"));
+            Assert.True(option.IsEffectivelyEnabled);
+            Assert.True(option.IsChecked);
+            Assert.Equal(Strings.SettingsCameraWindowAutoClose, option.Content);
+            Assert.Equal(Strings.SettingsCameraWindowAutoCloseHint, ToolTip.GetTip(option));
+            Assert.Equal(Strings.SettingsCameraWindowAutoCloseHint, AutomationProperties.GetHelpText(option));
+
+            ui.Window.Click(option);
+            ui.Window.Settle();
+            Assert.False(ui.ViewModel.CameraWindowAutoClose);
+            await ui.SaveAsync();
+
+            Assert.False(Assert.Single(store.Saves).Updated.CameraWindowAutoClose);
+        });
+
+    [Fact]
     public Task TypedSizePresetAndCornerAreSaved() =>
         session.RunAsync(static async scope =>
         {
@@ -235,6 +260,8 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
                     "PrinterCameraWindowNormalSize", "PrinterCameraWindowNormalCorner", "PrinterCameraWindowNormalTopmost",
                     "PrinterCameraWindowMiniSize", "PrinterCameraWindowMiniCorner", "PrinterCameraWindowMiniTopmost",
                     "PrinterCameraWindowReset", "PrinterCameraWindowApply",
+                    // T-151: the global option below the printer's fields.
+                    "CameraWindowAutoClose",
                     "SettingsSave", "SettingsCancel",
                 ],
                 order);
@@ -252,9 +279,14 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").IsSelected);
             Assert.Equal("PrinterTabCameraWindow", FocusedId(ui.Window));
 
+            // T-154: Detection is the last sub-tab.
+            Press(ui, PhysicalKey.PageDown);
+            Assert.True(ui.Find<TabItem>("PrinterTabDetection").IsSelected);
             Press(ui, PhysicalKey.PageDown);
             Assert.True(ui.Find<TabItem>("PrinterTabConnection").IsSelected);
 
+            Press(ui, PhysicalKey.PageUp);
+            Assert.True(ui.Find<TabItem>("PrinterTabDetection").IsSelected);
             Press(ui, PhysicalKey.PageUp);
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").IsSelected);
             Press(ui, PhysicalKey.PageUp);

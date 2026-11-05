@@ -141,8 +141,8 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     public void SubmenuWithTheItemHasUniqueAccessKeysAndTheCameraItemKeepsItsKey(string language)
     {
         using CultureScope culture = new(language);
-        PrinterDefinition connect = WithCamera(new PrinterDefinition { Id = "c", Name = "Connect", ConnectionType = ConnectionType.PrusaConnect, Address = "uuid" });
-        using TrayMenuViewModel viewModel = Create(AppOptions, WithCamera(Definition("a", "Alpha")), connect);
+        PrinterDefinition second = WithCamera(Definition("c", "Second") with { Address = "192.168.1.41" });
+        using TrayMenuViewModel viewModel = Create(AppOptions, WithCamera(Definition("a", "Alpha")), second);
         char?[] closedKeys = [.. viewModel.PrinterItems.Select(static printer => AccessKey(printer.Submenu![^1]))];
 
         viewModel.SetCameraWindowOpen("a", isOpen: true);

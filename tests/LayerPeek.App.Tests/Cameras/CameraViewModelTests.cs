@@ -30,6 +30,12 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     private readonly MemoryCameraWindowStateStore _states = new();
     private readonly RecordingFrameSink _sink = new();
     private readonly List<CameraViewModel> _created = [];
+    private readonly CameraStreamHub _hub;
+
+    public CameraViewModelTests()
+    {
+        _hub = CameraHubs.Immediate(new ReconnectingCameraFeed(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -39,6 +45,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
             await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         }
 
+        await _hub.DisposeAsync();
         _culture.Dispose();
     }
 
@@ -48,7 +55,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     /// <summary>A window whose overlay has the test widget (state and progress) top left.</summary>
     private CameraViewModel Create(string id = "mk4", string name = "MK4", IUiDispatcher? dispatcher = null, ListLogger<CameraViewModel>? logger = null, ILocalNetworkPrivacy? localNetwork = null)
     {
-        ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        CameraStreamHub feed = _hub;
         PrinterDefinition printer = Definition(id, name) with
         {
             Camera = new CameraSettings(enabled: true, StreamUri) { Overlay = new([new("test-a", OverlayAnchor.TopLeft)]) },
@@ -812,6 +819,8 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
         first.Send();
         await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        // See RunFailingAgainTheSameWayIsLoggedInFullOnlyOnce: the connection's thread must be done with the fake clock.
+        await first.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         _dispatcher.RunAll();
 
         _time.Advance(CameraFeedOptions.Default.ReconnectDelay);
@@ -838,6 +847,11 @@ public sealed class CameraViewModelTests : IAsyncDisposable
             FakeCameraFeed feed = await _factory.WaitForFeedAsync(run);
             feed.Send();
             await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+            // The hub ends the lease before it drops it and closes the connection. Until the connection is closed, its
+            // thread still arms the stall watchdog on the fake clock: an Advance that overlaps it returns without firing
+            // the retry timer (FakeTimeProvider lets the other thread fire it later), and a retry that comes too early
+            // joins that connection before it closes instead of opening a new one.
+            await feed.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
             _dispatcher.RunAll();
             _time.Advance(CameraFeedOptions.Default.ReconnectDelay);
             _dispatcher.RunAll();
@@ -906,7 +920,77 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Assert.DoesNotContain(_sink.Frames, static frame => frame.First == 9);
     }
 
-    /// <summary>Forwards to an inner dispatcher; the given post (1-based) throws instead.</summary>
+    // ---- Shared connection (T-143) ----
+
+    [Fact]
+    public async Task MinimizedWindowReleasesItsLeaseWhileAnotherSubscriberKeepsTheConnection()
+    {
+        // E.g. a recording (T-145) holds the printer's connection; minimizing the window only stops its frames.
+        using CameraPacketSubscription recording = _hub.SubscribePackets("mk4", StreamUri);
+        CameraViewModel viewModel = Create();
+        viewModel.SetActive(true);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+        feed.Send(fill: 1);
+        await Waiting.UntilAsync(() => { _dispatcher.RunAll(); return _sink.Frames.Count == 1; }, "frame drawn");
+
+        viewModel.SetActive(false);
+        feed.Send(fill: 2);
+        await Waiting.UntilAsync(() => feed.Consumed >= 2, "next frame read");
+        _dispatcher.RunAll();
+        Assert.False(viewModel.IsStreaming);
+        Assert.Single(_sink.Frames);
+        Assert.False(feed.IsDisposed);
+
+        viewModel.SetActive(true);
+        feed.Send(fill: 3);
+        await Waiting.UntilAsync(() => { _dispatcher.RunAll(); return _sink.Frames.Count == 2; }, "frame drawn again");
+        Assert.Equal(3, _sink.Frames[^1].First);
+        Assert.Single(_factory.Feeds);
+    }
+
+    [Fact]
+    public async Task TwoWindowsOfOnePrinterShareTheConnection()
+    {
+        CameraViewModel first = Create();
+        RecordingFrameSink secondSink = new();
+        CameraViewModel second = Create();
+        second.AttachFrameSink(secondSink);
+        first.SetActive(true);
+        second.SetActive(true);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+
+        feed.Send(fill: 4);
+        await Waiting.UntilAsync(() => { _dispatcher.RunAll(); return _sink.Frames.Count == 1 && secondSink.Frames.Count == 1; }, "both drawn");
+
+        Assert.Single(_factory.Feeds);
+        first.Dispose();
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(feed.IsDisposed);
+        second.Dispose();
+        await feed.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task CameraRemovedFromTheHubIsNotRetried()
+    {
+        _hub.Configure([CameraPrinter()]);
+        CameraViewModel viewModel = Create();
+        viewModel.SetActive(true);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+
+        // The hub hears of the switched-off camera first (its observer comes before the windows').
+        _hub.Configure([CameraPrinter() with { Camera = CameraSettings.Disabled }]);
+        await feed.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        _dispatcher.RunAll();
+        Assert.False(viewModel.IsStreaming);
+
+        _time.Advance(CameraFeedOptions.Default.ReconnectDelay * 2);
+        _dispatcher.RunAll();
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.Single(_factory.Feeds);
+    }
+
     /// <summary>
     /// Like a dispatcher that is shutting down, but only for some callbacks of the view model, told apart by their method:
     /// showing a frame (<see cref="FailFrames"/>) and the automatic retry (<see cref="FailRetries"/>).
@@ -929,6 +1013,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         }
     }
 
+    /// <summary>Forwards to an inner dispatcher; the given post (1-based) throws instead.</summary>
     private sealed class FaultyDispatcher(ManualDispatcher inner, int failingPost) : IUiDispatcher
     {
         private int _posts;

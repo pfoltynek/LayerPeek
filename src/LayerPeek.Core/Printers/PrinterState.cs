@@ -1,7 +1,7 @@
 namespace LayerPeek.Core.Printers;
 
 /// <summary>
-/// Printer state independent of the data source (PrusaLink / Prusa Connect).
+/// Printer state independent of the data source (mapped from the PrusaLink API states).
 /// </summary>
 public enum PrinterState
 {

@@ -35,7 +35,7 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         (TrayMenuWindow menu, AutomationElement[] submenu, nint submenuWindow) = await OpenPrinterSubmenuAsync(app, "tray-menu-1");
         AutomationElement cameraItem = CameraItem(submenu, "Show camera");
         string[] submenuItems = [.. submenu.Select(static item => item.Name)];
-        Assert.Equal(["Open PrusaLink", "Show camera"], submenuItems);
+        Assert.Equal(["Open PrusaLink", "Show camera", .. RecordingItems], submenuItems);
         Assert.DoesNotContain("Diagnostics…", submenuItems);
         Screenshots.Save(submenuWindow, "tray-menu-2-printer-submenu");
         cameraItem.Patterns.Invoke.Pattern.Invoke();
@@ -44,7 +44,7 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         // Close: "Hide camera" now (no check mark either), the window closes.
         (menu, submenu, _) = await OpenPrinterSubmenuAsync(app, "tray-menu-3");
         // T-102: the open window also has "Bring camera to front", never a second "Show camera" (2026-10-31).
-        Assert.Equal(["Open PrusaLink", "Bring camera to front", "Hide camera"], submenu.Select(static item => item.Name).ToArray());
+        Assert.Equal(["Open PrusaLink", "Bring camera to front", "Hide camera", .. RecordingItems], submenu.Select(static item => item.Name).ToArray());
         cameraItem = CameraItem(submenu, "Hide camera");
         cameraItem.Patterns.Invoke.Pattern.Invoke();
         await Wait.UntilAsync(() => !Native.IsWindowVisible(opened), TimeSpan.FromSeconds(10), "the camera window to close from the menu");
@@ -71,6 +71,12 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         menu.Item("Settings…").Patterns.Invoke.Pattern.Invoke();
         await app.WaitForWindowAsync(AppWindowKind.Settings);
     }
+
+    /// <summary>
+    /// The recording items of a printer with a camera (T-146), after a separator, which is no menu item; T-161: with the
+    /// timelapse (experimental); T-165: with its JPEG export (experimental); T-164: with the timelapse from a recording (experimental).
+    /// </summary>
+    private static readonly string[] RecordingItems = ["Start recording", "Start timelapse (experimental)", "Play last recording", "Play last timelapse", "Export timelapse to JPEG… (experimental)", "Create timelapse from recording… (experimental)", "Open recordings folder"];
 
     /// <summary>The camera item of a submenu: a plain item (no toggle state "on"), named <paramref name="name"/>.</summary>
     private static AutomationElement CameraItem(AutomationElement[] submenu, string name)

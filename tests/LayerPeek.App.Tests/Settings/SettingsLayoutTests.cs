@@ -238,9 +238,11 @@ public sealed class SettingsLayoutTests : IDisposable
         Assert.True(vm.SelectAdjacentTab(forward: true));
         Assert.Equal(SettingsViewModel.StartupUpdatesTab, vm.SelectedTabIndex);
         Assert.True(vm.SelectAdjacentTab(forward: true));
+        Assert.Equal(SettingsViewModel.RecordingTab, vm.SelectedTabIndex);
+        Assert.True(vm.SelectAdjacentTab(forward: true));
         Assert.Equal(SettingsViewModel.PrintersTab, vm.SelectedTabIndex);
         Assert.True(vm.SelectAdjacentTab(forward: false));
-        Assert.Equal(SettingsViewModel.StartupUpdatesTab, vm.SelectedTabIndex);
+        Assert.Equal(SettingsViewModel.RecordingTab, vm.SelectedTabIndex);
     }
 
     [Fact]
@@ -252,8 +254,13 @@ public sealed class SettingsLayoutTests : IDisposable
         Assert.Equal(SettingsViewModel.CameraPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
         Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
+        // T-154: the Detection sub-tab is the last one.
+        Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
+        Assert.Equal(SettingsViewModel.DetectionPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
         Assert.Equal(SettingsViewModel.ConnectionPrinterTab, vm.SelectedPrinterTabIndex);
+        Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
+        Assert.Equal(SettingsViewModel.DetectionPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
         Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
@@ -318,16 +325,6 @@ public sealed class SettingsLayoutTests : IDisposable
 
         printer.UserName = "maker";
         printer.Password = "ok";
-        Assert.True(printer.ShowsUserNameHint);
-        Assert.True(printer.ShowsPasswordHint);
-    }
-
-    [Fact]
-    public async Task AddressHintIsNotShownForPrusaConnect()
-    {
-        PrinterEditorViewModel printer = (await LoadAsync(CloudPrinter("c", "Cloud"))).Printers[0];
-
-        Assert.False(printer.ShowsAddressHint);
         Assert.True(printer.ShowsUserNameHint);
         Assert.True(printer.ShowsPasswordHint);
     }

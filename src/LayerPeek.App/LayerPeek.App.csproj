@@ -75,7 +75,8 @@
   <ItemGroup>
     <ProjectReference Include="..\LayerPeek.Core\LayerPeek.Core.csproj" />
     <ProjectReference Include="..\LayerPeek.PrusaLink\LayerPeek.PrusaLink.csproj" />
-    <ProjectReference Include="..\LayerPeek.PrusaConnect\LayerPeek.PrusaConnect.csproj" />
+    <!-- Print failure detectors (T-153); references Core only. -->
+    <ProjectReference Include="..\LayerPeek.Detection\LayerPeek.Detection.csproj" />
     <!-- Camera decoder (T-014); its native FFmpeg DLLs flow here through the reference (do not import build/FFmpeg.targets). -->
     <ProjectReference Include="..\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" />
   </ItemGroup>

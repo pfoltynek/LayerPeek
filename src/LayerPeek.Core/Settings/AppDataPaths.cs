@@ -3,7 +3,7 @@ namespace LayerPeek.Core.Settings;
 /// <summary>
 /// Per-user application data location:
 /// <c>%APPDATA%\LayerPeek</c> on Windows, <c>~/Library/Application Support/LayerPeek</c> on macOS;
-/// logs live elsewhere (<see cref="GetDefaultLogDirectory"/>).
+/// logs (<see cref="GetDefaultLogDirectory"/>) and caches (<see cref="GetDefaultCacheDirectory"/>) live elsewhere.
 /// </summary>
 public static class AppDataPaths
 {
@@ -38,6 +38,21 @@ public static class AppDataPaths
         }
 
         return Path.Combine(FullyQualified(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)), AppFolderName, "logs");
+    }
+
+    /// <summary>
+    /// The standard per-user cache folder of the OS (T-154: images of notifications, last camera frames; anything there may
+    /// be deleted): <c>%LOCALAPPDATA%\LayerPeek\cache</c> on Windows (never roams), <c>~/Library/Caches/LayerPeek</c> on macOS.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The OS does not provide a per-user folder for it.</exception>
+    public static string GetDefaultCacheDirectory()
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            return Path.Combine(FullyQualified(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)), "Library", "Caches", AppFolderName);
+        }
+
+        return Path.Combine(FullyQualified(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)), AppFolderName, "cache");
     }
 
     private static string FullyQualified(string root) =>

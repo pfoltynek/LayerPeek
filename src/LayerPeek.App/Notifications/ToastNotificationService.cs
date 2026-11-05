@@ -52,7 +52,8 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // Guarded by _gate.
-    // PrintNotification or UpdateNotification (T-058), in the order they came.
+    // PrintNotification, UpdateNotification (T-058), RecordingNotification (T-146), TimelapseExportNotification (T-165) or PrintFailureNotification (T-154), in
+    // the order they came.
     private readonly Queue<object> _pending = new();
     private readonly Queue<SettingsRequest> _requests = new();
     private bool _started;
@@ -80,6 +81,20 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     /// <summary>The OS side (composition tests).</summary>
     internal IToastPlatform Platform => _platform;
+
+    /// <summary>
+    /// The image files of print failure toasts (T-154); <see langword="null"/>: those toasts have no image. Used only on the
+    /// toast thread.
+    /// </summary>
+    internal AlarmNotificationImages? AlarmImages { get; init; }
+
+#if DEBUG
+    /// <summary>
+    /// Debug builds only, set only in the test mode with toasts (T-133): when it holds a value, that value is read instead of
+    /// Windows' <c>ToastNotifier.Setting</c>; <see langword="null"/> (always outside the test mode): Windows' own setting.
+    /// </summary>
+    internal PretendedToastSetting? Pretended { get; init; }
+#endif
 
     /// <summary>
     /// Completes once the thread has ended for good (disposed, or the platform turned out unavailable; right at
@@ -125,6 +140,60 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     /// <summary>The toast about a new version (T-058), queued like a printer toast; tagged, so a newer one replaces it.</summary>
     public void ShowUpdateAvailable(UpdateNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || _unavailable || _pending.Count >= MaxPending)
+            {
+                return;
+            }
+
+            _pending.Enqueue(notification);
+            EnsureStarted();
+            Monitor.Pulse(_gate);
+        }
+    }
+
+    /// <summary>The toast about a failed camera recording (T-146), queued like a printer toast.</summary>
+    public void ShowRecordingFailed(RecordingNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || _unavailable || _pending.Count >= MaxPending)
+            {
+                return;
+            }
+
+            _pending.Enqueue(notification);
+            EnsureStarted();
+            Monitor.Pulse(_gate);
+        }
+    }
+
+    /// <summary>The toast about a finished JPEG export of a timelapse (T-165), queued like a printer toast.</summary>
+    public void ShowTimelapseExportFinished(TimelapseExportNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || _unavailable || _pending.Count >= MaxPending)
+            {
+                return;
+            }
+
+            _pending.Enqueue(notification);
+            EnsureStarted();
+            Monitor.Pulse(_gate);
+        }
+    }
+
+    /// <summary>
+    /// The toast of a suspected print failure (T-154), queued like a printer toast; its image file is prepared on the toast
+    /// thread.
+    /// </summary>
+    public void ShowPrintFailure(Core.Detection.PrintFailureNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
         lock (_gate)
@@ -246,6 +315,18 @@ internal sealed partial class ToastNotificationService : INotificationService, I
                         {
                             ShowUpdate(session, update);
                         }
+                        else if (notification is RecordingNotification recording)
+                        {
+                            ShowRecording(session, recording);
+                        }
+                        else if (notification is TimelapseExportNotification export)
+                        {
+                            ShowTimelapseExport(session, export);
+                        }
+                        else if (notification is Core.Detection.PrintFailureNotification failure)
+                        {
+                            ShowPrintFailure(session, failure);
+                        }
                         else
                         {
                             ShowNow(session, (PrintNotification)notification!);
@@ -348,7 +429,11 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     {
         try
         {
+#if DEBUG
+            ToastNotifierSetting setting = Pretended?.Value ?? session.Setting;
+#else
             ToastNotifierSetting setting = session.Setting;
+#endif
             SystemNotificationState state = StateOf(setting);
             if (state != SystemNotificationState.Allowed)
             {
@@ -415,6 +500,65 @@ internal sealed partial class ToastNotificationService : INotificationService, I
             LogUpdateShowFailed(ex, notification.Version);
         }
     }
+
+    private void ShowRecording(IToastSession session, RecordingNotification notification)
+    {
+        try
+        {
+            session.Show(ToastContentBuilder.BuildRecordingFailed(notification, _textCulture()), tag: null);
+            LogRecordingShown(notification.Problem, notification.PrinterId);
+        }
+        catch (Exception ex)
+        {
+            LogRecordingShowFailed(ex, notification.Problem, notification.PrinterId);
+        }
+    }
+
+    private void ShowTimelapseExport(IToastSession session, TimelapseExportNotification notification)
+    {
+        try
+        {
+            session.Show(ToastContentBuilder.BuildTimelapseExport(notification, _textCulture()), tag: null);
+            LogTimelapseExportShown(notification.Problem);
+        }
+        catch (Exception ex)
+        {
+            LogTimelapseExportShowFailed(ex, notification.Problem);
+        }
+    }
+
+    private void ShowPrintFailure(IToastSession session, Core.Detection.PrintFailureNotification notification)
+    {
+        Core.Detection.PrintFailureAlarm alarm = notification.Alarm;
+        try
+        {
+            string? image = AlarmImages?.Prepare(alarm, useSavedSnapshot: true);
+            session.Show(ToastContentBuilder.BuildPrintFailure(notification, _textCulture(), image), tag: null);
+            LogPrintFailureShown(alarm.DetectorId, alarm.PrinterId, image is not null);
+        }
+        catch (Exception ex)
+        {
+            LogPrintFailureShowFailed(ex, alarm.DetectorId, alarm.PrinterId);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Toast shown for the suspected print failure ({DetectorId}) of printer '{PrinterId}' (image: {HasImage}).")]
+    private partial void LogPrintFailureShown(string detectorId, string printerId, bool hasImage);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The toast for the suspected print failure ({DetectorId}) of printer '{PrinterId}' could not be shown.")]
+    private partial void LogPrintFailureShowFailed(Exception exception, string detectorId, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Toast shown for the JPEG export of a timelapse ({Problem}).")]
+    private partial void LogTimelapseExportShown(Core.Cameras.Timelapse.CameraTimelapseExportProblem problem);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The toast for the JPEG export of a timelapse ({Problem}) could not be shown.")]
+    private partial void LogTimelapseExportShowFailed(Exception exception, Core.Cameras.Timelapse.CameraTimelapseExportProblem problem);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Toast shown for the recording failure ({Problem}) of printer '{PrinterId}'.")]
+    private partial void LogRecordingShown(Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The toast for the recording failure ({Problem}) of printer '{PrinterId}' could not be shown.")]
+    private partial void LogRecordingShowFailed(Exception exception, Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
 
     private void ShowNow(IToastSession session, PrintNotification notification)
     {

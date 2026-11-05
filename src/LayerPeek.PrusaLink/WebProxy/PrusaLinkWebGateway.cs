@@ -10,7 +10,7 @@ namespace LayerPeek.PrusaLink.WebProxy;
 /// <see cref="IPrinterWebGateway"/> for PrusaLink printers (T-028): one local reverse proxy per printer, with its own
 /// random port and token, started lazily on the first <see cref="OpenAsync"/> and reused afterwards (decided 2026-10-18).
 /// Before an address is returned, a logged-in request checks the password; when it fails the plain printer address is
-/// returned. Prusa Connect printers are not handled (<see cref="PrinterWebFallback.NotSupported"/>).
+/// returned. Printers of another connection type are not handled (<see cref="PrinterWebFallback.NotSupported"/>).
 /// </summary>
 public sealed partial class PrusaLinkWebGateway : IPrinterWebGateway, IDisposable
 {

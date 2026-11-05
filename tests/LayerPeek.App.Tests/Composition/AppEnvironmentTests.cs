@@ -95,7 +95,7 @@ public sealed class AppEnvironmentTests
         Assert.True(environment.IsIsolated);
         Assert.Equal(Path.GetFullPath(folder), environment.DataDirectory());
         // Test windows never group with the user's instance on the taskbar.
-        Assert.Equal("LayerPeek.E2E", environment.AppUserModelId);
+        Assert.Equal(AppEnvironment.TestAppUserModelId, environment.AppUserModelId);
         // Nothing is created up front.
         Assert.False(Directory.Exists(folder));
     }
@@ -202,6 +202,9 @@ public sealed class AppEnvironmentTests
             Assert.Contains("] E2E: Window opened.", log, StringComparison.Ordinal);
 
             Assert.Equal(AppDataPaths.GetDefaultLogDirectory(), AppEnvironment.Production.LogDirectory());
+            // T-154: the caches likewise.
+            Assert.Equal(AppDataPaths.GetDefaultCacheDirectory(), AppEnvironment.Production.CacheDirectory());
+            Assert.Equal(Path.Combine(environment.DataDirectory(), "cache"), environment.CacheDirectory());
         }
         finally
         {
@@ -225,6 +228,8 @@ public sealed class AppEnvironmentTests
         // T-067: no browser replacement, no toast cleanup of the test app, no switch properties.
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.RecordingUrlLauncher"));
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.Windows.TestToastCleanup"));
+        // T-133: no stand-in for Windows' notification setting.
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Notifications.PretendedToastSetting"));
         Assert.Null(typeof(AppEnvironment).GetProperty("TestToasts", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
         // T-020: no test bundle, no status mode, no cleanup of the test bundle's notifications; production keeps its bundle.
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationCleanup"));

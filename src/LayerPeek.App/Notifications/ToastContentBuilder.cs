@@ -4,6 +4,7 @@ using System.Text;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.Detection;
 using LayerPeek.Core.Events;
 using LayerPeek.Core.Notifications;
 
@@ -78,6 +79,170 @@ internal static class ToastContentBuilder
 
         xml.Append("</toast>");
         return xml.ToString();
+    }
+
+    /// <summary>
+    /// The toast about a failed camera recording (T-146) in <paramref name="textCulture"/>: the printer name, "Camera recording
+    /// failed" and the reason (<see cref="RecordingNotificationText"/>), with the launch argument
+    /// <see cref="ToastLaunchArgument.RecordingSettings"/> (a click opens the settings window on the Recording tab).
+    /// </summary>
+    public static string BuildRecordingFailed(RecordingNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = RecordingLines(notification, textCulture);
+        StringBuilder xml = new(512);
+        xml.Append("<toast launch=\"");
+        AppendEscaped(xml, ToastLaunchArgument.RecordingSettings);
+        xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, lines.Title);
+        AppendText(xml, lines.Body);
+        if (lines.Detail is { } detail)
+        {
+            AppendText(xml, detail);
+        }
+
+        xml.Append("</binding></visual>");
+        if (!notification.PlaySound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
+    /// The toast of a suspected print failure (T-154) in <paramref name="textCulture"/>: the texts of
+    /// <see cref="PrintFailureLines"/>, the snapshot <paramref name="imagePath"/> (an absolute file path, as a <c>file:</c>
+    /// URI) under them, the launch argument <see cref="ToastLaunchArgument.TryForCamera"/> (a click opens the camera window)
+    /// and the button "False alarm" (<see cref="ToastLaunchArgument.ForFalseAlarm"/>, foreground activation like the click: it
+    /// reaches the running app the same way). An id too long to encode leaves the toast without a click target; an alarm id
+    /// that cannot travel leaves it without the button.
+    /// </summary>
+    public static string BuildPrintFailure(PrintFailureNotification notification, CultureInfo textCulture, string? imagePath)
+    {
+        NotificationLines lines = PrintFailureLines(notification, textCulture);
+        StringBuilder xml = new(1024);
+        xml.Append("<toast");
+        if (ToastLaunchArgument.TryForCamera(notification.Alarm.PrinterId, out string? launch))
+        {
+            xml.Append(" launch=\"");
+            AppendEscaped(xml, launch);
+            xml.Append('"');
+        }
+
+        xml.Append(" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, lines.Title);
+        AppendText(xml, lines.Body);
+        if (lines.Detail is { } detail)
+        {
+            AppendText(xml, detail);
+        }
+
+        if (imagePath is not null && Path.IsPathFullyQualified(imagePath))
+        {
+            // An inline image keeps the aspect ratio of the camera (a hero image would be cropped to 2:1).
+            xml.Append("<image src=\"");
+            AppendEscaped(xml, new Uri(imagePath).AbsoluteUri);
+            xml.Append("\"/>");
+        }
+
+        xml.Append("</binding></visual>");
+        if (ToastLaunchArgument.IsValidAlarmId(notification.Alarm.Id))
+        {
+            xml.Append("<actions><action content=\"");
+            AppendEscaped(xml, Clean(PrintFailureNotificationText.FalseAlarmAction(textCulture)));
+            xml.Append("\" arguments=\"");
+            AppendEscaped(xml, ToastLaunchArgument.ForFalseAlarm(notification.Alarm.Id));
+            xml.Append("\" activationType=\"foreground\"/></actions>");
+        }
+
+        if (!notification.PlaySound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
+    /// The texts of a suspected print failure (T-154) for every OS, the printer and file names cleaned and shortened like in
+    /// <see cref="Lines"/> (the id when the name is empty); not escaped.
+    /// </summary>
+    internal static NotificationLines PrintFailureLines(PrintFailureNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = PrintFailureNotificationText.Lines(notification, textCulture);
+        string title = Clean(lines.Title);
+        string? detail = lines.Detail is { } fileName ? Clean(fileName) : null;
+        return new NotificationLines(
+            title.Length > 0 ? title : Clean(notification.Alarm.PrinterId),
+            Clean(lines.Body),
+            string.IsNullOrEmpty(detail) ? null : detail);
+    }
+
+    /// <summary>
+    /// The toast about a finished JPEG export of a timelapse (T-165) in <paramref name="textCulture"/>: the printer name, done or
+    /// failed and the frames or the reason (<see cref="TimelapseExportNotificationText"/>); the launch argument
+    /// <see cref="TimelapseExportLaunchArgument"/> (a click opens the printer's recordings folder), none without a printer.
+    /// </summary>
+    public static string BuildTimelapseExport(TimelapseExportNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = TimelapseExportLines(notification, textCulture);
+        StringBuilder xml = new(512);
+        xml.Append("<toast");
+        if (TimelapseExportLaunchArgument(notification) is { } launch)
+        {
+            xml.Append(" launch=\"");
+            AppendEscaped(xml, launch);
+            xml.Append('"');
+        }
+
+        xml.Append(" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, lines.Title);
+        AppendText(xml, lines.Body);
+        if (lines.Detail is { } detail)
+        {
+            AppendText(xml, detail);
+        }
+
+        xml.Append("</binding></visual>");
+        if (!notification.PlaySound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
+    /// The click target of a finished JPEG export (T-165) or timelapse from a recording (T-164), success or failure, for every
+    /// OS: the printer's recordings folder (<see cref="ToastLaunchArgument.TryForRecordingsFolder"/>, user decision
+    /// 2026-11-04); <see langword="null"/> without a printer or with an id too long to encode (a click then only brings the app
+    /// to the front).
+    /// </summary>
+    internal static string? TimelapseExportLaunchArgument(TimelapseExportNotification notification) =>
+        !string.IsNullOrWhiteSpace(notification.PrinterId) && ToastLaunchArgument.TryForRecordingsFolder(notification.PrinterId, out string? launch)
+            ? launch
+            : null;
+
+    /// <summary>The texts of a finished JPEG export (T-165) for every OS, the title cleaned and shortened like in <see cref="Lines"/>; not escaped.</summary>
+    internal static NotificationLines TimelapseExportLines(TimelapseExportNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = TimelapseExportNotificationText.Lines(notification, textCulture);
+        string title = Clean(lines.Title);
+        return lines with { Title = title.Length > 0 ? title : TimelapseExportNotificationText.AppName };
+    }
+
+    /// <summary>
+    /// The texts of the recording failure (T-146) for every OS, the printer name cleaned and shortened like in
+    /// <see cref="Lines"/> (its id when the name is empty); not escaped.
+    /// </summary>
+    internal static NotificationLines RecordingLines(RecordingNotification notification, CultureInfo textCulture)
+    {
+        NotificationLines lines = RecordingNotificationText.Lines(notification, textCulture);
+        string title = Clean(lines.Title);
+        return lines with { Title = title.Length > 0 ? title : Clean(notification.PrinterId) };
     }
 
     /// <summary>

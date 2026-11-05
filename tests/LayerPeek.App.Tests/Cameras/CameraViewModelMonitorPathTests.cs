@@ -40,7 +40,7 @@ public sealed class CameraViewModelMonitorPathTests : IAsyncDisposable
 
     private CameraViewModel Create(CameraMonitorId? monitor, ICameraMonitorPathUpdater? updater = null)
     {
-        ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        CameraStreamHub feed = CameraHubs.Immediate(new ReconnectingCameraFeed(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
         CameraTarget target = CameraTargets.For("mk4", "MK4", StreamUri, CameraWindowDefaults.Default with { Monitor = monitor });
         CameraViewModel viewModel = new(target, feed, _monitor, _printers, _dispatcher, _states, _time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, updater ?? _updater);
         _created.Add(viewModel);
@@ -102,7 +102,7 @@ public sealed class CameraViewModelMonitorPathTests : IAsyncDisposable
     [Fact]
     public void WithoutAnUpdaterNothingHappens()
     {
-        ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        CameraStreamHub feed = CameraHubs.Immediate(new ReconnectingCameraFeed(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
         CameraTarget target = CameraTargets.For("mk4", "MK4", StreamUri, CameraWindowDefaults.Default with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, DellPathB) });
         CameraViewModel viewModel = new(target, feed, _monitor, _printers, _dispatcher, _states, _time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance);
         _created.Add(viewModel);

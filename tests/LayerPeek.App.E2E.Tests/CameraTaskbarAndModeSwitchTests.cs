@@ -95,7 +95,9 @@ public sealed class CameraTaskbarAndModeSwitchTests(E2EFixture fixture)
         await FailureScreenshots.GuardAsync(app, "taskbar-submenu", async () =>
         {
             nint window = await CameraWindowSettings.OpenCameraAsync(app);
-            string[] keys = ["MenuOpenPrusaLink", "MenuCameraToFront", "MenuHideCamera"];
+            // T-146: the recording items follow after a separator (T-161: with the timelapse; T-165: and its JPEG export;
+            // T-164: and the timelapse from a recording).
+            string[] keys = ["MenuOpenPrusaLink", "MenuCameraToFront", "MenuHideCamera", "MenuStartRecording", "MenuStartTimelapse", "MenuPlayLastRecording", "MenuPlayLastTimelapse", "MenuExportTimelapseJpeg", "MenuCreateTimelapseFromRecording", "MenuOpenRecordingsFolder"];
             using CoverWindow cover = await CoverWindow.CreateAsync(CoverWindow.BoundsFor(Native.FrameBounds(window), Native.MonitorOf(window).Monitor, BackgroundMargin));
             await cover.BringToFrontAsync();
             Assert.True(CoverWindow.IsAbove(cover.Handle, window), "The other app's window is not above the camera window.");

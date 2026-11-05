@@ -48,9 +48,11 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         ("Printer", SettingsViewModel.PrintersTab, SettingsViewModel.ConnectionPrinterTab),
         ("Camera", SettingsViewModel.PrintersTab, SettingsViewModel.CameraPrinterTab),
         ("Camera window", SettingsViewModel.PrintersTab, SettingsViewModel.CameraWindowPrinterTab),
+        ("Detection", SettingsViewModel.PrintersTab, SettingsViewModel.DetectionPrinterTab),
         ("Widgets", SettingsViewModel.WidgetsTab, SettingsViewModel.ConnectionPrinterTab),
         ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
         ("Startup and updates", SettingsViewModel.StartupUpdatesTab, SettingsViewModel.ConnectionPrinterTab),
+        ("Recording", SettingsViewModel.RecordingTab, SettingsViewModel.ConnectionPrinterTab),
     ];
 
     // ---- Size ----
@@ -391,6 +393,139 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         });
 
     /// <summary>
+    /// T-146 (user decision 2026-11-04): the Recording tab with the longest error of the folder (in place of its hint) and of
+    /// the limit, and a build without the recorder (the reason in place of the hint of the folder), in every language; Save
+    /// with an invalid limit shows this tab. T-148: with the dashcam section below (its length invalid too).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task RecordingTabFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            foreach (bool available in (bool[])[true, false])
+            {
+                string context = $"{language} / recording {(available ? "errors" : "unavailable")}";
+                LayerPeek.App.Tests.Cameras.Recording.FakeRecordingFolderPicker picker = new() { Answer = new PickedFolder(LongFolder()) };
+                SettingsWindowHarness recording = await SettingsWindowHarness.OpenAsync(
+                    scope,
+                    SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
+                    recordings: new LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings { IsAvailable = available, IsTimelapseAvailable = available },
+                    recordingFolderPicker: picker);
+                recording.Click("SettingsTabRecording");
+                if (available)
+                {
+                    await recording.ViewModel.ChooseRecordingFolderCommand.ExecuteAsync(null);
+                    recording.ViewModel.RecordingLimitGigabytes = 0;
+                    // T-148: the dashcam length is invalid as well (its error replaces its hint).
+                    recording.ViewModel.DashcamMinutes = 11;
+                    // T-161: and the timelapse interval (its error replaces its hint).
+                    recording.ViewModel.TimelapseIntervalSeconds = 601;
+                    // T-154: and the sampling interval of the detection (its error appears under it).
+                    recording.ViewModel.DetectionIntervalSeconds = 9;
+                    recording.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+                    await recording.ViewModel.SaveCommand.ExecuteAsync(null);
+                    Assert.Equal(SettingsViewModel.RecordingTab, recording.ViewModel.SelectedTabIndex);
+                }
+
+                recording.Window.Settle();
+                Assert.True(recording.Find<TabItem>("SettingsTabRecording").IsSelected);
+                Assert.Equal(!available, recording.Find<TextBlock>("SettingsRecordingUnavailable").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingFolderError").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingLimitError").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsDashcamMinutesError").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsTimelapseIntervalError").IsEffectivelyVisible);
+                Assert.Equal(!available, recording.Find<TextBlock>("SettingsTimelapseUnavailable").IsEffectivelyVisible);
+                Assert.True(recording.Find<Border>("SettingsTimelapseExperimental").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsDetectionIntervalError").IsEffectivelyVisible);
+                // T-159: every choice of what takes the timelapse frames fits its combo box (it trims as well).
+                ComboBox trigger = recording.Find<ComboBox>("SettingsTimelapseTrigger");
+                foreach (TimelapseTriggerOption option in recording.ViewModel.TimelapseTriggerOptions)
+                {
+                    TextBlock probe = new() { Text = option.Text, FontSize = trigger.FontSize, FontFamily = trigger.FontFamily };
+                    probe.Measure(Size.Infinity);
+                    if (probe.DesiredSize.Width > trigger.Bounds.Width - 44)
+                    {
+                        problems.Add($"{context}: '{option.Text}' needs {probe.DesiredSize.Width:0.#} DIP in a combo box of {trigger.Bounds.Width:0.#}.");
+                    }
+                }
+
+                // T-154: every choice of "Alarm" fits its combo box (it trims, so CutTexts would not notice).
+                ComboBox repeat = recording.Find<ComboBox>("SettingsDetectionRepeat");
+                foreach (AlarmRepeatOption option in recording.ViewModel.AlarmRepeatOptions)
+                {
+                    TextBlock probe = new() { Text = option.Text, FontSize = repeat.FontSize, FontFamily = repeat.FontFamily };
+                    probe.Measure(Size.Infinity);
+                    // The padding and the chevron of the Fluent combo box take about 44 DIP.
+                    if (probe.DesiredSize.Width > repeat.Bounds.Width - 44)
+                    {
+                        problems.Add($"{context}: '{option.Text}' needs {probe.DesiredSize.Width:0.#} DIP in a combo box of {repeat.Bounds.Width:0.#}.");
+                    }
+                }
+                problems.AddRange(ScrollingViewers(recording.Window, context));
+                problems.AddRange(CutTexts(recording.Window, context));
+                problems.AddRange(HeadersNotOnOneRow(recording.Window, context));
+                recording.Window.Close();
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-154: the Detection sub-tab in its fullest states fits in every language: a Core One (three buttons under the
+    /// editor), the caption of the last saved frame and the longest failed "Load frame"; the camera turned off (disabled with
+    /// its reason); the global switch on (the hint when it runs). Nothing scrolls, nothing is cut, the sub-tab headers stay on
+    /// one row.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task DetectionSubTabFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            PrinterDefinition coreOne = LinkPrinter("a", "Alpha") with { Camera = WorkingCamera, Image = PrinterImageChoice.ForModel(PrinterModel.CoreOne) };
+            foreach (string state in (string[])["last frame + failed load", "camera off", "globally on"])
+            {
+                FakeLastCameraFrames frames = new() { Frame = static _ => new Avalonia.Media.Imaging.WriteableBitmap(new PixelSize(64, 36), new Vector(96, 96), Avalonia.Platform.PixelFormat.Bgra8888, Avalonia.Platform.AlphaFormat.Opaque) };
+                PrinterDefinition printer = state == "camera off" ? coreOne with { Camera = CameraSettings.Disabled } : coreOne;
+                SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                    scope,
+                    SettingsWindowHarness.StoreWith(printer),
+                    cameraTester: new FakeCameraTester { Immediate = LongestCameraFailure() },
+                    lastFrames: frames);
+                ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.DetectionPrinterTab;
+                await Ui.UntilAsync(() => ui.ViewModel.SelectedPrinter!.HasRegionEditorImage, "the last frame is shown");
+                if (state == "last frame + failed load")
+                {
+                    await ui.ViewModel.SelectedPrinter!.TestCameraCommand.ExecuteAsync(null);
+                    ui.Window.Settle();
+                    Assert.True(ui.Window.IsShown<TextBlock>("PrinterDetectionLoadFrameFailed"));
+                    Assert.True(ui.Window.IsShown<TextBlock>("PrinterDetectionLastFrame"));
+                    Assert.True(ui.Window.IsShown<Button>("PrinterDetectionCoreOne"));
+                }
+                else if (state == "globally on")
+                {
+                    ui.ViewModel.DetectionGloballyEnabled = true;
+                }
+
+                ui.Window.Settle();
+                string context = $"{language} / detection: {state}";
+                problems.AddRange(ScrollingViewers(ui.Window, context));
+                problems.AddRange(CutTexts(ui.Window, context));
+                problems.AddRange(HeadersNotOnOneRow(ui.Window, context));
+                ui.Window.Close();
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>A folder whose path is longer than the settings accept (T-146).</summary>
+    private static string LongFolder() =>
+        Path.Combine(Path.GetTempPath(), new string('x', LayerPeek.Core.Cameras.Recording.CameraRecordingSettings.MaxFolderLength));
+
+    /// <summary>
     /// T-020 (macOS, user decision 2026-10-29): notifications turned off in System Settings put a warning and a button into the
     /// heading row of the notifications on the General tab; in every language nothing is cut, nothing scrolls, the warning is
     /// readable next to the heading and the button opens System Settings (here only counted). Also maximized.
@@ -586,7 +721,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
     /// <summary>T-101 Q4: a click on the test notification shows the General tab of a new window, and of an open one.</summary>
     [Fact]
-    public Task AClickOnTheTestNotificationShowsTheGeneralTab() =>
+    public Task AClickOnANotificationShowsItsTab() =>
         session.RunAsync(static async scope =>
         {
             FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
@@ -603,17 +738,55 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                     },
                     () => scope.Track(new SettingsWindow()));
 
-            SettingsWindowCommand.Show(slot, Create, addPrinter: false, generalTab: true);
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, SettingsPage.General);
             await created[0].LoadAsync();
             Assert.Equal(SettingsViewModel.GeneralTab, created[0].SelectedTabIndex);
 
             // Already open on another tab, with an edit: the same window, the edit kept, the General tab shown.
             created[0].SelectedTabIndex = SettingsViewModel.PrintersTab;
             created[0].SelectedPrinter!.Name = "Edited";
-            SettingsWindowCommand.Show(slot, Create, addPrinter: false, generalTab: true);
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, SettingsPage.General);
             Assert.Single(created);
             Assert.Equal(SettingsViewModel.GeneralTab, created[0].SelectedTabIndex);
             Assert.Equal("Edited", created[0].SelectedPrinter!.Name);
+
+            // T-146: a failed recording shows the Recording tab, again in the same window with the edit kept.
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, SettingsPage.Recording);
+            Assert.Single(created);
+            Assert.Equal(SettingsViewModel.RecordingTab, created[0].SelectedTabIndex);
+            Assert.Equal("Edited", created[0].SelectedPrinter!.Name);
+            slot.Shutdown();
+        });
+
+    /// <summary>T-146: a click on a failed recording while no settings window is open opens a new one on the Recording tab.</summary>
+    [Fact]
+    public Task AClickOnTheRecordingNotificationOpensANewWindowOnItsTab() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
+            AuxiliaryWindowSlot slot = new();
+            AuxiliaryWindowFactory windows = new(track: null);
+            List<SettingsViewModel> created = [];
+            SettingsWindow? window = null;
+            (IAuxiliaryWindow, SettingsViewModel) Create() =>
+                windows.Settings(
+                    screens =>
+                    {
+                        SettingsViewModel viewModel = new(store, new FakeConnectionTester(), SettingsWindowHarness.Supported, static () => "p1", new FakeCameraTester(), screens: screens);
+                        created.Add(viewModel);
+                        return viewModel;
+                    },
+                    () => window = scope.Track(new SettingsWindow()));
+
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, SettingsPage.Recording);
+            await created[0].LoadAsync();
+            SettingsWindow shown = Assert.IsType<SettingsWindow>(window);
+            shown.Settle();
+
+            Assert.Equal(SettingsViewModel.RecordingTab, created[0].SelectedTabIndex);
+            TabItem recordingTab = shown.GetVisualDescendants().OfType<TabItem>()
+                .Single(static item => AutomationProperties.GetAutomationId(item) == "SettingsTabRecording");
+            Assert.True(recordingTab.IsSelected);
             slot.Shutdown();
         });
 
@@ -896,9 +1069,10 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabConnectionMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraWindowMarker"));
-            // Three headers (Printer | Camera | Camera window; the Overlay sub-tab gave way to the Widgets tab, T-092).
+            // Four headers (Printer | Camera | Camera window | Detection, T-154; the Overlay sub-tab gave way to the Widgets
+            // tab, T-092). Detection has no marker: none of its fields can be invalid.
             Assert.Equal(SettingsViewModel.PrinterTabCount, ui.Find<TabControl>("SettingsPrinterTabs").ItemCount);
-            Assert.Equal(3, SettingsViewModel.PrinterTabCount);
+            Assert.Equal(4, SettingsViewModel.PrinterTabCount);
             List<string> problems = [.. HeadersNotOnOneRow(ui.Window, language), .. CutTexts(ui.Window, language)];
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
@@ -1096,7 +1270,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(
                 [
                     "SettingsPrinterList", "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterTabConnection", "PrinterImageButton", "PrinterName",
-                    "PrinterConnectionType", "PrinterAddress", "PrinterUserName", "PrinterPassword", "PrinterTestConnection",
+                    "PrinterAddress", "PrinterUserName", "PrinterPassword", "PrinterTestConnection",
                     "SettingsSave", "SettingsCancel",
                 ],
                 order.Where(static id => id is not ("SettingsTabPrinters" or "SettingsTabs")).Distinct());
@@ -1188,16 +1362,9 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
     {
         yield return ("PrusaLink with a saved password", static async scope =>
         {
-            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30") with { Camera = WorkingCamera }, CloudPrinter("c", "Cloud XL"));
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30") with { Camera = WorkingCamera }, LinkPrinter("c", "Studio XL", "192.168.1.42"));
             store.Data = store.Data with { PrintersWithPassword = Ids("a") };
             return await SettingsWindowHarness.OpenAsync(scope, store);
-        });
-
-        yield return ("Prusa Connect", static async scope =>
-        {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"), CloudPrinter("c", "Cloud XL")));
-            ui.ViewModel.SelectedPrinter = ui.ViewModel.Printers[1];
-            return ui;
         });
 
         yield return ("all errors", static scope => OpenWithAllErrorsAsync(scope, SettingsWindowHarness.Supported, refusedTest: false));
@@ -1299,7 +1466,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
         yield return ("widgets: camera off, cool-down selected", static async scope =>
         {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, CloudPrinter("c", "Cloud XL")));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, LinkPrinter("c", "Studio XL", "192.168.1.42")));
             SelectCooldown(ui);
             return ui;
         });
@@ -1315,7 +1482,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
         yield return ("widgets: camera off, mini preview selected", static async scope =>
         {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, CloudPrinter("c", "Cloud XL")));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, LinkPrinter("c", "Studio XL", "192.168.1.42")));
             SelectMiniStrip(ui);
             return ui;
         });
@@ -1462,7 +1629,6 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 ConnectionTestOutcome.PasswordMissing => Strings.SettingsTestPasswordMissing,
                 ConnectionTestOutcome.PasswordUnavailable => Strings.SettingsTestPasswordUnavailable,
                 ConnectionTestOutcome.UnsupportedAuthentication => Strings.SettingsTestUnsupportedAuthentication,
-                ConnectionTestOutcome.NotSupported => Strings.SettingsTestNotSupported,
                 ConnectionTestOutcome.LocalNetworkAccessMayBeOff => Strings.LocalNetworkAccessMayBeOff,
                 _ => Strings.SettingsTestUnexpectedResponse,
             };

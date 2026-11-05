@@ -175,8 +175,25 @@ internal sealed partial class TrayHost : IAsyncDisposable
         }
     }
 
+#if DEBUG
+    /// <summary>
+    /// Debug test mode only (T-133, test command <c>notifications:off|on</c>): pretends that Windows switched the app's
+    /// notifications off, or reads Windows' own setting again (<see cref="PretendedToastSetting"/>). Ignored once stopping.
+    /// </summary>
+    public void PretendNotificationsOff(bool off)
+    {
+        if (Volatile.Read(ref _stopped) == 0)
+        {
+            _services.GetRequiredService<PretendedToastSetting>().Pretend(off ? ToastNotifierSetting.DisabledForApplication : null);
+        }
+    }
+#endif
+
     /// <summary>The settings window for a click on the test notification (T-101, <see cref="ServiceHost.AttachSettingsOpener"/>).</summary>
-    public void AttachSettingsOpener(Action open) => _core.AttachSettingsOpener(open);
+    public void AttachSettingsOpener(Action<SettingsPage> open) => _core.AttachSettingsOpener(open);
+
+    /// <summary>The camera window for a click on a print failure notification (T-154, <see cref="ServiceHost.AttachCameraOpener"/>).</summary>
+    public void AttachCameraOpener(Action<string> open) => _core.AttachCameraOpener(open);
 
     /// <summary>The update the app offers (T-058): the menu item, the notification and the settings window. Valid until <see cref="StopAsync"/>.</summary>
     internal Updates.UpdateOffer UpdateOffer => _services.GetRequiredService<Updates.UpdateOffer>();
@@ -215,6 +232,27 @@ internal sealed partial class TrayHost : IAsyncDisposable
         if (Volatile.Read(ref _stopped) == 0)
         {
             _services.GetRequiredService<TrayMenuViewModel>().SetCameraWindowOpen(printerId, isOpen);
+        }
+    }
+
+    /// <summary>
+    /// UI thread: the camera windows the automatic close and reopen drives from now on (T-151,
+    /// <see cref="CameraWindowAutoVisibilityObserver"/>). Ignored once stopping started.
+    /// </summary>
+    internal void AttachCameraWindows(ICameraWindowAutoTarget cameraWindows)
+    {
+        if (Volatile.Read(ref _stopped) == 0)
+        {
+            _services.GetRequiredService<CameraWindowAutoVisibilityObserver>().Attach(cameraWindows);
+        }
+    }
+
+    /// <summary>UI thread, quitting: the camera windows close now; that is no close by the user (T-151).</summary>
+    internal void DetachCameraWindows()
+    {
+        if (Volatile.Read(ref _stopped) == 0)
+        {
+            _services.GetRequiredService<CameraWindowAutoVisibilityObserver>().Detach();
         }
     }
 

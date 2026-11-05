@@ -6,8 +6,6 @@ using System.Text.Json.Nodes;
 
 using FlaUI.Core.AutomationElements;
 
-using Microsoft.Win32;
-
 using LayerPeek.App.E2E.Tests.Infrastructure;
 
 using Wait = LayerPeek.App.E2E.Tests.Infrastructure.Wait;
@@ -25,15 +23,16 @@ namespace LayerPeek.App.E2E.Tests;
 /// <item>A second click replaces the first toast: the history holds one test notification, the app handed two to Windows.</item>
 /// <item>A click on the test notification in the notification center brings the settings window to the front on its
 /// General tab (it was on the Printers tab).</item>
-/// <item>With the notifications of the test app switched off in Windows (its key under Settings &gt; System &gt;
-/// Notifications, journaled; when Windows does not take that, the notifications switch of Windows, also journaled) the
-/// window shows "Notifications are turned off in Windows." with the button to Settings instead of the test button. The test
-/// mode does not open Settings (it logs the address); the test opens that address itself, only when Settings does not run,
-/// checks that Settings came to the foreground and closes it again.</item>
+/// <item>With the notifications of the test app switched off in Windows the window shows "Notifications are turned off in
+/// Windows." with the button to Settings instead of the test button. Windows is not changed for that (T-133, user decision
+/// 2026-11-03): a program cannot switch an app's notifications on again once Windows took an "off", so the Debug test mode
+/// only pretends <c>DisabledForApplication</c> (test command <see cref="AppSwitches.NotificationsOffCommand"/>, back with
+/// <see cref="AppSwitches.NotificationsOnCommand"/>); the real reading of Windows' setting is a unit test and a manual check
+/// (T-125). The test mode does not open Settings (it logs the address); the test opens that address itself, only when
+/// Settings does not run, checks that Settings came to the foreground and closes it again.</item>
 /// </list>
 /// System changes (trait <see cref="SystemChanges.Trait"/>), all through the journal of <c>tools/run-e2e.ps1</c> and
-/// restored also after a failure or a killed run: those of every toast test (<see cref="ToastNotificationTests"/>) and the
-/// notifications of the test app (and possibly of Windows) switched off for a moment.
+/// restored also after a failure or a killed run: those of every toast test (<see cref="ToastNotificationTests"/>).
 /// </summary>
 public sealed class TestNotificationTests(E2EFixture fixture)
 {
@@ -43,6 +42,12 @@ public sealed class TestNotificationTests(E2EFixture fixture)
     private const string SettingsAddress = "ms-settings:notifications";
 
     private static readonly TimeSpan ClickTimeout = TimeSpan.FromSeconds(15);
+
+    /// <summary>What the app logs when it pretends that Windows switched its notifications off (<c>PretendedToastSetting</c>).</summary>
+    private const string PretendedOffLog = "Test mode: Windows' notification setting of the app is pretended to be DisabledForApplication.";
+
+    /// <summary>What the app logs when it reads Windows' own notification setting again.</summary>
+    private const string PretendClearedLog = "Test mode: Windows' own notification setting of the app is read again.";
 
     /// <summary>How long the window may take to learn that Windows switched the notifications off.</summary>
     private static readonly TimeSpan TurnedOffTimeout = TimeSpan.FromSeconds(15);
@@ -123,14 +128,12 @@ public sealed class TestNotificationTests(E2EFixture fixture)
             Assert.Single(run.App.Windows(), hwnd => run.App.KindOf(hwnd) == AppWindowKind.Settings);
             Screenshots.Save(settings, "test-notification-clicked-general");
 
-            // 4. Switched off in Windows: the warning with the button to Settings.
-            // T-133: switched on again while the app runs and its shortcut exists (also after a failure): Windows takes
-            // an "on" written after the app quit or before it started no more (its notification service keeps the "off").
-            string switchedOn;
+            // 4. Switched off in Windows: the warning with the button to Settings. Only pretended by the app (T-133); also
+            // after a failure the app reads Windows' own setting again before it quits.
             try
             {
-                string how = await TurnOffAsync(run, window, report, cancellationToken);
-                report.AppendLine("Switched off by " + how);
+                await TurnOffAsync(run, window);
+                report.AppendLine("Switched off: the app pretends DisabledForApplication (" + AppSwitches.NotificationsOffCommand + ")");
                 Screenshots.Save(settings, "test-notification-turned-off");
                 Assert.Equal(AppStrings.Get("en", "SettingsNotificationsTurnedOffWindows"), Ui.Text(window, "SettingsNotificationsTurnedOff"));
                 Assert.False(Ui.IsShown(window, "SettingsTestNotification"), "The test button is still shown although Windows turned the notifications off.");
@@ -159,14 +162,19 @@ public sealed class TestNotificationTests(E2EFixture fixture)
             }
             finally
             {
-                switchedOn = await run.SwitchTestAppOnAsync(cancellationToken);
-                report.AppendLine("Switched on again while the app runs: " + switchedOn);
+                try
+                {
+                    await run.App.SendAsync(AppSwitches.NotificationsOnCommand);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // Does not hide the failure that got here; the wait for the log below fails when nothing else did.
+                    report.AppendLine("The app did not take " + AppSwitches.NotificationsOnCommand + ": " + ex.Message);
+                }
             }
 
-            Assert.True(
-                switchedOn == ToastSetting.Enabled,
-                $"Windows keeps the notifications of the test app {AppSwitches.AppUserModelId} switched off after the test switched them on again (ToastNotifier.Setting = {switchedOn}). "
-                + $"Recovery (docs/troubleshooting.md): {TestAppNotificationRecovery.Command}");
+            await Wait.UntilAsync(() => run.App.ReadLog().Contains(PretendClearedLog, StringComparison.Ordinal), TimeSpan.FromSeconds(10), $"the app to log '{PretendClearedLog}'");
+            report.AppendLine("Switched on again: the app reads Windows' own setting (" + AppSwitches.NotificationsOnCommand + ")");
 
             // The window closes without saving (the sound stays All), so the app quits without a question.
             await CameraWindowSettings.CloseAsync(settings, window, save: false);
@@ -181,30 +189,20 @@ public sealed class TestNotificationTests(E2EFixture fixture)
     }
 
     /// <summary>
-    /// Switches the notifications of the test app off in Windows (its notification settings key, <c>Enabled</c> = 0) and
-    /// clicks the test button until the window warns. When Windows does not take the key within <see cref="TurnedOffTimeout"/>,
-    /// the notifications switch of Windows goes off too (both journaled, both restored by the run).
+    /// Has the app pretend that Windows switched the test app's notifications off (T-133, nothing changes in Windows) and
+    /// clicks the test button until the window warns.
     /// </summary>
-    /// <returns>What switched them off (for the results).</returns>
-    private static async Task<string> TurnOffAsync(ToastNotificationTests.ToastRun run, AutomationElement window, StringBuilder report, CancellationToken cancellationToken)
+    private static async Task TurnOffAsync(ToastNotificationTests.ToastRun run, AutomationElement window)
     {
-        RegistryKeySnapshot before = RegistryKeys.Read(ToastAppSettingsKind.SubKey);
-        report.AppendLine(CultureInfo.InvariantCulture, $"Notification settings of the test app before switching off: {before}");
-        await run.AppSettings.ApplyAsync(WithNotificationsOff(before), cancellationToken);
+        await run.App.SendAsync(AppSwitches.NotificationsOffCommand);
+        await Wait.UntilAsync(() => run.App.ReadLog().Contains(PretendedOffLog, StringComparison.Ordinal), TimeSpan.FromSeconds(10), $"the app to log '{PretendedOffLog}'");
         if (await ClickUntilWarnedAsync(window))
         {
-            return $"the test app's key (Enabled=0): {RegistryKeys.Read(ToastAppSettingsKind.SubKey)}";
-        }
-
-        report.AppendLine(CultureInfo.InvariantCulture, $"The test app's key (Enabled=0) gave no warning within {TurnedOffTimeout.TotalSeconds:0} s; the notifications switch of Windows goes off too.");
-        await run.ToastsEnabled.ApplyAsync(new ToastsEnabledState(0), cancellationToken);
-        if (await ClickUntilWarnedAsync(window))
-        {
-            return "the notifications switch of Windows (ToastEnabled=0), after the test app's key gave no warning";
+            return;
         }
 
         IEnumerable<string> lines = run.App.ReadLog().Split('\n').Where(static line => line.Contains("notification", StringComparison.OrdinalIgnoreCase)).Select(static line => "  " + line.TrimEnd());
-        throw new TimeoutException($"No warning '{AppStrings.Get("en", "SettingsNotificationsTurnedOffWindows")}' after switching off the test app's notifications and those of Windows. "
+        throw new TimeoutException($"No warning '{AppStrings.Get("en", "SettingsNotificationsTurnedOffWindows")}' while the app pretends that Windows switched its notifications off. "
             + $"What the app logged about notifications:{Environment.NewLine}{string.Join(Environment.NewLine, lines)}");
     }
 
@@ -229,13 +227,6 @@ public sealed class TestNotificationTests(E2EFixture fixture)
 
         return Ui.IsShown(window, "SettingsNotificationsTurnedOff");
     }
-
-    /// <summary>The key of the test app with <c>Enabled</c> = 0 (Windows' own switch of Settings &gt; System &gt; Notifications for the app).</summary>
-    internal static RegistryKeySnapshot WithNotificationsOff(RegistryKeySnapshot current) =>
-        new(
-            true,
-            [.. current.Values.Where(static value => !string.Equals(value.Name, "Enabled", StringComparison.OrdinalIgnoreCase)), new RegistryValueState("Enabled", nameof(RegistryValueKind.DWord), "0")],
-            current.SubKeys);
 
     /// <summary>The one test notification of the test app in Windows' history (a new one replaces the previous one).</summary>
     private static async Task<HistoryToast> SingleTestNotificationAsync(StringBuilder report, string when, CancellationToken cancellationToken)

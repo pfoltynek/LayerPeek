@@ -416,15 +416,13 @@ public sealed class TelemetryHistoryTests
         AssertNozzles(ReadAll(history, "mk4"), 1);
     }
 
-    [Theory]
-    [InlineData("192.168.1.99", ConnectionType.PrusaLink)]
-    [InlineData("192.168.1.10", ConnectionType.PrusaConnect)]
-    public void PrinterPointingToAnotherMachineStartsNewHistory(string address, ConnectionType connectionType)
+    [Fact]
+    public void PrinterPointingToAnotherMachineStartsNewHistory()
     {
         TelemetryHistory history = Create(TimeSpan.FromHours(1), Second, Mk4);
         history.Record(Snapshot(Start, 1));
 
-        history.Configure([Mk4 with { Address = address, ConnectionType = connectionType }], Second);
+        history.Configure([Mk4 with { Address = "192.168.1.99" }], Second);
 
         Assert.Empty(ReadAll(history, "mk4"));
     }

@@ -15,6 +15,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#see-it-in-action">Screenshots</a> ·
   <a href="#features">Features</a> ·
+  <a href="#experimental-features">Experimental</a> ·
   <a href="README.cz.md">Česky</a>
 </p>
 
@@ -65,7 +66,13 @@ firmware. Your camera picture and print data stay on your network: no cloud serv
 
 - 🎥 **Live camera, not snapshots.** Real-time RTSP/H.264 stream from the Prusa Buddy3D camera (or any RTSP camera),
   decoded locally with FFmpeg.
-- 🧩 **Widgets you arrange yourself.** Status, times, temperatures with a chart, print name with the G-code preview
+- 📼 **Recordings when you need them.** Record a print, keep the last minutes like a dashcam and save them when
+  something goes wrong, or take a timelapse ([experimental](#experimental-features)). Everything stays on your disk,
+  within a size limit.
+- 🕵️ **An extra pair of eyes.** Optional print failure detection ([experimental](#experimental-features)) watches the
+  bed through the camera and warns you with a snapshot when a part vanishes or spaghetti appears. It runs locally,
+  without any cloud.
+- 🧩 **Widgets you arrange yourself. Status, times, temperatures with a chart, print name with the G-code preview
   and cool-down, each in three sizes, placed by drag and drop right in the camera window, per printer.
 - 🔔 **You hear about it when it matters.** Native notifications on Windows and macOS, plus a reminder a few minutes
   before the print ends.
@@ -116,10 +123,27 @@ chart. One click switches between them.
   <img src="docs/images/en/camera-mini.jpg" alt="Mini preview with the info strip, the print name row and the temperature chart row" width="400">
 </p>
 
+### Recording, dashcam and timelapse
+
+Record a print by hand or every print automatically, keep the last minutes of a print like a dashcam, or take a
+timelapse. While the camera is recorded, the window shows a red **REC**; while a timelapse is taken, an amber **TL**
+(also in the mini preview and in full screen).
+
+<p align="center">
+  <img src="docs/images/en/camera-recording.jpg" alt="Top of the camera window during a print with the TL and REC indicators in the top right corner" width="860">
+</p>
+
+What runs for which printer is set on its **Camera** sub-tab; the folder, the size limit, the dashcam and the
+experimental features are on the **Recording** tab.
+
+| Camera sub-tab of a printer | Recording tab |
+|---|---|
+| <img src="docs/images/en/settings-camera.png" alt="Settings, Camera sub-tab of the CORE One: Record prints automatically, Keep the last minutes (dashcam) and Take a timelapse of prints with the Experimental badge" width="420"> | <img src="docs/images/en/settings-recording.png" alt="Settings, Recording tab: the folder and size limit of the recordings, the dashcam, the timelapse and the print failure detection, the last two with the Experimental badge" width="420"> |
+
 ### Settings
 
-Everything is set in one window: printers and cameras, widgets per printer, notifications, polling, language, start
-at sign-in and updates.
+Everything is set in one window: printers and cameras, widgets per printer, recording and print failure detection,
+notifications, polling, language, start at sign-in and updates.
 
 | Widgets | Printers |
 |---|---|
@@ -144,7 +168,8 @@ Buddy3D camera recording and simulated printer data), see [docs/readme-screensho
 
 - The icon shows the printer state: idle, printing (the icon fills up as the print progresses), paused, finished,
   needs attention, error, offline. The tooltip shows the details: progress, time left and file name.
-- The menu has a submenu for each printer: show or hide the camera, open the diagnostics, open the PrusaLink web.
+- The menu has a submenu for each printer: show or hide the camera, recording, dashcam and timelapse, open the
+  diagnostics, open the PrusaLink web. While a printer's camera is recorded, the tooltip says **Recording**.
 
 ### Camera window
 
@@ -157,6 +182,26 @@ Buddy3D camera recording and simulated printer data), see [docs/readme-screensho
 - A pin in the window shows whether it stays on top and switches it with one click; the mini preview has a thin
   outline, so it stands out even over dark windows.
 - Reconnects automatically when the camera or Wi-Fi drops out.
+- Closes by itself when the printer is switched off and opens again at the same place when it is back (can be
+  switched off).
+
+### Recording and dashcam
+
+- **Recording** of the camera to MP4 without re-encoding: **Start recording** / **Stop recording** in the printer's
+  menu or the record button in the camera window, or **Record prints automatically** on the printer's **Camera**
+  sub-tab (off by default), which records every print from its start to a minute after its end, also without an open
+  camera window. **Play last recording** and **Open recordings folder** are in the printer's menu.
+- The recordings go to the Videos (Windows) / Movies (macOS) folder under `LayerPeek`, one subfolder per printer, named
+  after the time and the print. On the **Recording** tab you can change the folder and the total size limit (50 GB by
+  default): above it the oldest recordings are deleted, and recording stops below 5 GB of free space.
+- **Dashcam:** **Keep the last minutes (dashcam)** on the printer's **Camera** sub-tab (off by default) keeps the last
+  2 minutes of the camera in memory during a print (1–10 min on the **Recording** tab, about 8 MB per minute and
+  printer; nothing is written to the disk until it is saved). They are saved, together with 30 s after the event, on a
+  print error, when the printer needs attention, when the print is stopped and when print failure detection raises an
+  alarm (each can be switched off), or by hand with **Save the last 2 min** in the printer's menu or in the context menu
+  of the camera window.
+- A failed recording or a failed save of the last minutes shows a notification.
+- **Timelapse** and **print failure detection** are experimental, see [Experimental features](#experimental-features).
 
 ### Notifications
 
@@ -175,6 +220,98 @@ Buddy3D camera recording and simulated printer data), see [docs/readme-screensho
 
 - The **About** window saves a diagnostic bundle (logs, version and system info, settings without passwords) or copies
   a short report to the clipboard, so a bug report takes a minute.
+
+## Experimental features
+
+Some features are marked as **experimental**: in the settings they carry an **Experimental** badge, and the menu items
+that start them end with "(experimental)". They work and are covered by tests, but they were tuned on limited data,
+so they may change in a later version or not always work reliably. All of them are off until you switch them on or
+start them. Tried one? Please tell us how it went in an [issue](https://github.com/pfoltynek/LayerPeek/issues): real
+prints, especially failed ones, help the most.
+
+### Print failure detection
+
+LayerPeek can watch a print through the camera and warn you when something goes wrong on the bed. The detector
+**Change on the bed** notices a part that vanished or moved and new material on the bed (spaghetti, a part torn off).
+
+<p align="center">
+  <img src="docs/images/en/settings-detection.jpg" alt="Settings, Detection sub-tab of the CORE One: watching switched on, the bed region over the camera picture, the Change on the bed detector with its sensitivity and the Dark filament option" width="620">
+</p>
+
+- **Turn it on** in two places (off by default): **Look for print failures in the camera image** on the **Recording**
+  tab (for all printers), and **Watch the prints of this printer with the camera** on the printer's **Detection**
+  sub-tab. The printer needs its camera switched on.
+- **Bed region:** the part of the picture that is watched. Drag a new rectangle, move it or change its size at a corner
+  with the mouse, or use the arrow keys (Shift+arrows change its size). **Whole frame** watches the whole picture,
+  **Load frame** takes a new picture from the camera and, for a Core One, **Default for Core One** restores its preset
+  (which a Core One also gets by default).
+- **Sensitivity:** 0–100, 50 by default. Higher means more alarms, also false ones; lower means fewer alarms, but a
+  failure may be missed.
+- **The alarm** is a notification "Possible print failure – Change on the bed" with a snapshot of the camera, with the
+  same sound as a print error. Clicking it opens the camera window. Its **False alarm** button keeps a local record for
+  tuning: nothing leaves the computer and the sensitivity does not change.
+- **Defaults on the Recording tab:** one alarm per print and kind of failure (**Alarm** can switch to again every
+  10 min while it lasts), a JPEG snapshot of every alarm in the printer's recordings folder (**Save a snapshot of every
+  alarm**) and the camera checked every 2 s (**Check the camera every (s)**, 2–5 s). A running dashcam saves the last
+  minutes.
+- It runs only while printing and with the chamber light on, decodes only key frames, works without an open camera
+  window, and the camera picture stays on your computer.
+- **Dark filament** *(experimental, off by default)* on the **Detection** sub-tab: for black or very dark filament, a
+  smaller darkening of the bed counts as a change. On a dark sheet it finds a little more, with a higher risk of false
+  alarms.
+- **Limitations:** it does not notice the quality of the first layer, problems at the nozzle or defects inside the
+  part. It is less reliable with dark filament on a black sheet (also with **Dark filament**). With the whole frame as
+  the region, the moving parts of the printer can cause false alarms. It was tuned on simulated failures and one real
+  successful print of a Core One with a Buddy3D camera, not yet on real failed prints, so it may miss a failure or
+  raise a false alarm.
+
+### Printing into the air
+
+- A second detector on the printer's **Detection** sub-tab, **off by default**, offered only for printers whose bed moves
+  down while printing (Core One, Core One L, XL, XL+); other models don't show it.
+- It notices that the printer goes on printing (the Z axis rises) but nothing grows on the bed any more, e.g. filament
+  that ran out unnoticed, a slipping extruder or a clogged nozzle. In a good print the top edges of the parts stay at the
+  nozzle; when nothing is printed, they move down with the bed.
+- It watches your bed region extended up to the nozzle, so no extra region is needed.
+- **Limitations:** it reports the failure only after the Z axis rose another ~3 mm (minutes, half an hour and more on
+  slow prints). It does not judge parts mostly hidden under the head or the first ~6 mm after the start. A wipe tower
+  that keeps growing can hide the failure, and one of several parts that stops growing is not reported. **A part with a
+  wider lower step that ends, or several parts of which most end earlier, can raise a false alarm.** The failures it
+  was tuned on are simulated; no real print into the air has been recorded yet.
+
+### Timelapse
+
+A timelapse is a short video of the whole print: one frame every 30 s by default, none while the print is paused,
+played at 30 frames per second. It is saved as `…_timelapse.mp4` in the printer's recordings folder and counts in the
+size limit of the recordings.
+
+- **By hand:** **Start timelapse (experimental)** / **Stop timelapse (experimental)** in the printer's menu, or the
+  stopwatch button in the camera window. While a timelapse is taken, the window shows an amber **TL** (dimmed while
+  the print is paused). **Play last timelapse** is in the printer's menu.
+- **Automatically:** **Take a timelapse of prints** on the printer's **Camera** sub-tab (off by default) takes one of
+  every print, from its start to a minute after its end, also without an open camera window.
+- **Time between frames:** next to the **Timelapse** heading on the **Recording** tab, 5–600 s.
+- **Every N-th layer (estimate):** switch **Every N seconds** next to the heading to take a frame when a new layer
+  starts (N = 1–100, 1 by default), plus one at the start and one of the finished part. PrusaLink reports no layers, so
+  LayerPeek estimates them from the height of the Z axis at every poll (z-hops are filtered out). Layers shorter than
+  about two polls merge, and rarely a z-hop or a tool change adds a frame. Tested on a real Core One print: every
+  layer was found with polling every 2–5 s.
+- **Limitation:** the frames are key frames of the camera stored without re-encoding, so a frame can be up to about
+  2 s off the interval with a Buddy3D camera.
+
+### Timelapse from a recording
+
+**Create timelapse from recording… (experimental)** in the printer's menu asks for a LayerPeek recording and makes a
+timelapse of it with the same time between frames, saved next to it as `…_recording_timelapse.mp4`. A recording split
+by a camera dropout (`…-2.mp4`) is taken as a whole. The menu item shows the progress and cancels it; a notification
+tells you when it is done.
+
+### Export a timelapse to JPEG
+
+**Export timelapse to JPEG… (experimental)** in the printer's menu asks for a LayerPeek timelapse and saves its frames
+as numbered JPEG files (`0001.jpg`, …) in a folder next to it, for example for your own video editing. The progress
+and cancelling are in the menu item, a notification tells you when it is done, and the folder counts in the size limit
+of the recordings.
 
 ## Supported printers
 
@@ -266,7 +403,10 @@ submenu.
 ### Other settings
 
 - **Notifications:** which events you want, the sound mode and the "minutes remaining" reminder.
-- **Camera window:** start mode, size, monitor and always on top.
+- **Camera window:** start mode, size, monitor and always on top, and whether the window closes when the printer turns
+  off and opens again when it is back on (on by default).
+- **Recording:** the folder and size limit of the recordings, the dashcam and the experimental timelapse and print
+  failure detection.
 - **Widgets:** which overlay widgets are shown, their settings (e.g. the nozzle and bed cool-down thresholds of each
   printer), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
@@ -305,8 +445,8 @@ Have an idea? [Open an issue](https://github.com/pfoltynek/LayerPeek/issues).
 ## FAQ
 
 **Does it work outside my home network?**
-No. The app talks to the printers directly over the LAN. You can use a VPN to your home network. Prusa Connect support
-is not planned: Prusa Connect has no public API for third-party apps.
+No. The app talks to the printers directly over the LAN (PrusaLink). You can use a VPN to your home network. Prusa
+Connect is not supported: it has no public API for third-party apps.
 
 **Does it replace Prusa Connect or PrusaLink web?**
 No, it complements them. It is the quick "glance" view on your desktop. For uploading files and starting prints, open
@@ -376,8 +516,8 @@ display) are collected in one walk-through in [docs/macos-manual-testing.md](doc
 |---|---|
 | `src/LayerPeek.Core` | domain model, abstractions, monitoring and event detection (no UI, no HTTP specifics) |
 | `src/LayerPeek.PrusaLink` | PrusaLink REST client and the local web proxy |
-| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (not developed further: Prusa Connect has no public API) |
 | `src/LayerPeek.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
+| `src/LayerPeek.Detection` | print failure detectors from the camera image (pure C#) |
 | `src/LayerPeek.App` | Avalonia tray app, windows, platform specifics |
 | `tests/` | xUnit v3 unit, UI (Avalonia headless) and E2E tests |
 | `tools/` | developer tools, e.g. the PrusaLink printer and camera simulator |

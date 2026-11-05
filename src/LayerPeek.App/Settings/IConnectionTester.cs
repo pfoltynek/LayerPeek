@@ -19,9 +19,6 @@ public enum ConnectionTestOutcome
     UnsupportedAuthentication,
     UnexpectedResponse,
 
-    /// <summary>The connection type cannot be tested (Prusa Connect, T-005).</summary>
-    NotSupported,
-
     /// <summary>
     /// "No route to host" to a printer in the local network, where the OS has a local network permission that may block it
     /// (macOS 15+, T-097); elsewhere such a failure is <see cref="NotReachable"/>.
