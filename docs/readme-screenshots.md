@@ -23,7 +23,13 @@ Generátor je volitelný test `tests/LayerPeek.App.UiTests/Readme/ReadmeScreensh
 - Čeština: texty aplikace v češtině a formáty čísel a času podle `cs-CZ`; angličtina podle `en-US`. Čas je pevný
   (16. 10. 2026 12:00 UTC, zobrazený v UTC+2), takže výsledek je opakovatelný.
 - Obrázky s obrazem kamery jsou JPEG (kvalita 86; jako PNG by měla fotka megabajty), okna bez kamery PNG s nejvyšší
-  kompresí. Všechny obrázky dohromady mají asi 2,2 MB.
+  kompresí. JPEG je i podzáložka Detekce, protože ve výřezu podložky ukazuje snímek kamery. Všechny obrázky dohromady
+  mají asi 4 MB.
+- Popupy (např. nabídka velikosti widgetu v režimu rozložení) jsou v UI testech samostatná okna (`OverlayPopups = false`,
+  T-121), takže nejsou ve snímku okna: `ReadmeImage.Capture(window, popupContent)` je dokreslí na jejich místo.
+- Nahrávání, timelapse a detekce: `FakeCameraRecordings` (nahrávání a timelapse běží, indikátory REC a TL),
+  `FakeCameraTester` vrátí snímek ze záznamu kamery pro **Načíst snímek** na podzáložce Detekce; adresa kamery je host
+  name (`rtsp://prusa-coreone-camera.local/live`).
 
 | Soubor | Obsah |
 |---|---|
@@ -34,6 +40,10 @@ Generátor je volitelný test `tests/LayerPeek.App.UiTests/Readme/ReadmeScreensh
 | `settings-widgets.png` | nastavení, záložka Widgety, vybraný widget Vychladnutí |
 | `settings-printers.png` | nastavení, záložka Tiskárny se třemi tiskárnami |
 | `diagnostics.png` | okno diagnostiky s grafem teplot za 2 hodiny |
+| `camera-recording.jpg` | horní pruh okna kamery během nahrávání a timelapse (indikátory TL a REC, karty stavu a názvu tisku) |
+| `settings-camera.png` | nastavení, podzáložka Kamera tiskárny CORE One se zapnutým automatickým nahráváním, dashcamem a timelapse |
+| `settings-recording.png` | nastavení, záložka Nahrávání se zapnutou detekcí chyb tisku (štítky Experimentální) |
+| `settings-detection.jpg` | nastavení, podzáložka Detekce tiskárny CORE One: výřez podložky přes snímek kamery, detektor Změna na podložce, Tmavý filament |
 
 ## Přegenerování
 

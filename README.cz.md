@@ -15,6 +15,7 @@
   <a href="#rychlý-start">Rychlý start</a> ·
   <a href="#jak-to-vypadá">Snímky</a> ·
   <a href="#funkce">Funkce</a> ·
+  <a href="#experimentální-funkce">Experimentální</a> ·
   <a href="README.md">English</a>
 </p>
 
@@ -65,9 +66,10 @@ z kamery i údaje o tisku zůstávají ve tvé síti: žádná cloudová služba
 - 🎥 **Živá kamera, ne jednotlivé snímky.** Stream RTSP/H.264 v reálném čase z kamery Prusa Buddy3D (nebo jiné RTSP
   kamery), dekódovaný lokálně přes FFmpeg.
 - 📼 **Záznam, když ho potřebuješ.** Nahraj tisk, nech si poslední minuty jako v autokameře a ulož je, když se něco
-  pokazí, nebo pořiď timelapse (experimentální). Všechno zůstává na tvém disku v rámci limitu velikosti.
-- 🕵️ **Oko navíc.** Volitelná detekce chyb tisku (experimentální) hlídá kamerou podložku a se snímkem dá vědět, když
-  díl zmizí nebo se objeví špagety. Běží lokálně, bez cloudu.
+  pokazí, nebo pořiď timelapse ([experimentální](#experimentální-funkce)). Všechno zůstává na tvém disku v rámci
+  limitu velikosti.
+- 🕵️ **Oko navíc.** Volitelná detekce chyb tisku ([experimentální](#experimentální-funkce)) hlídá kamerou podložku
+  a se snímkem dá vědět, když díl zmizí nebo se objeví špagety. Běží lokálně, bez cloudu.
 - 🧩 **Widgety si rozmístíš sám. Stav, časy, teploty s grafem, název tisku s náhledem z G-code a chladnutí, každý ve
   třech velikostech, rozmístěné přetažením přímo v okně kamery, pro každou tiskárnu zvlášť.
 - 🔔 **Dozvíš se to, když na tom záleží.** Nativní notifikace na Windows i macOS a připomínka pár minut před koncem
@@ -120,6 +122,23 @@ přepneš jedním kliknutím.
   <img src="docs/images/cs/camera-mini.jpg" alt="Malý náhled s informačním pásem, řádkem s názvem tisku a řádkem s grafem teplot" width="400">
 </p>
 
+### Nahrávání, dashcam a timelapse
+
+Nahraj tisk ručně nebo automaticky každý tisk, nech si poslední minuty tisku jako v autokameře, nebo pořiď timelapse.
+Když se kamera nahrává, okno ukazuje červené **REC**, když se pořizuje timelapse, oranžové **TL** (i v malém náhledu
+a na celé obrazovce).
+
+<p align="center">
+  <img src="docs/images/cs/camera-recording.jpg" alt="Horní část okna kamery během tisku s indikátory TL a REC v pravém horním rohu" width="860">
+</p>
+
+Co se u které tiskárny pořizuje, nastavíš na její podzáložce **Kamera**; složka, limit velikosti, dashcam
+a experimentální funkce jsou na záložce **Nahrávání**.
+
+| Podzáložka Kamera u tiskárny | Záložka Nahrávání |
+|---|---|
+| <img src="docs/images/cs/settings-camera.png" alt="Nastavení, podzáložka Kamera tiskárny CORE One: Automaticky nahrávat tisk, Uchovávat poslední minuty (dashcam) a Pořizovat timelapse tisku se štítkem Experimentální" width="420"> | <img src="docs/images/cs/settings-recording.png" alt="Nastavení, záložka Nahrávání: složka a limit velikosti nahrávek, dashcam, timelapse a detekce chyb tisku, poslední dvě se štítkem Experimentální" width="420"> |
+
 ### Nastavení
 
 Všechno nastavíš v jednom okně: tiskárny a kamery, widgety pro každou tiskárnu, nahrávání a detekci chyb tisku,
@@ -148,7 +167,7 @@ záznamu kamery Buddy3D a simulovaná data tiskárny), viz [docs/readme-screensh
 - Ikona ukazuje stav tiskárny: nečinná, tiskne (ikona se s průběhem tisku postupně plní), pozastaveno, hotovo,
   vyžaduje zásah, chyba, offline. Podrobnosti jsou v tooltipu: průběh, zbývající čas a název souboru.
 - Menu má podmenu pro každou tiskárnu: zobrazení a skrytí kamery, nahrávání, dashcam a timelapse, diagnostika, web
-  PrusaLink.
+  PrusaLink. Když se kamera tiskárny nahrává, tooltip ukazuje **Nahrává se**.
 
 ### Okno kamery
 
@@ -164,23 +183,22 @@ záznamu kamery Buddy3D a simulovaná data tiskárny), viz [docs/readme-screensh
 - Po výpadku kamery nebo Wi-Fi se samo znovu připojí.
 - Když tiskárnu vypneš, okno se samo zavře, a až ji zapneš, otevře se na stejném místě (jde vypnout).
 
-### Nahrávání a timelapse
+### Nahrávání a dashcam
 
-- **Nahrávání** kamery do MP4 bez překódování, ručně nebo automaticky u každého tisku (i bez otevřeného okna kamery).
-  Každá tiskárna má vlastní složku, celkový limit velikosti (výchozí 50 GB) a nejdřív se mažou nejstarší nahrávky.
-- **Dashcam:** během tisku drží v paměti poslední minuty (výchozí 2) a uloží je, když tisk skončí chybou, vyžaduje
-  zásah nebo je zastaven, když detekce najde chybu tisku, nebo ručně.
-- **Timelapse** *(experimentální)*: ve výchozím stavu jeden snímek za 30 s, živě během tisku nebo dodatečně z nahrávky;
-  snímky jde exportovat i jako soubory JPEG.
-
-### Detekce chyb tisku
-
-- *Experimentální:* vyladěná na simulovaných selháních a jednom skutečném úspěšném tisku, zatím ne na skutečných
-  selháních; může selhání přehlédnout nebo vyhlásit planý poplach.
-- Volitelná (ve výchozím stavu vypnutá), pro každou tiskárnu zvlášť, jen během tisku. Detektor „Změna na podložce“
-  pozná zmizení nebo posun dílu a novou hmotu na podložce ve výřezu podložky, který nastavíš v nastavení.
-- Poplach je notifikace se snímkem z kamery a tlačítkem „Falešný poplach“; umí uložit dashcam.
-- Známá omezení: nehodnotí první vrstvu ani trysku a tmavý filament na černém plátu je hůř vidět.
+- **Nahrávání** kamery do MP4 bez překódování: **Nahrávat** / **Zastavit nahrávání** v menu tiskárny nebo tlačítko
+  nahrávání v okně kamery, nebo **Automaticky nahrávat tisk** na podzáložce **Kamera** tiskárny (ve výchozím stavu
+  vypnuté), které nahraje každý tisk od začátku do minuty po jeho konci, i když okno kamery není otevřené.
+  **Přehrát poslední nahrávku** a **Otevřít složku s nahrávkami** jsou v menu tiskárny.
+- Nahrávky se ukládají do složky Videa (Windows) / Filmy (macOS) pod `LayerPeek`, každá tiskárna má vlastní podsložku
+  a soubory se jmenují podle času a tisku. Na záložce **Nahrávání** změníš složku a celkový limit velikosti (výchozí
+  50 GB): nad ním se mažou nejstarší nahrávky a při méně než 5 GB volného místa se nahrávání zastaví.
+- **Dashcam:** **Uchovávat poslední minuty (dashcam)** na podzáložce **Kamera** tiskárny (ve výchozím stavu vypnuté)
+  drží během tisku v paměti poslední 2 minuty kamery (1–10 min na záložce **Nahrávání**, asi 8 MB za minutu
+  a tiskárnu; na disk se nic nezapisuje, dokud se neuloží). Uloží se i s 30 s po události při chybě tisku, když
+  tiskárna čeká na zásah, při zastavení tisku a když detekce chyb tisku vyhlásí poplach (každou událost jde vypnout),
+  nebo ručně přes **Uložit posledních 2 min** v menu tiskárny nebo v kontextové nabídce okna kamery.
+- Když nahrávání nebo uložení posledních minut selže, ukáže se notifikace.
+- **Timelapse** a **detekce chyb tisku** jsou experimentální, viz [Experimentální funkce](#experimentální-funkce).
 
 ### Notifikace
 
@@ -200,6 +218,85 @@ záznamu kamery Buddy3D a simulovaná data tiskárny), viz [docs/readme-screensh
 
 - Okno **O aplikaci** uloží diagnostický balíček (logy, informace o verzi a systému, nastavení bez hesel) nebo
   zkopíruje krátké hlášení do schránky, takže nahlášení chyby zabere minutu.
+
+## Experimentální funkce
+
+Některé funkce jsou označené jako **experimentální**: v nastavení mají štítek **Experimentální** a položky menu, které
+je spouštějí, končí „(experimentální)“. Fungují a pokrývají je testy, ale jsou vyladěné na omezených datech, takže se
+v další verzi můžou změnit nebo nemusí vždy fungovat spolehlivě. Všechny jsou vypnuté, dokud je nezapneš nebo
+nespustíš. Vyzkoušel jsi některou? Napiš prosím do [issue](https://github.com/pfoltynek/LayerPeek/issues), jak to
+dopadlo: nejvíc pomůžou skutečné tisky, hlavně ty nepovedené.
+
+### Detekce chyb tisku
+
+LayerPeek umí hlídat tisk kamerou a dát vědět, když se na podložce něco pokazí. Detektor **Změna na podložce** pozná
+zmizení nebo posun dílu a novou hmotu na podložce (špagety, utržený díl).
+
+<p align="center">
+  <img src="docs/images/cs/settings-detection.jpg" alt="Nastavení, podzáložka Detekce tiskárny CORE One: zapnuté hlídání, výřez podložky přes obraz kamery, detektor Změna na podložce s citlivostí a volba Tmavý filament" width="620">
+</p>
+
+- **Zapíná se** na dvou místech (ve výchozím stavu vypnutá): **Hledat chyby tisku v obraze kamery** na záložce
+  **Nahrávání** (pro všechny tiskárny) a **Hlídat tisk této tiskárny kamerou** na podzáložce **Detekce** tiskárny.
+  Tiskárna musí mít zapnutou kameru.
+- **Výřez podložky:** část obrazu, která se hlídá. Myší nakreslíš nový obdélník, přesuneš ho nebo za roh změníš jeho
+  velikost; jde to i šipkami (Shift+šipky mění velikost). **Celý snímek** hlídá celý obraz, **Načíst snímek** vezme
+  nový snímek z kamery a u Core One vrátí **Výchozí pro Core One** jeho předvolbu (kterou Core One dostane i ve
+  výchozím stavu).
+- **Citlivost:** 0–100, výchozí 50. Vyšší znamená víc poplachů, i falešných; nižší méně poplachů, ale chyba může
+  uniknout.
+- **Poplach** je notifikace „Možná chyba tisku – Změna na podložce“ se snímkem z kamery a se stejným zvukem jako chyba
+  tisku. Kliknutím otevřeš okno kamery. Tlačítko **Falešný poplach** si uloží místní záznam pro ladění: nic neopustí
+  počítač a citlivost se nezmění.
+- **Výchozí nastavení na záložce Nahrávání:** jeden poplach za tisk a druh chyby (**Poplach** jde přepnout na znovu
+  každých 10 min, dokud trvá), snímek JPEG každého poplachu ve složce s nahrávkami tiskárny (**Ukládat snímek každého
+  poplachu**) a kontrola kamery každé 2 s (**Kontrolovat kameru každých (s)**, 2–5 s). Běžící dashcam uloží poslední
+  minuty.
+- Běží jen během tisku a se svítícím osvětlením komory, dekóduje jen klíčové snímky, funguje i bez otevřeného okna
+  kamery a obraz kamery zůstává v tvém počítači.
+- **Tmavý filament** *(experimentální, ve výchozím stavu vypnutý)* na podzáložce **Detekce**: u černého nebo velmi
+  tmavého filamentu se jako změna počítá i menší ztmavnutí podložky. Na tmavém plátu najde o něco víc, s vyšším
+  rizikem falešných poplachů.
+- **Omezení:** nepozná kvalitu první vrstvy, problémy na trysce ani chyby uvnitř dílu. U tmavého filamentu na černém
+  plátu je méně spolehlivá (i s volbou **Tmavý filament**). S celým snímkem jako výřezem můžou falešné poplachy
+  způsobit pohyblivé části tiskárny. Je vyladěná na simulovaných selháních a jednom skutečném úspěšném tisku na Core
+  One s kamerou Buddy3D, zatím ne na skutečných nepovedených tiscích, takže může selhání přehlédnout nebo vyhlásit
+  planý poplach.
+
+<!-- T-167 -->
+
+### Timelapse
+
+Timelapse je krátké video celého tisku: ve výchozím stavu jeden snímek za 30 s, během pauzy tisku žádný, přehrávané
+rychlostí 30 snímků za sekundu. Ukládá se jako `…_timelapse.mp4` do složky s nahrávkami tiskárny a počítá se do
+limitu velikosti nahrávek.
+
+- **Ručně:** **Spustit timelapse (experimentální)** / **Zastavit timelapse (experimentální)** v menu tiskárny nebo
+  tlačítko se stopkami v okně kamery. Během timelapse ukazuje okno oranžové **TL** (ztlumené, když je tisk
+  pozastavený). **Přehrát poslední timelapse** je v menu tiskárny.
+- **Automaticky:** **Pořizovat timelapse tisku** na podzáložce **Kamera** tiskárny (ve výchozím stavu vypnuté) pořídí
+  timelapse každého tisku od jeho začátku do minuty po konci, i bez otevřeného okna kamery.
+- **Čas mezi snímky:** vedle nadpisu **Timelapse** na záložce **Nahrávání**, 5–600 s.
+- **Každou N. vrstvu (odhad):** přepni **Každých N sekund** vedle nadpisu a snímek se pořídí na začátku nové vrstvy
+  (N = 1–100, výchozí 1), k tomu jeden na začátku a jeden hotového dílu. PrusaLink vrstvy nehlásí, takže je LayerPeek
+  odhaduje z výšky osy Z při každém dotazu (z-hopy odfiltruje). Vrstvy kratší než asi dva dotazy se sloučí
+  a výjimečně přidá snímek z-hop nebo výměna nástroje. Vyzkoušené na skutečném tisku na Core One: při dotazování
+  každé 2–5 s našel každou vrstvu.
+- **Omezení:** snímky jsou klíčové snímky kamery uložené bez překódování, takže u kamery Buddy3D může snímek přijít až
+  asi o 2 s mimo interval.
+
+### Timelapse z nahrávky
+
+**Vytvořit timelapse z nahrávky… (experimentální)** v menu tiskárny se zeptá na nahrávku z LayerPeeku a udělá z ní
+timelapse se stejným časem mezi snímky, uložený vedle ní jako `…_recording_timelapse.mp4`. Nahrávka rozdělená
+výpadkem kamery (`…-2.mp4`) se vezme celá. Položka menu ukazuje průběh a jde jí vytváření zrušit; notifikace dá
+vědět, až bude hotovo.
+
+### Export timelapse do JPEG
+
+**Exportovat timelapse do JPEG… (experimentální)** v menu tiskárny se zeptá na timelapse z LayerPeeku a uloží jeho
+snímky jako číslované soubory JPEG (`0001.jpg`, …) do složky vedle něj, třeba pro vlastní střih videa. Průběh a zrušení
+jsou v položce menu, notifikace dá vědět, až bude hotovo, a složka se počítá do limitu velikosti nahrávek.
 
 ## Podporované tiskárny
 
@@ -289,7 +386,9 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 ### Další nastavení
 
 - **Notifikace:** které události chceš, režim zvuku a upozornění na zbývající minuty.
-- **Okno kamery:** výchozí režim, velikost, monitor a vždy navrchu.
+- **Okno kamery:** výchozí režim, velikost, monitor a vždy navrchu a jestli se okno zavře, když se tiskárna vypne,
+  a znovu otevře po jejím zapnutí (ve výchozím stavu zapnuté).
+- **Nahrávání:** složka a limit velikosti nahrávek, dashcam a experimentální timelapse a detekce chyb tisku.
 - **Widgety:** které widgety se ukazují přes obraz, jejich nastavení (např. prahy vychladnutí trysky a podložky
   u každé tiskárny), neprůhlednost karet a rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.

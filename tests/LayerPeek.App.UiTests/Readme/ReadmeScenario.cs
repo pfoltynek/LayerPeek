@@ -27,6 +27,9 @@ internal static class ReadmeScenario
     /// <summary>A host name instead of an IP address (the settings window shows the address).</summary>
     public const string PrinterAddress = "http://prusa-coreone.local";
 
+    /// <summary>The RTSP address of the CORE One's camera, a host name too (the Camera sub-tab shows it).</summary>
+    public static readonly Uri CameraAddress = new("rtsp://prusa-coreone-camera.local/live");
+
     public const string SecondPrinterName = "MK4S";
 
     public const string SecondPrinterAddress = "http://prusa-mk4s.local";

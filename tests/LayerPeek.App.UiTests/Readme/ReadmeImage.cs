@@ -1,5 +1,6 @@
 using System.Reflection;
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media.Imaging;
@@ -54,6 +55,36 @@ internal sealed class ReadmeImage : IDisposable
         using WriteableBitmap frame = window.CaptureRenderedFrame()
             ?? throw new InvalidOperationException("The window rendered no frame.");
         return From(frame);
+    }
+
+    /// <summary>
+    /// <see cref="Capture(Window)"/> with the popup that shows <paramref name="popupContent"/> (e.g. a flyout of the window)
+    /// drawn over it at its place. The UI tests run with <c>OverlayPopups = false</c> (T-121), so a popup is a top level of
+    /// its own and not part of the window's frame.
+    /// </summary>
+    public static ReadmeImage Capture(Window window, Control popupContent)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(popupContent);
+        TopLevel popup = TopLevel.GetTopLevel(popupContent) ?? throw new InvalidOperationException("The popup is not shown.");
+        // The place of the popup in DIP of the window, taken before the scaling changes (the headless popup keeps the
+        // screen position it got when it opened).
+        PixelPoint delta = popup.PointToScreen(default) - window.PointToScreen(default);
+        Point at = new(delta.X / window.RenderScaling, delta.Y / window.RenderScaling);
+        ReadmeImage image = Capture(window);
+        popup.SetRenderScaling(Scaling);
+        popup.Settle();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick(10);
+        popup.Settle();
+        using WriteableBitmap frame = popup.CaptureRenderedFrame()
+            ?? throw new InvalidOperationException("The popup rendered no frame.");
+        using ReadmeImage part = From(frame);
+        using (SKCanvas canvas = new(image.Bitmap))
+        {
+            canvas.DrawBitmap(part.Bitmap, (float)Math.Round(at.X * Scaling), (float)Math.Round(at.Y * Scaling));
+        }
+
+        return image;
     }
 
     /// <summary>A copy of the rectangle (<paramref name="x"/>, <paramref name="y"/>, <paramref name="width"/>, <paramref name="height"/>) in DIP.</summary>
