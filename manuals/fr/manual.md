@@ -325,7 +325,7 @@ le sous-menu de l'imprimante.
 
 ### 8.2 Enregistrer chaque impression
 
-Activez **Enregistrer les impressions automatiquement** dans le sous-onglet **Caméra** de l'imprimante. Chaque
+Activez **Enregistrer chaque impression** dans le sous-onglet **Caméra** de l'imprimante. Chaque
 impression est enregistrée depuis son début jusqu'à une minute après sa fin, même sans fenêtre de la caméra ouverte.
 
 <p align="center">
@@ -334,7 +334,7 @@ impression est enregistrée depuis son début jusqu'à une minute après sa fin,
 
 ### 8.3 Dashcam : les dernières minutes
 
-Activez **Garder les dernières minutes (dashcam)** dans le sous-onglet **Caméra** de l'imprimante. Pendant une
+Activez **Dernières minutes (dashcam)** dans le sous-onglet **Caméra** de l'imprimante. Pendant une
 impression, LayerPeek garde en mémoire les 2 dernières minutes de la caméra (environ 8 Mo par minute et par
 imprimante) ; rien n'est écrit sur le disque tant qu'elles ne sont pas sauvegardées. Les dernières minutes, plus les
 30 secondes qui suivent l'événement, sont sauvegardées :

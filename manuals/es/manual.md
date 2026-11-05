@@ -317,7 +317,7 @@ Mientras se graba la cámara, la ventana de la cámara muestra **REC** en rojo; 
 
 ### 8.2 Grabar todas las impresiones
 
-Active **Grabar las impresiones automáticamente** en la subpestaña **Cámara** de la impresora. Cada impresión se graba
+Active **Grabar cada impresión** en la subpestaña **Cámara** de la impresora. Cada impresión se graba
 desde su inicio hasta un minuto después de su fin, también sin la ventana de la cámara abierta.
 
 <p align="center">
@@ -326,7 +326,7 @@ desde su inicio hasta un minuto después de su fin, también sin la ventana de l
 
 ### 8.3 Dashcam: los últimos minutos
 
-Active **Conservar los últimos minutos (dashcam)** en la subpestaña **Cámara** de la impresora. Durante una impresión,
+Active **Conservar últimos minutos (dashcam)** en la subpestaña **Cámara** de la impresora. Durante una impresión,
 LayerPeek conserva en memoria los últimos 2 minutos de la cámara (unos 8 MB por minuto e impresora); no se escribe nada
 en el disco hasta que se guardan. Los últimos minutos, junto con los 30 segundos posteriores al evento, se guardan:
 

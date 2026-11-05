@@ -314,7 +314,7 @@ Podczas nagrywania kamery okno kamery pokazuje czerwony wskaźnik **REC**, a pod
 
 ### 8.2 Nagrywanie każdego wydruku
 
-Włącz **Automatycznie nagrywaj wydruki** w podkarcie **Kamera** drukarki. Każdy wydruk jest nagrywany od początku do
+Włącz **Nagrywaj każdy wydruk** w podkarcie **Kamera** drukarki. Każdy wydruk jest nagrywany od początku do
 minuty po jego zakończeniu, także bez otwartego okna kamery.
 
 <p align="center">

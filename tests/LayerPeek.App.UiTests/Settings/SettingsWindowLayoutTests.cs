@@ -1770,7 +1770,25 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
     {
         foreach (TextBlock block in window.GetVisualDescendants().OfType<TextBlock>())
         {
-            if (!block.IsEffectivelyVisible || block.TextWrapping != TextWrapping.NoWrap || block.TextTrimming != TextTrimming.None || string.IsNullOrEmpty(block.Text))
+            if (!block.IsEffectivelyVisible || string.IsNullOrEmpty(block.Text))
+            {
+                continue;
+            }
+
+            // T-173: any text, also a wrapping one (check box contents wrap), is cut when it ends past a clipping ancestor: a
+            // horizontal panel gives it all the width it asks for, wider than the column.
+            foreach (Visual clip in block.GetVisualAncestors().OfType<Visual>().Where(static visual => visual.ClipToBounds))
+            {
+                if (block.TranslatePoint(new Point(block.Bounds.Width, 0), clip) is not { } end || end.X <= clip.Bounds.Width + 0.5)
+                {
+                    continue;
+                }
+
+                yield return $"{context}: '{block.Text}' is cut by its {clip.GetType().Name} at {clip.Bounds.Width:0.#} DIP (ends at {end.X:0.#}).";
+                break;
+            }
+
+            if (block.TextWrapping != TextWrapping.NoWrap || block.TextTrimming != TextTrimming.None)
             {
                 continue;
             }

@@ -320,7 +320,7 @@ sottomenu della stampante.
 
 ### 8.2 Registrare ogni stampa
 
-Attiva **Registra le stampe automaticamente** nella sottoscheda **Telecamera** della stampante. Ogni stampa viene
+Attiva **Registra ogni stampa** nella sottoscheda **Telecamera** della stampante. Ogni stampa viene
 registrata dall’inizio fino a un minuto dopo la fine, anche senza una finestra della telecamera aperta.
 
 <p align="center">
