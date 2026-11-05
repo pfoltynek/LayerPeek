@@ -1,6 +1,7 @@
 name: Printer compatibility report
 description: Tell us how LayerPeek works with your printer model, so we can mark it as tested.
 title: "Compatibility: "
+labels: [compatibility]
 body:
   - type: markdown
     attributes:
