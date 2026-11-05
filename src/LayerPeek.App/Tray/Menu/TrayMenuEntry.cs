@@ -10,7 +10,7 @@ public enum TrayMenuCommand
     /// <summary>Informational item, separator or the header of a submenu (every printer item, T-042).</summary>
     None,
 
-    /// <summary>Opens <see cref="TrayMenuEntry.WebUri"/> (PrusaLink / Prusa Connect) in the browser.</summary>
+    /// <summary>Opens <see cref="TrayMenuEntry.WebUri"/> (PrusaLink) in the browser.</summary>
     OpenWeb,
 
     /// <summary>Settings window (T-015).</summary>

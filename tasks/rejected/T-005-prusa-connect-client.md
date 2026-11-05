@@ -1,12 +1,14 @@
 ---
 id: T-005
 title: Prusa Connect klient
-status: todo
+status: rejected
 owner: core-dev
 priority: P3
 platform: all
 depends_on: [T-001, T-002, T-004]
 ---
+
+> **Zamítnuto (rozhodnutí uživatele 2026-11-05):** podpora Prusa Connect v aplikaci skončila (odstranění v T-170). Úkol se nebude implementovat.
 
 > **Vyřazeno z implementace (rozhodnuto 2026-10-29).** Opakované ověření 2026-10-29 potvrdilo, že Prusa Connect nemá veřejné API pro uživatelské aplikace třetích stran: oficiální je jen Camera API (nahrávání snímků) a protokol tiskáren, registrace OAuth klientů pro třetí strany neexistuje. Úkol se neimplementuje, dokud Prusa veřejné API nezveřejní. Možná budoucí alternativa: self-hosted **Prusa Connect Local** (early access, REST/SSE/MQTT) – samostatný produkt, vyžadoval by nový průzkum.
 

@@ -445,8 +445,8 @@ Have an idea? [Open an issue](https://github.com/pfoltynek/LayerPeek/issues).
 ## FAQ
 
 **Does it work outside my home network?**
-No. The app talks to the printers directly over the LAN. You can use a VPN to your home network. Prusa Connect support
-is not planned: Prusa Connect has no public API for third-party apps.
+No. The app talks to the printers directly over the LAN (PrusaLink). You can use a VPN to your home network. Prusa
+Connect is not supported: it has no public API for third-party apps.
 
 **Does it replace Prusa Connect or PrusaLink web?**
 No, it complements them. It is the quick "glance" view on your desktop. For uploading files and starting prints, open
@@ -516,7 +516,6 @@ display) are collected in one walk-through in [docs/macos-manual-testing.md](doc
 |---|---|
 | `src/LayerPeek.Core` | domain model, abstractions, monitoring and event detection (no UI, no HTTP specifics) |
 | `src/LayerPeek.PrusaLink` | PrusaLink REST client and the local web proxy |
-| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (not developed further: Prusa Connect has no public API) |
 | `src/LayerPeek.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
 | `src/LayerPeek.Detection` | print failure detectors from the camera image (pure C#) |
 | `src/LayerPeek.App` | Avalonia tray app, windows, platform specifics |

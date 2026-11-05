@@ -208,20 +208,6 @@ public sealed class SettingsWindowInvalidFieldUiTests(HeadlessSession session)
             Assert.DoesNotContain(Invalid, size.Classes);
         });
 
-    [Fact]
-    public Task TheDisabledUserNameOfAPrusaConnectPrinterIsNeverMarked() =>
-        session.RunAsync(static async scope =>
-        {
-            // Prusa Connect disables the user name, whose error is only for PrusaLink.
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(CloudPrinter("c1", "Cloud XL")));
-            Printer(ui).UserName = "ma:ker";
-            await SaveAsync(ui);
-
-            Assert.False(ui.UserNameBox.IsEffectivelyEnabled);
-            Assert.Null(ui.ShownText("PrinterUserNameError"));
-            Assert.DoesNotContain(Invalid, ui.UserNameBox.Classes);
-        });
-
     // ---- No layout shift ----
 
     [Theory]

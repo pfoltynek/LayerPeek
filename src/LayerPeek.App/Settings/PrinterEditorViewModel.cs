@@ -26,11 +26,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private string _name;
     private string _address;
     private string _userName;
-
-    // The saved user name (default for a new printer); kept for Prusa Connect, which does not use it.
-    private readonly string _savedUserName;
     private string _password = string.Empty;
-    private ConnectionTypeOption _connectionType;
     private bool _isNew;
     private bool? _hasSavedPassword;
 
@@ -125,14 +121,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _hasSavedPassword = hasSavedPassword;
         _name = saved?.Name ?? string.Empty;
         _address = saved?.Address ?? string.Empty;
-        _savedUserName = saved?.UserName ?? PrinterUserName.Default;
-        _userName = _savedUserName;
+        _userName = saved?.UserName ?? PrinterUserName.Default;
         InitializeCooldown(saved);
-        ConnectionType type = saved?.ConnectionType ?? ConnectionType.PrusaLink;
-        ConnectionTypes = owner.ConnectionTypesFor(type);
-        _connectionType = Array.Find((ConnectionTypeOption[])ConnectionTypes, option => option.Value == type)!;
         _showErrors = saved is not null;
-        TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => IsPrusaLink && !_isTesting && !_owner.IsDisposed);
+        TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => !_isTesting && !_owner.IsDisposed);
         CancelTestCommand = new RelayCommand(CancelTest, () => _isTesting);
         OpenLocalNetworkSettingsCommand = new RelayCommand(OpenLocalNetworkSettings, () => _showsLocalNetworkSettings || _showsCameraLocalNetworkSettings);
         CameraSettings camera = saved?.Camera ?? CameraSettings.Disabled;
@@ -205,50 +197,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>Name for the list; "New printer" while the name is empty.</summary>
     public string DisplayName => _name.Trim() is { Length: > 0 } name ? name : Strings.SettingsNewPrinter;
 
-    public IReadOnlyList<ConnectionTypeOption> ConnectionTypes { get; }
-
-    public ConnectionTypeOption SelectedConnectionType
-    {
-        get => _connectionType;
-        set
-        {
-            // Disabled choices (Prusa Connect for a PrusaLink printer, T-005) and a transient null from a ComboBox are ignored.
-            if (value is null || !value.IsEnabled || !SetProperty(ref _connectionType, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(IsPrusaLink));
-            OnPropertyChanged(nameof(IsPasswordEnabled));
-            OnPropertyChanged(nameof(ShowsAddressHint));
-            if (!IsPasswordEnabled)
-            {
-                // A disabled field must not keep a typed password around (it would not be saved anyway).
-                ForgetPassword();
-            }
-
-            if (!IsPrusaLink)
-            {
-                // Prusa Connect does not use the disabled field, so it shows (and keeps) the saved user name.
-                SetProperty(ref _userName, _savedUserName, nameof(UserName));
-            }
-
-            OnPropertyChanged(nameof(UserNameHint));
-            OnPasswordPresentationChanged();
-            OnFieldStatesChanged();
-            TestConnectionCommand.NotifyCanExecuteChanged();
-            InvalidateTest();
-            ValidateAddress();
-            ValidateUserName();
-            ValidatePassword();
-            OnMachineChanged();
-            RevealErrors();
-            _owner.OnPrinterEdited(nameChanged: false);
-        }
-    }
-
-    public bool IsPrusaLink => _connectionType.Value == ConnectionType.PrusaLink;
-
     public string Address
     {
         get => _address;
@@ -266,8 +214,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     }
 
     /// <summary>
-    /// PrusaLink user name (not a secret; saved trimmed with the definition). Validated by <see cref="PrinterUserName"/>;
-    /// ignored for Prusa Connect, which keeps the saved one.
+    /// PrusaLink user name (not a secret; saved trimmed with the definition). Validated by <see cref="PrinterUserName"/>.
     /// </summary>
     public string UserName
     {
@@ -283,9 +230,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             }
         }
     }
-
-    /// <summary>Explanation under the user name field.</summary>
-    public string UserNameHint => IsPrusaLink ? Strings.SettingsUserNameHint : Strings.SettingsUserNameNotUsed;
 
     /// <summary>A new password (not saved yet); empty keeps the saved one. Never logged.</summary>
     public string Password
@@ -303,8 +247,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         }
     }
 
-    /// <summary>PrusaLink printer on an OS that can store passwords.</summary>
-    public bool IsPasswordEnabled => _owner.IsPasswordSupported && IsPrusaLink;
+    /// <summary>An OS that can store passwords.</summary>
+    public bool IsPasswordEnabled => _owner.IsPasswordSupported;
 
     /// <summary>Placeholder of the empty password field: "Unchanged" when a password is (or may be) saved.</summary>
     public string PasswordWatermark =>
@@ -314,8 +258,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>Explanation under the password field.</summary>
     public string PasswordHint =>
-        !IsPrusaLink ? Strings.SettingsPasswordNotUsed
-        : !_owner.IsPasswordSupported ? Strings.SettingsPasswordUnsupported
+        !_owner.IsPasswordSupported ? Strings.SettingsPasswordUnsupported
         : _isNew || _hasSavedPassword == false ? Strings.SettingsPasswordNewHint
         : Strings.SettingsPasswordKeepHint;
 
@@ -352,8 +295,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>Accessible name of the Camera sub-tab header.</summary>
     public string CameraTabName => TabName(Strings.SettingsCamera, ShowsCameraErrorMarker);
 
-    /// <summary>The address hint (PrusaLink only) gives way to the address error (T-033).</summary>
-    public bool ShowsAddressHint => IsPrusaLink && AddressError is null;
+    /// <summary>The address hint gives way to the address error (T-033).</summary>
+    public bool ShowsAddressHint => AddressError is null;
 
     /// <summary>The user name hint gives way to the user name error.</summary>
     public bool ShowsUserNameHint => UserNameError is null;
@@ -853,18 +796,15 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             {
                 Id = Id,
                 Name = _name,
-                ConnectionType = _connectionType.Value,
+                ConnectionType = ConnectionType.PrusaLink,
                 Address = _address,
-                UserName = EffectiveUserName,
+                UserName = _userName,
                 Camera = camera,
                 DetectedModel = EffectiveDetectedModel,
                 Image = _imageChoice,
                 CooldownThresholds = cooldownThresholds,
                 Detection = BuildDetection(),
             };
-
-    /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
-    private string EffectiveUserName => IsPrusaLink ? _userName : _savedUserName;
 
     /// <summary>
     /// The camera as entered, with its window defaults; <see langword="null"/> when it cannot be saved (an enabled camera
@@ -1130,7 +1070,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(DisplayName));
-        OnPropertyChanged(nameof(UserNameHint));
         OnPropertyChanged(nameof(ConnectionTabName));
         OnPropertyChanged(nameof(CameraTabName));
         OnPasswordPresentationChanged();
@@ -1211,9 +1150,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             Id = Id,
             Name = _name.Trim() is { Length: > 0 } name ? name : Id,
-            ConnectionType = _connectionType.Value,
+            ConnectionType = ConnectionType.PrusaLink,
             Address = _address,
-            UserName = EffectiveUserName,
+            UserName = _userName,
         };
 
         // Typed password, else the saved one (null); a printer that has none is tested without one.
@@ -1533,7 +1472,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ConnectionTestOutcome.PasswordMissing => Strings.SettingsTestPasswordMissing,
         ConnectionTestOutcome.PasswordUnavailable => Strings.SettingsTestPasswordUnavailable,
         ConnectionTestOutcome.UnsupportedAuthentication => Strings.SettingsTestUnsupportedAuthentication,
-        ConnectionTestOutcome.NotSupported => Strings.SettingsTestNotSupported,
         _ => Strings.SettingsTestUnexpectedResponse,
     };
 
@@ -1569,7 +1507,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private string? AddressProblem() =>
         _address.Trim().Length == 0 ? Strings.SettingsErrorAddressRequired
         // Exactly the rules of the PrusaLink client and the tray menu (credentials, query, fragment, scheme).
-        : IsPrusaLink && !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
+        : !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
         : null;
 
     private void ValidateAddress()
@@ -1584,7 +1522,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     // The rules live in Core (PrinterUserName); only the wording is decided here.
     private string? UserNameProblem() =>
-        (IsPrusaLink ? PrinterUserName.Validate(_userName) : PrinterUserNameError.None) switch
+        PrinterUserName.Validate(_userName) switch
         {
             PrinterUserNameError.None => null,
             PrinterUserNameError.Empty => Strings.SettingsErrorUserNameRequired,

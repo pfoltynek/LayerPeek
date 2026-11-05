@@ -453,12 +453,6 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
         foreach (PrinterDefinition printer in settings.Printers)
         {
-            // Prusa Connect credentials belong to the account, not to the printer (docs/architecture.md).
-            if (printer.ConnectionType != ConnectionType.PrusaLink)
-            {
-                continue;
-            }
-
             try
             {
                 if (!string.IsNullOrEmpty(await _secrets.GetAsync(SecretKeys.ForPrinter(printer.Id), cancellationToken).ConfigureAwait(false)))

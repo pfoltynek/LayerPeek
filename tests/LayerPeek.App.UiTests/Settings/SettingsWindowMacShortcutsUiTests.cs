@@ -131,7 +131,10 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
             LayerPeek.App.Tests.Settings.FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
             SettingsWindowHarness ui = await OpenAsync(scope, mac: true, store);
             Window window = ui.Window;
-            ComboBox comboBox = ui.Find<ComboBox>("PrinterConnectionType");
+            // The language drop-down on the General tab (T-170 removed the connection type drop-down of the printer).
+            ui.ViewModel.SelectedTabIndex = LayerPeek.App.Settings.SettingsViewModel.GeneralTab;
+            window.Settle();
+            ComboBox comboBox = ui.Find<ComboBox>("SettingsLanguage");
 
             // Esc as the reference: only the drop-down closes.
             Assert.True(comboBox.Focus());
@@ -161,7 +164,9 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
         {
             LayerPeek.App.Tests.Settings.FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
             SettingsWindowHarness ui = await OpenAsync(scope, mac: true, store);
-            ComboBox comboBox = ui.Find<ComboBox>("PrinterConnectionType");
+            ui.ViewModel.SelectedTabIndex = LayerPeek.App.Settings.SettingsViewModel.GeneralTab;
+            ui.Window.Settle();
+            ComboBox comboBox = ui.Find<ComboBox>("SettingsLanguage");
             Assert.True(comboBox.Focus());
             comboBox.IsDropDownOpen = true;
             ui.Window.Settle();

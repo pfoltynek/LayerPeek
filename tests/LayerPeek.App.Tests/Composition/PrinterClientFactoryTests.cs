@@ -26,12 +26,6 @@ public sealed class PrinterClientFactoryTests : IDisposable
     }
 
     [Fact]
-    public void PrusaConnectIsNotSupportedYet()
-    {
-        Assert.Throws<NotSupportedException>(() => _factory.Create(Printer(ConnectionType.PrusaConnect)));
-    }
-
-    [Fact]
     public void RejectsNull()
     {
         Assert.Throws<ArgumentNullException>(() => _factory.Create(null!));

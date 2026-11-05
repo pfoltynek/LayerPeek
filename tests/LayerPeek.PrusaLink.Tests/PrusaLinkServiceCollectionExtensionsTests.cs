@@ -42,16 +42,4 @@ public class PrusaLinkServiceCollectionExtensionsTests
         Assert.Equal(Timeout.InfiniteTimeSpan, previewClient.Timeout);
     }
 
-    [Fact]
-    public void FactoryRejectsOtherConnectionTypes()
-    {
-        ServiceCollection services = new();
-        services.AddLogging();
-        services.AddSingleton<ISecretStore, InMemorySecretStore>();
-        services.AddPrusaLink();
-        using ServiceProvider provider = services.BuildServiceProvider();
-
-        Assert.Throws<ArgumentException>(() => provider.GetRequiredService<PrusaLinkClientFactory>().Create(
-            new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = "uuid" }));
-    }
 }

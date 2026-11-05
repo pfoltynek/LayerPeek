@@ -250,6 +250,13 @@ a kritérium.
       „The computer resumed from sleep: the camera window delays start again.“ (`NSWorkspaceDidWakeNotification`)
       a okno se po probuzení nezavře podle stavu z doby před uspáním.
 
+### 1c. Ukončení podpory Prusa Connect (z T-170, implementováno na Windows 2026-11-05)
+- [ ] **T-170** (snímky UI, sada macOS): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+      a zkontrolovat změněné `Snapshots/macOS/settings-*.png` podzáložky Tiskárna (pole „Připojení“ zmizelo, jméno vede
+      přes celou šířku vedle obrázku; `settings-prusaconnect.png` je smazaný). Pak celý `dotnet test` na Macu bez chyb.
+- [ ] **T-170** (`tools/macos-verify.ps1`, kontrola `mac.shortcuts`): upravená kontrola Cmd-. s otevřeným seznamem teď
+      přejde na záložku Obecné (Cmd-Shift-] dvakrát) a otevře `SettingsLanguage` místo smazaného `PrinterConnectionType`.
+      Na Macu spustit `pwsh tools/macos-verify.ps1 -Only mac.shortcuts` a ověřit, že kontrola proběhne (ne „not checked“).
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

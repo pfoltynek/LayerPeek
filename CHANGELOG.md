@@ -109,6 +109,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   new recording options.
 - Windows: the bundled FFmpeg libraries are a newer LGPL build of FFmpeg 9.0.2 (BtbN `autobuild-2026-10-31-12-59`),
   because the previously used build is no longer available for download. macOS is unchanged.
+- Windows: the whole tray menu closes after **Hide camera** in a printer's submenu; since the recording items were added,
+  the main menu stayed open next to the tray icon.
+
+### Removed
+
+- **Prusa Connect**: the app supports PrusaLink only. The disabled "Prusa Connect (not available yet)" choice and the
+  **Connection** field are gone from the printer settings, and the printer menu offers only **Open PrusaLink**. A Prusa
+  Connect printer in an older settings file (it could only be added by editing the file) is skipped when the settings
+  are loaded, with a warning in the log, and disappears from the file with the next save.
 
 ## [0.4.0] - 2026-11-02
 

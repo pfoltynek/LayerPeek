@@ -10,7 +10,7 @@ namespace LayerPeek.App.Tray.Menu;
 /// Opens the web interface of a printer from the tray menu (T-028). For a known printer it asks
 /// <see cref="IPrinterWebGateway"/>: a PrusaLink printer whose stored password the printer accepts is opened through the
 /// local proxy, logged in, without the password ever reaching the browser. Otherwise (no password, rejected password,
-/// offline printer, proxy unavailable, Prusa Connect, unknown printer) the plain address is opened, as the user decided
+/// offline printer, proxy unavailable, unknown printer) the plain address is opened, as the user decided
 /// (no extra notification). The proxy address contains a secret token: it is never logged, only the fallback reason is.
 /// </summary>
 internal sealed partial class PrinterWebOpener
@@ -81,7 +81,7 @@ internal sealed partial class PrinterWebOpener
 
             if (access.Fallback != PrinterWebFallback.NotSupported)
             {
-                // Prusa Connect simply has no proxy; every other reason means the browser asks for the login itself.
+                // A connection type without a proxy is not worth a log line; every other reason means the browser asks for the login itself.
                 LogOpeningPlain(printer.Id, access.Fallback);
             }
 

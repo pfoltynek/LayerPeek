@@ -105,9 +105,6 @@
   <data name="MenuOpenPrusaLink" xml:space="preserve">
     <value>_Otwórz PrusaLink</value>
   </data>
-  <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Otwórz Prusa Connect</value>
-  </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Adres drukarki jest nieprawidłowy</value>
   </data>
@@ -264,9 +261,6 @@
   <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
     <value>Bezpieczne połączenie (https) z drukarką nie powiodło się.</value>
   </data>
-  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
-    <value>Niedostępne dla Prusa Connect</value>
-  </data>
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Zamknij</value>
   </data>
@@ -300,15 +294,6 @@
   <data name="SettingsName" xml:space="preserve">
     <value>Nazwa</value>
   </data>
-  <data name="SettingsConnectionType" xml:space="preserve">
-    <value>Połączenie</value>
-  </data>
-  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
-    <value>PrusaLink (sieć lokalna)</value>
-  </data>
-  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect (jeszcze niedostępne)</value>
-  </data>
   <data name="SettingsAddress" xml:space="preserve">
     <value>Adres</value>
   </data>
@@ -320,9 +305,6 @@
   </data>
   <data name="SettingsUserNameHint" xml:space="preserve">
     <value>Nazwa użytkownika PrusaLink z ustawień drukarki. Domyślnie „maker”.</value>
-  </data>
-  <data name="SettingsUserNameNotUsed" xml:space="preserve">
-    <value>Prusa Connect nie używa nazwy użytkownika drukarki.</value>
   </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Hasło</value>
@@ -341,9 +323,6 @@
   </data>
   <data name="SettingsPasswordUnsupported" xml:space="preserve">
     <value>W tym systemie nie można jeszcze zapisywać haseł. Drukarki wymagające hasła zgłoszą, że go brakuje.</value>
-  </data>
-  <data name="SettingsPasswordNotUsed" xml:space="preserve">
-    <value>Prusa Connect nie używa hasła drukarki.</value>
   </data>
   <data name="SettingsTestConnection" xml:space="preserve">
     <value>Testuj połączenie</value>
@@ -383,9 +362,6 @@
   </data>
   <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
     <value>Pod tym adresem coś odpowiada, ale nie wygląda to na drukarkę z PrusaLink.</value>
-  </data>
-  <data name="SettingsTestNotSupported" xml:space="preserve">
-    <value>Test nie jest jeszcze dostępny dla Prusa Connect.</value>
   </data>
   <data name="SettingsTestCancelled" xml:space="preserve">
     <value>Test anulowany.</value>

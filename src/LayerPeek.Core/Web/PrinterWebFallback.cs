@@ -6,7 +6,7 @@ public enum PrinterWebFallback
     /// <summary>No fallback: the address is the proxy address.</summary>
     None = 0,
 
-    /// <summary>The gateway does not handle this kind of printer (e.g. Prusa Connect); no address is returned.</summary>
+    /// <summary>The gateway does not handle this kind of printer (a connection type it does not know); no address is returned.</summary>
     NotSupported,
 
     /// <summary>The printer address is not valid; no address is returned.</summary>

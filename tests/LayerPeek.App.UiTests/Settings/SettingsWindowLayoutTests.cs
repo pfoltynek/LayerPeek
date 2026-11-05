@@ -1270,7 +1270,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(
                 [
                     "SettingsPrinterList", "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterTabConnection", "PrinterImageButton", "PrinterName",
-                    "PrinterConnectionType", "PrinterAddress", "PrinterUserName", "PrinterPassword", "PrinterTestConnection",
+                    "PrinterAddress", "PrinterUserName", "PrinterPassword", "PrinterTestConnection",
                     "SettingsSave", "SettingsCancel",
                 ],
                 order.Where(static id => id is not ("SettingsTabPrinters" or "SettingsTabs")).Distinct());
@@ -1362,16 +1362,9 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
     {
         yield return ("PrusaLink with a saved password", static async scope =>
         {
-            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30") with { Camera = WorkingCamera }, CloudPrinter("c", "Cloud XL"));
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30") with { Camera = WorkingCamera }, LinkPrinter("c", "Studio XL", "192.168.1.42"));
             store.Data = store.Data with { PrintersWithPassword = Ids("a") };
             return await SettingsWindowHarness.OpenAsync(scope, store);
-        });
-
-        yield return ("Prusa Connect", static async scope =>
-        {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"), CloudPrinter("c", "Cloud XL")));
-            ui.ViewModel.SelectedPrinter = ui.ViewModel.Printers[1];
-            return ui;
         });
 
         yield return ("all errors", static scope => OpenWithAllErrorsAsync(scope, SettingsWindowHarness.Supported, refusedTest: false));
@@ -1473,7 +1466,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
         yield return ("widgets: camera off, cool-down selected", static async scope =>
         {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, CloudPrinter("c", "Cloud XL")));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, LinkPrinter("c", "Studio XL", "192.168.1.42")));
             SelectCooldown(ui);
             return ui;
         });
@@ -1489,7 +1482,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
         yield return ("widgets: camera off, mini preview selected", static async scope =>
         {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, CloudPrinter("c", "Cloud XL")));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, LinkPrinter("c", "Studio XL", "192.168.1.42")));
             SelectMiniStrip(ui);
             return ui;
         });
@@ -1636,7 +1629,6 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 ConnectionTestOutcome.PasswordMissing => Strings.SettingsTestPasswordMissing,
                 ConnectionTestOutcome.PasswordUnavailable => Strings.SettingsTestPasswordUnavailable,
                 ConnectionTestOutcome.UnsupportedAuthentication => Strings.SettingsTestUnsupportedAuthentication,
-                ConnectionTestOutcome.NotSupported => Strings.SettingsTestNotSupported,
                 ConnectionTestOutcome.LocalNetworkAccessMayBeOff => Strings.LocalNetworkAccessMayBeOff,
                 _ => Strings.SettingsTestUnexpectedResponse,
             };

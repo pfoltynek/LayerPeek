@@ -63,15 +63,6 @@ public sealed class ToastActivationRouterTests : IDisposable
     }
 
     [Fact]
-    public async Task PrusaConnectPrinterOpensPrusaConnect()
-    {
-        Apply(Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee" });
-
-        Assert.True(await _router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4")));
-        Assert.Equal(new Uri("https://connect.prusa3d.com/"), Assert.Single(_launcher.Opened));
-    }
-
-    [Fact]
     public async Task CurrentAddressIsUsedAfterSettingsChange()
     {
         Apply(Definition());

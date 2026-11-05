@@ -5,7 +5,7 @@ Guidance for Claude Code and all subagents working in this repository.
 ## Project
 
 **LayerPeek** is a cross-platform (Windows + macOS) **tray-only** application that monitors Prusa 3D printers.
-Data sources: **PrusaLink** (local REST API on the printer) and **Prusa Connect** (cloud).
+Data source: **PrusaLink** (local REST API on the printer). Prusa Connect (cloud) is not supported (no public API; support removed in T-170, user decision 2026-11-05).
 There is no main window — UI lives in the system tray (Windows) / menu bar (macOS); small auxiliary windows (settings, diagnostics) may open from the tray menu.
 License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-compatible license (MIT, BSD, Apache-2.0, LGPL…) — verify and state it in the task notes, like AOT compatibility.
 
@@ -53,7 +53,6 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 src/
   LayerPeek.Core           domain model, abstractions (IPrinterClient...), monitoring, events — no UI, no HTTP specifics
   LayerPeek.PrusaLink      PrusaLink REST client (implements Core abstractions)
-  LayerPeek.PrusaConnect   Prusa Connect cloud client (implements Core abstractions)
   LayerPeek.Camera.FFmpeg  RTSP/H.264 camera feed via FFmpeg (implements ICameraFeedFactory); native LGPL FFmpeg DLLs from build/FFmpeg.targets
   LayerPeek.Detection      print failure detectors (implement Core's IPrintFailureDetector, T-153); pure C#, no UI, FFmpeg or HTTP
   LayerPeek.App            Avalonia tray app, composition root, platform specifics
@@ -72,7 +71,7 @@ tasks/                     task backlog (Czech), see tasks/README.md
 .claude/agents/            subagent definitions
 ```
 
-Dependency direction: `App -> PrusaLink, PrusaConnect, Camera.FFmpeg, Detection -> Core`. Core must never reference Avalonia, concrete HTTP clients, FFmpeg or Detection; Detection must never reference Avalonia, FFmpeg or HTTP clients.
+Dependency direction: `App -> PrusaLink, Camera.FFmpeg, Detection -> Core`. Core must never reference Avalonia, concrete HTTP clients, FFmpeg or Detection; Detection must never reference Avalonia, FFmpeg or HTTP clients.
 
 ## Commands
 
@@ -114,7 +113,7 @@ Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (forma
 | Agent | Responsibility |
 |---|---|
 | `architect` | breaks down work, maintains `tasks/` and `docs/architecture.md`, reviews design boundaries |
-| `core-dev` | Core domain, monitoring service, PrusaLink and Prusa Connect clients, FFmpeg camera feed |
+| `core-dev` | Core domain, monitoring service, PrusaLink client, FFmpeg camera feed |
 | `ui-dev` | Avalonia tray app, menus, notifications, auxiliary windows, Windows/macOS specifics |
 | `ui-designer` | window layouts, visual hierarchy, sizing for small/high-DPI screens and long translations, icons/artwork; Windows and macOS design guidelines; design spec + layout-only XAML |
 | `qa-reviewer` | tests, code review, local AOT publish checks |

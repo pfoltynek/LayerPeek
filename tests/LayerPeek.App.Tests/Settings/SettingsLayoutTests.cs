@@ -330,16 +330,6 @@ public sealed class SettingsLayoutTests : IDisposable
     }
 
     [Fact]
-    public async Task AddressHintIsNotShownForPrusaConnect()
-    {
-        PrinterEditorViewModel printer = (await LoadAsync(CloudPrinter("c", "Cloud"))).Printers[0];
-
-        Assert.False(printer.ShowsAddressHint);
-        Assert.True(printer.ShowsUserNameHint);
-        Assert.True(printer.ShowsPasswordHint);
-    }
-
-    [Fact]
     public async Task HiddenErrorsOfANewPrinterKeepTheHints()
     {
         SettingsViewModel vm = await LoadAsync();

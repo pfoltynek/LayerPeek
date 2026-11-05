@@ -16,7 +16,7 @@ namespace LayerPeek.App.Tray.Menu;
 /// <summary>
 /// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress,
 /// followed by the fixed items (diagnostics, settings, about, quit). Every printer is a submenu, also when it is the only
-/// one (T-042): "Open PrusaLink" / "Open Prusa Connect" and "Show camera" / "Hide camera" when its camera is enabled
+/// one (T-042): "Open PrusaLink" and "Show camera" / "Hide camera" when its camera is enabled
 /// (T-014; the text follows whether the camera window is open, 2026-10-22; an open window also has "Bring camera to front" bringing
 /// it to the front, T-102). "Diagnostics…" is a single main menu item
 /// (user decision 2026-10-21: the window has its own printer combo), enabled only while the menu shows printers (not while starting, after a monitoring failure or without
@@ -622,7 +622,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         bool canOpenWeb = line.WebUri is not null;
         TrayMenuEntry web = new(
             TrayMenuCommand.OpenWeb,
-            TrayMenuFormatter.OpenWebText(line.ConnectionType),
+            TrayMenuFormatter.OpenWebText(),
             canOpenWeb,
             canOpenWeb ? null : Strings.MenuInvalidAddress,
             line.WebUri,
@@ -939,7 +939,6 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         Slot Owner,
         string Id,
         string Name,
-        ConnectionType ConnectionType,
         Uri? WebUri,
         PrinterMenuContent Content,
         bool HasCamera,
@@ -972,7 +971,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         {
             bool recordingChanged = RecordingChanged;
             RecordingChanged = false;
-            return new(this, definition.Id, definition.Name, definition.ConnectionType, webUri, Content, definition.Camera is { Enabled: true, StreamUri: not null }, Picture, recordingChanged);
+            return new(this, definition.Id, definition.Name, webUri, Content, definition.Camera is { Enabled: true, StreamUri: not null }, Picture, recordingChanged);
         }
     }
 }

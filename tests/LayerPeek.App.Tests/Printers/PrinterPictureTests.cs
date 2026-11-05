@@ -83,16 +83,6 @@ public sealed class PrinterPictureTests
     }
 
     [Fact]
-    public void PrusaConnectHasNoAutomaticDetection()
-    {
-        // Even a stored code does not count for Prusa Connect (T-039 decision): generic unless chosen manually.
-        PrinterDefinition cloud = CloudPrinter("c", "Cloud") with { DetectedModel = Mk4SCode };
-
-        Assert.Same(PrinterPicture.Generic, PrinterPicture.For(cloud, customPng: null));
-        Assert.Equal("xl", PrinterPicture.For(cloud with { Image = PrinterImageChoice.ForModel(PrinterModel.Xl) }, customPng: null).IllustrationId);
-    }
-
-    [Fact]
     public void EqualityComparesCustomBytesByReference()
     {
         PrinterDefinition printer = LinkPrinter("a", "A") with { Image = PrinterImageChoice.Custom };

@@ -358,7 +358,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
     [Fact]
     public void SeveralPrintersAreSubmenusWithTheirWebInterface()
     {
-        _viewModel.SetPrinters([Definition("a", "Alpha"), new PrinterDefinition { Id = "c", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = "uuid" }]);
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("c", "XL") with { Address = "192.168.1.41" }]);
         _dispatcher.RunAll();
 
         TrayMenuEntry alpha = _viewModel.PrinterItems[0];
@@ -376,8 +376,8 @@ public sealed class TrayMenuViewModelTests : IDisposable
             });
 
         TrayMenuEntry xl = _viewModel.PrinterItems[1];
-        Assert.Equal("_Open Prusa Connect", xl.Submenu![0].Header);
-        Assert.Equal(new Uri("https://connect.prusa3d.com/"), xl.Submenu[0].WebUri);
+        Assert.Equal("_Open PrusaLink", xl.Submenu![0].Header);
+        Assert.Equal(new Uri("http://192.168.1.41/"), xl.Submenu[0].WebUri);
         Assert.Equal("c", xl.Submenu[0].PrinterId);
     }
 
@@ -519,17 +519,6 @@ public sealed class TrayMenuViewModelTests : IDisposable
         AssertCommand(web, TrayMenuCommand.OpenWeb, "_Open PrusaLink", enabled: true);
         Assert.Equal(new Uri("http://192.168.1.10/"), web.WebUri);
         Assert.Null(web.ToolTip);
-    }
-
-    [Fact]
-    public void PrusaConnectPrinterOpensPrusaConnect()
-    {
-        _viewModel.SetPrinters([new PrinterDefinition { Id = "c", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = "0b9d8a2c-uuid" }]);
-        _dispatcher.RunAll();
-
-        TrayMenuEntry web = Assert.Single(_viewModel.PrinterItems).Submenu![0];
-        AssertCommand(web, TrayMenuCommand.OpenWeb, "_Open Prusa Connect", enabled: true);
-        Assert.Equal(new Uri("https://connect.prusa3d.com/"), web.WebUri);
     }
 
     [Fact]

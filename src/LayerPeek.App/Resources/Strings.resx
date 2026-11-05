@@ -120,10 +120,6 @@
     <value>_Open PrusaLink</value>
     <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
   </data>
-  <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Open Prusa Connect</value>
-    <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
-  </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>The printer address is not valid</value>
   </data>
@@ -336,9 +332,6 @@
   <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
     <value>The secure (https) connection to the printer failed.</value>
   </data>
-  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
-    <value>Not available for Prusa Connect</value>
-  </data>
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Close</value>
   </data>
@@ -372,15 +365,6 @@
   <data name="SettingsName" xml:space="preserve">
     <value>Name</value>
   </data>
-  <data name="SettingsConnectionType" xml:space="preserve">
-    <value>Connection</value>
-  </data>
-  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
-    <value>PrusaLink (local network)</value>
-  </data>
-  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect (not available yet)</value>
-  </data>
   <data name="SettingsAddress" xml:space="preserve">
     <value>Address</value>
   </data>
@@ -392,9 +376,6 @@
   </data>
   <data name="SettingsUserNameHint" xml:space="preserve">
     <value>PrusaLink user name from the printer settings. The default is “maker”.</value>
-  </data>
-  <data name="SettingsUserNameNotUsed" xml:space="preserve">
-    <value>Prusa Connect does not use a printer user name.</value>
   </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Password</value>
@@ -413,9 +394,6 @@
   </data>
   <data name="SettingsPasswordUnsupported" xml:space="preserve">
     <value>Passwords cannot be saved on this system yet. Printers that require a password will report that it is missing.</value>
-  </data>
-  <data name="SettingsPasswordNotUsed" xml:space="preserve">
-    <value>Prusa Connect does not use a printer password.</value>
   </data>
   <data name="SettingsTestConnection" xml:space="preserve">
     <value>Test connection</value>
@@ -455,9 +433,6 @@
   </data>
   <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
     <value>Something answers at this address, but it does not look like a PrusaLink printer.</value>
-  </data>
-  <data name="SettingsTestNotSupported" xml:space="preserve">
-    <value>Testing is not available for Prusa Connect yet.</value>
   </data>
   <data name="SettingsTestCancelled" xml:space="preserve">
     <value>Test cancelled.</value>

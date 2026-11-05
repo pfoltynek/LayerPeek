@@ -191,8 +191,8 @@ public sealed class TrayMenuRecordingTests : IDisposable
     {
         using CultureScope culture = new(language);
         CultureInfo info = CultureInfo.GetCultureInfo(language);
-        PrinterDefinition connect = new() { Id = "c", Name = "Connect", ConnectionType = ConnectionType.PrusaConnect, Address = "uuid", Camera = new CameraSettings(enabled: true, StreamUri) };
-        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()), connect);
+        PrinterDefinition second = Definition("c", "Second") with { Address = "192.168.1.41", Camera = new CameraSettings(enabled: true, StreamUri) };
+        using TrayMenuViewModel viewModel = Create(WithCamera(Definition()), second);
         // The longest submenu: the camera window is open ("Bring camera to front" too).
         viewModel.SetCameraWindowOpen("mk4", isOpen: true);
         viewModel.SetCameraWindowOpen("c", isOpen: true);

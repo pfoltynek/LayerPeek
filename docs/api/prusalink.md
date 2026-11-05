@@ -146,8 +146,6 @@ Ověřeno v tazích `v6.5.1`, `v6.6.0`, `v6.8.0`, `v6.9.x`, `v6.10.0`, `v6.10.3`
 
 **Neověřeno na skutečné tiskárně:** nahrané odpovědi (`Fixtures/recorded/`) zatím nemáme. Tabulka vychází jen ze zdrojového kódu. Starší fixture `version.json` měla vymyšlený kód `7.0.0`, opraveno na `7.1.0` (Core One).
 
-**Prusa Connect:** vrací `printer_model` a `printer_type_name` (viz [prusa-connect.md](prusa-connect.md)). Automatickou detekci u Prusa Connect podle rozhodnutí T-039 neděláme, takže hodnoty jsme neověřovali.
-
 **V aplikaci:**
 - Převod je `Core/Printers/PrinterModels.FromCode`, kód je `PrinterModelCode`.
 - Klient: `PrusaLinkClient.DetectModelAsync` (jen `/api/version`) a `PrusaLinkPrinterInfo.ModelCode` (test spojení).
@@ -232,7 +230,7 @@ Ověřeno ve zdrojích firmwaru na `master` (commit `baac5e67`, 2026-11-03). Na 
 Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWebGateway` spouští pro každou tiskárnu vlastní `PrusaLinkWebProxy` (Kestrel ze sdíleného frameworku ASP.NET Core, bez YARP).
 
 **Otevření (`OpenAsync`):**
-- Prusa Connect vrátí `NotSupported`, neplatná adresa `InvalidAddress`. V obou případech bez adresy.
+- Neplatná adresa vrátí `InvalidAddress` (bez adresy). `NotSupported` je jen pro typ připojení, který brána nezná (od T-170 existuje jen PrusaLink).
 - Před otevřením prohlížeče proběhne přihlášený `GET /api/version` (kontrola hesla, limit 5 s).
 - Při chybě se vrátí holá adresa tiskárny s důvodem: `PasswordMissing`, `PasswordUnreadable`, `PasswordRejected`, `AccessDenied`, `UnsupportedAuthentication`, `NotReachable`, `UnexpectedResponse`. Když proxy nejde spustit, důvod je `ProxyUnavailable`.
 - Při úspěchu se vrátí `http://127.0.0.1:<port>/<token>/`. Opakované otevření použije běžící proxy, stejný port i token.

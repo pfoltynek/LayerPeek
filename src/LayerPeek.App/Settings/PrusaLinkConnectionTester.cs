@@ -45,11 +45,6 @@ internal sealed class PrusaLinkConnectionTester : IConnectionTester
     public async Task<ConnectionTestResult> TestAsync(PrinterDefinition printer, string? password, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(printer);
-        if (printer.ConnectionType != ConnectionType.PrusaLink)
-        {
-            return new ConnectionTestResult(ConnectionTestOutcome.NotSupported);
-        }
-
         if (!PrusaLinkAddress.TryCreateBaseUri(printer.Address, out _))
         {
             return new ConnectionTestResult(ConnectionTestOutcome.InvalidAddress);

@@ -65,8 +65,8 @@ public sealed class TrayMenuAccessKeyTests
     public void PrinterSubmenusHaveUniqueAccessKeys(string language)
     {
         using CultureScope culture = new(language);
-        PrinterDefinition connect = new() { Id = "c", Name = "Connect", ConnectionType = ConnectionType.PrusaConnect, Address = "uuid" };
-        using Menu menu = new([WithCamera(Definition("a", "Alpha")), WithCamera(connect), Definition("b", "Beta")]);
+        PrinterDefinition second = Definition("c", "Second") with { Address = "192.168.1.41" };
+        using Menu menu = new([WithCamera(Definition("a", "Alpha")), WithCamera(second), Definition("b", "Beta")]);
 
         foreach (TrayMenuEntry printer in menu.MainLevel().Where(static item => item.Submenu is not null))
         {
@@ -74,7 +74,7 @@ public sealed class TrayMenuAccessKeyTests
             AssertUniqueAccessKeys(printer.Submenu!, language);
         }
 
-        // Both web items ("Open PrusaLink…", "Open Prusa Connect…") share a submenu with the same items.
+        // A submenu with a camera has the web item and the camera item; one without a camera only the web item.
         Assert.Equal([2, 2, 1], menu.MainLevel().Where(static item => item.Submenu is not null).Select(static item => item.Submenu!.Count));
     }
 
@@ -83,11 +83,11 @@ public sealed class TrayMenuAccessKeyTests
     public void CameraItemKeepsAUniqueAndStableAccessKeyWhenItsWindowOpensAndCloses(string language)
     {
         using CultureScope culture = new(language);
-        PrinterDefinition connect = new() { Id = "c", Name = "Connect", ConnectionType = ConnectionType.PrusaConnect, Address = "uuid" };
-        using Menu menu = new([WithCamera(Definition("a", "Alpha")), WithCamera(connect)]);
+        PrinterDefinition second = Definition("c", "Second") with { Address = "192.168.1.41" };
+        using Menu menu = new([WithCamera(Definition("a", "Alpha")), WithCamera(second)]);
         TrayMenuEntry[] closed = CameraItems(menu);
 
-        // "Hide camera" in both submenus (one next to the PrusaLink, one next to the Prusa Connect web item).
+        // "Hide camera" in both submenus.
         menu.ViewModel.SetCameraWindowOpen("a", isOpen: true);
         menu.ViewModel.SetCameraWindowOpen("c", isOpen: true);
 

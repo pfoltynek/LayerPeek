@@ -11,7 +11,7 @@ namespace LayerPeek.Detection.Tests;
 /// </summary>
 public sealed class ArchitectureTests
 {
-    private static readonly string[] NeverInDetection = ["Avalonia", "FFmpeg", "LayerPeek.App", "LayerPeek.Camera", "LayerPeek.PrusaLink", "LayerPeek.PrusaConnect", "System.Net.Http", "Microsoft.AspNetCore"];
+    private static readonly string[] NeverInDetection = ["Avalonia", "FFmpeg", "LayerPeek.App", "LayerPeek.Camera", "LayerPeek.PrusaLink", "System.Net.Http", "Microsoft.AspNetCore"];
 
     private static readonly string[] NeverInCore = ["LayerPeek.Detection", "Avalonia", "FFmpeg", "OpenCv", "Emgu", "Onnx", "Microsoft.ML", "SkiaSharp"];
 

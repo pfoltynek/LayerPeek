@@ -509,12 +509,6 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
         });
         yield return ("offline with the longest detail and a date", OpenOffline);
         yield return ("connecting, information loading", static scope => DiagnosticsWindowHarness.Open(scope, [Link("a", "MK4S workshop")]));
-        yield return ("Prusa Connect, information not available", static scope =>
-        {
-            DiagnosticsWindowHarness ui = DiagnosticsWindowHarness.Open(scope, [Cloud("c", "Cloud XL")], Printing("c"));
-            ui.CompleteInfo(null);
-            return ui;
-        });
         yield return ("long name and host name", OpenLongName);
         yield return ("worst: selector, notice, longest state, detail, failed information", static scope => OpenWorst(scope, loadedInfo: false));
         yield return ("worst with loaded information", static scope => OpenWorst(scope, loadedInfo: true));
@@ -571,7 +565,7 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
         PrinterSnapshot snapshot = Printing("a") with { State = longest, StatusMessage = LongestDetail, Timestamp = TestPrinters.Now.AddDays(-1) };
         DiagnosticsWindowHarness ui = DiagnosticsWindowHarness.Open(
             scope,
-            [Link("a", LongName), Link("b", "MK4S workshop"), Cloud("c", "Cloud XL")],
+            [Link("a", LongName), Link("b", "MK4S workshop"), Link("c", "Studio XL")],
             snapshot);
         ui.FailMonitoring();
         PrinterState longestReason = Enum.GetValues<PrinterState>().MaxBy(static state => DiagnosticsFormatter.InfoUnavailable(state).Length);
@@ -593,7 +587,7 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
         DiagnosticsWindowHarness ui = DiagnosticsWindowHarness.OpenWithLocalNetwork(
             scope,
             localNetwork,
-            [Link("a", LongName), Link("b", "MK4S workshop"), Cloud("c", "Cloud XL")],
+            [Link("a", LongName), Link("b", "MK4S workshop"), Link("c", "Studio XL")],
             offline);
         ui.FailMonitoring();
         PrinterState longestReason = Enum.GetValues<PrinterState>().MaxBy(static state => DiagnosticsFormatter.InfoUnavailable(state).Length);
@@ -624,9 +618,6 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
 
     /// <summary>A PrusaLink printer whose model (MK4S) was detected: the header shows its image (T-039).</summary>
     private static PrinterDefinition Link(string id, string name) => TestPrinters.Definition(id, name) with { DetectedModel = new PrinterModelCode(1, 4, 1) };
-
-    private static PrinterDefinition Cloud(string id, string name) =>
-        TestPrinters.Definition(id, name) with { ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee00-0000-4000-8000-000000000001" };
 
     // ---- Checks ----
 
