@@ -1661,7 +1661,7 @@
     <value>Rozpozná, že tlačiareň ďalej tlačí (os Z stúpa), ale na podložke už nič nepribúda, napríklad keď nepozorovane došiel filament, prešmykuje podávač alebo sa upchala tryska. Len pre tlačiarne, ktorých podložka pri tlači klesá (Core One, XL). Nerozpozná tenšie steny, kvalitu povrchu ani to, že prestal rásť len jeden z viacerých dielov.</value>
   </data>
   <data name="DetectorAirPrintingLimitation" xml:space="preserve">
-    <value>Známe obmedzenie: chybu nahlási až potom, čo os Z vystúpi o ďalšie ~3 mm (minúty, pri pomalých tlačiach aj pol hodiny a viac). Nehodnotí diely skryté prevažne pod hlavou ani prvé ~6 mm po štarte alebo po novom pripojení kamery a čistiaca veža, ktorá ďalej rastie, môže chybu zakryť.</value>
+    <value>Známe obmedzenie: chybu nahlási až potom, čo os Z vystúpi o ďalšie ~3 mm (minúty, pri pomalých tlačiach aj pol hodiny a viac). Nehodnotí diely skryté prevažne pod hlavou ani prvé ~6 mm po štarte alebo po novom pripojení kamery a čistiaca veža, ktorá ďalej rastie, môže chybu zakryť. Diel so širšou spodnou časťou, ktorá skončí skôr, alebo niekoľko dielov, z ktorých väčšina skončí skôr, môže vyvolať planý poplach.</value>
   </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Detektor {0}</value>

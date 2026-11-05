@@ -1661,7 +1661,7 @@
     <value>Erkennt, dass der Drucker weiterdruckt (die Z-Achse steigt), auf dem Druckbett aber nichts mehr wächst, z. B. weil das Filament unbemerkt ausging, der Extruder durchrutscht oder die Düse verstopft ist. Nur für Drucker, deren Druckbett beim Drucken nach unten fährt (Core One, XL). Erkennt keine dünneren Wände, keine Oberflächenqualität und nicht, wenn nur eines von mehreren Teilen aufhört zu wachsen.</value>
   </data>
   <data name="DetectorAirPrintingLimitation" xml:space="preserve">
-    <value>Bekannte Einschränkung: meldet den Fehler erst, nachdem die Z-Achse um weitere ~3 mm gestiegen ist (Minuten, bei langsamen Drucken eine halbe Stunde und mehr). Teile, die größtenteils unter dem Druckkopf verborgen sind, und die ersten ~6 mm nach dem Start oder nach einer neuen Verbindung der Kamera werden nicht bewertet; ein weiter wachsender Reinigungsturm kann den Fehler verdecken.</value>
+    <value>Bekannte Einschränkung: meldet den Fehler erst, nachdem die Z-Achse um weitere ~3 mm gestiegen ist (Minuten, bei langsamen Drucken eine halbe Stunde und mehr). Teile, die größtenteils unter dem Druckkopf verborgen sind, und die ersten ~6 mm nach dem Start oder nach einer neuen Verbindung der Kamera werden nicht bewertet; ein weiter wachsender Reinigungsturm kann den Fehler verdecken. Ein Teil mit einem breiteren unteren Abschnitt, der früher endet, oder mehrere Teile, von denen die meisten früher enden, können einen Fehlalarm auslösen.</value>
   </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Detektor {0}</value>

@@ -5,8 +5,9 @@ namespace LayerPeek.Core.Cameras.Timelapse;
 /// <summary>
 /// The layer trigger (T-159, experimental): a frame when capturing first starts, one at every <c>N</c>-th layer change that
 /// <see cref="LayerChangeDetector"/> estimates from the printer's Z axis (user decision 2026-11-04: <c>N</c> configurable,
-/// 1 by default), and one when the print ends (<see cref="PrinterState.Finished"/> or <see cref="PrinterState.Stopped"/>:
-/// the finished part, the end of the print lifts the head away). Without Z data (no PrusaLink) only those two frames.
+/// 1 by default), and one when the print ends (<see cref="PrinterState.Finished"/> or <see cref="PrinterState.Stopped"/>,
+/// also after <see cref="PrinterState.Attention"/>: the finished part, the end of the print lifts the head away). Without
+/// Z data (no PrusaLink) only those two frames.
 /// No timer: it works only on the snapshots the service hands over, so a sample allocates nothing.
 /// </summary>
 /// <remarks>
@@ -76,8 +77,10 @@ internal sealed class CameraTimelapseLayerTrigger : ICameraTimelapseTrigger
             return;
         }
 
-        // The last layer has no change of its own: the end of the print takes the frame of the finished part.
-        if (snapshot.State is PrinterState.Finished or PrinterState.Stopped && previous.HasActiveJob())
+        // The last layer has no change of its own: the end of the print takes the frame of the finished part, also when the
+        // print ends from a printer waiting for the user (user decision 2026-11-05: Attention, then Stopped).
+        if (snapshot.State is PrinterState.Finished or PrinterState.Stopped
+            && (previous.HasActiveJob() || previous == PrinterState.Attention))
         {
             _timelapse.RequestFrame();
         }

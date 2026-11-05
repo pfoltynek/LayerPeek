@@ -1,7 +1,7 @@
 ---
 id: T-167
 title: Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste)
-status: in-progress
+status: done
 owner: core-dev
 priority: P3
 platform: all
@@ -165,8 +165,8 @@ Otázky 1–8 rozhodl uživatel 2026-11-04 (předáno hlavním agentem):
 8. **Brána – rozhodnuto:** když fáze 1 ukáže, že signál nejde spolehlivě oddělit, zastavit s čísly a možnostmi. Fáze 1
    vyšla kladně (viz poznámky), proto vznikla fáze 2.
 
-Nové otázky (core-dev 2026-11-05, úkol zůstává v `in-progress/`, dokud je uživatel nerozhodne):
-9. **Falešné poplachy při „částečném zastavení“ (blokuje uzavření):** díl se širším spodkem, který skončí (sloupek tiskne
+Nové otázky (core-dev 2026-11-05). Otázky 9 a 11 rozhodl uživatel 2026-11-05, 10 a 12 neblokují:
+9. ~~**Falešné poplachy při „částečném zastavení“ (blokuje uzavření):** díl se širším spodkem, který skončí (sloupek tiskne
    dál), a tisk víc dílů, z nichž většina skončí dřív, vyvolají v syntetice skoro vždy falešný poplach. Na deseti
    semínkách to dělá 2–3 z 3 takových tisků na semínko, tedy 1,9 poplachu na 10 h všech syntetických úspěšných tisků.
    Bez nich je to 0,05 na 10 h. Příčina je principiální. Odkryté okraje skončeného spodku jedou s podložkou stejně jako
@@ -179,12 +179,16 @@ Nové otázky (core-dev 2026-11-05, úkol zůstává v `in-progress/`, dokud je 
    b) detektor do 0.5.0 nezařadit (odebrat z `PrintFailureDetectors.All`, kód a testy zůstanou) a vrátit se k němu se
       skutečnými záznamy,
    c) pořídit skutečný záznam dílu se schodem nebo víc dílů různé výšky (kamera po 5 s a záznam Z jako u úlohy 354)
-      a podle něj zkusit jiný signál pro „zbytek roste dál“.
+      a podle něj zkusit jiný signál pro „zbytek roste dál“.~~
+   **Rozhodnuto 2026-11-05 (a):** přijmout jako zdokumentované omezení a úkol uzavřít. Věta o planém poplachu
+   u dílu se širším spodkem a u víc dílů, z nichž většina skončí dřív, přibyla do `DetectorAirPrintingLimitation` ve
+   všech 8 `Strings.*.resx` (README a CHANGELOG ji už měly). Ve francouzském textu se zároveň opravilo „~4 mm“ na „~6 mm“.
 10. **Cíl ≥ 90 % na každém semínku (neblokuje, kompromis podle kritéria):** celkově se najde 94 % selhání při 2 s i 5 s,
     nejhorší semínko má 89 % (2 s) a 86 % (5 s). Chybějí hlavně díly užší než ~35 px (pod hlavou) a selhání v prvních
     6–8 mm (detektor ještě nehodnotí). Vyhovuje to?
-11. **Modely (neblokuje):** kromě Core One a XL se detektor nabízí i u Core One L a XL+ (stejná kinematika, podložka jede
-    v Z). Potvrďte, nebo omezit jen na Core One a XL.
+11. ~~**Modely (neblokuje):** kromě Core One a XL se detektor nabízí i u Core One L a XL+ (stejná kinematika, podložka jede
+    v Z). Potvrďte, nebo omezit jen na Core One a XL.~~
+    **Rozhodnuto 2026-11-05:** ponechat Core One, Core One L, XL i XL+.
 12. **Skutečný tisk do vzduchu (neblokuje):** skutečný záznam selhání stále chybí. Inscenovaný tisk do vzduchu je
     volitelný bod T-127. Selhání v testech jsou jen syntetická.
 

@@ -124,6 +124,55 @@ public sealed class CameraTimelapseLayerTriggerTests : IAsyncDisposable
         Assert.Equal(2, _timelapse.Requests);
     }
 
+    [Theory]
+    [InlineData(PrinterState.Finished)]
+    [InlineData(PrinterState.Stopped)]
+    public void AnEndAfterThePrinterWaitedForTheUserTakesTheLastFrameToo(PrinterState end)
+    {
+        using CameraTimelapseLayerTrigger trigger = new(_timelapse, 1);
+        trigger.SetCapturing(true);
+        trigger.OnSnapshot(Snapshot(PrinterState.Attention, 1.0));
+        trigger.SetCapturing(false);
+
+        trigger.OnSnapshot(Snapshot(end, 1.0));
+        trigger.SetCapturing(true);
+
+        Assert.Equal(2, _timelapse.Requests);
+    }
+
+    [Fact]
+    public void AResumeAfterThePrinterWaitedForTheUserTakesOnlyOneEndFrame()
+    {
+        using CameraTimelapseLayerTrigger trigger = new(_timelapse, 100);
+        trigger.SetCapturing(true);
+        trigger.OnSnapshot(Snapshot(PrinterState.Attention, 1.0));
+        trigger.SetCapturing(false);
+        trigger.OnSnapshot(Snapshot(PrinterState.Printing, 1.0));
+        trigger.SetCapturing(true);
+        Assert.Equal(1, _timelapse.Requests);
+
+        trigger.OnSnapshot(Snapshot(PrinterState.Finished, 1.0));
+        trigger.SetCapturing(true);
+        trigger.OnSnapshot(Snapshot(PrinterState.Finished, 1.0));
+
+        Assert.Equal(2, _timelapse.Requests);
+    }
+
+    [Fact]
+    public void AWaitForTheUserThatEndsWithoutAPrintTakesNoEndFrame()
+    {
+        using CameraTimelapseLayerTrigger trigger = new(_timelapse, 1);
+        trigger.SetCapturing(true);
+        trigger.OnSnapshot(Snapshot(PrinterState.Attention, 1.0));
+        trigger.SetCapturing(false);
+
+        trigger.OnSnapshot(Snapshot(PrinterState.Idle, 1.0));
+        trigger.SetCapturing(true);
+        trigger.OnSnapshot(Snapshot(PrinterState.Stopped, 1.0));
+
+        Assert.Equal(1, _timelapse.Requests);
+    }
+
     [Fact]
     public void WithoutZDataOnlyTheStartAndTheEndTakeFrames()
     {

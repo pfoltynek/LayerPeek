@@ -1661,7 +1661,7 @@
     <value>Rileva che la stampante continua a stampare (l’asse Z sale) ma sul piano non cresce più nulla, ad esempio perché il filamento è finito senza essere rilevato, l’estrusore slitta o l’ugello è ostruito. Solo per stampanti il cui piano scende durante la stampa (Core One, XL). Non rileva pareti più sottili, la qualità della superficie né che smetta di crescere solo uno di più pezzi.</value>
   </data>
   <data name="DetectorAirPrintingLimitation" xml:space="preserve">
-    <value>Limite noto: segnala l’errore solo dopo che l’asse Z è salito di altri ~3 mm (minuti, nelle stampe lente mezz’ora e più). Non valuta i pezzi nascosti quasi del tutto sotto la testina né i primi ~6 mm dopo l’avvio o dopo la riconnessione della videocamera, e una torre di spurgo che continua a crescere può nascondere l’errore.</value>
+    <value>Limite noto: segnala l’errore solo dopo che l’asse Z è salito di altri ~3 mm (minuti, nelle stampe lente mezz’ora e più). Non valuta i pezzi nascosti quasi del tutto sotto la testina né i primi ~6 mm dopo l’avvio o dopo la riconnessione della videocamera, e una torre di spurgo che continua a crescere può nascondere l’errore. Un pezzo la cui base più larga finisce prima, o più pezzi di cui la maggior parte finisce prima, può causare un falso allarme.</value>
   </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Rilevatore {0}</value>

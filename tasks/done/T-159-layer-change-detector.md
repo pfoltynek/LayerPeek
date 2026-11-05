@@ -63,10 +63,13 @@ změnu vrstvy, a nejdřív ji ověří na záznamu ze skutečného tisku.
   sekce Timelapse a v textech.
 
 **K potvrzení uživatelem (neblokující, implementované je konzervativní výchozí chování, změna je malá):**
-1. **Snímek na začátku a na konci tisku.** Spouštěč po vrstvě vezme snímek při začátku timelapse (prázdná podložka /
+1. ~~**Snímek na začátku a na konci tisku.** Spouštěč po vrstvě vezme snímek při začátku timelapse (prázdná podložka /
    startovní sekvence) a jeden při `Finished` / `Stopped` (hotový díl – poslední vrstva změnu nemá, hlava odjede nahoru).
-   Po obnovení z pauzy snímek nebere (na rozdíl od spouštěče po čase). Vyhovuje?
-2. **Rozsah N = 1–100** (volné celé číslo jako ostatní čísla záložky). Stačí?
+   Po obnovení z pauzy snímek nebere (na rozdíl od spouštěče po čase). Vyhovuje?~~
+   **Rozhodnuto uživatelem 2026-11-05:** ano, a koncový snímek vzít i tehdy, když tisk skončí z `Attention` (např.
+   `Attention` → `Stopped`). Doplněno ve `CameraTimelapseLayerTrigger` + test
+   `AnEndAfterThePrinterWaitedForTheUserTakesTheLastFrameToo`.
+2. ~~**Rozsah N = 1–100** (volné celé číslo jako ostatní čísla záložky). Stačí?~~ **Rozhodnuto uživatelem 2026-11-05:** stačí.
 3. **Spouštěč je globální** (jako interval, `recording.timelapseTrigger`), ne u tiskárny – souvisí s otázkou 1 v T-161.
 4. **Skript záznamu `record-z.sh`** je jen v `~/LayerPeek-samples/tools` (uživatele, bash, curl s `-K` konfigurací).
    Přidat ho do `tools/` v repozitáři (případně jako režim `tools/record-prusalink-fixtures.ps1`)?

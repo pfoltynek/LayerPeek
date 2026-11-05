@@ -1,7 +1,7 @@
 ---
 id: T-163
 title: Detekce chyb: tmavý filament na tmavém plátu
-status: in-progress
+status: done
 owner: core-dev
 priority: P3
 platform: all
@@ -24,14 +24,14 @@ První detektor „Změna na podložce“ (`bed-change`, T-155) porovnává jas 
 
 ## Akceptační kritéria
 - [x] Změřený kontrast a skóre tmavého filamentu na černém plátu zapsané v poznámkách (data podle otázky 1).
-- [ ] Syntetická / inscenovaná selhání s tmavým filamentem na černém plátu se odhalí, úspěšné tisky (světlý i tmavý filament) nehlásí poplach při výchozí citlivosti (testy). – úspěšné tisky splněno (0 poplachů bez režimu i s režimem „Tmavý filament“); odhalení na tmavých plátech 82–84 %, s režimem 85–86 % (sada nejméně 77 %) místo ≥ 90 %, viz poznámky a otázka 6
+- [x] Syntetická / inscenovaná selhání s tmavým filamentem na černém plátu se odhalí, úspěšné tisky (světlý i tmavý filament) nehlásí poplach při výchozí citlivosti (testy). – úspěšné tisky splněno (0 poplachů bez režimu i s režimem „Tmavý filament“); odhalení na tmavých plátech 82–84 %, s režimem 85–86 % (sada nejméně 77 %) místo ≥ 90 %, viz poznámky a otázka 6; **rozhodnutí uživatele 2026-11-05: naměřenou přesnost přijmout, omezení v UI zůstává**
 - [x] Výsledky T-155 pro světlý filament se nezhorší (stejná testovací sada). – s vypnutým režimem (výchozí) se detektor chová stejně, celý běh T-166 vyšel bajt po bajtu stejně; s režimem 1 594 / 1 680 místo 1 586 (Core One 2 s)
 - [x] Popis detektoru v UI (T-154) upravený, známé omezení odstraněné nebo zpřesněné, texty ve všech jazycích. – rozhodnutí uživatele 2026-11-05: text omezení ponechat beze změny; nová volba „Tmavý filament“ má texty ve všech 8 jazycích
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
 Otázky 1 a 2 rozhodl uživatel 2026-11-04, otázky 3 a 5 uživatel 2026-11-05. Otázka 4 zůstává otevřená (neblokuje),
-otázka 6 je nová a blokuje uzavření (kritérium 2).
+otázku 6 uživatel rozhodl 2026-11-05 (přijmout).
 
 1. ~~**Data:** odkud záběry tmavého filamentu na černém plátu? Záběry z vlastních tisků uživatel plánovaným způsobem nepořizuje (rozhodnutí 2026-11-04 k T-152). Možnosti: inscenovaná scéna (tmavý díl nebo chomáč tmavého filamentu na plátu v nečinné tiskárně se zapnutým osvětlením a nahráváním T-145), automatická nahrávka běžného tisku tmavým filamentem, syntetické varianty (přebarvení dílu na fixture snímcích – méně věrné kvůli odleskům).~~
    **Rozhodnuto 2026-11-04:** zatím jen syntetická data (přebarvení dílu a filamentu na fixture snímcích); meze věrnosti
@@ -55,14 +55,15 @@ otázka 6 je nová a blokuje uzavření (kritérium 2).
    Ponechat (navrhuji), nebo zpřesnit, např. „hrouda nebo chomáč tmavého filamentu se pozná jen tam, kde je výrazně
    tmavší než plát“? Změna by šla do všech 8 `Strings.*.resx`.~~
    **Rozhodnuto 2026-11-05:** současný text ponechat.
-6. **Přijmout naměřenou přesnost jako splnění kritéria 2?** Černý filament na tmavém plátu: 82–84 % (s režimem
+6. ~~**Přijmout naměřenou přesnost jako splnění kritéria 2?** Černý filament na tmavém plátu: 82–84 % (s režimem
    85–86 %), na světlejších plátech 87–89 % (s režimem 89–91 %); nejhorší sada 77–84 %. Zbytek jsou z velké části
    selhání, která na obraze nejsou vidět ani pro dokonalý detektor stejného pravidla (černé na černém dílu, na tmavé podlaze
    mimo plát, jas filamentu skoro jako plát). Možnosti: a) přijmout a úkol uzavřít (doporučuji, omezení v UI zůstává),
-   b) nechat otevřené do skutečných dat (otázka 4). Do rozhodnutí zůstává úkol v `in-progress/`.
+   b) nechat otevřené do skutečných dat (otázka 4). Do rozhodnutí zůstává úkol v `in-progress/`.~~
+   **Rozhodnuto 2026-11-05 (a):** přijmout a úkol uzavřít; omezení v UI zůstává.
 
 ## Poznámky k implementaci
-Stav: **rozpracováno** jen kvůli otázce 6 (přijetí přesnosti), implementace režimu „Tmavý filament“ je hotová
+Stav: **hotovo** (otázka 6 rozhodnuta 2026-11-05: přesnost přijata), implementace režimu „Tmavý filament“ je hotová
 a otestovaná. Oddíly níž: nejdřív první kolo (2026-11-04, jen měření), pak druhé kolo po zpětné vazbě uživatele
 (2026-11-05: barvy plátů, režim).
 
