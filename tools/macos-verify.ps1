@@ -18,13 +18,14 @@
     the test apps, the notifications of the test bundle (--layerpeek-e2e-clear-toasts), the stand-in Login Items of the
     test data folders (--layerpeek-e2e-clear-autostart), the LaunchServices registration, Preferences and caches of the
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
-    tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys) Terminal in
-    Privacy & Security > Accessibility (switch it off there yourself).
+    tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys or mac.update-check)
+    Terminal in Privacy & Security > Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
     when any check failed, 2 when the script could not run. The checks that need a visible desktop (mac.menubar,
-    mac.settings-front, mac.camera) report SKIP with the reason and the failure text instead of FAIL when the screen
-    was locked (or the session not on the console) before or after them: nothing can be judged there.
+    mac.settings-front, mac.camera, mac.update-check, ...) report SKIP with the reason and the failure text instead of
+    FAIL when the screen was locked (or the session not on the console) before or after them: nothing can be judged
+    there.
 
 .PARAMETER Unattended
     Never asks anything and never requests a permission: Permission and Manual checks are SKIP with the reason, Auto
@@ -33,7 +34,8 @@
 .PARAMETER Allow
     Ids or wildcards of Permission checks you allow in advance (T-140): they run without the question, also with
     -Unattended, e.g. -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user. What they need once:
-    mac.keys - Accessibility for the terminal; mac.socket-other-user - the sudoers rule of
+    mac.keys - Accessibility for the terminal; mac.update-check - Accessibility for the terminal and an unlocked screen
+    (Screen Recording optional, for window captures); mac.socket-other-user - the sudoers rule of
     tools/macos-verify-sudoers.ps1; mac.display-sleep - a password delay after the display sleeps longer than a minute
     (System Settings > Lock Screen), otherwise the locked screen ends it with SKIP.
 
@@ -58,6 +60,7 @@
     pwsh tools/macos-verify.ps1                              # everything, interactive
     pwsh tools/macos-verify.ps1 -Unattended                  # only what runs without you
     pwsh tools/macos-verify.ps1 -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user
+    pwsh tools/macos-verify.ps1 -Unattended -Only mac.update-check -Allow mac.update-check
     pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notifications
 #>
 #Requires -Version 7.2
@@ -700,6 +703,225 @@ function Invoke-CameraPinCheck {
     "ok: pin $(if ($initial) { 'on' } else { 'off' }) at the start, switched by click, Space, Return and AXPress (window level, Dock type, accessible name 'Always on top: on/off'), no button focused after the click and an app switch, Tab after the image to $($buttons[0]), menus: $($notes -join ', '), kept after the restart"
 }
 
+function Request-Accessibility($Context) {
+    <#
+    .SYNOPSIS
+        Whether the terminal has Accessibility (real mouse and key events, the Accessibility tree). An interactive run opens
+        System Settings and waits for the user once; -Unattended never asks.
+    #>
+    if (Test-Accessibility $Context) { return $true }
+    if ($Context.Unattended) { return $false }
+    Write-VerifyStep $Context 'Add your terminal app in System Settings > Privacy & Security > Accessibility and switch it on (opening it now). Remove it again after the run.' 'Yellow'
+    & /usr/bin/open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+    $null = Read-VerifyAnswer -Context $Context -Question 'Is Accessibility switched on for the terminal?'
+    Test-Accessibility $Context
+}
+
+function Start-HelperProcess($Context, [string[]] $Arguments, [string] $Output) {
+    <# .SYNOPSIS The helper as a background process (standard output and errors into -Output); the cleanup kills it at the latest. #>
+    $start = [System.Diagnostics.ProcessStartInfo]::new('/bin/sh')
+    foreach ($argument in @('-c', 'exec "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', (Get-Helper $Context)) + $Arguments) { $start.ArgumentList.Add($argument) }
+    $start.Environment['LPV_OUT'] = $Output
+    $start.UseShellExecute = $false
+    $process = [System.Diagnostics.Process]::Start($start)
+    Add-VerifyCleanup $Context "helper $($Arguments[0]) $($process.Id)" { param($p) if (-not $p.HasExited) { $p.Kill(); $p.WaitForExit() } } -State $process
+    $process
+}
+
+function Start-FakeGitHub {
+    <#
+    .SYNOPSIS
+        tools/fake-github-releases.ps1 on 127.0.0.1 with a free port: the GitHub release list with one release -Version,
+        each answer -DelayMilliseconds late. Ends with this script at the latest (its parent watch) and by the cleanup.
+    #>
+    param($Context, [string] $Version, [int] $DelayMilliseconds)
+    $folder = Join-Path $Context.RunFolder 'tmp' "github-$(New-ShortId)"
+    $null = New-Item -ItemType Directory -Force -Path $folder
+    $out = Join-Path $folder 'stdout.txt'
+    $log = Join-Path $folder 'requests.txt'
+    $start = [System.Diagnostics.ProcessStartInfo]::new('/bin/sh')
+    # The same PowerShell as this script, also when it is the dotnet tool (Get-PwshCommand of ReleaseTools).
+    $arguments = @('-c', 'exec "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null') + @(Get-PwshCommand) + @('-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'fake-github-releases.ps1'),
+        '-Version', $Version, '-DelayMilliseconds', "$DelayMilliseconds", '-RequestLog', $log, '-ParentProcessId', "$PID")
+    foreach ($argument in $arguments) { $start.ArgumentList.Add($argument) }
+    $start.Environment['LPV_OUT'] = $out
+    $start.UseShellExecute = $false
+    $process = [System.Diagnostics.Process]::Start($start)
+    Add-VerifyCleanup $Context 'stand-in GitHub API' { param($p) if (-not $p.HasExited) { $p.Kill($true); $p.WaitForExit() } } -State $process -RunLast
+    $ready = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { $process.HasExited -or ((Test-Path -LiteralPath $out) -and (Select-String -LiteralPath $out -Pattern '^Address: ' -Quiet)) }
+    if (-not $ready -or $process.HasExited) { throw "The stand-in GitHub API did not start: $(Get-Content -LiteralPath $out -Raw -ErrorAction SilentlyContinue)" }
+    [pscustomobject]@{
+        BaseUri    = ([regex]::Match((Get-Content -LiteralPath $out -Raw), 'Address: (\S+)')).Groups[1].Value
+        RequestLog = $log
+        Process    = $process
+    }
+}
+
+function Get-FakeGitHubRequests($Server) { if (Test-Path -LiteralPath $Server.RequestLog) { @(Get-Content -LiteralPath $Server.RequestLog) } else { @() } }
+
+function Save-WindowCapture($Context, [int] $ProcessId, [string] $Name) {
+    <# .SYNOPSIS A capture of the main window of the process (needs Screen Recording) as evidence; its path and the window, or $null. #>
+    $window = Get-VerifyMainWindow @(Get-ProcessWindows $Context $ProcessId)
+    if (-not $window) { return $null }
+    $file = Join-Path (Get-VerifyEvidenceFolder $Context) "$Name.png"
+    & /usr/sbin/screencapture -x -o -l "$($window.number)" $file
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $file)) { return $null }
+    [pscustomobject]@{ Path = $file; Window = $window }
+}
+
+function Invoke-UpdateCheckPress {
+    <#
+    .SYNOPSIS
+        Presses "Check now" once (-Press) while the helper watches the text of SettingsUpdateCheckResult every 50 ms, and
+        judges the timeline (Get-VerifyUpdateCheckVerdict). With -Capture also whether the text is really drawn: the
+        window captured before and after, the pixels in the text's frame compared (only when no text was shown before).
+        Evidence: <name>-watch.jsonl, <name>-before.png, <name>-after.png.
+    #>
+    param($Context, [int] $AppId, $Server, [string] $Name, [string] $Expected, [scriptblock] $Press, [switch] $Capture)
+    $before = if ($Capture) { Save-WindowCapture $Context $AppId "$Name-before" }
+    $requests = @(Get-FakeGitHubRequests $Server).Count
+    $watchFile = Join-Path (Get-VerifyEvidenceFolder $Context) "$Name-watch.jsonl"
+    $watch = Start-HelperProcess $Context @('axwatch', "$AppId", 'SettingsUpdateCheckResult', '15000', $Expected) $watchFile
+    # The first line is the state before the press.
+    if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Test-Path -LiteralPath $watchFile) -and (Get-Item -LiteralPath $watchFile).Length -gt 0 })) {
+        throw "the Accessibility watch did not start: $(Get-Content -LiteralPath $watchFile -Raw -ErrorAction SilentlyContinue)"
+    }
+    & $Press
+    if (-not $watch.WaitForExit(25000)) { $watch.Kill(); $watch.WaitForExit() }
+    $timeline = @(ConvertFrom-VerifyAxWatch @(Get-Content -LiteralPath $watchFile))
+    $verdict = Get-VerifyUpdateCheckVerdict -Timeline $timeline -Requests (@(Get-FakeGitHubRequests $Server).Count - $requests) -Expected $Expected
+    if ($Capture -and $verdict.Passed) {
+        $after = Save-WindowCapture $Context $AppId "$Name-after"
+        $frame = $verdict.Shown.frame
+        if (-not $before -or -not $after) { $verdict.Detail += '; no window capture' }
+        elseif ($verdict.Initial.found -and "$($verdict.Initial.text)") { $verdict.Detail += "; drawing not compared (a text was shown before the press); captures $Name-before.png, $Name-after.png" }
+        else {
+            $window = $after.Window
+            $diffArguments = @('regiondiff', $before.Path, $after.Path, "$($window.width)", "$($frame.x - $window.x)", "$($frame.y - $window.y)", "$($frame.width)", "$($frame.height)")
+            $diff = (Invoke-Helper $Context $diffArguments -AllowFailure) -join "`n" | ConvertFrom-Json -ErrorAction SilentlyContinue
+            if (-not $diff) { $verdict.Detail += '; the captures could not be compared (the window changed its size?)' }
+            elseif ($diff.share -lt 0.01) {
+                $verdict.Passed = $false
+                $verdict.Detail = "the Accessibility tree shows '$($verdict.Shown.text)', but nothing is drawn in its frame: $($diff.changed) of $($diff.pixels) pixels changed between $Name-before.png and $Name-after.png"
+            }
+            else { $verdict.Detail += "; drawn ($([math]::Round($diff.share * 100, 1)) % of the pixels in its frame changed, $Name-before.png / $Name-after.png)" }
+        }
+    }
+    $verdict
+}
+
+function Invoke-UpdateCheckClicks {
+    <#
+    .SYNOPSIS
+        The user's report of 2026-11-05 (T-127): on macOS "Check now" on the Startup and updates tab showed no result while a
+        newer version was available. Against the stand-in GitHub API (one release 9.9.0, each answer 1.5 s late, so that
+        "Checking…" is seen) "Check now" is pressed three ways, each in a freshly opened Settings window: a) a real left
+        click into the active window, b) one real click while another app is in front (the main hypothesis: on macOS the
+        first click into an inactive window may only activate it), c) AXPress (what VoiceOver does). Returns one entry per
+        scenario: Scenario, Passed, Detail.
+    #>
+    param($Context)
+    $c = $Context
+    $version = '9.9.0'
+    $expected = "Version $version is available"
+    $server = Start-FakeGitHub -Context $c -Version $version -DelayMilliseconds 1500
+    $data = New-TestData -Context $c
+    $app = Start-TestApp -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_UPDATE_SOURCE = $server.BaseUri }
+    $appId = $app.Id
+    $capture = (Invoke-Helper $c @('screenrecording')) -contains 'true'
+    $results = [System.Collections.Generic.List[object]]::new()
+    $add = { param([string] $Scenario, [bool] $Passed, [string] $Detail) $results.Add([pscustomobject]@{ Scenario = $Scenario; Passed = $Passed; Detail = $Detail }) }
+    $mainWindow = { Get-VerifyMainWindow @(Get-ProcessWindows $c $appId) }
+    $toFront = {
+        # The app in front is not yet its key window right away (T-140): a second to settle.
+        Send-TestCommand $data 'settings'
+        $front = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId -and (& $mainWindow) }
+        Start-Sleep -Seconds 1
+        $front
+    }
+    $openTab = {
+        # A fresh Settings window (a new view model, no result shown yet) on the Startup and updates tab; returns the button.
+        if (-not (& $toFront)) { throw "Settings did not come to the front (front app $(Get-FrontAppText))" }
+        $null = Invoke-Helper $c @('key', 'cmd+w')
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (& $mainWindow) })) { throw 'Cmd-W did not close Settings (each scenario needs a fresh window)' }
+        if (-not (& $toFront)) { throw "Settings did not come to the front again (front app $(Get-FrontAppText))" }
+        $script:updateTab = $null
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:updateTab = Get-AxElement $c $appId 'SettingsTabStartupUpdates'; $script:updateTab })) { throw 'no tab SettingsTabStartupUpdates in the Accessibility tree' }
+        $selected = { (Get-AxSelectedTab $c $appId 'SettingsTabs').Selected -ceq 'SettingsTabStartupUpdates' }
+        $null = Invoke-Helper $c (@('click') + (Get-AxCenter $script:updateTab))
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition $selected)) {
+            $null = Invoke-Helper $c @('axpress', "$appId", 'SettingsTabStartupUpdates') -AllowFailure
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition $selected)) { throw 'neither a click nor AXPress selected the tab Startup and updates' }
+        }
+        $script:checkButton = $null
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $script:checkButton = Get-AxElement $c $appId 'SettingsCheckForUpdatesNow'; $script:checkButton -and $script:checkButton.frame.width -gt 0 })) {
+            throw 'no button SettingsCheckForUpdatesNow on the tab'
+        }
+        $null = Save-VerifyEvidence -Context $c -Name 'startup-updates-tab-ax.json' -Content ((Get-AxTree $c $appId) | ConvertTo-Json -Depth 100)
+        $script:checkButton
+    }
+    $press = { param([string] $Name, [scriptblock] $Action) Invoke-UpdateCheckPress -Context $c -AppId $appId -Server $server -Name $Name -Expected $expected -Press $Action -Capture:$capture }
+    try {
+        # The automatic check 2 s after the start (test mode) shows that the app reaches the stand-in API at all.
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 30 -Condition { (Read-TestLog $data) -match "Update check: version $([regex]::Escape($version)) is available" })) {
+            & $add 'start' $false "the automatic check after the start did not find $version at $($server.BaseUri) (requests: $(@(Get-FakeGitHubRequests $server).Count); app log saved)"
+            return $results
+        }
+
+        # a) The active window, a real left click on the button's centre.
+        try {
+            $button = & $openTab
+            $verdict = & $press 'a-click-active' { $null = Invoke-Helper $c (@('click') + (Get-AxCenter $button)) }
+            & $add 'a) real click, window active' $verdict.Passed $verdict.Detail
+        }
+        catch { & $add 'a) real click, window active' $false "not judged: $($_.Exception.Message)" }
+
+        # b) Another app in front (the stand-in app of the helper, which opens no window over Settings), one real click.
+        try {
+            $button = & $openTab
+            $point = Get-AxCenter $button
+            $screen = @(Get-Screens $c | Where-Object main)[0]
+            $other = Start-HelperProcess $c @('front', "$($screen.visible.x + 16)", "$($screen.visible.y + 16)", '60') (Join-Path $c.RunFolder 'tmp' "front-$(New-ShortId).txt")
+            try {
+                $otherName = 'the stand-in app'
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $other.Id })) {
+                    # Finder may open a window over Settings: the check below tells.
+                    if (-not (Invoke-FinderToFront)) { throw "neither the stand-in app nor Finder came to the front (front app $(Get-FrontAppText))" }
+                    $otherName = 'Finder'
+                }
+                Start-Sleep -Seconds 1
+                $top = Get-VerifyTopWindow @((Invoke-Helper $c @('windowsat', "$($point[0])", "$($point[1])")) -join "`n" | ConvertFrom-Json)
+                if (-not $top -or $top.pid -ne $appId) { throw "the button is covered by $(if ($top) { "$($top.owner) ($($top.pid)), window $($top.number)" } else { 'no window' }) at $($point -join ', ')" }
+                $script:frontAfterClick = $null
+                $verdict = & $press 'b-click-inactive' {
+                    $null = Invoke-Helper $c (@('click') + $point)
+                    $null = Wait-VerifyCondition -TimeoutSeconds 2 -Condition { (Get-FrontProcessId) -eq $appId }
+                    $script:frontAfterClick = Get-FrontAppText
+                }
+                $activated = $script:frontAfterClick -match "\($appId\)$"
+                $how = "one click with $otherName in front: the click $(if ($activated) { 'activated' } else { 'did not activate' }) the app (front app after it: $($script:frontAfterClick))"
+                $detail = if ($verdict.Passed) { "$how and ran the check: $($verdict.Detail)" } else { "$how, but $($verdict.Detail)" }
+                & $add 'b) one real click, window inactive' $verdict.Passed $detail
+            }
+            finally { if (-not $other.HasExited) { $other.Kill(); $other.WaitForExit() } }
+        }
+        catch { & $add 'b) one real click, window inactive' $false "not judged: $($_.Exception.Message)" }
+
+        # c) AXPress, as VoiceOver presses the button (VO-Space).
+        try {
+            $null = & $openTab
+            $verdict = & $press 'c-axpress' { $null = Invoke-Helper $c @('axpress', "$appId", 'SettingsCheckForUpdatesNow') }
+            & $add 'c) AXPress' $verdict.Passed $verdict.Detail
+        }
+        catch { & $add 'c) AXPress' $false "not judged: $($_.Exception.Message)" }
+    }
+    finally {
+        $null = Stop-TestApp $data $app
+        $null = Save-VerifyEvidence -Context $c -Name 'github-requests.txt' -Content @(Get-FakeGitHubRequests $server)
+    }
+    $results
+}
+
 function Invoke-CameraModes {
     <#
     .SYNOPSIS
@@ -1226,13 +1448,7 @@ $checks = @(
         -Title 'keyboard shortcuts as real key events: Ctrl-Cmd-F, Esc, Cmd-., Cmd-W, Cmd-Shift-]' `
         -Closes 'T-100 kritérium 4 (část: zkratky jako skutečné události klávesnice)' -Action {
         param($c)
-        if (-not (Test-Accessibility $c)) {
-            if ($c.Unattended) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility).' }
-            Write-VerifyStep $c 'Add your terminal app in System Settings > Privacy & Security > Accessibility and switch it on (opening it now). Remove it again after the run.' 'Yellow'
-            & /usr/bin/open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
-            $null = Read-VerifyAnswer -Context $c -Question 'Is Accessibility switched on for the terminal?'
-            if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (it may need a restart of the terminal).' }
-        }
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
         $simulator = Get-Simulator $c
         $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
         $app = Start-TestApp -Context $c -TestData $data
@@ -1323,6 +1539,25 @@ $checks = @(
         }
         if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
         New-VerifyResult PASS "Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-] twice ($tabMove), Cmd-W and Cmd-. in Settings (no change saved; Cmd-. $listCheck); Cmd-W in About and Diagnostics."
+    }
+
+    New-VerifyCheck -Id 'mac.update-check' -Kind Permission -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) for real mouse clicks and the Accessibility tree, and an unlocked screen; Screen Recording optional (window captures)' `
+        -Title '"Check now" in Settings > Startup and updates shows its result after a real click into the active and into an inactive window and after AXPress (stand-in GitHub API on 127.0.0.1)' `
+        -Closes 'T-127 položka „Kontrola aktualizací: text výsledku po skutečném kliknutí (macOS, hlášeno uživatelem 2026-11-05)“' -Action {
+        param($c)
+        # Nothing can be judged with a locked screen; Accessibility is asked for only in an unlocked session.
+        $limitation = Get-SessionLimitation $c
+        if ($limitation) { Skip-VerifyCheck "cannot be judged in this session: $limitation$(if (-not (Test-Accessibility $c)) { '; the terminal also has no Accessibility permission (System Settings > Privacy & Security > Accessibility)' }). Unlock the screen and run it again." }
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $scenarios = @(Invoke-UpdateCheckClicks -Context $c)
+            $null = Save-VerifyEvidence -Context $c -Name 'scenarios.json' -Content (ConvertTo-VerifyJsonArray $scenarios)
+            $text = ($scenarios | ForEach-Object { "$($_.Scenario): $(if ($_.Passed) { 'ok' } else { 'FAILED' }) - $($_.Detail)" }) -join '; '
+            $appearance = if ((& /usr/bin/defaults read -g AppleInterfaceStyle 2>$null) -eq 'Dark') { 'dark' } else { 'light' }
+            $captures = if ((Invoke-Helper $c @('screenrecording')) -contains 'true') { 'with window captures' } else { 'without window captures (no Screen Recording for the terminal)' }
+            if (@($scenarios | Where-Object { -not $_.Passed }).Count -gt 0) { return New-VerifyResult FAIL "$text ($appearance appearance, $captures)" }
+            New-VerifyResult PASS "$text ($appearance appearance, $captures)"
+        }
     }
 
     New-VerifyCheck -Id 'mac.notification-click' -Kind Manual -Title 'a click on a delivered notification of the test bundle opens the printer web' `
@@ -1635,5 +1870,5 @@ $report = Write-VerifyReport -Folder $runFolder -Info $info -Results $results
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
 Write-Host "Report: $($report.Markdown)"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys.'
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys or mac.update-check.'
 exit (Get-VerifyExitCode -Results $results)

@@ -26,6 +26,15 @@
 //                                    children (needs Accessibility)
 //   axpress <pid> <identifier>       performs AXPress on the first element with that identifier (needs Accessibility)
 //   focusedid <pid>                  the identifier of the focused element of the process, or "" (needs Accessibility)
+//   axwatch <pid> <identifier> <ms> [<stop>]  JSON lines: the text (value, title or description) and frame of the
+//                                    element with that identifier at the start and at every change, polled every 50 ms
+//                                    for <ms>, or until 1.5 s after the text contained <stop> (needs Accessibility)
+//   windowsat <x> <y>                the on-screen windows containing a point, front to back: pid, owner, number, layer,
+//                                    bounds (whether a click there reaches the window under test)
+//   front <x> <y> <seconds>          a stand-in other app: an accessory app with one small window at a point, activated;
+//                                    prints its pid and runs until <seconds> pass or it is killed
+//   regiondiff <a.png> <b.png> <window width> <x> <y> <w> <h>  JSON: share of pixels (luminance difference > 40) and
+//                                    mean difference in a rectangle (points from the window's top left) of two captures
 //   screenrecording                  "true" / "false": whether this process may capture other apps' windows (Screen
 //                                    Recording); never asks for it
 //   ring <png> <offset> <thickness>  JSON: the mean luminance (0-255) of the band <offset> to <offset + thickness> pixels
@@ -437,6 +446,132 @@ func icons(_ output: String, _ menuBarFolder: String, _ appIcon: String, _ syste
     print(output)
 }
 
+/// The text an element shows to the Accessibility API: its value, else its title, else its description (Avalonia gives a
+/// TextBlock its text as one of them, depending on the version).
+func shownText(_ element: AXUIElement) -> String {
+    for name in [kAXValueAttribute, kAXTitleAttribute, kAXDescriptionAttribute] {
+        let value = text(element, name)
+        if !value.isEmpty { return value }
+    }
+    return ""
+}
+
+func findInWindows(_ app: AXUIElement, _ identifier: String) -> AXUIElement? {
+    for window in attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+        if let element = find(window, identifier) { return element }
+    }
+    return nil
+}
+
+/// Watches the text of one element for <milliseconds>: prints a JSON line at the start and at every change (time since
+/// the start, found, text, frame), so that a short "Checking…" is seen and a killed watch still leaves its lines. Stops
+/// <linger> ms after the text first contained <stop>, so that a text that vanishes again right away is seen as well.
+func axWatch(_ pid: Int32, _ identifier: String, _ milliseconds: Int, _ stop: String?) {
+    requireTrusted()
+    let app = AXUIElementCreateApplication(pid)
+    let start = Date()
+    let linger = 1_500
+    var element: AXUIElement?
+    var last: String?
+    var stopSeen: Int?
+    while true {
+        let elapsed = Int(Date().timeIntervalSince(start) * 1000)
+        // A removed element (hidden TextBlock, closed window) has no role any more: look it up again.
+        if element == nil || attribute(element!, kAXRoleAttribute) == nil { element = findInWindows(app, identifier) }
+        let shown = element.map(shownText) ?? ""
+        let place = element.map(frame) ?? [:]
+        let state = "\(element != nil)|\(shown)|\(place["width"] ?? 0)x\(place["height"] ?? 0)"
+        if state != last {
+            last = state
+            if let data = try? JSONSerialization.data(withJSONObject: ["ms": elapsed, "found": element != nil, "text": shown, "frame": place], options: [.sortedKeys]),
+               let line = String(data: data, encoding: .utf8) {
+                print(line)
+                fflush(stdout)
+            }
+        }
+        if stopSeen == nil, let stop, !stop.isEmpty, shown.contains(stop) { stopSeen = elapsed }
+        if let seen = stopSeen, elapsed - seen >= linger { return }
+        if elapsed >= milliseconds { return }
+        usleep(50_000)
+    }
+}
+
+/// The on-screen windows (front to back) that contain a point: owner pid and name, number, layer, bounds; shows whether
+/// a click there reaches the expected window. Needs no Screen Recording (window names are not read).
+func windowsAt(_ x: Double, _ y: Double) {
+    guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { fail("no window list") }
+    var result: [[String: Any]] = []
+    for window in list {
+        let bounds = window[kCGWindowBounds as String] as? [String: Any] ?? [:]
+        func number(_ key: String) -> Double { (bounds[key] as? NSNumber)?.doubleValue ?? 0 }
+        let rect = CGRect(x: number("X"), y: number("Y"), width: number("Width"), height: number("Height"))
+        let alpha = (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+        guard rect.contains(CGPoint(x: x, y: y)), alpha > 0 else { continue }
+        result.append([
+            "pid": (window[kCGWindowOwnerPID as String] as? NSNumber)?.intValue ?? 0,
+            "owner": window[kCGWindowOwnerName as String] as? String ?? "",
+            "number": (window[kCGWindowNumber as String] as? NSNumber)?.intValue ?? 0,
+            "layer": (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0,
+            "x": rect.origin.x, "y": rect.origin.y, "width": rect.width, "height": rect.height,
+        ])
+    }
+    printJSON(result)
+}
+
+/// A stand-in "other app" for the checks: an accessory app (no Dock icon) with one small window at a point of the main
+/// display (top left origin), activated once; prints its pid and runs until <seconds> pass or it is killed. Unlike
+/// Finder it opens no window over the window under test.
+func frontApp(_ x: Double, _ y: Double, _ seconds: Double) {
+    let application = NSApplication.shared
+    application.setActivationPolicy(.accessory)
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 240, height: 60), styleMask: [.titled], backing: .buffered, defer: false)
+    window.title = "macos-verify: other app"
+    window.isReleasedWhenClosed = false
+    window.setFrameTopLeftPoint(NSPoint(x: x, y: mainHeight() - y))
+    window.makeKeyAndOrderFront(nil)
+    if #available(macOS 14, *) { application.activate() } else { application.activate(ignoringOtherApps: true) }
+    print(ProcessInfo.processInfo.processIdentifier)
+    fflush(stdout)
+    Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in exit(0) }
+    application.run()
+}
+
+/// JSON: how much a rectangle (points from the top left of a window <windowWidth> points wide) differs between two
+/// captures of that window: the share of pixels whose luminance differs by more than 40 and the mean difference. Shows
+/// whether a text was really drawn there (a capture before and after it appeared).
+func regionDiff(_ before: String, _ after: String, _ windowWidth: Double, _ x: Double, _ y: Double, _ width: Double, _ height: Double) {
+    func pixels(_ path: String) -> (CGContext, Int, Int) {
+        guard let image = NSImage(contentsOfFile: path), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { fail("not an image: \(path)") }
+        guard let context = CGContext(data: nil, width: cg.width, height: cg.height, bitsPerComponent: 8, bytesPerRow: cg.width * 4,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { fail("no bitmap") }
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        return (context, cg.width, cg.height)
+    }
+    let (a, aw, ah) = pixels(before)
+    let (b, bw, bh) = pixels(after)
+    guard aw == bw, ah == bh else { fail("the captures differ in size (\(aw) x \(ah), \(bw) x \(bh))") }
+    guard let pa = a.data?.assumingMemoryBound(to: UInt8.self), let pb = b.data?.assumingMemoryBound(to: UInt8.self) else { fail("no pixels") }
+    func luminance(_ p: UnsafeMutablePointer<UInt8>, _ i: Int) -> Double { 0.2126 * Double(p[i]) + 0.7152 * Double(p[i + 1]) + 0.0722 * Double(p[i + 2]) }
+    // Pixels per point of the capture (2 on Retina, 1 at @1x).
+    let scale = Double(aw) / max(1, windowWidth)
+    let left = max(0, Int(x * scale)), top = max(0, Int(y * scale))
+    let right = min(aw, Int((x + width) * scale)), bottom = min(ah, Int((y + height) * scale))
+    var changed = 0, total = 0
+    var sum = 0.0
+    if right > left && bottom > top {
+        for row in top..<bottom {
+            for column in left..<right {
+                let i = (row * aw + column) * 4
+                let difference = abs(luminance(pa, i) - luminance(pb, i))
+                sum += difference
+                if difference > 40 { changed += 1 }
+                total += 1
+            }
+        }
+    }
+    printJSON(["pixels": total, "changed": changed, "share": total > 0 ? Double(changed) / Double(total) : 0, "mean": total > 0 ? sum / Double(total) : 0, "scale": scale])
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|trusted|key|click|localized|icons ...") }
 switch command {
@@ -454,6 +589,17 @@ case "move" where arguments.count == 3: guard let x = Double(arguments[1]), let 
 case "ax" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axTree(pid)
 case "axpress" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axPress(pid, arguments[2])
 case "focusedid" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; focusedIdentifier(pid)
+case "axwatch" where arguments.count == 4 || arguments.count == 5:
+    guard let pid = Int32(arguments[1]), let milliseconds = Int(arguments[3]) else { fail("not a pid or a time") }
+    axWatch(pid, arguments[2], milliseconds, arguments.count == 5 ? arguments[4] : nil)
+case "windowsat" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; windowsAt(x, y)
+case "front" where arguments.count == 4:
+    guard let x = Double(arguments[1]), let y = Double(arguments[2]), let seconds = Double(arguments[3]) else { fail("not a point or a time") }
+    frontApp(x, y, seconds)
+case "regiondiff" where arguments.count == 8:
+    let numbers = arguments[3...].compactMap(Double.init)
+    guard numbers.count == 5 else { fail("not a number") }
+    regionDiff(arguments[1], arguments[2], numbers[0], numbers[1], numbers[2], numbers[3], numbers[4])
 case "screenrecording": print(CGPreflightScreenCaptureAccess() ? "true" : "false")
 case "ring" where arguments.count == 4: guard let offset = Int(arguments[2]), let thickness = Int(arguments[3]) else { fail("not a number") }; ring(arguments[1], offset, thickness)
 case "localized" where arguments.count >= 4: localized(arguments[1], arguments[2], Array(arguments[3...]))
