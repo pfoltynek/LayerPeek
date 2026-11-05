@@ -876,8 +876,8 @@
                               <Border Classes="badge"
                                       VerticalAlignment="Center"
                                       AutomationProperties.AutomationId="PrinterDetectionDarkFilamentExperimental"
-                                      AutomationProperties.HelpText="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                      ToolTip.Tip="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                                      AutomationProperties.HelpText="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      ToolTip.Tip="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
                                 <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
                               </Border>
                             </StackPanel>
