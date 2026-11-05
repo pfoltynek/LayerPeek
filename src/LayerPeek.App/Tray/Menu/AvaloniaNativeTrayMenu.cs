@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Threading;
 
 using LayerPeek.App.Printers;
 
@@ -110,6 +111,9 @@ internal sealed class AvaloniaNativeTrayMenu : INativeTrayMenu
             }
         }
 
-        private void OnClick(object? sender, EventArgs e) => _clicked();
+        // T-168: the action runs after the click has been handled. Avalonia closes the menu (on Windows) by walking up from
+        // the clicked item after its Click event; an action that replaces the item synchronously (e.g. "Hide camera"
+        // changes the printer submenu's structure) cut that walk short, so only the submenu closed and the main menu stayed open.
+        private void OnClick(object? sender, EventArgs e) => Dispatcher.UIThread.Post(_clicked);
     }
 }
