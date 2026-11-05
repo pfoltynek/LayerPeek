@@ -263,7 +263,19 @@ zmizení nebo posun dílu a novou hmotu na podložce (špagety, utržený díl).
   One s kamerou Buddy3D, zatím ne na skutečných nepovedených tiscích, takže může selhání přehlédnout nebo vyhlásit
   planý poplach.
 
-<!-- T-167 -->
+### Tisk do vzduchu
+
+- Druhý detektor na podzáložce **Detekce** tiskárny, **ve výchozím stavu vypnutý**, nabízí se jen u tiskáren, jejichž
+  podložka při tisku sjíždí dolů (Core One, Core One L, XL, XL+); u ostatních modelů se nezobrazí.
+- Pozná, že tiskárna dál tiskne (osa Z roste), ale na podložce už nic nepřibývá, například když nepozorovaně došel
+  filament, prokluzuje podavač nebo se ucpala tryska. Při dobrém tisku stojí horní hrany dílů u trysky; když se netiskne,
+  sjíždějí s podložkou dolů.
+- Sleduje váš výřez podložky prodloužený nahoru k trysce, žádný další výřez není potřeba.
+- **Omezení:** chybu nahlásí až poté, co osa Z vystoupá o další ~3 mm (minuty, u pomalých tisků i půl hodiny a víc).
+  Nehodnotí díly schované převážně pod hlavou ani prvních ~6 mm po startu. Čisticí věž, která dál roste, může chybu
+  zakrýt, a když přestane růst jen jeden z několika dílů, nenahlásí to. **Díl se širší spodní částí, která skončí dřív,
+  nebo několik dílů, z nichž většina skončí dřív, může vyvolat planý poplach.** Ladil se na simulovaných selháních,
+  skutečný tisk do vzduchu zatím nahraný není.
 
 ### Timelapse
 
