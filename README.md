@@ -265,7 +265,19 @@ LayerPeek can watch a print through the camera and warn you when something goes 
   successful print of a Core One with a Buddy3D camera, not yet on real failed prints, so it may miss a failure or
   raise a false alarm.
 
-<!-- T-167 -->
+### Printing into the air
+
+- A second detector on the printer's **Detection** sub-tab, **off by default**, offered only for printers whose bed moves
+  down while printing (Core One, Core One L, XL, XL+); other models don't show it.
+- It notices that the printer goes on printing (the Z axis rises) but nothing grows on the bed any more, e.g. filament
+  that ran out unnoticed, a slipping extruder or a clogged nozzle. In a good print the top edges of the parts stay at the
+  nozzle; when nothing is printed, they move down with the bed.
+- It watches your bed region extended up to the nozzle, so no extra region is needed.
+- **Limitations:** it reports the failure only after the Z axis rose another ~3 mm (minutes, half an hour and more on
+  slow prints). It does not judge parts mostly hidden under the head or the first ~6 mm after the start. A wipe tower
+  that keeps growing can hide the failure, and one of several parts that stops growing is not reported. **A part with a
+  wider lower step that ends, or several parts of which most end earlier, can raise a false alarm.** The failures it
+  was tuned on are simulated; no real print into the air has been recorded yet.
 
 ### Timelapse
 
