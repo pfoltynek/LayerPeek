@@ -18,6 +18,7 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 | Code identifiers, code comments, commit messages | English |
 | `tasks/**`, `docs/**`, `README.cz.md` | **Czech** |
 | `README.md`, `CHANGELOG.md` | English (public open-source front page; keep `README.cz.md` in sync) |
+| `manuals/<lang>/manual.md` | the language of its folder, one per UI language (`manuals/en` is the source); a user-visible change updates all of them |
 | UI strings | localized via `Strings.*.resx` (T-029); every new string goes into all languages |
 
 ## Decision rule
@@ -66,7 +67,8 @@ tools/
   PrusaSimulator           dev tool: simulated PrusaLink printers + RTSP camera (docs/simulator.md); not shipped
   migrate-from-prusatraydiagnostic.ps1  one-time migration of dev machines from the former name (T-074)
   render-macos-icon.swift  regenerates the macOS app icon PNGs from their SVGs (T-098, needs Xcode Command Line Tools)
-docs/                      architecture & API notes (Czech)
+docs/                      architecture & API notes (Czech); docs/images/<lang>/ screenshots rendered by the app
+manuals/                   end-user manual, one file per UI language (Windows + macOS in one file)
 tasks/                     task backlog (Czech), see tasks/README.md
 .claude/agents/            subagent definitions
 ```

@@ -16,6 +16,7 @@
   <a href="#see-it-in-action">Screenshots</a> ·
   <a href="#features">Features</a> ·
   <a href="#experimental-features">Experimental</a> ·
+  <a href="manuals/en/manual.md"><b>User manual</b></a> ·
   <a href="README.cz.md">Česky</a>
 </p>
 
@@ -340,6 +341,10 @@ cameras.
 | macOS (Apple Silicon) | ✅ supported since 0.3.0 (menu bar app) |
 
 ## Quick start
+
+> [!TIP]
+> The full **[user manual](manuals/en/manual.md)** walks through every feature on Windows and macOS. It is also
+> available in Čeština, Slovenčina, Deutsch, Español, Français, Italiano and Polski: see [all languages](manuals/README.md).
 
 ### 1. Download
 

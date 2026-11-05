@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **User manual** in all eight languages of the app (English, Czech, Slovak, German, Spanish, French, Italian,
+  Polish) in `manuals/`, for Windows and macOS in one document, with screenshots rendered by the app in each language.
+  The README links to it.
+
 ## [0.5.0] - 2026-11-05
 
 ### Added
