@@ -645,7 +645,11 @@ internal static class SettingsMapper
 
         if (!TryParseConnectionType(document.ConnectionType, out ConnectionType connectionType))
         {
-            return $"unknown connection type '{Shorten(document.ConnectionType)}'";
+            // T-170: Prusa Connect is no longer supported (user decision 2026-11-05); such a printer is left out like any
+            // other invalid entry and disappears from the file on the next save.
+            return document.ConnectionType.AsSpan().Trim().Equals(PrusaConnectConnectionType, StringComparison.OrdinalIgnoreCase)
+                ? "Prusa Connect is no longer supported"
+                : $"unknown connection type '{Shorten(document.ConnectionType)}'";
         }
 
         printer = new PrinterDefinition
@@ -1526,11 +1530,13 @@ internal static class SettingsMapper
     private static string? Shorten(string? value) =>
         value is { Length: > MaxEchoedValueLength } ? string.Concat(value.AsSpan(0, MaxEchoedValueLength), "…") : value;
 
+    /// <summary>The connection type of Prusa Connect printers in settings written before T-170.</summary>
+    private const string PrusaConnectConnectionType = "PrusaConnect";
+
     // Explicit names instead of Enum.Parse: numeric strings must not be accepted and the format must stay stable.
     private static string FormatConnectionType(ConnectionType connectionType) => connectionType switch
     {
         ConnectionType.PrusaLink => nameof(ConnectionType.PrusaLink),
-        ConnectionType.PrusaConnect => nameof(ConnectionType.PrusaConnect),
         _ => throw new ArgumentOutOfRangeException(nameof(connectionType), connectionType, "Unknown connection type."),
     };
 
@@ -1540,12 +1546,6 @@ internal static class SettingsMapper
         if (name.Equals(nameof(ConnectionType.PrusaLink), StringComparison.OrdinalIgnoreCase))
         {
             connectionType = ConnectionType.PrusaLink;
-            return true;
-        }
-
-        if (name.Equals(nameof(ConnectionType.PrusaConnect), StringComparison.OrdinalIgnoreCase))
-        {
-            connectionType = ConnectionType.PrusaConnect;
             return true;
         }
 

@@ -318,15 +318,14 @@ public sealed class DiagnosticsViewModelTests : IDisposable
 
         Assert.Equal([nameof(ChartWindowOption.Text)], windowChanges);
 
-        Configure(Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "printer-uuid" });
-        _dispatcher.RunAll();
-        _info.Requests[0].Completion.SetResult(null);
+        // The information of the configured printer is still loading.
+        Configure(Definition());
         _dispatcher.RunAll();
         using (new UiCultureScope("cs-CZ"))
         {
             viewModel.RefreshTexts();
 
-            Assert.Equal("Pro Prusa Connect není k dispozici", viewModel.InfoStatusText);
+            Assert.Equal("Načítání…", viewModel.InfoStatusText);
             Assert.Null(viewModel.Notice);
         }
     }
@@ -688,15 +687,13 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         Assert.Contains(nameof(DiagnosticsViewModel.HasInfoValues), changes);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void FailedOrUnsupportedInfoShowsOnlyTheStatusText(bool prusaConnect)
+    [Fact]
+    public void FailedInfoShowsOnlyTheStatusText()
     {
-        Configure(prusaConnect ? Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "printer-uuid" } : Definition());
+        Configure(Definition());
         DiagnosticsViewModel viewModel = Create();
 
-        _info.Requests[0].Completion.SetResult(prusaConnect ? null : Failed(PrinterState.Offline));
+        _info.Requests[0].Completion.SetResult(Failed(PrinterState.Offline));
         _dispatcher.RunAll();
 
         Assert.True(viewModel.HasInfoStatus);
@@ -720,19 +717,6 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         Assert.False(viewModel.HasInfoStatus);
         Assert.False(viewModel.HasInfoValues);
         Assert.Contains(nameof(DiagnosticsViewModel.HasInfoValues), changes);
-    }
-
-    [Fact]
-    public void InfoIsNotAvailableForPrusaConnect()
-    {
-        Configure(Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "printer-uuid" });
-        DiagnosticsViewModel viewModel = Create();
-
-        _info.Requests[0].Completion.SetResult(null);
-        _dispatcher.RunAll();
-
-        Assert.Equal("Not available for Prusa Connect", viewModel.InfoStatusText);
-        Assert.Equal(Missing, viewModel.FirmwareText);
     }
 
     [Fact]

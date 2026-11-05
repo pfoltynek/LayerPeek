@@ -186,7 +186,6 @@ public sealed class CooldownMonitorTests : IDisposable
 
     [Theory]
     [InlineData("address")]
-    [InlineData("connection")]
     [InlineData("removed")]
     public void AnotherMachineOrRemovedPrinterIsForgotten(string change)
     {
@@ -198,7 +197,6 @@ public sealed class CooldownMonitorTests : IDisposable
         _cooldown.Configure(change switch
         {
             "address" => [Mk4 with { Address = "192.168.1.99" }],
-            "connection" => [Mk4 with { ConnectionType = ConnectionType.PrusaConnect }],
             _ => [],
         }, Poll);
 

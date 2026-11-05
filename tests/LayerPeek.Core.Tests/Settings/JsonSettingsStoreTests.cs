@@ -59,7 +59,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
             Printers =
             [
                 new PrinterDefinition { Id = "mk4", Name = "Workshop MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.20" },
-                new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee-uuid" },
+                new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.30" },
             ],
         };
 
@@ -239,6 +239,26 @@ public sealed class JsonSettingsStoreTests : IDisposable
         PrinterDefinition printer = Assert.Single(result.Settings.Printers);
         Assert.Equal("ok", printer.Id);
         Assert.Equal(6, result.Warnings.Count);
+    }
+
+    [Fact]
+    public async Task LoadSkipsAPrusaConnectPrinterWithAWarning()
+    {
+        // T-170: Prusa Connect is no longer supported (user decision 2026-11-05).
+        await WriteSettingsFileAsync("""
+            {
+              "printers": [
+                { "id": "mk4", "name": "MK4", "connectionType": "PrusaLink", "address": "10.0.0.5" },
+                { "id": "xl", "name": "XL", "connectionType": "PrusaConnect", "address": "c0ffee-uuid" }
+              ]
+            }
+            """);
+
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal("mk4", Assert.Single(result.Settings.Printers).Id);
+        Assert.Equal("Printer entry 2 skipped: Prusa Connect is no longer supported.", Assert.Single(result.Warnings));
     }
 
     [Fact]

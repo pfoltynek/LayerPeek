@@ -131,15 +131,6 @@ public sealed class PrusaLinkConnectionTesterTests : IDisposable
     }
 
     [Fact]
-    public async Task PrusaConnectIsNotSupported()
-    {
-        ConnectionTestResult result = await Create().TestAsync(CloudPrinter("c", "Cloud"), null, Ct);
-
-        Assert.Equal(ConnectionTestOutcome.NotSupported, result.Outcome);
-        Assert.Equal(0, _printer.RequestCount);
-    }
-
-    [Fact]
     public async Task UnreachablePrinter()
     {
         _printer.Failure = new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused", new SocketException(10061));

@@ -167,7 +167,6 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         None,
         Loading,
         Loaded,
-        NotSupported,
         Failed,
     }
 
@@ -348,7 +347,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         private set => SetProperty(ref _axisZText, value);
     }
 
-    /// <summary>"Loading…", "Could not be read: …" or "Not available for Prusa Connect"; <see langword="null"/> once loaded.</summary>
+    /// <summary>"Loading…" or "Could not be read: …"; <see langword="null"/> once loaded.</summary>
     public string? InfoStatusText
     {
         get => _infoStatusText;
@@ -863,7 +862,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
     /// <summary>Never throws; the result is applied on the UI thread unless it was superseded or the window closed.</summary>
     private async Task FetchInfoAsync(PrinterDefinition printer, int request, CancellationToken cancellationToken)
     {
-        PrusaLinkInfoResult? result;
+        PrusaLinkInfoResult result;
         try
         {
             result = await _infoSource.GetInfoAsync(printer, cancellationToken).ConfigureAwait(false);
@@ -884,19 +883,14 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         }
     }
 
-    private void ApplyInfo(int request, PrusaLinkInfoResult? result)
+    private void ApplyInfo(int request, PrusaLinkInfoResult result)
     {
         if (request != _infoRequest || IsDisposed())
         {
             return;
         }
 
-        if (result is null)
-        {
-            _infoStatus = InfoStatus.NotSupported;
-            SetInfoStatus(static () => Strings.DiagnosticsInfoNotSupported);
-        }
-        else if (result.Info is { } info)
+        if (result.Info is { } info)
         {
             _infoStatus = InfoStatus.Loaded;
             SetInfoStatus(null);

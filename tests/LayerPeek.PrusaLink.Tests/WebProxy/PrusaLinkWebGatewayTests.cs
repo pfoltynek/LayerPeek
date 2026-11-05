@@ -16,18 +16,6 @@ public class PrusaLinkWebGatewayTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [Fact]
-    public async Task PrusaConnectPrinterIsNotSupported()
-    {
-        await using ProxyTestContext context = new();
-
-        PrinterWebAccess access = await context.Gateway.OpenAsync(
-            new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee" }, Ct);
-
-        Assert.Equal(PrinterWebFallback.NotSupported, access.Fallback);
-        Assert.Null(access.Address);
-        Assert.Empty(context.Printer.Requests);
-    }
 
     [Theory]
     [InlineData("http://user:pw@192.168.1.20/")]

@@ -440,8 +440,8 @@ Máš nápad? [Založ issue](https://github.com/pfoltynek/LayerPeek/issues).
 ## Časté otázky
 
 **Funguje to i mimo domácí síť?**
-Ne. Aplikace mluví s tiskárnami přímo přes lokální síť. Můžeš použít VPN do domácí sítě. Podpora Prusa Connect
-se neplánuje: Prusa Connect nemá veřejné API pro aplikace třetích stran.
+Ne. Aplikace mluví s tiskárnami přímo přes lokální síť (PrusaLink). Můžeš použít VPN do domácí sítě. Prusa Connect
+aplikace nepodporuje: nemá veřejné API pro aplikace třetích stran.
 
 **Nahrazuje to Prusa Connect nebo web PrusaLink?**
 Ne, doplňuje je. Je to rychlý pohled přímo na ploše. Pro nahrávání souborů a spouštění tisků otevři z menu web
@@ -510,7 +510,6 @@ displej), jsou v jednom postupu v [docs/macos-manual-testing.md](docs/macos-manu
 |---|---|
 | `src/LayerPeek.Core` | doménový model, abstrakce, monitoring a detekce událostí (bez UI a bez HTTP) |
 | `src/LayerPeek.PrusaLink` | klient PrusaLink REST API a lokální proxy webu |
-| `src/LayerPeek.PrusaConnect` | klient Prusa Connect (dál se nevyvíjí: Prusa Connect nemá veřejné API) |
 | `src/LayerPeek.Camera.FFmpeg` | kamera RTSP/H.264 přes FFmpeg |
 | `src/LayerPeek.Detection` | detektory chyb tisku z obrazu kamery (čisté C#) |
 | `src/LayerPeek.App` | Avalonia tray aplikace, okna, platformní kód |

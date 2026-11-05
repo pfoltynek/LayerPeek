@@ -24,8 +24,8 @@
     {
       "id": "xl",
       "name": "XL",
-      "connectionType": "PrusaConnect",
-      "address": "c0ffee00-1234-5678-9abc-def012345678"
+      "connectionType": "PrusaLink",
+      "address": "192.168.1.21"
     }
   ]
 }

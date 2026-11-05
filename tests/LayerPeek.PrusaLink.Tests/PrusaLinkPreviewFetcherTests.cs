@@ -431,16 +431,13 @@ public sealed class PrusaLinkPreviewFetcherTests : IDisposable
     }
 
     [Fact]
-    public async Task ForeignPrintersAndReferencesAreNotAvailableWithoutRequests()
+    public async Task ForeignReferencesAndBadAddressesAreNotAvailableWithoutRequests()
     {
-        PrinterDefinition connect = new() { Id = "core-one", Name = "Core One", ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee" };
-
-        PrintPreviewFetchResult connectPrinter = await _fetcher.FetchAsync(connect, Benchy, PrintPreviewSize.Large, null, Ct);
         PrintPreviewFetchResult foreignReference = await _fetcher.FetchAsync(Printer(), new ForeignReference(), PrintPreviewSize.Large, null, Ct);
         PrintPreviewFetchResult missingLink = await _fetcher.FetchAsync(Printer(), Benchy with { Icon = null }, PrintPreviewSize.Small, null, Ct);
         PrintPreviewFetchResult badAddress = await _fetcher.FetchAsync(Printer("ftp://printer"), Benchy, PrintPreviewSize.Large, null, Ct);
 
-        Assert.All([connectPrinter, foreignReference, missingLink, badAddress], static r => Assert.Equal(PrintPreviewFetchStatus.NotAvailable, r.Status));
+        Assert.All([foreignReference, missingLink, badAddress], static r => Assert.Equal(PrintPreviewFetchStatus.NotAvailable, r.Status));
         Assert.Empty(_server.Requests);
     }
 

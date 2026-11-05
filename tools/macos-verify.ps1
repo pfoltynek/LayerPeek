@@ -1281,13 +1281,17 @@ $checks = @(
                 }
                 if ($closer -eq 'cmd+period') {
                     # T-100 question 3: with a list open, Cmd-. closes only the list (like Esc); the next one is Cancel.
-                    $combo = Get-AxElement $c $app.Id 'PrinterConnectionType'
+                    # The language list on the General tab (Printers -> Widgets -> General); T-170 removed the printer's
+                    # connection type list.
+                    & $key 'cmd+shift+]'
+                    & $key 'cmd+shift+]'
+                    $combo = Get-AxElement $c $app.Id 'SettingsLanguage'
                     $windows = @(Get-ProcessWindows $c $app.Id).Count
-                    if (-not $combo) { $listCheck = 'not checked (no PrinterConnectionType)' }
+                    if (-not $combo) { $listCheck = 'not checked (no SettingsLanguage)' }
                     else {
                         $center = Get-AxCenter $combo
                         $null = Invoke-Helper $c @('click', "$($center[0])", "$($center[1])")
-                        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -gt $windows })) { $problems.Add('a click did not open the list PrinterConnectionType') }
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -gt $windows })) { $problems.Add('a click did not open the list SettingsLanguage') }
                         else {
                             Start-Sleep -Milliseconds 500
                             & $key 'cmd+period'

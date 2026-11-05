@@ -264,11 +264,11 @@
                     <DataTemplate x:DataType="vm:PrinterEditorViewModel">
                       <StackPanel>
                         <!--
-                          The printer image (T-039): a 56 × 56 button with a menu left of the name and connection, which stand
-                          side by side; the name error spans both (the connection never has one). An image import error is shown in
+                          The printer image (T-039): a 56 × 56 button with a menu left of the name (the connection type field went with
+                          Prusa Connect, T-170). An image import error is shown in
                           the status line at the bottom: with every other message shown, the form has no room for another line.
                         -->
-                        <Grid ColumnDefinitions="56,12,*,16,320" RowDefinitions="Auto,Auto,Auto">
+                        <Grid ColumnDefinitions="56,12,*" RowDefinitions="Auto,Auto,Auto">
                           <Button Grid.RowSpan="2"
                                   AutomationProperties.AutomationId="PrinterImageButton"
                                   AutomationProperties.Name="{Binding ImageName}"
@@ -336,26 +336,7 @@
                                    Classes.invalid="{Binding HasNameError}"
                                    Text="{Binding Name}"
                                    MaxLength="200" />
-                          <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="3" AutomationProperties.AutomationId="PrinterNameError" Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                          <TextBlock Grid.Column="4" Classes="label" Text="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                          <ComboBox Grid.Column="4"
-                                    Grid.Row="1"
-                                    AutomationProperties.AutomationId="PrinterConnectionType"
-                                    AutomationProperties.Name="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                    ItemsSource="{Binding ConnectionTypes}"
-                                    SelectedItem="{Binding SelectedConnectionType}"
-                                    HorizontalAlignment="Stretch">
-                            <ComboBox.Styles>
-                              <Style Selector="ComboBoxItem" x:DataType="vm:ConnectionTypeOption">
-                                <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
-                              </Style>
-                            </ComboBox.Styles>
-                            <ComboBox.ItemTemplate>
-                              <DataTemplate x:DataType="vm:ConnectionTypeOption">
-                                <TextBlock Text="{Binding Text}" />
-                              </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                          </ComboBox>
+                          <TextBlock Grid.Row="2" Grid.Column="2" AutomationProperties.AutomationId="PrinterNameError" Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
                         </Grid>
 
                         <!-- An error replaces the hint of its field while it is shown (T-033). -->
@@ -377,9 +358,8 @@
                                      AutomationProperties.HelpText="{Binding UserNameHelpText}"
                                      Classes.invalid="{Binding HasUserNameError}"
                                      Text="{Binding UserName}"
-                                     MaxLength="200"
-                                     IsEnabled="{Binding IsPrusaLink}" />
-                            <TextBlock AutomationProperties.AutomationId="PrinterUserNameHint" Classes="hint" Text="{Binding UserNameHint}" IsVisible="{Binding ShowsUserNameHint}" />
+                                     MaxLength="200" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterUserNameHint" Classes="hint" Text="{Binding [SettingsUserNameHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsUserNameHint}" />
                             <TextBlock AutomationProperties.AutomationId="PrinterUserNameError" Classes="error" Text="{Binding UserNameError}" IsVisible="{Binding UserNameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
                           </StackPanel>
                           <StackPanel Grid.Column="2">

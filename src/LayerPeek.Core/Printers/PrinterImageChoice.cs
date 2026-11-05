@@ -68,8 +68,8 @@ public readonly record struct PrinterImage(PrinterImageKind Kind, PrinterModel M
 
     /// <summary>
     /// The image of <paramref name="printer"/>: the custom picture when chosen and <paramref name="customImageExists"/>;
-    /// a manually chosen model; otherwise automatic, i.e. the detected model of a PrusaLink printer. Unknown model,
-    /// firmware before 6.5 and Prusa Connect (no automatic detection, T-039 decision) give <see cref="Generic"/>.
+    /// a manually chosen model; otherwise automatic, i.e. the detected model of a PrusaLink printer. Unknown model
+    /// and firmware before 6.5 give <see cref="Generic"/>.
     /// A missing custom file falls back to automatic.
     /// </summary>
     public static PrinterImage Resolve(PrinterDefinition printer, bool customImageExists)

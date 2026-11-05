@@ -49,7 +49,7 @@ public sealed class SettingsEditorStoreTests : IAsyncDisposable
     [Fact]
     public async Task LoadTellsWhichPrintersHaveASavedPassword()
     {
-        _settings.LoadResult = Loaded(LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta"), CloudPrinter("c", "Cloud"));
+        _settings.LoadResult = Loaded(LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta"));
         _secrets.Seed("a", "secret-a");
 
         SettingsEditorData data = await Create().LoadAsync(Ct);
@@ -57,8 +57,6 @@ public sealed class SettingsEditorStoreTests : IAsyncDisposable
         Assert.NotNull(data.PrintersWithPassword);
         Assert.Contains("A", data.PrintersWithPassword);
         Assert.DoesNotContain("b", data.PrintersWithPassword);
-        // Prusa Connect printers have no per-printer password; the store is not asked for them.
-        Assert.DoesNotContain(_secrets.Operations, operation => operation.EndsWith("/c", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -417,7 +415,6 @@ public sealed class SettingsEditorStoreTests : IAsyncDisposable
                 LinkPrinter("gone", "Removed"),
                 LinkPrinter("name", "Renamed"),
                 LinkPrinter("same", "Same"),
-                LinkPrinter("kind", "Now cloud"),
             ],
         };
         AppSettings updated = new()
@@ -429,7 +426,6 @@ public sealed class SettingsEditorStoreTests : IAsyncDisposable
                 LinkPrinter("user", "Other user", userName: "admin"),
                 LinkPrinter("name", "Renamed again"),
                 LinkPrinter("same", "Same"),
-                CloudPrinter("kind", "Now cloud"),
                 LinkPrinter("added", "Added"),
             ],
         };
@@ -438,7 +434,7 @@ public sealed class SettingsEditorStoreTests : IAsyncDisposable
 
         Assert.Equal(SettingsSaveStatus.Saved, result.Status);
         // A rename or an untouched printer keeps its open browser tab working; a new printer has no proxy yet.
-        Assert.Equal(["addr", "gone", "kind", "pw", "user"], _gateway.Stopped.Order(StringComparer.OrdinalIgnoreCase));
+        Assert.Equal(["addr", "gone", "pw", "user"], _gateway.Stopped.Order(StringComparer.OrdinalIgnoreCase));
         Assert.Equal(0, _gateway.StopAllCount);
     }
 

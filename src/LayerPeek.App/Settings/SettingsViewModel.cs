@@ -31,14 +31,6 @@ public sealed class SoundOption(NotificationSound value, Func<string> text) : Lo
     public NotificationSound Value { get; } = value;
 }
 
-/// <summary>An item of the connection type selection; Prusa Connect is shown but disabled until T-005.</summary>
-public sealed class ConnectionTypeOption(ConnectionType value, Func<string> text, bool isEnabled) : LocalizedOption(text)
-{
-    public ConnectionType Value { get; } = value;
-
-    public bool IsEnabled { get; } = isEnabled;
-}
-
 /// <summary>
 /// The settings window (T-015): printers (add / edit / remove, test connection) and general settings (polling interval,
 /// notifications). One instance per opened window; it does nothing until <see cref="LoadAsync"/> and nothing after
@@ -107,9 +99,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     // Ids that must never be generated again: loaded printers (a removed one's password is deleted on save) and generated ones.
     private readonly HashSet<string> _usedIds = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConnectionTypeOption _prusaLinkOption = new(ConnectionType.PrusaLink, static () => Strings.SettingsConnectionPrusaLink, isEnabled: true);
-    private readonly ConnectionTypeOption _prusaConnectOption = new(ConnectionType.PrusaConnect, static () => Strings.SettingsConnectionPrusaConnect, isEnabled: false);
-    private readonly ConnectionTypeOption _prusaConnectExistingOption = new(ConnectionType.PrusaConnect, static () => Strings.SettingsConnectionPrusaConnect, isEnabled: true);
 
     private AppSettings _baseline = AppSettings.Default;
     private bool _loadStarted;
@@ -911,7 +900,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             return;
         }
 
-        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, _prusaLinkOption, _prusaConnectOption, _prusaConnectExistingOption, .. StartModeOptions, .. CornerOptions];
+        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, .. StartModeOptions, .. CornerOptions];
         foreach (LocalizedOption option in options)
         {
             option.RefreshText();
@@ -1010,11 +999,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         SelectedPrinterTabIndex = Adjacent(_selectedPrinterTabIndex, PrinterTabCount, forward);
         return true;
     }
-
-    internal ConnectionTypeOption[] ConnectionTypesFor(ConnectionType current) =>
-        current == ConnectionType.PrusaConnect
-            ? [_prusaLinkOption, _prusaConnectExistingOption]
-            : [_prusaLinkOption, _prusaConnectOption];
 
     /// <summary>A printer's field changed: names are unique across printers, and the dirty state covers everything.</summary>
     internal void OnPrinterEdited(bool nameChanged)

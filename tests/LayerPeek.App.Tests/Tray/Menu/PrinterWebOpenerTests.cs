@@ -90,25 +90,6 @@ public sealed class PrinterWebOpenerTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task PrusaConnectOpensTheEntryAddressWithoutReadingSecrets()
-    {
-        // The real gateway: it must not read any secret, start a proxy or touch the network for Prusa Connect.
-        FakeSecretStore secrets = new();
-        secrets.Seed("xl", "pw");
-        await using PrusaLinkWebGateway gateway = new(new NoHttpClientFactory(), secrets, TimeProvider.System, NullLoggerFactory.Instance);
-        PrinterDefinition printer = new() { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee" };
-
-        bool opened = await new PrinterWebOpener(gateway, _launcher, _logger).OpenAsync(PrinterWebAddress.PrusaConnectHome, printer, Ct);
-
-        Assert.True(opened);
-        Assert.Equal([PrinterWebAddress.PrusaConnectHome], _launcher.Opened);
-        Assert.Empty(_launcher.OpenedSecret);
-        Assert.Empty(secrets.Operations);
-        // Not a failure worth logging: Prusa Connect simply has no proxy.
-        Assert.Empty(_logger.Entries);
-    }
-
-    [Fact]
     public async Task UnknownPrinterOpensPlainAddressWithoutTheGateway()
     {
         bool opened = await CreateOpener().OpenAsync(PrinterUri, printer: null, Ct);
@@ -254,10 +235,4 @@ public sealed class PrinterWebOpenerTests : IAsyncDisposable
 
     private static PrinterDefinition PrusaLink(string userName = PrinterUserName.Default) =>
         new() { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.10", UserName = userName };
-
-    /// <summary>Fails the test if anything tries to reach the network.</summary>
-    private sealed class NoHttpClientFactory : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => throw new InvalidOperationException("No network in this test.");
-    }
 }

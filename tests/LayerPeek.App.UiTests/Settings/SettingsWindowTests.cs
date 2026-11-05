@@ -163,20 +163,6 @@ public sealed class SettingsWindowTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task PrusaConnectPrinterDisablesUserNameAndPassword() =>
-        session.RunAsync(static async scope =>
-        {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(CloudPrinter("c1", "Cloud MK4")));
-
-            Assert.Equal("Cloud MK4", ui.NameBox.Text);
-            Assert.False(ui.UserNameBox.IsEffectivelyEnabled);
-            Assert.False(ui.PasswordBox.IsEffectivelyEnabled);
-            Assert.False(ui.UserNameBox.Focus());
-            Assert.Equal(Strings.SettingsUserNameNotUsed, ui.ShownText("PrinterUserNameHint"));
-            Assert.Equal(Strings.SettingsPasswordNotUsed, ui.ShownText("PrinterPasswordHint"));
-        });
-
-    [Fact]
     public Task PasswordIsMaskedAndASavedPasswordIsNeverLoadedIntoTheField() =>
         session.RunAsync(static async scope =>
         {

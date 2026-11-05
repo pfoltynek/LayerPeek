@@ -78,7 +78,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-002 | Konfigurace tiskáren a uložení tajných údajů (hotovo; vč. Windows Credential Manager) | all | core-dev | P1 | T-001 |
 | T-003 | PrusaLink klient (hotovo) | all | core-dev | P1 | T-001 |
 | T-004 | Prusa Connect – průzkum API (spike) (hotovo) | all | architect | P1 | – |
-| T-005 | Prusa Connect klient (vyřazeno – bez veřejného API, 2026-10-29) | all | core-dev | P3 | T-001, T-002, T-004 |
+| T-005 | Prusa Connect klient (zamítnuto 2026-11-05; dříve vyřazeno – bez veřejného API) | all | core-dev | P3 | T-001, T-002, T-004 |
 | T-006 | Monitorovací služba (polling) (hotovo) | all | core-dev | P1 | T-001 |
 | T-007 | Tray ikona se stavem a progressem (hotovo) | all | ui-dev | P1 | T-006 |
 | T-008 | Tray menu (hotovo) | all | ui-dev | P1 | T-007 |
@@ -185,6 +185,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-167 | Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste; hotovo, experimentální) | all | core-dev | P3 | T-155, T-166, T-154 |
 | T-168 | Tray menu na Windows zůstane otevřené po „Hide camera“ (E2E `TrayMenuTests`, nalezeno v T-125; hotovo) | windows | ui-dev | P2 | – |
 | T-169 | Občasné selhání E2E malého náhledu kamery (`CameraMiniPreviewTests`) | windows | qa-reviewer | P3 | – |
+| T-170 | Ukončení podpory Prusa Connect (T-005 zamítnut; hotovo, macOS snímky v T-127) | all | core-dev | P2 | – |
 
 ### Windows (`windows`)
 

@@ -40,8 +40,7 @@ public sealed record PrinterDefinition
     }
 
     /// <summary>
-    /// Where to reach the printer: host name / IP / URL for <see cref="ConnectionType.PrusaLink"/>,
-    /// printer identifier for <see cref="ConnectionType.PrusaConnect"/>.
+    /// Where to reach the printer: host name / IP / URL for <see cref="ConnectionType.PrusaLink"/>.
     /// </summary>
     public required string Address
     {
@@ -51,8 +50,7 @@ public sealed record PrinterDefinition
 
     /// <summary>
     /// User name for logging in to <see cref="ConnectionType.PrusaLink"/>; not a secret. Defaults to
-    /// <see cref="PrinterUserName.Default"/>. Trimmed and validated by <see cref="PrinterUserName.Validate"/>;
-    /// unused for <see cref="ConnectionType.PrusaConnect"/>.
+    /// <see cref="PrinterUserName.Default"/>. Trimmed and validated by <see cref="PrinterUserName.Validate"/>.
     /// </summary>
     public string UserName
     {

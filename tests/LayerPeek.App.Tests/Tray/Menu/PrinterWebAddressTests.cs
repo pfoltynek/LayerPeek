@@ -33,16 +33,6 @@ public sealed class PrinterWebAddressTests
     }
 
     [Theory]
-    [InlineData("c0ffee00-1234-5678-9abc-def012345678")]
-    [InlineData("../../evil?x=1#y")]
-    public void PrusaConnectOpensPrusaConnectHome(string address)
-    {
-        PrinterDefinition printer = new() { Id = "c", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = address };
-
-        Assert.Equal(new Uri("https://connect.prusa3d.com/"), PrinterWebAddress.For(printer));
-    }
-
-    [Theory]
     [InlineData("http://printer/", true)]
     [InlineData("https://printer:8443/x/", true)]
     [InlineData("HTTPS://PRINTER/", true)]

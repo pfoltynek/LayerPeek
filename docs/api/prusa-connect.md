@@ -1,5 +1,8 @@
 # Prusa Connect API – poznámky
 
+> **Jen historie.** Podpora Prusa Connect v aplikaci skončila (T-170, rozhodnutí uživatele 2026-11-05; T-005 a T-022
+> zamítnuté). Dokument zůstává jako záznam průzkumu T-004.
+
 > Výsledek průzkumu **T-004**, stav ověřen **2026-10-15** (Connect web `2026.21`, commit `c4a7ab44` podle `https://connect.prusa3d.com/version.json`).
 > Ověřeno jen z veřejných zdrojů a anonymními požadavky (bez přihlášení). Nic z toho, co vyžaduje účet, nebylo vyzkoušeno.
 

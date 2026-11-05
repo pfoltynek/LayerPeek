@@ -52,7 +52,6 @@ public class PrinterDefinitionTests
     public void UserNameDefaultsToMaker()
     {
         Assert.Equal("maker", Create().UserName);
-        Assert.Equal("maker", Create(connectionType: ConnectionType.PrusaConnect).UserName);
     }
 
     [Fact]

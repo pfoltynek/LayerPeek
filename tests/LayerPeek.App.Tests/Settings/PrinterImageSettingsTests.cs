@@ -113,20 +113,6 @@ public sealed class PrinterImageSettingsTests : IDisposable
         Assert.False(vm.IsDirty);
     }
 
-    [Fact]
-    public async Task OtherConnectionTypeForgetsTheDetectedModel()
-    {
-        SettingsViewModel vm = await LoadAsync(Detected(CloudPrinter("c", "Cloud"), Mk4SCode));
-        PrinterEditorViewModel printer = vm.Printers[0];
-        // Prusa Connect never shows a detected model (generic illustration, T-039).
-        Assert.Same(PrinterPicture.Generic, printer.Picture);
-        Assert.Equal(Strings.SettingsImageGeneric, printer.AutomaticImageText);
-
-        printer.SelectedConnectionType = printer.ConnectionTypes.Single(static option => option.Value == ConnectionType.PrusaLink);
-
-        Assert.Null(Assert.Single((await SaveAsync(vm)).Updated.Printers).DetectedModel);
-    }
-
     // ---- Connection test ----
 
     [Fact]
@@ -218,18 +204,6 @@ public sealed class PrinterImageSettingsTests : IDisposable
         Assert.True(printer.IsAutomaticImage);
         Assert.DoesNotContain(printer.ModelOptions, static option => option.IsChecked);
         Assert.Equal(PrinterImageChoice.Automatic, Assert.Single((await SaveAsync(vm)).Updated.Printers).Image);
-    }
-
-    [Fact]
-    public async Task PrusaConnectCanChooseAModel()
-    {
-        SettingsViewModel vm = await LoadAsync(CloudPrinter("c", "Cloud"));
-        PrinterEditorViewModel printer = vm.Printers[0];
-
-        printer.ModelOptions.Single(static option => option.Model == PrinterModel.CoreOneL).Command.Execute(null);
-
-        Assert.Equal("core-one", printer.Picture.IllustrationId);
-        Assert.Equal("Printer image: Core One L", printer.ImageName);
     }
 
     [Fact]

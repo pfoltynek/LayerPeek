@@ -4,7 +4,7 @@ namespace LayerPeek.PrusaLink.Api;
 
 /// <summary>
 /// Maps <c>printer.state</c> of /api/v1/status. Buddy sends IDLE, BUSY, PRINTING, PAUSED, FINISHED, STOPPED,
-/// ATTENTION, ERROR and UNKNOWN; READY exists in the spec (Prusa Connect only) and means idle.
+/// ATTENTION, ERROR and UNKNOWN; READY exists in the spec (cloud only) and means idle.
 /// Anything else, e.g. a state added by newer firmware, is <see cref="PrinterState.Unknown"/>.
 /// </summary>
 internal static class PrusaLinkStates

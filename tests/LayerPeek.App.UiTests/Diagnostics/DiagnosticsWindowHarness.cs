@@ -125,7 +125,7 @@ internal sealed class DiagnosticsWindowHarness
         where T : Control => Window.Find<T>(automationId);
 
     /// <summary>Answers every pending information request with <paramref name="result"/>.</summary>
-    public void CompleteInfo(PrusaLinkInfoResult? result)
+    public void CompleteInfo(PrusaLinkInfoResult result)
     {
         foreach (InfoRequest request in Info.Requests)
         {

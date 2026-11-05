@@ -10,7 +10,7 @@ namespace LayerPeek.Core.Printers;
 /// </remarks>
 public enum PrinterModel
 {
-    /// <summary>Not detected, not reported (firmware before 6.5, Prusa Connect) or a code the app does not know.</summary>
+    /// <summary>Not detected, not reported (firmware before 6.5) or a code the app does not know.</summary>
     Unknown,
 
     /// <summary>MINI and MINI+ (the firmware reports both as 2.1.0).</summary>

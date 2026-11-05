@@ -105,9 +105,6 @@
   <data name="MenuOpenPrusaLink" xml:space="preserve">
     <value>_Otevřít PrusaLink</value>
   </data>
-  <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Otevřít Prusa Connect</value>
-  </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Adresa tiskárny není platná</value>
   </data>
@@ -318,9 +315,6 @@
   <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
     <value>Zabezpečené (https) spojení s tiskárnou selhalo.</value>
   </data>
-  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
-    <value>Pro Prusa Connect není k dispozici</value>
-  </data>
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Zavřít</value>
   </data>
@@ -354,15 +348,6 @@
   <data name="SettingsName" xml:space="preserve">
     <value>Název</value>
   </data>
-  <data name="SettingsConnectionType" xml:space="preserve">
-    <value>Připojení</value>
-  </data>
-  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
-    <value>PrusaLink (místní síť)</value>
-  </data>
-  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect (zatím není k dispozici)</value>
-  </data>
   <data name="SettingsAddress" xml:space="preserve">
     <value>Adresa</value>
   </data>
@@ -374,9 +359,6 @@
   </data>
   <data name="SettingsUserNameHint" xml:space="preserve">
     <value>Uživatelské jméno PrusaLink z nastavení tiskárny. Výchozí je „maker“.</value>
-  </data>
-  <data name="SettingsUserNameNotUsed" xml:space="preserve">
-    <value>Prusa Connect uživatelské jméno tiskárny nepoužívá.</value>
   </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Heslo</value>
@@ -395,9 +377,6 @@
   </data>
   <data name="SettingsPasswordUnsupported" xml:space="preserve">
     <value>Na tomto systému zatím nelze ukládat hesla. Tiskárny, které heslo vyžadují, ohlásí, že chybí.</value>
-  </data>
-  <data name="SettingsPasswordNotUsed" xml:space="preserve">
-    <value>Prusa Connect heslo tiskárny nepoužívá.</value>
   </data>
   <data name="SettingsTestConnection" xml:space="preserve">
     <value>Otestovat spojení</value>
@@ -437,9 +416,6 @@
   </data>
   <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
     <value>Na této adrese něco odpovídá, ale nevypadá to jako tiskárna s PrusaLink.</value>
-  </data>
-  <data name="SettingsTestNotSupported" xml:space="preserve">
-    <value>Pro Prusa Connect zatím test není k dispozici.</value>
   </data>
   <data name="SettingsTestCancelled" xml:space="preserve">
     <value>Test zrušen.</value>

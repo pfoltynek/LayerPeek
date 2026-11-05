@@ -45,10 +45,9 @@ public sealed class PrinterModelOption : ObservableObject
 /// </summary>
 public sealed partial class PrinterEditorViewModel
 {
-    // The detected model and the printer it was detected for (address, connection type).
+    // The detected model and the printer address it was detected for.
     private PrinterModelCode? _detectedModel;
     private string _detectedAddress = string.Empty;
-    private ConnectionType _detectedConnectionType;
 
     private PrinterImageChoice _imageChoice = PrinterImageChoice.Automatic;
 
@@ -69,18 +68,12 @@ public sealed partial class PrinterEditorViewModel
     public string ImageName => Format(Strings.SettingsImageButtonName, ImageDescription());
 
     /// <summary>
-    /// The automatic choice: "Automatic by model (MK4S)" / "(not detected yet)" for PrusaLink; "Generic illustration" for
-    /// Prusa Connect, which detects no model (T-039 decision).
+    /// The automatic choice: "Automatic by model (MK4S)" / "(not detected yet)".
     /// </summary>
     public string AutomaticImageText
     {
         get
         {
-            if (!IsPrusaLink)
-            {
-                return Strings.SettingsImageGeneric;
-            }
-
             string model = EffectiveDetectedModel is not { } code ? Strings.SettingsImageNotDetected
                 : PrinterModels.FromCode(code) is var detected && detected != PrinterModel.Unknown ? PrinterModels.GetProductName(detected)
                 : Strings.SettingsImageDescriptionGeneric;
@@ -120,10 +113,9 @@ public sealed partial class PrinterEditorViewModel
         }
     }
 
-    /// <summary>The detected model, when it was detected for the address and connection type in the form; saved with the printer.</summary>
+    /// <summary>The detected model, when it was detected for the address in the form; saved with the printer.</summary>
     internal PrinterModelCode? EffectiveDetectedModel =>
         _detectedModel is { } code
-        && _detectedConnectionType == _connectionType.Value
         && string.Equals(_detectedAddress.Trim(), _address.Trim(), StringComparison.OrdinalIgnoreCase)
             ? code
             : null;
@@ -141,7 +133,6 @@ public sealed partial class PrinterEditorViewModel
     {
         _detectedModel = saved?.DetectedModel;
         _detectedAddress = saved?.Address ?? string.Empty;
-        _detectedConnectionType = saved?.ConnectionType ?? ConnectionType.PrusaLink;
         _imageChoice = saved?.Image ?? PrinterImageChoice.Automatic;
         _storedCustomImage = storedCustomImage;
         UseAutomaticImageCommand = new RelayCommand(() => SetImageChoice(PrinterImageChoice.Automatic));
@@ -151,14 +142,13 @@ public sealed partial class PrinterEditorViewModel
         UpdatePicture();
     }
 
-    /// <summary>The address or connection type changed: the detected model may no longer apply.</summary>
+    /// <summary>The address changed: the detected model may no longer apply.</summary>
     private void OnMachineChanged() => UpdatePicture();
 
     /// <summary>A successful connection test reported the model (or that the firmware reports none) for the tested values.</summary>
     private void OnModelTested(PrinterModelCode? code, PrinterDefinition tested)
     {
         if (_detectedModel == code
-            && _detectedConnectionType == tested.ConnectionType
             && string.Equals(_detectedAddress.Trim(), tested.Address, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -166,7 +156,6 @@ public sealed partial class PrinterEditorViewModel
 
         _detectedModel = code;
         _detectedAddress = tested.Address;
-        _detectedConnectionType = tested.ConnectionType;
         UpdatePicture();
         _owner.OnPrinterEdited(nameChanged: false);
     }
@@ -324,7 +313,7 @@ public sealed partial class PrinterEditorViewModel
     private void UpdatePicture()
     {
         byte[]? custom = _imageChoice.Mode == PrinterImageMode.Custom ? _importedCustomImage ?? _storedCustomImage : null;
-        PrinterPicture picture = PrinterPicture.For(_imageChoice, _connectionType.Value, EffectiveDetectedModel, custom);
+        PrinterPicture picture = PrinterPicture.For(_imageChoice, ConnectionType.PrusaLink, EffectiveDetectedModel, custom);
         if (!picture.Equals(_picture))
         {
             _picture = picture;

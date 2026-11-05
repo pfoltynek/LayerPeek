@@ -30,7 +30,7 @@ public sealed class PrinterInfoSourceTests : IDisposable
         _handler.Responses["/api/version"] = """{"api":"2.0.0","hostname":"prusa-core-one","firmware":"6.9.2+10123","printer":"7.0.0","nozzle_diameter":0.4}""";
         _handler.Responses["/api/v1/info"] = """{"mmu":true,"hostname":"prusa-core-one","nozzle_diameter":0.4}""";
 
-        PrusaLinkInfoResult? result = await _source.GetInfoAsync(Definition(), Ct);
+        PrusaLinkInfoResult result = await _source.GetInfoAsync(Definition(), Ct);
 
         Assert.NotNull(result);
         Assert.Equal(PrinterState.Idle, result.State);
@@ -43,19 +43,10 @@ public sealed class PrinterInfoSourceTests : IDisposable
     [Fact]
     public async Task UnreachablePrusaLinkPrinterIsReportedNotThrown()
     {
-        PrusaLinkInfoResult? result = await _source.GetInfoAsync(Definition(), Ct);
+        PrusaLinkInfoResult result = await _source.GetInfoAsync(Definition(), Ct);
 
-        Assert.Equal(PrinterState.Offline, result?.State);
-        Assert.Null(result?.Info);
-    }
-
-    [Fact]
-    public async Task PrusaConnectHasNoInfo()
-    {
-        PrusaLinkInfoResult? result = await _source.GetInfoAsync(Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "uuid" }, Ct);
-
-        Assert.Null(result);
-        Assert.Empty(_handler.Paths);
+        Assert.Equal(PrinterState.Offline, result.State);
+        Assert.Null(result.Info);
     }
 
     private sealed class FakeHandler : HttpMessageHandler

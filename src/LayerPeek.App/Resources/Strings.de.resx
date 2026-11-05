@@ -105,9 +105,6 @@
   <data name="MenuOpenPrusaLink" xml:space="preserve">
     <value>_PrusaLink öffnen</value>
   </data>
-  <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Prusa Connect öffnen</value>
-  </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Die Druckeradresse ist ungültig</value>
   </data>
@@ -264,9 +261,6 @@
   <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
     <value>Die sichere (https-)Verbindung zum Drucker ist fehlgeschlagen.</value>
   </data>
-  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
-    <value>Für Prusa Connect nicht verfügbar</value>
-  </data>
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Schließen</value>
   </data>
@@ -300,15 +294,6 @@
   <data name="SettingsName" xml:space="preserve">
     <value>Name</value>
   </data>
-  <data name="SettingsConnectionType" xml:space="preserve">
-    <value>Verbindung</value>
-  </data>
-  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
-    <value>PrusaLink (lokales Netzwerk)</value>
-  </data>
-  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect (noch nicht verfügbar)</value>
-  </data>
   <data name="SettingsAddress" xml:space="preserve">
     <value>Adresse</value>
   </data>
@@ -320,9 +305,6 @@
   </data>
   <data name="SettingsUserNameHint" xml:space="preserve">
     <value>PrusaLink-Benutzername aus den Druckereinstellungen. Standard ist „maker“.</value>
-  </data>
-  <data name="SettingsUserNameNotUsed" xml:space="preserve">
-    <value>Prusa Connect verwendet keinen Druckerbenutzernamen.</value>
   </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Passwort</value>
@@ -341,9 +323,6 @@
   </data>
   <data name="SettingsPasswordUnsupported" xml:space="preserve">
     <value>Auf diesem System können noch keine Passwörter gespeichert werden. Drucker, die ein Passwort benötigen, melden, dass es fehlt.</value>
-  </data>
-  <data name="SettingsPasswordNotUsed" xml:space="preserve">
-    <value>Prusa Connect verwendet kein Druckerpasswort.</value>
   </data>
   <data name="SettingsTestConnection" xml:space="preserve">
     <value>Verbindung testen</value>
@@ -383,9 +362,6 @@
   </data>
   <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
     <value>Unter dieser Adresse antwortet etwas, aber es sieht nicht nach einem Drucker mit PrusaLink aus.</value>
-  </data>
-  <data name="SettingsTestNotSupported" xml:space="preserve">
-    <value>Für Prusa Connect ist der Test noch nicht verfügbar.</value>
   </data>
   <data name="SettingsTestCancelled" xml:space="preserve">
     <value>Test abgebrochen.</value>

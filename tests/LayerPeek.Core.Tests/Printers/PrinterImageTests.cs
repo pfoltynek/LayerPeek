@@ -62,13 +62,6 @@ public class PrinterImageTests
         Assert.Equal(PrinterImage.Generic, image);
     }
 
-    [Fact]
-    public void PrusaConnectHasNoAutomaticDetection()
-    {
-        PrinterDefinition printer = Printer() with { ConnectionType = ConnectionType.PrusaConnect, DetectedModel = Mk4SCode };
-
-        Assert.Equal(PrinterImage.Generic, PrinterImage.Resolve(printer, customImageExists: false));
-    }
 
     [Fact]
     public void ManualModelWinsOverDetection()
@@ -76,14 +69,6 @@ public class PrinterImageTests
         PrinterDefinition printer = Printer() with { DetectedModel = Mk4SCode, Image = PrinterImageChoice.ForModel(PrinterModel.CoreOne) };
 
         Assert.Equal(new PrinterImage(PrinterImageKind.Model, PrinterModel.CoreOne), PrinterImage.Resolve(printer, customImageExists: false));
-    }
-
-    [Fact]
-    public void ManualModelWorksForPrusaConnect()
-    {
-        PrinterDefinition printer = Printer() with { ConnectionType = ConnectionType.PrusaConnect, Image = PrinterImageChoice.ForModel(PrinterModel.Mini) };
-
-        Assert.Equal(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mini), PrinterImage.Resolve(printer, customImageExists: false));
     }
 
     [Fact]

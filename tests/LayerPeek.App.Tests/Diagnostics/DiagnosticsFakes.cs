@@ -24,7 +24,7 @@ internal sealed class FakePrinterInfoSource : IPrinterInfoSource
         }
     }
 
-    public Task<PrusaLinkInfoResult?> GetInfoAsync(PrinterDefinition printer, CancellationToken cancellationToken)
+    public Task<PrusaLinkInfoResult> GetInfoAsync(PrinterDefinition printer, CancellationToken cancellationToken)
     {
         if (ThrowOnRequest is not null)
         {
@@ -57,7 +57,7 @@ internal sealed class InfoRequest(PrinterDefinition printer, CancellationToken t
     public CancellationToken Token { get; } = token;
 
     /// <summary>Continuations run inline, so a completed request posts its result to the dispatcher immediately.</summary>
-    public TaskCompletionSource<PrusaLinkInfoResult?> Completion { get; } = new();
+    public TaskCompletionSource<PrusaLinkInfoResult> Completion { get; } = new();
 }
 
 /// <summary>Fixed "now" in a fixed UTC+2 zone, so that displayed times do not depend on the machine.</summary>

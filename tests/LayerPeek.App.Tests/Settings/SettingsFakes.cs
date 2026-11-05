@@ -348,8 +348,5 @@ internal static class SettingsTestData
     public static PrinterDefinition LinkPrinter(string id, string name, string address = "192.168.1.20", string userName = PrinterUserName.Default) =>
         new() { Id = id, Name = name, ConnectionType = ConnectionType.PrusaLink, Address = address, UserName = userName };
 
-    public static PrinterDefinition CloudPrinter(string id, string name) =>
-        new() { Id = id, Name = name, ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee00-0000-4000-8000-000000000001" };
-
     public static HashSet<string> Ids(params string[] ids) => new(ids, StringComparer.OrdinalIgnoreCase);
 }

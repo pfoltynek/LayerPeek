@@ -530,21 +530,6 @@ public sealed class PrintPreviewCacheTests : IDisposable
         Assert.Null(_fetcher.Calls.Last().ETag);
     }
 
-    [Fact]
-    public async Task ChangedConnectionTypeDropsThePrinter()
-    {
-        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
-        PrinterDefinition viaConnect = Printer() with { ConnectionType = ConnectionType.PrusaConnect };
-
-        _cache.RetainOnly([viaConnect]);
-        int afterRetain = _cache.Count;
-        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
-        await _cache.GetAsync(viaConnect, Job(42, Benchy), PrintPreviewSize.Large, Ct);
-
-        Assert.Equal(0, afterRetain);
-        Assert.Equal(3, _fetcher.Count);
-        Assert.Null(_fetcher.Calls.Last().ETag);
-    }
 
     [Fact]
     public async Task RetainOnlyMatchesPrinterIdsIgnoringCase()
