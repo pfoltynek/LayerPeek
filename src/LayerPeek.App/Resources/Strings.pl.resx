@@ -1915,4 +1915,10 @@
   <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
     <value>Nie można zapisywać w folderze obok nagrania.</value>
   </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Ciemny filament</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Czarny lub bardzo ciemny filament: jako zmiana liczy się także mniejsze pociemnienie na stole. Na ciemnej płycie wykrywa nieco więcej, przy większym ryzyku fałszywych alarmów.</value>
+  </data>
 </root>

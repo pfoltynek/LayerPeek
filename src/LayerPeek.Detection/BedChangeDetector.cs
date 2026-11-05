@@ -26,6 +26,9 @@ namespace LayerPeek.Detection;
 /// <item><b>When it judges:</b> after <see cref="BedChangeOptions.WarmUp"/> (2 min) and only above the first layers
 /// (<see cref="BedChangeOptions.FirstLayersHeight"/>), which add mass to the bed by design.</item>
 /// </list>
+/// <b>Dark filament mode</b> (T-163, experimental, off by default, <see cref="PrintFailureContext.DarkFilament"/>): a
+/// background darker than the reference counts from <see cref="BedChangeOptions.DarkFilamentLevel"/> (10) instead of
+/// <see cref="BedChangeOptions.ChangeLevel"/> (14) levels; brightening is unchanged.
 /// Known limits (T-152, T-155; texts in T-154): dark filament on a black sheet barely changes the image (T-163); the quality
 /// of the first layer and a blob on the nozzle cannot be seen from the camera; no judgement during the first layers; mass
 /// right under the moving head counts only where the head leaves it still; a change that builds up slower than the
@@ -45,6 +48,9 @@ public sealed class BedChangeDetector : IPrintFailureDetector
     /// <summary>A level from which a pixel counts as saturated (its true brightness may be higher).</summary>
     private const int SaturatedLevel = 250;
 
+    /// <summary>A darkening weight (sixteenths) that counts a darkening as it is.</summary>
+    private const int NeutralWeight = 16;
+
     private readonly BedChangeOptions _options;
     private readonly long _warmUpTicks;
     private readonly long _fastLearningTicks;
@@ -53,6 +59,12 @@ public sealed class BedChangeDetector : IPrintFailureDetector
     private readonly double _ratePerTick;
     private readonly double _warmUpRatePerTick;
     private readonly int _quietSeconds;
+
+    /// <summary>
+    /// How much a darkening counts against <see cref="BedChangeOptions.ChangeLevel"/> in the "dark filament" mode, in
+    /// sixteenths: <see cref="BedChangeOptions.DarkFilamentLevel"/> becomes the effective level for darkening.
+    /// </summary>
+    private readonly int _darkFilamentWeight;
     private readonly byte[] _gainLow = new byte[256];
     private readonly byte[] _gainHigh = new byte[256];
 
@@ -67,6 +79,9 @@ public sealed class BedChangeDetector : IPrintFailureDetector
     private byte[] _high = [];
     private ushort[] _rowSums = [];
 
+    /// <summary>The darkening weight of the stretch: <see cref="NeutralWeight"/> or, in the dark filament mode, <see cref="_darkFilamentWeight"/>.</summary>
+    private int _darkeningWeight = NeutralWeight;
+    private bool _darkFilament;
     private bool _started;
     private bool _aboveFirstLayers;
     private bool _heightKnown;
@@ -103,6 +118,8 @@ public sealed class BedChangeDetector : IPrintFailureDetector
         ArgumentOutOfRangeException.ThrowIfNegative(options.ShiftY);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.ChangeLevel);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(options.ChangeLevel, 254);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DarkFilamentLevel);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.DarkFilamentLevel, options.ChangeLevel);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MotionLevel);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.Quiet, TimeSpan.Zero);
         // Stillness is counted in whole seconds up to a byte.
@@ -120,6 +137,7 @@ public sealed class BedChangeDetector : IPrintFailureDetector
         _ratePerTick = options.Rate / TimeSpan.TicksPerSecond;
         _warmUpRatePerTick = options.WarmUpRate / TimeSpan.TicksPerSecond;
         _quietSeconds = (int)Math.Ceiling(options.Quiet.TotalSeconds);
+        _darkFilamentWeight = (int)Math.Round((double)NeutralWeight * options.ChangeLevel / options.DarkFilamentLevel);
     }
 
     /// <summary>
@@ -141,9 +159,9 @@ public sealed class BedChangeDetector : IPrintFailureDetector
     public DetectionResult Analyze(in DetectionSample sample)
     {
         long now = sample.Time.Ticks;
-        if (!_started || sample.Region != _region)
+        if (!_started || sample.Region != _region || sample.Context.DarkFilament != _darkFilament)
         {
-            // The first sample of a stretch, or another region: everything is learned from it anew.
+            // The first sample of a stretch, another region or mode: everything is learned from it anew.
             Start(sample, now);
             return new DetectionResult(IsWarmedUp: false, 0);
         }
@@ -215,6 +233,8 @@ public sealed class BedChangeDetector : IPrintFailureDetector
         }
 
         _region = region;
+        _darkFilament = sample.Context.DarkFilament;
+        _darkeningWeight = _darkFilament ? _darkFilamentWeight : NeutralWeight;
         long sum = 0;
         for (int y = 0; y < region.Height; y++)
         {
@@ -401,11 +421,12 @@ public sealed class BedChangeDetector : IPrintFailureDetector
             ReadOnlySpan<byte> low = _low.AsSpan(offset, width);
             ReadOnlySpan<byte> high = _high.AsSpan(offset, width);
             Span<ushort> sums = _rowSums.AsSpan(offset, width);
-            int left = Outside(background[0], gainLow[low[0]], gainHigh[high[0]]);
-            int middle = Outside(background[1], gainLow[low[1]], gainHigh[high[1]]);
+            int weight = _darkeningWeight;
+            int left = Outside(background[0], gainLow[low[0]], gainHigh[high[0]], weight);
+            int middle = Outside(background[1], gainLow[low[1]], gainHigh[high[1]], weight);
             for (int x = 1; x < width - 1; x++)
             {
-                int right = Outside(background[x + 1], gainLow[low[x + 1]], gainHigh[high[x + 1]]);
+                int right = Outside(background[x + 1], gainLow[low[x + 1]], gainHigh[high[x + 1]], weight);
                 sums[x] = (ushort)(left + middle + right);
                 left = middle;
                 middle = right;
@@ -434,8 +455,12 @@ public sealed class BedChangeDetector : IPrintFailureDetector
         return changed;
     }
 
-    /// <summary>How far <paramref name="value"/> lies outside <paramref name="low"/>–<paramref name="high"/> (0 inside).</summary>
-    private static int Outside(int value, int low, int high) => Math.Max(0, Math.Max(value - high, low - value));
+    /// <summary>
+    /// How far <paramref name="value"/> lies outside <paramref name="low"/>–<paramref name="high"/> (0 inside), below it
+    /// weighted by <paramref name="darkening"/> sixteenths (16: as it is; at most 255 either way, the row sums are 16 bit).
+    /// </summary>
+    private static int Outside(int value, int low, int high, int darkening) =>
+        Math.Max(0, Math.Max(value - high, Math.Min(byte.MaxValue, ((low - value) * darkening) >> 4)));
 
     /// <summary>
     /// How much brighter the background is than the reference (a dimmer or brighter chamber light is no change): the

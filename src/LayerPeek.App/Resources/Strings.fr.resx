@@ -1915,4 +1915,10 @@
   <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
     <value>Impossible d'écrire dans le dossier à côté de l'enregistrement.</value>
   </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Filament foncé</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Filament noir ou très foncé : un assombrissement plus faible sur le plateau compte comme un changement. Détecte un peu plus sur une plaque sombre, avec un risque plus élevé de fausses alertes.</value>
+  </data>
 </root>

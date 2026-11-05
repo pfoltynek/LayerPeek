@@ -159,6 +159,13 @@ public sealed record PrinterDetectionSettings
         }
     } = ReadOnlyDictionary<string, DetectorSettings>.Empty;
 
+    /// <summary>
+    /// T-163 (user decision 2026-11-05, experimental, off by default): this printer prints dark (black) filament, often on a
+    /// dark sheet, where failures change the image only a little; the detectors may then count smaller changes (more
+    /// failures found, a higher risk of false alarms). See <see cref="PrintFailureContext.DarkFilament"/>.
+    /// </summary>
+    public bool DarkFilament { get; init; }
+
     /// <summary>The settings of detector <paramref name="id"/>: its own, or <see cref="DetectorSettings.Default"/>.</summary>
     public DetectorSettings For(string id) => Detectors.GetValueOrDefault(id) ?? DetectorSettings.Default;
 
@@ -167,9 +174,9 @@ public sealed record PrinterDetectionSettings
 
     /// <summary>Value equality including <see cref="Detectors"/>' content.</summary>
     public bool Equals(PrinterDetectionSettings? other) =>
-        other is not null && Enabled == other.Enabled && Region == other.Region && SameDetectors(Detectors, other.Detectors);
+        other is not null && Enabled == other.Enabled && Region == other.Region && DarkFilament == other.DarkFilament && SameDetectors(Detectors, other.Detectors);
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, Region, Detectors.Count);
+    public override int GetHashCode() => HashCode.Combine(Enabled, Region, DarkFilament, Detectors.Count);
 
     private static bool SameDetectors(IReadOnlyDictionary<string, DetectorSettings> a, IReadOnlyDictionary<string, DetectorSettings> b)
     {

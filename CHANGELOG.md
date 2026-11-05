@@ -46,6 +46,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   frame as the region the moving parts of the printer can cause false alarms. It is experimental: tuned on synthetic
   failures and one real successful print of a Core One with a Buddy3D camera, not yet on real failed prints, so it may
   miss a failure or raise a false alarm. The settings mark it with an **Experimental** badge.
+- **Dark filament mode (experimental)** for print failure detection (Windows and macOS, off by default): **Dark
+  filament** with an **Experimental** badge on the printer's Detection sub-tab. For black or very dark filament, the
+  "Change on the bed" detector then counts a smaller darkening of the bed as a change (10 instead of 14 gray levels;
+  brightening is unchanged). On synthetic black-filament failures on dark sheets it finds a little more (about 2–3
+  percentage points), at the price of less headroom against false alarms (the real Core One test print stays about
+  4× below the alarm threshold instead of 9×). The known limitation (less reliable with dark filament on a black
+  sheet) stays. Saved as `printers[*].detection.darkFilament`.
 - **Timelapse (experimental)** (Windows and macOS): **Start timelapse (experimental)** / **Stop timelapse
   (experimental)** in the printer's menu and a stopwatch button in the camera window, which shows an amber **TL**
   while a timelapse is taken (dimmed while the print is paused); **Play last timelapse** in the printer's menu. **Take

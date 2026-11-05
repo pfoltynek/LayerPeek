@@ -1915,4 +1915,10 @@
   <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
     <value>Impossibile scrivere nella cartella accanto alla registrazione.</value>
   </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Filamento scuro</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Filamento nero o molto scuro: anche un oscuramento minore sul piano conta come cambiamento. Rileva un po' di più su una piastra scura, con un rischio maggiore di falsi allarmi.</value>
+  </data>
 </root>

@@ -1915,4 +1915,10 @@
   <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
     <value>No se puede escribir en la carpeta junto a la grabación.</value>
   </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Filamento oscuro</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Filamento negro o muy oscuro: un oscurecimiento menor en la cama cuenta como cambio. Detecta algo más sobre una lámina oscura, con mayor riesgo de falsas alarmas.</value>
+  </data>
 </root>

@@ -47,16 +47,18 @@ public sealed class BedChangeLocalSamplesTests
         List<(TimeSpan Time, byte[] Pixels)> samples = [.. frames.Select((f, i) => (f.Taken - frames[0].Taken, gray.AsSpan(i * 57600, 57600).ToArray()))];
         TimeSpan printed = samples[^1].Time;
 
-        foreach (DetectionRegion region in (DetectionRegion[])[DetectionRegion.CoreOneBed, DetectionRegion.Full])
+        // T-163: also in the dark filament mode (a light filament print on the dark satin sheet: the sheet's own changes
+        // are what the mode's lower darkening level could count).
+        foreach ((DetectionRegion region, bool darkFilament) in (ReadOnlySpan<(DetectionRegion, bool)>)[(DetectionRegion.CoreOneBed, false), (DetectionRegion.Full, false), (DetectionRegion.CoreOneBed, true), (DetectionRegion.Full, true)])
         {
-            DetectorRun run = DetectorHarness.Run(new BedChangeDetector(), samples, region);
+            DetectorRun run = DetectorHarness.Run(new BedChangeDetector(), samples, region, [DefaultThreshold], darkFilament: darkFilament);
             // A frame every 30 s is longer than the confirmation window (16 s): one score at or above the threshold
             // stands for 30 s of such scores, so it counts as an alarm (stricter than the orchestration).
             int alarms = run.Scores.Count(s => s.Score >= DefaultThreshold);
             (TimeSpan at, float max) = run.Scores.MaxBy(static s => s.Score);
             string summary = string.Create(
                 CultureInfo.InvariantCulture,
-                $"bed-change, series {frames[0].Taken:HH:mm}–{frames[^1].Taken:HH:mm} ({printed.TotalHours:0.0} h, {frames.Length} frames), {(region.IsFull ? "whole frame" : "Core One bed region")}: max score {max:P2} at {at}, {alarms} frame(s) at or above {DefaultThreshold:P1}");
+                $"bed-change, series {frames[0].Taken:HH:mm}–{frames[^1].Taken:HH:mm} ({printed.TotalHours:0.0} h, {frames.Length} frames), {(region.IsFull ? "whole frame" : "Core One bed region")}{(darkFilament ? ", dark filament mode" : "")}: max score {max:P3} at {at} ({DefaultThreshold / Math.Max(max, 1e-6f):0.0}× below the default threshold), {alarms} frame(s) at or above {DefaultThreshold:P1}");
             TestContext.Current.TestOutputHelper?.WriteLine(summary);
             if (!region.IsFull)
             {
@@ -78,7 +80,7 @@ public sealed class BedChangeLocalSamplesTests
         byte[][] frames = [.. Enumerable.Range(0, gray.Length / 57600).Select(i => gray.AsSpan(i * 57600, 57600).ToArray())];
         Assert.True(frames.Length > 100, $"{frames.Length} frames decoded.");
 
-        foreach (DetectionRegion region in (DetectionRegion[])[DetectionRegion.CoreOneBed, DetectionRegion.Full])
+        foreach ((DetectionRegion region, bool darkFilament) in (ReadOnlySpan<(DetectionRegion, bool)>)[(DetectionRegion.CoreOneBed, false), (DetectionRegion.Full, false), (DetectionRegion.CoreOneBed, true), (DetectionRegion.Full, true)])
         {
             IEnumerable<(TimeSpan, byte[])> Looped()
             {
@@ -88,8 +90,8 @@ public sealed class BedChangeLocalSamplesTests
                 }
             }
 
-            DetectorRun run = DetectorHarness.Run(new BedChangeDetector(), Looped(), region);
-            string summary = string.Create(CultureInfo.InvariantCulture, $"bed-change, clip looped 30 min at {interval} s, {(region.IsFull ? "whole frame" : "Core One bed region")}: max score {run.MaxScore():P2}");
+            DetectorRun run = DetectorHarness.Run(new BedChangeDetector(), Looped(), region, [DefaultThreshold], darkFilament: darkFilament);
+            string summary = string.Create(CultureInfo.InvariantCulture, $"bed-change, clip looped 30 min at {interval} s, {(region.IsFull ? "whole frame" : "Core One bed region")}{(darkFilament ? ", dark filament mode" : "")}: max score {run.MaxScore():P3}");
             TestContext.Current.TestOutputHelper?.WriteLine(summary);
             Assert.True(run.FirstAlarm is null, $"{summary}, alarm at {run.FirstAlarm}.");
         }

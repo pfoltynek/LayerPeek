@@ -353,7 +353,7 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
             }
         }
 
-        return enabled is null ? null : new RunConfig(uri, printer.Detection.RegionFor(printer), _settings.SampleInterval, string.Join(';', enabled));
+        return enabled is null ? null : new RunConfig(uri, printer.Detection.RegionFor(printer), _settings.SampleInterval, string.Join(';', enabled), printer.Detection.DarkFilament);
     }
 
     /// <summary>Under the lock (the hub never calls back into this lock).</summary>
@@ -673,7 +673,7 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
     private partial void LogSubscriberFailed(Exception exception);
 
     /// <summary>What a run of a printer is made of; a change restarts it.</summary>
-    private sealed record RunConfig(Uri StreamUri, DetectionRegion Region, TimeSpan Interval, string Detectors);
+    private sealed record RunConfig(Uri StreamUri, DetectionRegion Region, TimeSpan Interval, string Detectors, bool DarkFilament);
 
     /// <summary>One print job of a printer (its id, or its file name when the source has no id).</summary>
     private readonly record struct JobKey(long? Id, string? FileName)
@@ -853,7 +853,8 @@ public sealed partial class PrintFailureDetectionService : IAsyncDisposable, IDi
                 snapshot.Telemetry?.AxisZ,
                 snapshot.Job?.ProgressPercent ?? 0,
                 elapsed,
-                Config.Region);
+                Config.Region,
+                Config.DarkFilament);
             if (frame.Width != _regionWidth || frame.Height != _regionHeight)
             {
                 _region = Config.Region.ToPixels(frame.Width, frame.Height);

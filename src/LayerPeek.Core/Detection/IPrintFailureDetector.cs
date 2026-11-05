@@ -66,12 +66,17 @@ public readonly record struct DetectionFrameSpec
 /// <param name="ProgressPercent">Progress of the job, 0–100.</param>
 /// <param name="PrintElapsed">Time since the printer started or resumed printing (since this detector's <see cref="IPrintFailureDetector.Reset"/> of a new stretch).</param>
 /// <param name="Region">The bed region of the printer (normalized, <see cref="DetectionRegion"/>).</param>
+/// <param name="DarkFilament">
+/// T-163: the printer's "dark filament" mode (<see cref="PrinterDetectionSettings.DarkFilament"/>, experimental): failures
+/// darken the image only a little, a detector may count smaller darkening. The same for a whole run (a change restarts it).
+/// </param>
 public readonly record struct PrintFailureContext(
     long? JobId,
     double? AxisZ,
     double ProgressPercent,
     TimeSpan PrintElapsed,
-    DetectionRegion Region);
+    DetectionRegion Region,
+    bool DarkFilament = false);
 
 /// <summary>A rectangle of a sample in whole pixels (<see cref="DetectionRegion.ToPixels"/>); never empty.</summary>
 public readonly record struct DetectionPixelRegion(int X, int Y, int Width, int Height)

@@ -1915,4 +1915,10 @@
   <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
     <value>Der Ordner neben der Aufnahme ist nicht beschreibbar.</value>
   </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Dunkles Filament</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Schwarzes oder sehr dunkles Filament: Schon eine geringere Verdunkelung auf dem Druckbett zählt als Änderung. Findet auf einer dunklen Druckplatte etwas mehr, mit höherem Risiko für Fehlalarme.</value>
+  </data>
 </root>

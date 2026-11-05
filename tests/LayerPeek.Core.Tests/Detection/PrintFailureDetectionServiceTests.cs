@@ -372,6 +372,45 @@ public sealed class PrintFailureDetectionServiceTests : IAsyncDisposable
         Assert.Equal(new DetectionPixelRegion(48, 99, 224, 81), _script.Latest.LastRegion);
     }
 
+    /// <summary>T-163: the printer's dark filament mode reaches the detectors in the context; off by default.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheDarkFilamentModeIsInTheContext(bool darkFilament)
+    {
+        PrinterDefinition printer = Printer();
+        printer = printer with { Detection = printer.Detection with { DarkFilament = darkFilament } };
+        FakeItemFeed feed = await StartPrintingAsync(Settings(printer));
+
+        await SampleAsync(feed, advance: false);
+
+        Assert.Equal(darkFilament, _script.Latest.LastContext.DarkFilament);
+    }
+
+    /// <summary>T-163: toggling the dark filament mode during a print restarts the run with fresh detectors in the new mode.</summary>
+    [Fact]
+    public async Task TogglingTheDarkFilamentModeRestartsTheRun()
+    {
+        FakeItemFeed feed = await StartPrintingAsync();
+        await SampleAsync(feed, advance: false);
+        ScriptedDetector first = _script.Latest;
+        Assert.False(first.LastContext.DarkFilament);
+
+        PrinterDefinition printer = Printer();
+        Apply(Settings(printer with { Detection = printer.Detection with { DarkFilament = true } }));
+
+        Assert.True(Service.IsWatching("core-one"));
+        // The old run's lease ends and the new one opens the camera again.
+        await feed.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        FakeItemFeed second = await _factory.FeedAsync(2);
+        await SampleAsync(second, advance: false);
+        Assert.Equal(2, _script.Created.Length);
+        Assert.NotSame(first, _script.Latest);
+        Assert.Equal(1, _script.Latest.Resets);
+        Assert.True(_script.Latest.LastContext.DarkFilament);
+        Assert.Equal(TimeSpan.Zero, _script.Latest.LastContext.PrintElapsed);
+    }
+
     // ---- Confirmation and alarms ----
 
     [Fact]

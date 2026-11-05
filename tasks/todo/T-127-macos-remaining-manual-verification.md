@@ -295,6 +295,12 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       filamentu nebo předmět ~2 cm: do ~1–3 min poplach (toast T-154 se snímkem), v `~/Movies/LayerPeek/<tiskárna>/` snímek
       `…_alarm-bed-change.jpg` a `…_dashcam-failure.mp4`; „Falešný poplach“ uloží záznam do `detection/false-alarms`.
       Výsledek (čas do poplachu, skóre z logu „Print failure suspected … score“) zapsat do poznámek T-155.
+- [ ] **T-163** (režim „Tmavý filament“, experimentální; smoke test před vydáním 0.5.0): u tiskárny na podzáložce
+      Detekce zaškrtnout „Tmavý filament“ (odznak „Experimentální“, vysvětlení v tooltipu), uložit, znovu otevřít nastavení:
+      volba zůstala, v `settings.json` je `printers[*].detection.darkFilament: true` (vypnutá se nezapisuje). Celý běžný
+      tisk (ideálně černým filamentem) s Core One a výchozím výřezem: žádný poplach; v logu při spuštění detekce žádná
+      chyba. Volitelně inscenované selhání: chomáč černého filamentu na přední část plátu → zapsat, jestli a za jak dlouho
+      přišel poplach (skóre z logu) do poznámek T-163.
 - [ ] **T-106** (krit. „Ruční krok: na skutečné tiskárně ověřit, že kolísání s minimálním rozsahem 6 °C nepůsobí příliš
       dramaticky“): widget Teploty M a L a řádek grafu malého náhledu během ustáleného tisku; když působí dramaticky,
       zapsat a založit úkol (návrh 8–10 °C, rozhodne uživatel).

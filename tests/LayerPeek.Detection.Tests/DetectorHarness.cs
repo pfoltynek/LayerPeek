@@ -24,13 +24,14 @@ internal static class DetectorHarness
         DetectionRegion region,
         float[] thresholds,
         int width = 320,
-        int height = 180)
+        int height = 180,
+        bool darkFilament = false)
     {
         PrintFailureDetectionOptions options = PrintFailureDetectionOptions.Default;
         ConfirmationWindow[] windows = [.. thresholds.Select(_ => new ConfirmationWindow(options.ConfirmationWindow.Ticks, options.ConfirmationRatio, options.MinConfirmationSamples))];
         TimeSpan?[] alarms = new TimeSpan?[thresholds.Length];
         DetectionPixelRegion pixels = region.ToPixels(width, height);
-        PrintFailureContext context = new(1, null, 0, TimeSpan.Zero, region);
+        PrintFailureContext context = new(1, null, 0, TimeSpan.Zero, region, darkFilament);
         detector.Reset(context);
         List<(TimeSpan Time, float Score)> scores = [];
         foreach ((TimeSpan time, byte[] frame) in samples)

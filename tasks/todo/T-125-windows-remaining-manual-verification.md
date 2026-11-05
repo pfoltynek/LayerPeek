@@ -14,12 +14,12 @@ nepřeložily ani neotestovaly. `scripts/release-build.ps1` spouští celý `dot
 jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrtávají tam. Co blokuje vydání, rozhodne uživatel.
 
 1. **Build a testy (blokuje build vydání):** 2d · **T-162** (prázdná cache FFmpeg, nový build BtbN) → `dotnet test` na
-   Windows (testovací body 2c–2o: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165,
-   T-159).
+   Windows (testovací body 2c–2p: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165,
+   T-159, T-163).
 2. **Snímky UI sady Windows (blokuje build vydání; bez nich selžou snímkové testy nastavení):** jeden běh
-   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · detekce experimentální, 2o · T-159 a kontrola souborů
+   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · detekce experimentální, 2o · T-159, 2p · T-163 a kontrola souborů
    vyjmenovaných u těchto bodů.
-3. **Native AOT `win-x64`:** jeden `dotnet publish src/LayerPeek.App -c Release -r win-x64` uzavře body AOT v 2b–2o.
+3. **Native AOT `win-x64`:** jeden `dotnet publish src/LayerPeek.App -c Release -r win-x64` uzavře body AOT v 2b–2p.
 4. **E2E:** 2b · **T-151** (`CameraWindowAutoCloseTests`, `*Camera*`), 2e · **T-146** (`*CameraRecording*`,
    `*TrayMenu*`, `*CameraTaskbarAndModeSwitch*`), 2g · **T-154** (`*PrintFailureAlarm*`), 2k · **T-161**
    (`CameraTimelapseTests`).
@@ -28,7 +28,7 @@ jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrt
    **T-154** (obrázek toastu a editor výřezu) → 2f · **T-148** → 2k · **T-161** a 2o · **T-159** → 2d · **T-144** a 2h · **T-158**
    (přehrání ve Filmech a TV).
 6. **Když zbývá čas:** 2b · T-151 (probuzení, celá obrazovka), 2c · T-143 (ruční), 2i · T-155 (měření CPU), 2d · T-145
-   (OneDrive), 3 · T-107, potom zbytek oddílů 1–2.
+   (OneDrive), 2p · T-163 (ruční), 3 · T-107, potom zbytek oddílů 1–2.
 
 ## Cíl
 Sběrný úkol se zbytkem ověření na Windows mimo instalátor: celý interaktivní běh `tools/windows-verify.ps1` (T-105),
@@ -337,6 +337,16 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       intervalu se ukáže počet vrstev (1), tipy vysvětlují odhad z osy Z; uložit, znovu otevřít – volba zůstane. Simulátor
       (`--speed 20`) s automatickým timelapse: na Windows zkontrolovat jen, že timelapse vznikne a má snímek začátku a konce
       (simulátor osu Z nemění po vrstvách, počet snímků po vrstvách ověří T-127 se skutečnou tiskárnou).
+
+### 2p. Detekce – režim „Tmavý filament“ (z T-163, implementováno na Macu 2026-11-05)
+- [ ] **T-163** (Windows): `dotnet test` na Windows bez chyb, hlavně `SettingsMapperDetectionTests`,
+      `PrintFailureDetectionServiceTests.TheDarkFilamentModeIsInTheContext` a
+      `TogglingTheDarkFilamentModeRestartsTheRun`, `BedChangeDetectorTests` /
+      `BedChangeDetectorCostTests` (0 B na vzorek i v režimu), `BedChangeDarkSweepTests` a UiTests
+      `SettingsWindowDetectionUiTests.TheDarkFilamentModeIsOffByDefaultAndSaved`; snímky UI pro Windows přegenerovat
+      (`LAYERPEEK_UPDATE_SNAPSHOTS=1`, hlavně `settings-detection*`: nové zaškrtávátko „Tmavý filament“ s odznakem
+      „Experimentální“, vysvětlení v tooltipu). Ručně: podzáložka Detekce, zaškrtnout, uložit, znovu otevřít – volba zůstala, text se
+      nepřekrývá ani v němčině a francouzštině (125 % a 150 % DPI).
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
