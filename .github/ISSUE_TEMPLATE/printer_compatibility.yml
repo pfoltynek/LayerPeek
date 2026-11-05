@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for testing LayerPeek with your printer! Only the CORE One has been tested so far, so every report helps.
         One run on Windows or macOS is enough. Tick what works; for anything that doesn't, describe it below.
-        The [user manual](https://github.com/pfoltynek/LayerPeek/blob/main/manuals/README.md) shows where each feature is.
+        The [user manual](https://github.com/pfoltynek/LayerPeek/blob/develop/manuals/README.md) shows where each feature is.
   - type: dropdown
     id: printer
     attributes:
