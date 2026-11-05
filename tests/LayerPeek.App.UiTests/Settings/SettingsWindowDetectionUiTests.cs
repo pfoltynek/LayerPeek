@@ -291,6 +291,31 @@ public sealed class SettingsWindowDetectionUiTests(HeadlessSession session)
             Assert.Equal(Strings.SettingsDetectionEnabledHint, ToolTip.GetTip(ui.Find<CheckBox>("SettingsDetectionEnabled")));
         });
 
+    /// <summary>T-163: the experimental dark filament mode: off by default, with the badge and its hint, saved per printer.</summary>
+    [Fact]
+    public Task TheDarkFilamentModeIsOffByDefaultAndSaved() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(CoreOne());
+            (SettingsWindowHarness ui, _) = await OpenAsync(scope, CoreOne(), store: store);
+            CheckBox darkFilament = ui.Find<CheckBox>("PrinterDetectionDarkFilament");
+            Assert.True(ui.Window.IsShown<CheckBox>("PrinterDetectionDarkFilament"));
+            Assert.True(ui.Window.IsShown<Border>("PrinterDetectionDarkFilamentExperimental"));
+            Assert.False(darkFilament.IsChecked);
+            Assert.Equal(Strings.SettingsDetectionDarkFilament, darkFilament.Content);
+            Assert.Equal(Strings.SettingsDetectionDarkFilamentHint, ToolTip.GetTip(darkFilament));
+            Assert.Equal(Strings.SettingsDetectionDarkFilamentHint, AutomationProperties.GetHelpText(darkFilament));
+
+            ui.Click("PrinterDetectionDarkFilament");
+            Assert.True(ui.ViewModel.SelectedPrinter!.DetectionDarkFilament);
+            Assert.True(ui.ViewModel.IsDirty);
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+
+            PrinterDetectionSettings saved = Assert.Single(store.Saves).Updated.Printers[0].Detection;
+            Assert.True(saved.DarkFilament);
+            Assert.False(saved.Enabled);
+        });
+
     [Fact]
     public Task TheDetectorTextsFollowALanguageSwitch() =>
         session.RunAsync(static async scope =>

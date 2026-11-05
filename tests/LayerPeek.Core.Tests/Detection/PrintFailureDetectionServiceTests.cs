@@ -372,6 +372,21 @@ public sealed class PrintFailureDetectionServiceTests : IAsyncDisposable
         Assert.Equal(new DetectionPixelRegion(48, 99, 224, 81), _script.Latest.LastRegion);
     }
 
+    /// <summary>T-163: the printer's dark filament mode reaches the detectors in the context; off by default.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheDarkFilamentModeIsInTheContext(bool darkFilament)
+    {
+        PrinterDefinition printer = Printer();
+        printer = printer with { Detection = printer.Detection with { DarkFilament = darkFilament } };
+        FakeItemFeed feed = await StartPrintingAsync(Settings(printer));
+
+        await SampleAsync(feed, advance: false);
+
+        Assert.Equal(darkFilament, _script.Latest.LastContext.DarkFilament);
+    }
+
     // ---- Confirmation and alarms ----
 
     [Fact]

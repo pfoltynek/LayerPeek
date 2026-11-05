@@ -100,6 +100,10 @@ internal sealed class PrinterDetectionDocument
     /// <summary>By detector id; only detectors whose settings differ from the defaults.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, DetectorDocument>? Detectors { get; set; }
+
+    /// <summary>T-163: written only while on.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? DarkFilament { get; set; }
 }
 
 /// <summary>A <see cref="Detection.DetectionRegion"/>: fractions of the frame.</summary>

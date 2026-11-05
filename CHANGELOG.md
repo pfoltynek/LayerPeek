@@ -19,6 +19,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   after its end, also without an open camera window (off by default). A new **Recording** tab in the settings has the
   folder and a total size limit (50 GB by default; the oldest recordings are deleted above it, recording stops below 5 GB
   of free space). A recording that fails shows a notification with the reason; clicking it opens the Recording tab.
+- **Dark filament mode (experimental)** for print failure detection (Windows and macOS, off by default): **Dark
+  filament** with an **Experimental** badge on the printer's Detection sub-tab. For black or very dark filament, the
+  "Change on the bed" detector then counts a smaller darkening of the bed as a change (10 instead of 14 gray levels;
+  brightening is unchanged). On synthetic black-filament failures on dark sheets it finds a little more (about 2–3
+  percentage points), at the price of less headroom against false alarms (the real Core One test print stays about
+  4× below the alarm threshold instead of 9×). The known limitation (less reliable with dark filament on a black
+  sheet) stays. Saved as `printers[*].detection.darkFilament`.
 
 ## [0.4.0] - 2026-11-02
 

@@ -175,6 +175,7 @@ public sealed class SettingsMapperDetectionTests
     [InlineData("""{ "detectors": { "bed-change": { "enabled": "no" } } }""", "detector 'bed-change'")]
     [InlineData("""{ "detectors": [] }""", "detector settings")]
     [InlineData("""{ "enabled": 1 }""", "print failure detection is invalid")]
+    [InlineData("""{ "darkFilament": "yes" }""", "dark filament mode")]
     [InlineData("""true""", "detection is off")]
     public void InvalidPrinterValuesAreTheirDefaultsWithAWarning(string detection, string warning)
     {
@@ -191,5 +192,22 @@ public sealed class SettingsMapperDetectionTests
 
         Assert.Empty(warnings);
         Assert.Equal(20, detection.For("first-layer").Sensitivity);
+    }
+
+    /// <summary>T-163: the experimental dark filament mode is off by default, written only while on, and round-trips.</summary>
+    [Fact]
+    public void TheDarkFilamentModeIsWrittenOnlyWhileOn()
+    {
+        Assert.False(PrinterDetectionSettings.Default.DarkFilament);
+        Assert.DoesNotContain("darkFilament", Serialize(new AppSettings { Printers = [Printer(new PrinterDetectionSettings { Enabled = true })] }), StringComparison.Ordinal);
+
+        string json = Serialize(new AppSettings { Printers = [Printer(new PrinterDetectionSettings { DarkFilament = true })] });
+        Assert.Matches("\"darkFilament\":\\s*true", json);
+
+        PrinterDetectionSettings loaded = Load(json, out List<string> warnings).Printers[0].Detection;
+        Assert.Empty(warnings);
+        Assert.True(loaded.DarkFilament);
+        Assert.NotEqual(PrinterDetectionSettings.Default, loaded);
+        Assert.False(LoadPrinter("""{ "enabled": true }""", out _).DarkFilament);
     }
 }

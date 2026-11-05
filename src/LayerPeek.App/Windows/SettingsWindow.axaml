@@ -854,6 +854,24 @@
                                 </DataTemplate>
                               </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <!--
+                              T-163: the experimental dark filament mode of the printer (off by default), with the T-161 badge. Its
+                              explanation is the tooltip and screen reader help only: the sub-tab has to fit without scrolling (T-033).
+                            -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding HasDetectors}">
+                              <CheckBox AutomationProperties.AutomationId="PrinterDetectionDarkFilament"
+                                        Content="{Binding [SettingsDetectionDarkFilament], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                        IsChecked="{Binding DetectionDarkFilament}"
+                                        ToolTip.Tip="{Binding [SettingsDetectionDarkFilamentHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                        AutomationProperties.HelpText="{Binding [SettingsDetectionDarkFilamentHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <Border Classes="badge"
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.AutomationId="PrinterDetectionDarkFilamentExperimental"
+                                      AutomationProperties.HelpText="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      ToolTip.Tip="{Binding [SettingsExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                                <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              </Border>
+                            </StackPanel>
                           </StackPanel>
                         </Grid>
                       </StackPanel>

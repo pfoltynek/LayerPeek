@@ -1894,4 +1894,10 @@
   <data name="NotificationTimelapseFromRecordingWriteFailed" xml:space="preserve">
     <value>Do priečinka vedľa nahrávky sa nedá zapisovať.</value>
   </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Tmavý filament</value>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Čierny alebo veľmi tmavý filament: ako zmena sa počíta aj menšie stmavnutie na podložke. Na tmavom pláte nájde o niečo viac, s vyšším rizikom falošných poplachov.</value>
+  </data>
 </root>

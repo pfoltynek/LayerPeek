@@ -2090,4 +2090,12 @@
     <value>The folder next to the recording cannot be written.</value>
     <comment>T-164: reason: the folder next to the recording cannot be written.</comment>
   </data>
+  <data name="SettingsDetectionDarkFilament" xml:space="preserve">
+    <value>Dark filament</value>
+    <comment>T-163: check box of a printer's print failure detection (next to the SettingsExperimental badge): the experimental dark filament mode. Short.</comment>
+  </data>
+  <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
+    <value>Black or very dark filament: smaller darkening on the bed counts as a change. Finds a little more on a dark sheet, with a higher risk of false alarms.</value>
+    <comment>T-163: tooltip and screen reader help of SettingsDetectionDarkFilament.</comment>
+  </data>
 </root>

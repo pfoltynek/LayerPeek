@@ -292,6 +292,15 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       nahrávka, nebo nahrávka na síťovém disku) nezanechá žádný soubor (ani skrytý `.….partial`, `dir /a`). Během vytváření
       jde spustit i export do JPEG jiného timelapse.
 
+### 2n. Detekce – režim „Tmavý filament“ (z T-163, implementováno na Macu 2026-11-05)
+- [ ] **T-163** (Windows): `dotnet test` na Windows bez chyb, hlavně `SettingsMapperDetectionTests`,
+      `PrintFailureDetectionServiceTests.TheDarkFilamentModeIsInTheContext`, `BedChangeDetectorTests` /
+      `BedChangeDetectorCostTests` (0 B na vzorek i v režimu), `BedChangeDarkSweepTests` a UiTests
+      `SettingsWindowDetectionUiTests.TheDarkFilamentModeIsOffByDefaultAndSaved`; snímky UI pro Windows přegenerovat
+      (`LAYERPEEK_UPDATE_SNAPSHOTS=1`, hlavně `settings-detection*`: nové zaškrtávátko „Tmavý filament“ s odznakem
+      „Experimentální“, vysvětlení v tooltipu). Ručně: podzáložka Detekce, zaškrtnout, uložit, znovu otevřít – volba zůstala, text se
+      nepřekrývá ani v němčině a francouzštině (125 % a 150 % DPI).
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

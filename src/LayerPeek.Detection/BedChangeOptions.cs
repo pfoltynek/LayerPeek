@@ -77,6 +77,15 @@ internal sealed record BedChangeOptions
     public int ChangeLevel { get; init; } = 14;
 
     /// <summary>
+    /// T-163: in the printer's "dark filament" mode (<see cref="Core.Detection.PrintFailureContext.DarkFilament"/>), the
+    /// level for a background that got <em>darker</em> than the reference; brightening keeps <see cref="ChangeLevel"/>.
+    /// Black filament only darkens the sheet. 10: the most failures of black filament on the synthetic sheets while the real
+    /// Core One series stays 4× below the default threshold (and below the most sensitive one); 9 and below the sheet's own
+    /// changes count (see the task notes).
+    /// </summary>
+    public int DarkFilamentLevel { get; init; } = 10;
+
+    /// <summary>
     /// Gray levels by which a pixel must differ from the previous sample to count as moving (the head or the X bridge
     /// passing; an image that is still differs by the noise only).
     /// </summary>
