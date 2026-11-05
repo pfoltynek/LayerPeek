@@ -288,3 +288,11 @@ a otestovaná. Oddíly níž: nejdřív první kolo (2026-11-04, jen měření),
 - **Texty v UI** (`Strings.*.resx`): beze změny, omezení trvá a text „méně spolehlivé u tmavého filamentu na černém
   plátu“ odpovídá měření (otázka 5).
 - **Licence a AOT:** žádná nová závislost, žádná změna v `src/`.
+
+## Review
+qa-reviewer 2026-11-05 (po sloučení `develop` s odznakem detekce, T-159 a dokumentací 0.5.0): bez blokujících nálezů.
+Vypnutý režim se chová stejně jako T-166 (běh `BedChangeSeedSweepTests` v Release: 1 586 / 1 587 / 1 586 / 1 583
+z 1 680, 5 falešných poplachů jen v celém snímku při 5 s, semínko 16 50/56 – shodné s tabulkou T-166);
+`BedChangeLocalSamplesTests` s `~/LayerPeek-samples` proběhl (Core One 0,033 % = 9,1×, s režimem 0,072 % = 4,2×).
+Doplněný test `PrintFailureDetectionServiceTests.TogglingTheDarkFilamentModeRestartsTheRun` (přepnutí režimu během
+tisku restartuje běh s novými detektory). Úkol zůstává v `in-progress/` jen kvůli otázce 6 (rozhodnutí uživatele).

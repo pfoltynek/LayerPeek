@@ -340,7 +340,8 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 
 ### 2p. Detekce – režim „Tmavý filament“ (z T-163, implementováno na Macu 2026-11-05)
 - [ ] **T-163** (Windows): `dotnet test` na Windows bez chyb, hlavně `SettingsMapperDetectionTests`,
-      `PrintFailureDetectionServiceTests.TheDarkFilamentModeIsInTheContext`, `BedChangeDetectorTests` /
+      `PrintFailureDetectionServiceTests.TheDarkFilamentModeIsInTheContext` a
+      `TogglingTheDarkFilamentModeRestartsTheRun`, `BedChangeDetectorTests` /
       `BedChangeDetectorCostTests` (0 B na vzorek i v režimu), `BedChangeDarkSweepTests` a UiTests
       `SettingsWindowDetectionUiTests.TheDarkFilamentModeIsOffByDefaultAndSaved`; snímky UI pro Windows přegenerovat
       (`LAYERPEEK_UPDATE_SNAPSHOTS=1`, hlavně `settings-detection*`: nové zaškrtávátko „Tmavý filament“ s odznakem
