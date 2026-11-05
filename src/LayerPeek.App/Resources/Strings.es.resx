@@ -1661,7 +1661,7 @@
     <value>Detecta que la impresora sigue imprimiendo (el eje Z sube) pero ya no crece nada en la cama, por ejemplo cuando se acabó el filamento sin aviso, el extrusor patina o la boquilla está obstruida. Solo para impresoras cuya cama baja al imprimir (Core One, XL). No detecta paredes más delgadas, la calidad de la superficie ni que deje de crecer solo una de varias piezas.</value>
   </data>
   <data name="DetectorAirPrintingLimitation" xml:space="preserve">
-    <value>Limitación conocida: avisa del fallo solo después de que el eje Z suba otros ~3 mm (minutos; en impresiones lentas, media hora o más). No evalúa piezas ocultas casi por completo bajo el cabezal ni los primeros ~6 mm tras el inicio o tras reconectar la cámara, y una torre de purga que sigue creciendo puede ocultar el fallo. Una pieza con una base más ancha que termina antes, o varias piezas de las que la mayoría termina antes, puede provocar una falsa alarma.</value>
+    <value>Limitación conocida: avisa del fallo solo después de que el eje Z suba otros ~3 mm (minutos; en impresiones lentas, media hora o más). No evalúa piezas ocultas casi por completo bajo el cabezal ni los primeros ~6 mm tras el inicio o tras reconectar la cámara, y una torre de purga que sigue creciendo puede ocultar el fallo. Una pieza cuya base más ancha termina antes, o varias piezas de las que la mayoría termina antes, puede provocar una falsa alarma.</value>
   </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Detector {0}</value>

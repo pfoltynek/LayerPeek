@@ -1661,7 +1661,7 @@
     <value>Pozná, že tiskárna dál tiskne (osa Z roste), ale na podložce už nic nepřibývá, například když nepozorovaně došel filament, prokluzuje podavač nebo se ucpala tryska. Jen pro tiskárny, jejichž podložka při tisku sjíždí dolů (Core One, XL). Nepozná tenčí stěny, kvalitu povrchu ani to, že přestal růst jen jeden z několika dílů.</value>
   </data>
   <data name="DetectorAirPrintingLimitation" xml:space="preserve">
-    <value>Známé omezení: chybu nahlásí až poté, co osa Z vystoupá o další ~3 mm (minuty, u pomalých tisků i půl hodiny a víc). Nehodnotí díly schované převážně pod hlavou ani prvních ~6 mm po startu nebo po novém připojení kamery a čisticí věž, která dál roste, může chybu zakrýt. Díl se širším spodkem, který skončí dřív, nebo několik dílů, z nichž většina skončí dřív, může vyvolat planý poplach.</value>
+    <value>Známé omezení: chybu nahlásí až poté, co osa Z vystoupá o další ~3 mm (minuty, u pomalých tisků i půl hodiny a víc). Nehodnotí díly schované převážně pod hlavou ani prvních ~6 mm po startu nebo po novém připojení kamery a čisticí věž, která dál roste, může chybu zakrýt. Díl se širší spodní částí, která skončí dřív, nebo několik dílů, z nichž většina skončí dřív, může vyvolat planý poplach.</value>
   </data>
   <data name="DetectorUnknown" xml:space="preserve">
     <value>Detektor {0}</value>
