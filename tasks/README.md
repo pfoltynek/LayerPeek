@@ -184,6 +184,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-166 | Detekce chyb tisku – ladění citlivosti „Změna na podložce“ na více semínkách (hotovo) | all | core-dev | P2 | T-155, T-154 |
 | T-167 | Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste; hotovo, experimentální) | all | core-dev | P3 | T-155, T-166, T-154 |
 | T-168 | Tray menu na Windows zůstane otevřené po „Hide camera“ (E2E `TrayMenuTests`, nalezeno v T-125; hotovo) | windows | ui-dev | P2 | – |
+| T-169 | Občasné selhání E2E malého náhledu kamery (`CameraMiniPreviewTests`) | windows | qa-reviewer | P3 | – |
 
 ### Windows (`windows`)
 
