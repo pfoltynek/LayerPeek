@@ -1966,6 +1966,10 @@
     <value>An experimental feature: it may change or not always work reliably.</value>
     <comment>T-161: tooltip and help text of the SettingsExperimental badge.</comment>
   </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>An experimental feature: tuned on simulated failures and one real successful print. It may miss a failure or raise a false alarm.</value>
+    <comment>Release 0.5.0 (user decision 2026-11-04): tooltip and help text of the SettingsExperimental badge of the print failure detection (Detection sub-tab and section on the Recording tab).</comment>
+  </data>
   <data name="SettingsTimelapseInterval" xml:space="preserve">
     <value>Time between frames (seconds)</value>
     <comment>T-161: label of the time between two timelapse frames (whole seconds, 5-600).</comment>

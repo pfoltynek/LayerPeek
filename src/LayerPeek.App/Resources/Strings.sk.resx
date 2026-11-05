@@ -1801,6 +1801,9 @@
   <data name="SettingsExperimentalHint" xml:space="preserve">
     <value>Experimentálna funkcia: môže sa zmeniť alebo nemusí vždy fungovať spoľahlivo.</value>
   </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Experimentálna funkcia: vyladená na simulovaných zlyhaniach a jednej skutočnej úspešnej tlači. Môže zlyhanie prehliadnuť alebo vyhlásiť planý poplach.</value>
+  </data>
   <data name="SettingsTimelapseInterval" xml:space="preserve">
     <value>Čas medzi snímkami (sekundy)</value>
   </data>

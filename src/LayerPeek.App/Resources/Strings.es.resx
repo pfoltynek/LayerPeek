@@ -1801,6 +1801,9 @@
   <data name="SettingsExperimentalHint" xml:space="preserve">
     <value>Una función experimental: puede cambiar o no funcionar siempre de forma fiable.</value>
   </data>
+  <data name="SettingsDetectionExperimentalHint" xml:space="preserve">
+    <value>Una función experimental: ajustada con fallos simulados y una impresión real correcta. Puede pasar por alto un fallo o dar una falsa alarma.</value>
+  </data>
   <data name="SettingsTimelapseInterval" xml:space="preserve">
     <value>Tiempo entre fotogramas (segundos)</value>
   </data>

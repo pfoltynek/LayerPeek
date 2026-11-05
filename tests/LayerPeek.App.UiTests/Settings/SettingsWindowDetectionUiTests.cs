@@ -13,6 +13,7 @@ using LayerPeek.App.UiTests.Infrastructure;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Detection;
 using LayerPeek.Core.Printers;
+using LayerPeek.Core.Settings;
 
 using static LayerPeek.App.Tests.Settings.SettingsTestData;
 
@@ -306,6 +307,54 @@ public sealed class SettingsWindowDetectionUiTests(HeadlessSession session)
             Assert.Equal("Změna na podložce", detector.Content);
             Assert.True(Ui.ShowsText(ui.Window, "Známé omezení: u tmavého filamentu na černém plátu je méně spolehlivý."));
         });
+
+    public static TheoryData<string> Languages => [.. AppLanguages.Supported];
+
+    /// <summary>
+    /// The detection is experimental (user decision 2026-11-04, the badge of the timelapse, T-161): right of the switch of
+    /// the printer and next to the heading of the section on the Recording tab, with its own hint, in every language.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task TheDetectionHasTheExperimentalBadge(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            try
+            {
+                (SettingsWindowHarness ui, _) = await OpenAsync(scope, CoreOne());
+
+                CheckBox enabled = ui.Find<CheckBox>("PrinterDetectionEnabled");
+                Border printerBadge = ui.Find<Border>("PrinterDetectionExperimental");
+                AssertBadge(printerBadge, ui.Window);
+                Rect box = Bounds(enabled, ui.Window);
+                Rect badge = Bounds(printerBadge, ui.Window);
+                Assert.True(badge.Left >= box.Right, $"{language}: the badge is not right of the check box.");
+                Assert.True(badge.Top >= box.Top && badge.Bottom <= box.Bottom, $"{language}: the badge is not on the row of the check box.");
+
+                ui.Click("SettingsTabRecording");
+                ui.Window.Settle();
+                AssertBadge(ui.Find<Border>("SettingsDetectionExperimental"), ui.Window);
+            }
+            finally
+            {
+                Assert.True(new UiLanguage().Apply("en"));
+            }
+        });
+
+    private static void AssertBadge(Border badge, Window window)
+    {
+        Assert.True(badge.IsEffectivelyVisible);
+        TextBlock text = Assert.IsType<TextBlock>(badge.Child);
+        Assert.Equal(Strings.SettingsExperimental, text.Text);
+        Assert.Equal(Strings.SettingsDetectionExperimentalHint, ToolTip.GetTip(badge));
+        // The tip is mouse-only (the badge takes no focus): screen readers get its meaning as the help text.
+        Assert.Equal(Strings.SettingsDetectionExperimentalHint, AutomationProperties.GetHelpText(badge));
+        Assert.True(Bounds(badge, window).Right <= window.ClientSize.Width);
+    }
+
+    private static Rect Bounds(Control control, Window window) =>
+        control.TranslatePoint(default, window) is { } origin ? new Rect(origin, control.Bounds.Size) : throw new InvalidOperationException("Not in the window.");
 
     /// <summary>A plain image of a given size (the last saved frame of a test).</summary>
     private sealed class SolidImage(Size size) : IImage

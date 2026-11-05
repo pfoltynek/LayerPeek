@@ -757,10 +757,19 @@
                   <ContentControl.ContentTemplate>
                     <DataTemplate x:DataType="vm:PrinterEditorViewModel">
                       <StackPanel>
-                        <CheckBox AutomationProperties.AutomationId="PrinterDetectionEnabled"
-                                  Content="{Binding [SettingsDetectionPrinterEnabled], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                  IsChecked="{Binding DetectionEnabled}"
-                                  IsEnabled="{Binding CameraEnabled}" />
+                        <!-- Experimental (user decision 2026-11-04, like the timelapse of T-161): the badge right of the switch. -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <CheckBox AutomationProperties.AutomationId="PrinterDetectionEnabled"
+                                    Content="{Binding [SettingsDetectionPrinterEnabled], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    IsChecked="{Binding DetectionEnabled}"
+                                    IsEnabled="{Binding CameraEnabled}" />
+                          <Border Classes="badge"
+                                  AutomationProperties.AutomationId="PrinterDetectionExperimental"
+                                  AutomationProperties.HelpText="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                  ToolTip.Tip="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                            <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                          </Border>
+                        </StackPanel>
                         <TextBlock AutomationProperties.AutomationId="PrinterDetectionCameraOff" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionCameraOff], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionCameraOff}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterDetectionGloballyOff" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionGloballyOff], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionGloballyOff}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterDetectionRunsHint" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsDetectionRunsHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsDetectionRunsHint}" />
@@ -1487,7 +1496,16 @@
               shows its error below it. Whether a printer is watched, its region and the sensitivities are on its Detection sub-tab.
             -->
             <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto">
-              <TextBlock Grid.ColumnSpan="3" Classes="section" Margin="0,4,0,4" Text="{Binding [SettingsDetection], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <!-- Experimental (user decision 2026-11-04): the badge next to the heading covers the section, like the timelapse. -->
+              <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="8" Margin="0,4,0,4">
+                <TextBlock Classes="section" Margin="0" VerticalAlignment="Center" Text="{Binding [SettingsDetection], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <Border Classes="badge"
+                        AutomationProperties.AutomationId="SettingsDetectionExperimental"
+                        AutomationProperties.HelpText="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        ToolTip.Tip="{Binding [SettingsDetectionExperimentalHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                  <TextBlock Text="{Binding [SettingsExperimental], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </Border>
+              </StackPanel>
               <StackPanel Grid.Row="1">
                 <CheckBox AutomationProperties.AutomationId="SettingsDetectionEnabled"
                           Content="{Binding [SettingsDetectionEnabled], Source={x:Static loc:LocalizedStrings.Instance}}"
