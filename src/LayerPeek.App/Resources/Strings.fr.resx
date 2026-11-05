@@ -1562,7 +1562,7 @@
     <value>Saisissez un nombre entier de {0} à {1}.</value>
   </data>
   <data name="SettingsRecordPrints" xml:space="preserve">
-    <value>Enregistrer les impressions automatiquement</value>
+    <value>Enregistrer chaque impression</value>
   </data>
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Enregistre du début d'une impression jusqu'à une minute après sa fin, même sans fenêtre de caméra ouverte.</value>
@@ -1607,7 +1607,7 @@
     <value>La sauvegarde manuelle est toujours possible&#160;: dans le menu de l'imprimante ou dans celui de la fenêtre de la caméra.</value>
   </data>
   <data name="SettingsDashcamPrinter" xml:space="preserve">
-    <value>Garder les dernières minutes (dashcam)</value>
+    <value>Dernières minutes (dashcam)</value>
   </data>
   <data name="SettingsDashcamPrinterHint" xml:space="preserve">
     <value>Pendant une impression, garde en mémoire les dernières minutes de la caméra et les sauvegarde en cas de problème (onglet Enregistrement). Inactif pendant l'enregistrement de l'impression entière.</value>
