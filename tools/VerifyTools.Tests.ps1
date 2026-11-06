@@ -382,6 +382,123 @@ Describe 'macOS helpers (pure)' {
         Get-VerifyMenuBarOwners $menuBar | Should -Be @('BetterDisplay (2359) x 1', 'ControlCenter (527) x 2')
         @(Get-VerifyMenuBarOwners @($menuBar[3])) | Should -HaveCount 0
     }
+
+    It 'finds the window a click reaches, past the overlays above the menu bar' {
+        $windows = '[{"pid":991,"owner":"BetterDisplay","layer":2147483629},{"pid":42,"owner":"LayerPeek","layer":0,"number":7},{"pid":1,"owner":"Finder","layer":0}]' | ConvertFrom-Json
+        (Get-VerifyTopWindow $windows).pid | Should -Be 42
+        Get-VerifyTopWindow @($windows[0]) | Should -BeNullOrEmpty
+    }
+
+    Context 'the result of "Check now" (mac.update-check)' {
+        BeforeAll {
+            $script:Expected = 'Version 9.9.0 is available'
+            function New-Watch([string[]] $Lines) { @(ConvertFrom-VerifyAxWatch $Lines) }
+            $script:Hidden = '{"ms":0,"found":false,"text":"","frame":{}}'
+            $script:Checking = '{"ms":420,"found":true,"text":"Checking…","frame":{"x":300,"y":400,"width":70,"height":16}}'
+            $script:Shown = '{"ms":1990,"found":true,"text":"Version 9.9.0 is available; the tray menu offers it.","frame":{"x":300,"y":400,"width":290,"height":16}}'
+        }
+
+        It 'reads the watch lines and skips anything else' {
+            $timeline = New-Watch @($script:Hidden, 'macos-verify-helper: something', '', $script:Checking)
+            $timeline | Should -HaveCount 2
+            $timeline[1].text | Should -Be 'Checking…'
+            $timeline[1].frame.width | Should -Be 70
+        }
+
+        It 'passes when the text appears after the press and stays' {
+            $verdict = Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden, $script:Checking, $script:Shown)) -Requests 1 -Expected $script:Expected
+            $verdict.Passed | Should -BeTrue
+            $verdict.Shown.ms | Should -Be 1990
+            $verdict.Detail | Should -BeLike "*shown 1990 ms*'Checking…' at 420 ms*1 request(s)*"
+        }
+
+        It 'says that a press ran no check (no request, no "Checking…")' {
+            $verdict = Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden)) -Requests 0 -Expected $script:Expected
+            $verdict.Passed | Should -BeFalse
+            $verdict.Detail | Should -BeLike 'the press ran no check*stayed no element (hidden)*'
+        }
+
+        It 'says that the check ran but its result was never shown' {
+            $verdict = Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden, $script:Checking, '{"ms":1990,"found":false,"text":"","frame":{}}')) -Requests 1 -Expected $script:Expected
+            $verdict.Passed | Should -BeFalse
+            $verdict.Detail | Should -BeLike "the check ran (1 request(s)*never showed 'Version 9.9.0 is available'*"
+            # A text without a visible frame is not shown either.
+            $zero = '{"ms":1990,"found":true,"text":"Version 9.9.0 is available; the tray menu offers it.","frame":{"x":0,"y":0,"width":0,"height":0}}'
+            (Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden, $script:Checking, $zero)) -Requests 1 -Expected $script:Expected).Passed | Should -BeFalse
+        }
+
+        It 'fails a result that vanishes again' {
+            $verdict = Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden, $script:Checking, $script:Shown, '{"ms":2400,"found":false,"text":"","frame":{}}')) -Requests 1 -Expected $script:Expected
+            $verdict.Passed | Should -BeFalse
+            $verdict.Detail | Should -BeLike 'the result was shown at 1990 ms but then changed to no element (hidden)*'
+        }
+
+        It 'counts a result shown before the press only when it is shown again after "Checking…"' {
+            $before = $script:Shown -replace '"ms":1990', '"ms":0'
+            (Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($before)) -Requests 0 -Expected $script:Expected).Passed | Should -BeFalse
+            $again = $script:Shown -replace '"ms":1990', '"ms":2100'
+            (Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($before, $script:Checking, $again)) -Requests 1 -Expected $script:Expected).Passed | Should -BeTrue
+        }
+
+        It 'fails an empty watch' {
+            (Get-VerifyUpdateCheckVerdict -Timeline @() -Requests 0 -Expected $script:Expected).Detail | Should -BeLike 'the Accessibility watch recorded nothing*'
+        }
+    }
+}
+
+Describe 'The stand-in GitHub API (tools/fake-github-releases.ps1)' {
+    BeforeAll {
+        function Start-ChildPwsh([string[]] $Arguments, [string] $Output) {
+            # The same PowerShell as this run, also the dotnet tool ('dotnet pwsh.dll').
+            $command = @(Get-PwshCommand)
+            $all = @($command | Select-Object -Skip 1) + @('-NoProfile', '-NonInteractive') + $Arguments
+            if ($Output) { Start-Process -FilePath $command[0] -ArgumentList $all -PassThru -NoNewWindow -RedirectStandardOutput $Output }
+            else { Start-Process -FilePath $command[0] -ArgumentList $all -PassThru -NoNewWindow }
+        }
+    }
+
+    It 'lists one release with the checksum files of both OSes, late by the delay, logs the requests and answers 404 otherwise' {
+        $log = Join-Path $script:TempRoot 'github-requests.txt'
+        $out = Join-Path $script:TempRoot 'github-out.txt'
+        $server = Start-ChildPwsh @('-File', (Join-Path $PSScriptRoot 'fake-github-releases.ps1'), '-Version', '9.9.0', '-DelayMilliseconds', '300', '-RequestLog', $log, '-ParentProcessId', "$PID") $out
+        try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(30)
+            while ([DateTime]::UtcNow -lt $deadline -and -not ((Test-Path -LiteralPath $out) -and (Select-String -LiteralPath $out -Pattern '^Address: ' -Quiet))) { Start-Sleep -Milliseconds 100 }
+            $base = ([regex]::Match((Get-Content -LiteralPath $out -Raw), 'Address: (\S+)')).Groups[1].Value
+            $base | Should -Match '^http://127\.0\.0\.1:\d+/$'
+            $watch = [System.Diagnostics.Stopwatch]::StartNew()
+            $releases = @(Invoke-RestMethod -Uri "${base}repos/pfoltynek/LayerPeek/releases?per_page=30" -TimeoutSec 10)
+            $watch.ElapsedMilliseconds | Should -BeGreaterOrEqual 250
+            $releases | Should -HaveCount 1
+            $releases[0].tag_name | Should -Be 'v9.9.0'
+            $releases[0].draft | Should -BeFalse
+            $releases[0].prerelease | Should -BeFalse
+            $releases[0].html_url | Should -Be 'https://github.com/pfoltynek/LayerPeek/releases/tag/v9.9.0'
+            @($releases[0].assets | Where-Object state -EQ 'uploaded' | ForEach-Object name) | Should -Contain 'SHA256SUMS-macos.txt'
+            @($releases[0].assets | Where-Object state -EQ 'uploaded' | ForEach-Object name) | Should -Contain 'SHA256SUMS-windows.txt'
+            { Invoke-RestMethod -Uri "${base}other" -TimeoutSec 10 } | Should -Throw '*404*'
+            $requests = @(Get-Content -LiteralPath $log)
+            $requests | Should -HaveCount 2
+            $requests[0] | Should -Match 'GET /repos/pfoltynek/LayerPeek/releases\?per_page=30 HTTP/1.1 -> 200 OK$'
+            $requests[1] | Should -Match 'GET /other HTTP/1.1 -> 404 Not Found$'
+        }
+        finally { if (-not $server.HasExited) { $server.Kill($true); $server.WaitForExit() } }
+    }
+
+    It 'ends when its parent process ends' {
+        $out = Join-Path $script:TempRoot 'github-parent.txt'
+        $parent = Start-ChildPwsh @('-Command', 'Start-Sleep -Seconds 6')
+        $server = Start-ChildPwsh @('-File', (Join-Path $PSScriptRoot 'fake-github-releases.ps1'), '-ParentProcessId', "$($parent.Id)") $out
+        try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(30)
+            while ([DateTime]::UtcNow -lt $deadline -and -not ((Test-Path -LiteralPath $out) -and (Select-String -LiteralPath $out -Pattern '^Address: ' -Quiet))) { Start-Sleep -Milliseconds 100 }
+            Get-Content -LiteralPath $out -Raw | Should -Match 'Address: http://127\.0\.0\.1:\d+/'
+            $server.HasExited | Should -BeFalse
+            $parent.WaitForExit(30000) | Should -BeTrue
+            $server.WaitForExit(30000) | Should -BeTrue
+        }
+        finally { foreach ($process in $server, $parent) { if (-not $process.HasExited) { $process.Kill($true) } } }
+    }
 }
 
 Describe 'Self-test of the engine' {

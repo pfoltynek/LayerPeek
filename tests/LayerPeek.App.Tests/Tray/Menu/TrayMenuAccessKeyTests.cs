@@ -34,7 +34,7 @@ public sealed class TrayMenuAccessKeyTests
 
         IReadOnlyList<TrayMenuEntry> level = menu.MainLevel();
 
-        Assert.Equal([TrayMenuCommand.None, TrayMenuCommand.AddPrinter, TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.About, TrayMenuCommand.Quit], level.Select(static item => item.Command));
+        Assert.Equal([TrayMenuCommand.None, TrayMenuCommand.AddPrinter, TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.Manual, TrayMenuCommand.About, TrayMenuCommand.Quit], level.Select(static item => item.Command));
         // The disabled "Diagnostics…" is still shown next to "Add printer…", so its key must not collide.
         Assert.False(level.Single(static item => item.Command == TrayMenuCommand.Diagnostics).IsEnabled);
         AssertUniqueAccessKeys(level.Where(static item => item.Command != TrayMenuCommand.None), language);
@@ -51,7 +51,7 @@ public sealed class TrayMenuAccessKeyTests
         IReadOnlyList<TrayMenuEntry> level = menu.MainLevel();
 
         Assert.Equal(
-            [TrayMenuCommand.None, TrayMenuCommand.None, TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.About, TrayMenuCommand.Quit],
+            [TrayMenuCommand.None, TrayMenuCommand.None, TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.Manual, TrayMenuCommand.About, TrayMenuCommand.Quit],
             level.Select(static item => item.Command));
         Assert.True(level.Single(static item => item.Command == TrayMenuCommand.Diagnostics).IsEnabled);
         AssertUniqueAccessKeys(level.Where(static item => item.Command != TrayMenuCommand.None), language);

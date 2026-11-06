@@ -112,6 +112,10 @@
     <value>_About</value>
     <comment>Tray menu item. "_" marks the access key (unique within the main menu).</comment>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_User manual</value>
+    <comment>T-172: tray menu item right above "About"; opens the user manual in the browser. "_" marks the access key (unique within the main menu).</comment>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>Add _printer…</value>
     <comment>Tray menu item shown when no printer is configured: opens the settings and adds a printer. "_" marks the access key (unique within the main menu).</comment>

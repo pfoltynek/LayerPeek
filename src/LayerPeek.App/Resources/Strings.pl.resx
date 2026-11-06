@@ -99,6 +99,9 @@
   <data name="MenuAbout" xml:space="preserve">
     <value>_O programie</value>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_Podręcznik użytkownika</value>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>_Dodaj drukarkę…</value>
   </data>
@@ -1562,7 +1565,7 @@
     <value>Wpisz liczbę całkowitą od {0} do {1}.</value>
   </data>
   <data name="SettingsRecordPrints" xml:space="preserve">
-    <value>Automatycznie nagrywaj wydruki</value>
+    <value>Nagrywaj każdy wydruk</value>
   </data>
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Nagrywa od początku wydruku do minuty po jego zakończeniu, także bez otwartego okna kamery.</value>

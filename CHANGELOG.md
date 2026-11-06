@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **User manual** in all eight languages of the app (English, Czech, Slovak, German, Spanish, French, Italian,
+  Polish) in `manuals/`, for Windows and macOS in one document, with screenshots rendered by the app in each language.
+  The README links to it.
+- **User manual** item in the tray / menu bar menu, above **About**: opens the manual in the language of the app's
+  texts (English for any other language).
+- **Printer compatibility report:** a GitHub issue form with a short checklist for printer models other than the
+  CORE One, linked from the README and the manuals.
+
+### Fixed
+
+- Settings, the printer's **Camera** sub-tab: in Italian, Spanish, French and Polish the **Keep the last minutes
+  (dashcam)** check box was cut off; the labels are shorter now.
+
 ## [0.5.0] - 2026-11-05
 
 ### Added

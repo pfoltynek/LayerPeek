@@ -242,5 +242,10 @@ internal sealed class FakeAppCommands : ITrayAppCommands
 
     public void InstallUpdate() => InstallUpdateCount++;
 
+    /// <summary>Clicks on "User manual" (T-172).</summary>
+    public int ManualCount { get; private set; }
+
+    public void OpenManual() => ManualCount++;
+
     public void Quit() => QuitCount++;
 }

@@ -819,6 +819,65 @@ function Get-VerifyMenuBarOwners {
     @($Windows | Where-Object { $_.layer -eq 25 } | Group-Object { "$($_.owner) ($($_.pid))" } | Sort-Object Name | ForEach-Object { "$($_.Name) x $($_.Count)" })
 }
 
+function Get-VerifyTopWindow {
+    <#
+    .SYNOPSIS
+        The window a click at a point reaches, from the helper's 'windowsat' list (front to back): the first one of a
+        normal or floating level (0 to 24); overlays above the menu bar (e.g. display tools, the cursor) let clicks through.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Windows)
+    @($Windows | Where-Object { $_.layer -ge 0 -and $_.layer -lt 25 }) | Select-Object -First 1
+}
+
+function ConvertFrom-VerifyAxWatch {
+    <# .SYNOPSIS The JSON lines of 'macos-verify-helper axwatch' as objects (ms, found, text, frame); other lines (errors) are skipped. #>
+    param([AllowNull()] [AllowEmptyCollection()] [string[]] $Lines)
+    foreach ($line in @($Lines)) {
+        if (-not "$line".TrimStart().StartsWith('{')) { continue }
+        try { "$line" | ConvertFrom-Json } catch { Write-Verbose "Not a watch line: $line" }
+    }
+}
+
+function Get-VerifyUpdateCheckVerdict {
+    <#
+    .SYNOPSIS
+        Judges one press of "Check now" (mac.update-check) from the timeline of SettingsUpdateCheckResult
+        (ConvertFrom-VerifyAxWatch; the first entry is the state before the press) and the number of requests the stand-in
+        GitHub API got meanwhile. Passed when a visible text containing -Expected appeared after the press and is still
+        there at the end; when it was shown already before the press, only a showing after "Checking…" counts.
+        Returns Passed, Detail (a sentence for the report), Initial, Checking, Shown and Final (timeline entries or $null).
+    #>
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Timeline,
+        [int] $Requests,
+        [Parameter(Mandatory)] [string] $Expected,
+        [string] $Checking = 'Checking'
+    )
+    $describe = {
+        param($Entry)
+        if (-not $Entry) { 'nothing' } elseif (-not $Entry.found) { 'no element (hidden)' } elseif (-not "$($Entry.text)") { 'an empty text' } else { "'$($Entry.text)'" }
+    }
+    $isShown = { param($Entry) $Entry -and $Entry.found -and "$($Entry.text)".Contains($Expected) -and $Entry.frame.width -gt 0 -and $Entry.frame.height -gt 0 }
+    $requestText = "$Requests request(s) to the stand-in GitHub API"
+    if ($Timeline.Count -eq 0) {
+        return [pscustomobject]@{ Passed = $false; Detail = "the Accessibility watch recorded nothing ($requestText)."; Initial = $null; Checking = $null; Shown = $null; Final = $null }
+    }
+    $initial = $Timeline[0]
+    $later = @($Timeline | Select-Object -Skip 1)
+    $checkingEntry = @($later | Where-Object { "$($_.text)".StartsWith($Checking) }) | Select-Object -First 1
+    $candidates = if (-not (& $isShown $initial)) { $later } elseif ($checkingEntry) { @($later | Where-Object { $_.ms -gt $checkingEntry.ms }) } else { @() }
+    $shown = @($candidates | Where-Object { & $isShown $_ }) | Select-Object -First 1
+    $final = $Timeline[-1]
+    $texts = (@($Timeline | ForEach-Object { "$($_.ms) ms: $(& $describe $_)" })) -join ' -> '
+    $checkingText = if ($checkingEntry) { "'$($checkingEntry.text)' at $($checkingEntry.ms) ms" } else { "no '$Checking…' seen" }
+    $passed = [bool] ($shown -and (& $isShown $final))
+    $detail = if ($passed) { "result '$($shown.text)' shown $($shown.ms) ms after the watch started ($checkingText, $requestText)" }
+    elseif ($shown) { "the result was shown at $($shown.ms) ms but then changed to $(& $describe $final) ($requestText; timeline: $texts)" }
+    elseif ($Requests -eq 0 -and -not $checkingEntry) { "the press ran no check: no request reached the stand-in GitHub API, no '$Checking…', SettingsUpdateCheckResult stayed $(& $describe $initial) (timeline: $texts)" }
+    else { "the check ran ($requestText, $checkingText) but SettingsUpdateCheckResult never showed '$Expected' (timeline: $texts)" }
+    [pscustomobject]@{ Passed = $passed; Detail = $detail; Initial = $initial; Checking = $checkingEntry; Shown = $shown; Final = $final }
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------

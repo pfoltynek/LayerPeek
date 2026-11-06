@@ -16,6 +16,7 @@
   <a href="#jak-to-vypadá">Snímky</a> ·
   <a href="#funkce">Funkce</a> ·
   <a href="#experimentální-funkce">Experimentální</a> ·
+  <a href="manuals/cs/manual.md"><b>Příručka</b></a> ·
   <a href="README.md">English</a>
 </p>
 
@@ -323,9 +324,9 @@ Každá tiskárna Prusa s **firmwarem Buddy 6.x a PrusaLink**:
 | Original Prusa MINI / MINI+ | 🟡 mělo by fungovat, zatím neotestováno |
 | Original Prusa MK3 / MK3S (8bitový firmware) | ❌ tiskárna nemá zabudovaný PrusaLink |
 
-Všechny tiskárny s firmwarem Buddy 6.x mají stejné PrusaLink API. Používáš aplikaci s jiným modelem? Dej prosím
-[vědět](https://github.com/pfoltynek/LayerPeek/issues), jestli funguje, ať ho můžeme označit jako
-otestovaný.
+Všechny tiskárny s firmwarem Buddy 6.x mají stejné PrusaLink API. Používáš aplikaci s jiným modelem? Vyplň prosím
+krátké [hlášení kompatibility tiskárny](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (zaškrtávací seznam v angličtině, stačí jedna zkouška
+na Windows nebo macOS), ať ho můžeme označit jako otestovaný.
 
 Kamera je volitelná. I bez ní máš ikonu, notifikace a diagnostiku. Kamera musí poskytovat stream **RTSP H.264**
 dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina IP kamer.
@@ -337,6 +338,10 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 | macOS (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
 
 ## Rychlý start
+
+> [!TIP]
+> Celá **[uživatelská příručka](manuals/cs/manual.md)** popisuje všechny funkce na Windows i macOS. Je i v dalších
+> jazycích: English, Slovenčina, Deutsch, Español, Français, Italiano a Polski, viz [všechny jazyky](manuals/README.md).
 
 ### 1. Stažení
 

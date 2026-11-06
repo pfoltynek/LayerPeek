@@ -99,6 +99,9 @@
   <data name="MenuAbout" xml:space="preserve">
     <value>_Acerca de</value>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_Manual de usuario</value>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>Añadir _impresora…</value>
   </data>
@@ -1562,7 +1565,7 @@
     <value>Introduzca un número entero de {0} a {1}.</value>
   </data>
   <data name="SettingsRecordPrints" xml:space="preserve">
-    <value>Grabar las impresiones automáticamente</value>
+    <value>Grabar cada impresión</value>
   </data>
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Graba desde el inicio de una impresión hasta un minuto después de su fin, también sin la ventana de la cámara abierta.</value>
@@ -1607,7 +1610,7 @@
     <value>Guardar a mano siempre es posible: en el menú de la impresora o en el menú de la ventana de la cámara.</value>
   </data>
   <data name="SettingsDashcamPrinter" xml:space="preserve">
-    <value>Conservar los últimos minutos (dashcam)</value>
+    <value>Conservar últimos minutos (dashcam)</value>
   </data>
   <data name="SettingsDashcamPrinterHint" xml:space="preserve">
     <value>Durante una impresión mantiene en memoria los últimos minutos de la cámara y los guarda si algo sale mal (pestaña Grabación). Inactivo mientras se graba toda la impresión.</value>

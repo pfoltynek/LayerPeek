@@ -318,6 +318,10 @@ public sealed class CameraWindowAutoCloseUiTests(HeadlessSession session)
         {
         }
 
+        public void OpenManual()
+        {
+        }
+
         public void Quit()
         {
         }

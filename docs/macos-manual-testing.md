@@ -39,8 +39,9 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Allow mac.keys,mac.
 **Bez vás (T-140, rozhodnutí uživatele 2026-11-02):** `-Allow` spustí vyjmenované kontroly s oprávněním bez otázky,
 i s `-Unattended`; otázky na posouzení nahrazuje Accessibility (záložka Nastavení, tooltip ikony v menu baru). Jednou
 připravit:
-- **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.camera-pin`;
-  **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`.
+- **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.camera-pin`,
+  `mac.update-check`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
+  okna jako důkaz, že je text výsledku opravdu vykreslený).
 - **Oznámení** „LayerPeek E2E“ povolená (Nastavení systému → Oznámení, nebo jednou interaktivně `-Only mac.notifications`)
   – `mac.notifications` a oznámení během spánku v `mac.display-sleep`.
 - **sudo bez hesla jen pro `nc` jako `nobody`:** `sudo bash tools/macos-verify-sudoers.sh` (soubor
@@ -64,7 +65,7 @@ připravit:
   Klíčenky s prefixem `LayerPeek.Tests`, dočasné složky. Řízené ruční kroky s `/Applications/LayerPeek.app` nabídnou
   dočasné odsunutí profilu LayerPeek (žurnál `scripts/aot-smoke.ps1`, obnova i `pwsh scripts/aot-smoke.ps1 -RestoreOnly`).
 - **Známé pozůstatky:** položka „LayerPeek E2E“ v Nastavení systému → Oznámení; Terminál v Soukromí a zabezpečení →
-  Zpřístupnění, pokud jste ho povolili pro `mac.keys` (po běhu vypněte).
+  Zpřístupnění, pokud jste ho povolili pro `mac.keys` nebo `mac.update-check` (po běhu vypněte).
 
 | Kontrola | Druh | Uzavírá | Sezení níže |
 |---|---|---|---|
@@ -84,6 +85,7 @@ připravit:
 | `mac.camera-pin` | automaticky* (Zpřístupnění pro Terminál) | T-122, T-117 (špendlík „vždy navrchu“ skutečným klikem, mezerníkem, Enterem a AXPress, fokus, typ v Docku, kontextové menu pravým tlačítkem i ⌃-klikem, restart; normální okno i malý náhled) | 6.2 |
 | `mac.camera-outline` | automaticky* (Zpřístupnění a Nahrávání obrazovky pro Terminál) | T-118 (obrys malého náhledu ze snímku okna, při najetí myší světlejší, normální okno bez obrysu) | 6.2 |
 | `mac.keys` | oprávnění (Zpřístupnění pro Terminál) | T-100 krit. 4 (část: ⌃⌘F, Esc, ⌘., ⌘W, ⌘⇧] jako skutečné události včetně stisku modifikátorů; přepnutí záložky čte z Accessibility) | 6.3 |
+| `mac.update-check` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka; Nahrávání obrazovky volitelně) | T-127 oddíl 1d (hlášení uživatele 2026-11-05: „Zkontrolovat nyní“ bez textu výsledku; skutečný klik do aktivního i neaktivního okna Nastavení a AXPress proti náhradnímu GitHub API na 127.0.0.1, text čtený z Accessibility, snímky okna) | – |
 | `mac.socket-other-user` | oprávnění (`sudo`, bez hesla s `tools/macos-verify-sudoers.sh`) | T-053 krit. 1 (spojení uživatele `nobody` se odmítne) | 10.1 |
 | `mac.display-sleep` | oprávnění (uspání displeje) | T-096 krit. 1, T-099 krit. 1 a 3; krit. 2 a 4 (oznámení během spánku displeje), když `mac.notifications` povolil oznámení testovacího bundlu | 8.1, 8.2 |
 | `mac.icons` | ručně (obrázek) | T-018 krit. 1, T-098 krit. 2 (ikony v menu baru světlé / tmavé, @1x; ikona vedle systémových) | 2.2, 2.5 |

@@ -99,6 +99,9 @@
   <data name="MenuAbout" xml:space="preserve">
     <value>I_nformazioni</value>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_Manuale utente</value>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>_Aggiungi stampante…</value>
   </data>
@@ -1562,7 +1565,7 @@
     <value>Inserisci un numero intero da {0} a {1}.</value>
   </data>
   <data name="SettingsRecordPrints" xml:space="preserve">
-    <value>Registra le stampe automaticamente</value>
+    <value>Registra ogni stampa</value>
   </data>
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Registra dall'inizio di una stampa fino a un minuto dopo la fine, anche senza la finestra della telecamera aperta.</value>
