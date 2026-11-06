@@ -6,7 +6,8 @@ Thanks for your interest in LayerPeek! Bug reports, ideas, translations and pull
 
 Open an [issue](https://github.com/pfoltynek/LayerPeek/issues) using one of the templates. For bugs, the
 short report or the diagnostic bundle from the **About** window helps a lot. Security issues go through
-[SECURITY.md](SECURITY.md), not public issues.
+[SECURITY.md](SECURITY.md), not public issues. Questions and early ideas are welcome in
+[Discussions](https://github.com/pfoltynek/LayerPeek/discussions).
 
 **Tested a printer model that isn't marked as tested in the README?** Please tell us in an issue, even when everything
 works.

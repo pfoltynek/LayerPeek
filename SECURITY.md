@@ -23,5 +23,5 @@ reasonable time to release a fix before you publish details.
 In scope: the app itself, its local PrusaLink web proxy, the handling of stored passwords and the camera stream
 decoding.
 
-Out of scope: vulnerabilities in the printer firmware, PrusaLink, Prusa Connect or the cameras themselves. Please
+Out of scope: vulnerabilities in the printer firmware, PrusaLink or the cameras themselves. Please
 report those to [Prusa Research](https://www.prusa3d.com/).
