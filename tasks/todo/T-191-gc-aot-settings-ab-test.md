@@ -1,5 +1,5 @@
 ---
-id: T-178
+id: T-191
 title: A/B měření nastavení GC a Native AOT (paměť a CPU)
 status: todo
 owner: qa-reviewer

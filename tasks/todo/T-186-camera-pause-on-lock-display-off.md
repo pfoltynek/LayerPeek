@@ -1,5 +1,5 @@
 ---
-id: T-173
+id: T-186
 title: Kamera – pozastavení streamu při zamčení počítače a vypnutém displeji (Windows)
 status: todo
 owner: ui-dev
@@ -16,7 +16,7 @@ displeji nebo okně na jiné virtuální ploše se obraz dál dekóduje, převá
 
 ## Rozsah
 - Abstrakce v Core (např. `IDisplayActivityService`: „obrazovka je vidět“ + událost změny), implementace pro Windows
-  v App, pro macOS v T-174. Do té doby má macOS výchozí implementaci „vždy vidět“.
+  v App, pro macOS v T-187. Do té doby má macOS výchozí implementaci „vždy vidět“.
 - Windows: zamčení a odemčení relace (`WTSRegisterSessionNotification`, `WM_WTSSESSION_CHANGE`) a stav displeje
   (`RegisterPowerSettingNotification` s `GUID_CONSOLE_DISPLAY_STATE`) přes `[LibraryImport]`, bez reflexe (AOT).
 - Když obrazovka není vidět, okno vypne jen svou poptávku po snímcích (`SetActive(false)`). Nahrávání, detekce

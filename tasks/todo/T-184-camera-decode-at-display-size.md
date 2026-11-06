@@ -1,5 +1,5 @@
 ---
-id: T-171
+id: T-184
 title: Kamera – převod obrazu rovnou ve velikosti, ve které se zobrazuje
 status: todo
 owner: core-dev + ui-dev

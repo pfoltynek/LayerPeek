@@ -1,5 +1,5 @@
 ---
-id: T-172
+id: T-185
 title: Kamera – omezení snímkové frekvence v malém náhledu
 status: todo
 owner: core-dev + ui-dev

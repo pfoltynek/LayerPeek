@@ -1,5 +1,5 @@
 ---
-id: T-177
+id: T-190
 title: Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil
 status: todo
 owner: ui-dev
