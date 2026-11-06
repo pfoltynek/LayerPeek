@@ -1,5 +1,5 @@
 ---
-id: T-176
+id: T-189
 title: Detekce chyb tisku – snímek z jasové složky (Y) bez převodu do BGRA
 status: todo
 owner: core-dev

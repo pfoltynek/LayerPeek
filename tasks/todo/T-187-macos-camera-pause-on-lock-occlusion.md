@@ -1,19 +1,19 @@
 ---
-id: T-174
+id: T-187
 title: macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna
 status: todo
 owner: ui-dev
 priority: P3
 platform: macos
-depends_on: [T-173]
+depends_on: [T-186]
 ---
 
 ## Cíl
-Protějšek T-173 pro macOS. Na macOS jde navíc spolehlivě zjistit, že je okno úplně zakryté nebo na jiné ploše
+Protějšek T-186 pro macOS. Na macOS jde navíc spolehlivě zjistit, že je okno úplně zakryté nebo na jiné ploše
 (`NSWindow.occlusionState`), takže se stream může pozastavit i v tomto případě.
 
 ## Rozsah
-- Implementace abstrakce z T-173 pro macOS: zamčení obrazovky (`com.apple.screenIsLocked` /
+- Implementace abstrakce z T-186 pro macOS: zamčení obrazovky (`com.apple.screenIsLocked` /
   `com.apple.screenIsUnlocked` přes `NSDistributedNotificationCenter`) a spánek displeje
   (`NSWorkspaceScreensDidSleepNotification` / `NSWorkspaceScreensDidWakeNotification`).
 - Zakrytí okna: `NSWindowDidChangeOcclusionStateNotification` a `occlusionState` okna kamery → okno vypne poptávku
@@ -27,7 +27,7 @@ Protějšek T-173 pro macOS. Na macOS jde navíc spolehlivě zjistit, že je okn
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-- Stejné jako v T-173 (odpovědi platí pro obě platformy).
+- Stejné jako v T-186 (odpovědi platí pro obě platformy).
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

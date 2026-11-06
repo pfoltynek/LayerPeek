@@ -1,5 +1,5 @@
 ---
-id: T-175
+id: T-188
 title: Kamera – exponenciální backoff při opětovném připojení
 status: todo
 owner: core-dev
