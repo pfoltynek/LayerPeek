@@ -15,7 +15,7 @@ Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `sta
 Šablona: [_TEMPLATE.md](_TEMPLATE.md).
 
 - `id` – `T-XXX`, nové ID = nejvyšší existující + 1
-- `owner` – agent: `architect`, `core-dev`, `ui-designer`, `ui-dev`, `qa-reviewer`
+- `owner` – agent: `architect`, `core-dev`, `ui-designer`, `ui-dev`, `qa-reviewer`; `user` = ruční úkol, který dělá uživatel sám (např. nastavení účtu GitHub, T-180)
 - `priority` – `P1` (MVP), `P2`, `P3`
 - `platform` – kde se úkol implementuje a ověřuje:
   - `all` – nezávislé na platformě (Core, klienti PrusaLink/Prusa Connect, sdílené Avalonia UI fungující na obou OS); implementuje se a ověřuje na OS, na kterém se právě vyvíjí
@@ -186,6 +186,10 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-168 | Tray menu na Windows zůstane otevřené po „Hide camera“ (E2E `TrayMenuTests`, nalezeno v T-125; hotovo) | windows | ui-dev | P2 | – |
 | T-169 | Občasné selhání E2E malého náhledu kamery (`CameraMiniPreviewTests`) | windows | qa-reviewer | P3 | – |
 | T-170 | Ukončení podpory Prusa Connect (T-005 zamítnut; hotovo, macOS snímky v T-127) | all | core-dev | P2 | – |
+| T-180 | Zabezpečení účtu a repozitáře na GitHubu (2FA klíčem, pravidla tagů a větví, krátkodobý token pro vydání) | all | user | P1 | – |
+| T-181 | Podepsaný feed aktualizací (podpis `releases.<RID>.json` offline klíčem, ověření v aplikaci) | all | core-dev | P2 | – |
+| T-182 | Varování u adresy `http://` mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť) | all | core-dev + ui-dev | P2 | – |
+| T-183 | Dokumentace – zabezpečení přístupu k PrusaLink (silné heslo, oddělená síť, HTTPS přes reverzní proxy) | all | architect + qa-reviewer | P2 | – |
 
 ### Windows (`windows`)
 
