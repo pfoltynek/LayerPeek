@@ -186,6 +186,10 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-168 | Tray menu na Windows zůstane otevřené po „Hide camera“ (E2E `TrayMenuTests`, nalezeno v T-125; hotovo) | windows | ui-dev | P2 | – |
 | T-169 | Občasné selhání E2E malého náhledu kamery (`CameraMiniPreviewTests`) | windows | qa-reviewer | P3 | – |
 | T-170 | Ukončení podpory Prusa Connect (T-005 zamítnut; hotovo, macOS snímky v T-127) | all | core-dev | P2 | – |
+| T-171 | Uživatelská příručka ve všech jazycích aplikace (hotovo) | all | architect | P2 | – |
+| T-172 | Položka „Příručka“ v menu ikony (hotovo) | all | ui-dev | P2 | T-171 |
+| T-173 | Oříznutý text „dashcam“ na podzáložce Kamera v delších jazycích (hotovo) | all | ui-dev | P2 | – |
+| T-174 | Ruční ověření dalších modelů tiskáren (MK4/MK4S, MK3.9, MK3.5, XL, MINI) | all | qa-reviewer | P2 | – |
 | T-180 | Zabezpečení účtu a repozitáře na GitHubu (2FA klíčem, pravidla tagů a větví, krátkodobý token pro vydání) | all | user | P1 | – |
 | T-181 | Podepsaný feed aktualizací (podpis `releases.<RID>.json` offline klíčem, ověření v aplikaci) | all | core-dev | P2 | – |
 | T-182 | Varování u adresy `http://` mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť) | all | core-dev + ui-dev | P2 | – |
