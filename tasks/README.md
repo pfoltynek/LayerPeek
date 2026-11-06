@@ -186,6 +186,13 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-168 | Tray menu na Windows zůstane otevřené po „Hide camera“ (E2E `TrayMenuTests`, nalezeno v T-125; hotovo) | windows | ui-dev | P2 | – |
 | T-169 | Občasné selhání E2E malého náhledu kamery (`CameraMiniPreviewTests`) | windows | qa-reviewer | P3 | – |
 | T-170 | Ukončení podpory Prusa Connect (T-005 zamítnut; hotovo, macOS snímky v T-127) | all | core-dev | P2 | – |
+| T-171 | Kamera – převod obrazu rovnou ve velikosti, ve které se zobrazuje (výkon) | all | core-dev + ui-dev | P2 | – |
+| T-172 | Kamera – omezení snímkové frekvence v malém náhledu (výkon) | all | core-dev + ui-dev | P2 | – |
+| T-175 | Kamera – exponenciální backoff při opětovném připojení (výkon) | all | core-dev | P2 | – |
+| T-176 | Detekce chyb tisku – snímek z jasové složky (Y) bez převodu do BGRA (výkon) | all | core-dev | P3 | – |
+| T-177 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) | all | ui-dev | P3 | – |
+| T-178 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) | all | qa-reviewer | P3 | – |
+| T-179 | Hardwarové dekódování H.264 kamery – průzkum (spike) | all | architect | P3 | T-171, T-172 |
 
 ### Windows (`windows`)
 
@@ -217,6 +224,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-125 | Windows – zbývající ruční ověření (interaktivní windows-verify, tiskárna, vydání) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-105, T-107, T-114, T-117, T-118 |
 | T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo) | windows | qa-reviewer | P2 | – |
 | T-162 | FFmpeg pro Windows – připnutý build BtbN už neexistuje (404) (hotovo; ověření v T-125) | windows | core-dev | P1 | – |
+| T-173 | Kamera – pozastavení streamu při zamčení počítače a vypnutém displeji (výkon) | windows | ui-dev | P2 | – |
 
 ### macOS (`macos`) – jen na Macu, později
 
@@ -252,3 +260,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-141 | macOS – ⌘. (Zrušit) se k oknům aplikace nedostane (hotovo) | macos | ui-dev | P2 | T-100 |
 | T-142 | E2E test aktualizace na Macu selže se zapnutým displejem (hotovo; dřív T-133, přečíslováno 2026-11-02) | macos | qa-reviewer | P2 | T-058, T-099 |
 | T-147 | macOS – FFmpeg s muxerem pro nahrávání kamery (hotovo; QuickTime v T-127) | macos | ui-dev | P2 | T-144, T-026 |
+| T-174 | macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna (výkon) | macos | ui-dev | P3 | T-173 |
