@@ -65,7 +65,7 @@ sloučení zapnuté.
 - [ ] Účet: hardwarový klíč / passkey jako 2FA, SMS odebrané, nové záchranné kódy uložené offline (potvrdí uživatel)
 - [ ] Nepoužívané OAuth aplikace, GitHub Apps, SSH klíče a klasické PAT odebrané (potvrdí uživatel)
 - [ ] Rulesety 1–4 (viz Rozsah) zkontrolované ve stavu *Active* (ne *Evaluate*), stav zapsaný do Poznámek
-- [ ] Ruleset PR odpovídá odpovědi na bod 2 (dnes bypass pro admina)
+- [ ] Ruleset PR má výjimku pro admina, přímý push vlastníka do `main` i `develop` funguje (rozhodnuto 2026-11-06, bod 2)
 - [ ] Immutable releases zapnuté; `-AddToPublished` a zveřejnění neúplného vydání skripty odmítnou (Pester test),
       `docs/release.md` popisuje zveřejnění až s oběma OS v konceptu
 - [ ] Trvalé přihlášení `gh` odstraněné (`gh auth status` bez `GH_TOKEN` hlásí nepřihlášený stav)
@@ -78,13 +78,10 @@ sloučení zapnuté.
 ## Otevřené otázky
 1. ~~Immutable releases vs. T-113~~ – **rozhodnuto 2026-11-06: (a)** zapnout, zveřejňovat až s oběma OS v konceptu,
    `-AddToPublished` zrušit (viz Rozsah).
-2. **`main`: povinný PR – rozhodnuto 2026-11-06 (ano, spolu se zákazem force-push a smazání).** Ruleset je nastavený
-   s **bypassem pro admina** (varianta a níže). Uživatel ještě nepotvrdil, zda to tak nechat:
-   (a) bypass pro vlastníka (dnešní stav) – `release.ps1` i lokální merge do `develop` zůstanou, PR platí jen pro jiné
-   účty (proti ukradenému tokenu vlastníka nepomůže, token jedná jako vlastník);
-   (b) bez bypassu, skript otevře a sloučí PR přes `gh pr create` + `gh pr merge --merge`; PAT pak potřebuje navíc
-   `Pull requests: Read and write`. **Pozor:** s dnešním požadavkem 1 schválení by (b) nešlo – vlastní PR schválit
-   nelze; muselo by se schválení snížit na 0. Týkalo by se i `develop` (tok úkolů v CLAUDE.md slučuje lokálně a pushuje).
+2. ~~`main`: povinný PR~~ – **rozhodnuto 2026-11-06:** povinný PR pro `develop` i `main`, **výjimka pro admina
+   (vlastníka) zůstává** – vlastník smí pushovat do `main` i `develop` přímo (`release.ps1`, lokální `git merge
+   --no-ff` + push); PR platí jen pro jiné účty. Strojový účet ani druhý schvalovatel se nezavádí (uživatel nechce).
+   Vědomě přijaté: proti ukradenému tokenu vlastníka PR nechrání – to řeší T-181 a krátkodobý token.
 3. **Přihlášení pro `git push`.** Fine-grained PAT v `GH_TOKEN` pokrývá jen `gh`. Pro `git push` varianty: (a) stejný
    PAT dočasně přes `gh auth setup-git` / credential helper a po vydání vymazat z Git Credential Manageru, (b) SSH klíč
    na hardwarovém klíči (`ed25519-sk`) nebo s heslem, (c) ponechat dnešní stav GCM. Rozhodne uživatel.
