@@ -28,7 +28,9 @@ vlákno pro čtení a TCP spojení ([ReconnectingCameraFeed.cs](../../src/LayerP
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-1. Rozsah prodlevy: navrženo 5 s → 1 min (jako `PrinterMonitorOptions.MaxBackoff`). Souhlasíte, nebo jiný strop?
+Rozhodnuto uživatelem 2026-11-10:
+1. Rozsah prodlevy: **5 s → 1 min** (jako `PrinterMonitorOptions.MaxBackoff`).
+
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
