@@ -26,7 +26,7 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
     private readonly ListLogger<ReconnectingCameraFeed> _logger = new();
     private readonly RecordingProgress _status = new();
     private readonly CancellationTokenSource _cts = new();
-    private readonly ReconnectingCameraFeed _camera;
+    private ReconnectingCameraFeed _camera;
     private IAsyncEnumerator<CameraFrame>? _frames;
     private Task<bool>? _pending;
 
@@ -132,8 +132,9 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
         {
             (await _factory.NextStreamAsync())!.Fail(new CameraFeedException(reason));
             Assert.Equal(CameraStatus.Connecting, await _status.NextAsync());
-            Assert.Equal(CameraConnectionState.Error, (await _status.NextAsync()).State);
-            _time.Advance(Options.ReconnectDelay);
+            CameraStatus error = await _status.NextAsync();
+            Assert.Equal(CameraConnectionState.Error, error.State);
+            _time.Advance(error.NextAttemptAt!.Value - _time.GetUtcNow());
         }
 
         Assert.NotNull(await _factory.NextStreamAsync());
@@ -158,7 +159,9 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
 
         first.Fail(new CameraFeedException("Connection refused."));
 
-        Assert.Equal(new CameraStatus(CameraConnectionState.Error, "Connection refused."), await _status.NextAsync());
+        Assert.Equal(
+            new CameraStatus(CameraConnectionState.Error, "Connection refused.") { NextAttemptAt = _time.GetUtcNow() + Options.ReconnectDelay },
+            await _status.NextAsync());
         Assert.True(first.IsDisposed);
         Assert.Contains(_logger.Entries, static e => e.Level == LogLevel.Warning && e.Exception is CameraFeedException);
 
@@ -182,7 +185,7 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
         Assert.Equal(CameraConnectionState.Error, error.State);
         Assert.True(error.IsHostUnreachable);
         Assert.Equal("Opening the stream: No route to host.", error.Reason);
-        Assert.NotEqual(new CameraStatus(CameraConnectionState.Error, error.Reason), error);
+        Assert.NotEqual(new CameraStatus(CameraConnectionState.Error, error.Reason) { NextAttemptAt = error.NextAttemptAt }, error);
     }
 
     [Fact]
@@ -239,7 +242,9 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
         Task<bool> move = Next();
         Assert.Null(await _factory.NextStreamAsync());
         Assert.Equal(CameraStatus.Connecting, await _status.NextAsync());
-        Assert.Equal(new CameraStatus(CameraConnectionState.Error, "Decoder not available."), await _status.NextAsync());
+        Assert.Equal(
+            new CameraStatus(CameraConnectionState.Error, "Decoder not available.") { NextAttemptAt = _time.GetUtcNow() + Options.ReconnectDelay },
+            await _status.NextAsync());
 
         _time.Advance(Options.ReconnectDelay);
         FakeCameraFeed stream = (await _factory.NextStreamAsync())!;
@@ -367,6 +372,132 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task DelayDoublesForEveryFailedAttemptUpToTheCap()
+    {
+        // T-188: 5 s, 10 s, 20 s, 40 s, then the 1 min cap (the app's values).
+        _ = Next();
+        foreach (int seconds in (int[])[5, 10, 20, 40, 60, 60])
+        {
+            TimeSpan delay = TimeSpan.FromSeconds(seconds);
+            (await _factory.NextStreamAsync())!.Fail(new CameraFeedException("Connection refused."));
+            Assert.Equal(CameraStatus.Connecting, await _status.NextAsync());
+            await AssertRetryAfterAsync(delay);
+        }
+    }
+
+    [Fact]
+    public async Task EveryFailureKindBacksOff()
+    {
+        // Open failure, connect timeout, stream ended before any frame: all count as failed attempts.
+        int calls = 0;
+        _factory.Behavior = _ => ++calls == 1 ? throw new CameraFeedException("Decoder not available.") : null;
+        _ = Next();
+        Assert.Null(await _factory.NextStreamAsync());
+        await _status.NextAsync();
+        await AssertRetryAfterAsync(Options.ReconnectDelay);
+
+        FakeCameraFeed silent = (await _factory.NextStreamAsync())!;
+        await silent.NextReadAsync();
+        await _status.NextAsync();
+        _time.Advance(Options.ConnectTimeout);
+        await AssertRetryAfterAsync(Options.ReconnectDelay * 2);
+
+        (await _factory.NextStreamAsync())!.End();
+        await _status.NextAsync();
+        await AssertRetryAfterAsync(Options.ReconnectDelay * 4);
+    }
+
+    [Fact]
+    public async Task StreamingResetsTheDelay()
+    {
+        Task<bool> move = Next();
+        for (int i = 0; i < 3; i++)
+        {
+            (await _factory.NextStreamAsync())!.Fail(new CameraFeedException("Connection refused."));
+            await _status.NextAsync();
+            await AssertRetryAfterAsync(Options.ReconnectDelay * (1 << i));
+        }
+
+        // The attempt that streams counts as successful: when it ends, the next attempt follows after the initial delay.
+        FakeCameraFeed streaming = (await _factory.NextStreamAsync())!;
+        streaming.PushFrame(1);
+        Assert.True(await move.WaitAsync(TestTimeouts.Wait, Ct));
+        Assert.Equal(CameraStatus.Connecting, await _status.NextAsync());
+        Assert.Equal(CameraStatus.Streaming, await _status.NextAsync());
+        move = Next();
+        streaming.End();
+        await AssertRetryAfterAsync(Options.ReconnectDelay);
+
+        // And the backoff starts over.
+        (await _factory.NextStreamAsync())!.Fail(new CameraFeedException("Connection refused."));
+        await _status.NextAsync();
+        await AssertRetryAfterAsync(Options.ReconnectDelay * 2);
+        Assert.False(move.IsCompleted);
+    }
+
+    [Fact]
+    public async Task ReconnectDelayLongerThanTheCapSwitchesTheBackoffOff()
+    {
+        _camera = new ReconnectingCameraFeed(
+            _factory,
+            _time,
+            _logger,
+            Options with { ReconnectDelay = TimeSpan.FromSeconds(30), MaxReconnectDelay = TimeSpan.FromSeconds(10) });
+        _ = Next();
+        for (int i = 0; i < 3; i++)
+        {
+            (await _factory.NextStreamAsync())!.Fail(new CameraFeedException("Connection refused."));
+            await _status.NextAsync();
+            await AssertRetryAfterAsync(TimeSpan.FromSeconds(30));
+        }
+    }
+
+    [Fact]
+    public async Task CancellationDuringALongBackoffEndsAtOnceAndClosesEverything()
+    {
+        Task<bool> move = Next();
+        List<FakeCameraFeed> streams = [];
+        for (int i = 0; i < 5; i++)
+        {
+            FakeCameraFeed stream = (await _factory.NextStreamAsync())!;
+            streams.Add(stream);
+            stream.Fail(new CameraFeedException("Connection refused."));
+            await _status.NextAsync();
+            CameraStatus error = await _status.NextAsync();
+            if (i < 4)
+            {
+                _time.Advance(error.NextAttemptAt!.Value - _time.GetUtcNow());
+            }
+        }
+
+        // Waiting the full minute now; stopping must not wait for it (no time passes here).
+        await _cts.CancelAsync();
+
+        Assert.False(await move.WaitAsync(TestTimeouts.Wait, Ct));
+        Assert.All(streams, static stream => Assert.True(stream.IsDisposed));
+        _time.Advance(Options.MaxReconnectDelay);
+        Assert.Equal(5, _factory.CreateCount);
+        Assert.False(_status.HasPending);
+    }
+
+    /// <summary>The failure reported next plans the next attempt in <paramref name="delay"/>, which starts exactly then.</summary>
+    private async Task AssertRetryAfterAsync(TimeSpan delay)
+    {
+        CameraStatus failure = await _status.NextAsync();
+        Assert.NotEqual(CameraConnectionState.Connecting, failure.State);
+        Assert.NotEqual(CameraConnectionState.Streaming, failure.State);
+        Assert.Equal(_time.GetUtcNow() + delay, failure.NextAttemptAt);
+        int created = _factory.CreateCount;
+
+        _time.Advance(delay - Tick);
+        Assert.False(_factory.HasPendingCreate);
+        Assert.Equal(created, _factory.CreateCount);
+
+        // The caller takes the next attempt's Connecting.
+        _time.Advance(Tick);
+    }
+
+    [Fact]
     public async Task CancellationWhileConsumerHoldsFrameEndsAtNextRead()
     {
         Task<bool> move = Next();
@@ -437,10 +568,13 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
         Assert.True(defaults.ConnectTimeout > TimeSpan.Zero);
         Assert.True(defaults.FrameTimeout > TimeSpan.Zero);
         Assert.True(defaults.ReconnectDelay > TimeSpan.Zero);
+        Assert.Equal(TimeSpan.FromMinutes(1), defaults.MaxReconnectDelay);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => new CameraFeedOptions { ConnectTimeout = TimeSpan.Zero });
         Assert.Throws<ArgumentOutOfRangeException>(() => new CameraFeedOptions { FrameTimeout = TimeSpan.FromHours(1) });
         Assert.Throws<ArgumentOutOfRangeException>(() => new CameraFeedOptions { ReconnectDelay = TimeSpan.FromMilliseconds(-1) });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CameraFeedOptions { MaxReconnectDelay = TimeSpan.Zero });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CameraFeedOptions { MaxReconnectDelay = TimeSpan.FromMinutes(6) });
     }
 
     private Task<bool> Next()

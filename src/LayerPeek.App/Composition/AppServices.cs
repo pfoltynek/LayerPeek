@@ -774,12 +774,14 @@ internal static partial class AppServices
         Func<IServiceProvider, ICameraWindowStateStore> cameraWindowStateStore)
     {
         services.AddSingleton(cameraFeedFactory);
-        // User decision (T-014): 15 s to connect, 10 s without a frame, 5 s between attempts, no backoff.
+        // User decision (T-014): 15 s to connect, 10 s without a frame. Between attempts 5 s, doubled while they keep
+        // failing up to 1 min like the printers' PrinterMonitorOptions.MaxBackoff (user decision 2026-11-10, T-188).
         services.AddSingleton(static _ => new CameraFeedOptions
         {
             ConnectTimeout = TimeSpan.FromSeconds(15),
             FrameTimeout = TimeSpan.FromSeconds(10),
             ReconnectDelay = TimeSpan.FromSeconds(5),
+            MaxReconnectDelay = TimeSpan.FromMinutes(1),
         });
         // Stateless: every enumeration is its own connection; only the hub below enumerates it.
         services.AddSingleton(static sp => new ReconnectingCameraFeed(

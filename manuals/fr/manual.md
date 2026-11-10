@@ -226,7 +226,8 @@ Faites un clic droit sur l'image (sur macOS, également Contrôle-clic) pour acc
 ### 5.4 Quand la connexion est coupée
 
 La fenêtre se reconnecte d'elle-même quand la caméra ou le Wi-Fi décroche ; entre-temps, elle affiche **Connexion à la
-caméra…** ou **Pas de signal**. Quand l'imprimante est éteinte, la fenêtre se ferme, puis se rouvre au même endroit
+caméra…** ou **Pas de signal**. Elle réessaie au bout de 5 secondes ; tant que la caméra reste injoignable, la pause
+double jusqu'à une minute. Quand l'imprimante est éteinte, la fenêtre se ferme, puis se rouvre au même endroit
 quand l'imprimante est de retour. Vous pouvez désactiver ce comportement dans **Paramètres → Imprimantes → Fenêtre de la
 caméra** (**Fermer quand l'imprimante s'éteint, rouvrir quand elle est rallumée**). Une fenêtre que vous fermez
 vous-même reste fermée.

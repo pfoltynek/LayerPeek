@@ -377,7 +377,9 @@ public sealed class AppServicesTests
 
         Assert.IsType<FFmpegCameraFeedFactory>(services.GetRequiredService<ICameraFeedFactory>());
         CameraFeedOptions options = services.GetRequiredService<CameraFeedOptions>();
-        Assert.Equal((TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5)), (options.ConnectTimeout, options.FrameTimeout, options.ReconnectDelay));
+        Assert.Equal(
+            (TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(1)),
+            (options.ConnectTimeout, options.FrameTimeout, options.ReconnectDelay, options.MaxReconnectDelay));
         Assert.Same(services.GetRequiredService<ReconnectingCameraFeed>(), services.GetRequiredService<ReconnectingCameraFeed>());
         Assert.Equal(TimeSpan.FromSeconds(15), Assert.IsType<CameraSnapshotTester>(services.GetRequiredService<ICameraTester>()).Timeout);
         // Only the type: resolving it touches no files (nothing is loaded or saved in this test).

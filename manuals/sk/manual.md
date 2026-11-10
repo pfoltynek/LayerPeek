@@ -218,7 +218,8 @@ nahrávanie, dashcam a timelapse.
 ### 5.4 Keď vypadne spojenie
 
 Keď vypadne kamera alebo Wi-Fi, okno sa samo znova pripojí; medzitým ukazuje **Pripája sa ku kamere…** alebo
-**Bez signálu**. Keď tlačiareň vypnete, okno sa zatvorí a po jej návrate sa znova otvorí na rovnakom mieste. Toto
+**Bez signálu**. Ďalší pokus príde o 5 sekúnd; kým je kamera nedostupná, prestávka sa zdvojnásobuje až na
+jednu minútu. Keď tlačiareň vypnete, okno sa zatvorí a po jej návrate sa znova otvorí na rovnakom mieste. Toto
 správanie vypnete v **Nastavenia → Tlačiarne → Okno kamery** (**Zatvoriť, keď sa tlačiareň vypne, a znova otvoriť po
 jej zapnutí**). Okno, ktoré zatvoríte sami, zostane zatvorené.
 

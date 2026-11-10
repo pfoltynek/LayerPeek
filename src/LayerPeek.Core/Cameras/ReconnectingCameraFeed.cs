@@ -3,19 +3,30 @@ using System.Runtime.CompilerServices;
 
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.Core.Monitoring;
+
 namespace LayerPeek.Core.Cameras;
 
 /// <summary>
 /// Keeps a camera stream running: opens it through an <see cref="ICameraFeedFactory"/>, forwards its frames,
-/// detects a stalled stream and reconnects after <see cref="CameraFeedOptions.ReconnectDelay"/> whenever an attempt
-/// fails or ends, until cancelled. Stateless: concurrent enumerations are independent connections (share one through
-/// <see cref="CameraStreamHub"/>).
+/// detects a stalled stream and reconnects whenever an attempt fails or ends, until cancelled. Stateless: concurrent
+/// enumerations are independent connections (share one through <see cref="CameraStreamHub"/>).
 /// </summary>
 /// <remarks>
+/// <para>
 /// Status rules: <see cref="CameraConnectionState.Connecting"/> at the start of every attempt,
 /// <see cref="CameraConnectionState.Streaming"/> on its first frame, <see cref="CameraConnectionState.NoSignal"/> when no
 /// frame arrives in time or the camera ends the stream, <see cref="CameraConnectionState.Error"/> when creating, opening
 /// or reading the stream throws. Forwarding a frame allocates nothing.
+/// </para>
+/// <para>
+/// Backoff (T-188, like the printers' <see cref="PrinterMonitor"/>): the next attempt follows after
+/// <see cref="CameraFeedOptions.ReconnectDelay"/>, doubled for every further attempt in a row that ends before it streams,
+/// up to <see cref="CameraFeedOptions.MaxReconnectDelay"/>. An attempt counts as successful once it streams (its first
+/// packet or frame, the moment <see cref="CameraConnectionState.Streaming"/> is reported); the attempt after it waits the
+/// initial delay again. Every failure status carries the planned start of the next attempt
+/// (<see cref="CameraStatus.NextAttemptAt"/>). A new enumeration starts without delay and with a fresh backoff.
+/// </para>
 /// </remarks>
 public sealed partial class ReconnectingCameraFeed
 {
@@ -116,6 +127,8 @@ public sealed partial class ReconnectingCameraFeed
         string address = UriRedaction.Redact(streamUri);
         StatusReporter status = new(this, progress, address);
         using Watchdog watchdog = new(_timeProvider);
+        // Attempts in a row that ended before streaming, including the current one once it ended (backoff).
+        int failedAttempts = 0;
 
         while (!stopToken.IsCancellationRequested)
         {
@@ -161,6 +174,7 @@ public sealed partial class ReconnectingCameraFeed
                         if (!streaming && item.Kind != CameraStreamItemKind.StreamStarted)
                         {
                             streaming = true;
+                            failedAttempts = 0;
                             status.Report(CameraStatus.Streaming);
                             status.ClearFailures();
                         }
@@ -181,8 +195,10 @@ public sealed partial class ReconnectingCameraFeed
             }
 
             // The delay is scheduled before the failure is reported, so whoever observes the status sees the retry planned.
-            Task delay = Task.Delay(_options.ReconnectDelay, _timeProvider, stopToken);
-            status.Report(failure ?? StreamEnded);
+            // A streamed attempt reset the count, so it ends with the initial delay.
+            TimeSpan reconnectDelay = ExponentialBackoff.Delay(_options.ReconnectDelay, _options.MaxReconnectDelay, ++failedAttempts);
+            Task delay = Task.Delay(reconnectDelay, _timeProvider, stopToken);
+            status.Report((failure ?? StreamEnded) with { NextAttemptAt = _timeProvider.GetUtcNow() + reconnectDelay });
             try
             {
                 await delay.ConfigureAwait(false);
