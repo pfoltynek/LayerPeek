@@ -37,9 +37,10 @@ zmenšit obraz na velikost, ve které se opravdu vykresluje, a odstranit zbyteč
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-1. Filtr zmenšení: ponechat `SWS_BILINEAR`, nebo pro výrazné zmenšení (malý náhled) použít `SWS_AREA`
-   (ostřejší, o něco dražší)?
-2. Má se zmenšení týkat i všeho, co se z okna kamery ukládá nebo exportuje, nebo má takový export vždy plné rozlišení?
+Rozhodnuto uživatelem 2026-11-10:
+1. Filtr: **ponechat `SWS_BILINEAR`**.
+2. Zmenšení **jen pro zobrazení**; snímky, export a nahrávky mají vždy plné rozlišení.
+
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
