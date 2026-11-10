@@ -877,10 +877,12 @@ Describe 'Update feed signature (T-181)' {
         @{ Case = 'a private key'; Plain = $true; Pattern = 'must be one PEM PUBLIC KEY' }
         @{ Case = 'a P-384 key'; P384 = $true; Pattern = 'must be an ECDSA P-256 public key' }
         @{ Case = 'a key twice'; Twice = $true; Pattern = 'lists a key twice' }
+        @{ Case = 'two declarations (#if DEBUG / #else)'; Conditional = $true; Pattern = 'UpdateFeedKeys\.Production is declared 2 times .*cannot tell which one a Release build trusts' }
     ) {
         $text = if ($Plain) { Get-KeyListSource @([System.IO.File]::ReadAllText($script:PlainKeyPath)) }
         elseif ($P384) { Get-KeyListSource @($script:P384Pem) }
         elseif ($Twice) { Get-KeyListSource @($script:TestPublic.Pem, $script:TestPublic.Pem) }
+        elseif ($Conditional) { "#if DEBUG`n" + (Get-KeyListSource @($script:OtherPublic.Pem)) + "#else`n" + (Get-KeyListSource @($script:TestPublic.Pem)) + "#endif`n" }
         else { $Source }
         Assert-ThrowsMatching { Get-TrustedFeedKeys $text } $Pattern
     }

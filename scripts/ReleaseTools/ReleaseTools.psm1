@@ -880,13 +880,15 @@ function Get-TrustedFeedKeys {
         source never reads as "no keys" or "fewer keys" silently. Returns ConvertFrom-FeedPublicKeyPem objects.
     .DESCRIPTION
         Parsing the source keeps the app the single place of the keys (decision of T-181: constants in the binary, never
-        read from a file); Get-AppLanguageCodes reads AppLanguages.cs the same way. Of two declarations (#if DEBUG / #else)
-        the first is read.
+        read from a file); Get-AppLanguageCodes reads AppLanguages.cs the same way. The release list (Production) must be
+        declared exactly once: of two declarations (#if DEBUG / #else) the script could not know which one the Release build
+        compiles. Of the two declarations of the Test list (Debug: the test key, Release: none) the first is read.
     #>
     param([Parameter(Mandatory)] [string] $SourceText, [string] $ListName = $script:FeedSignature.KeysList)
-    $declaration = [regex]::Match($SourceText, "(?s)\bIReadOnlyList<string>\s+$([regex]::Escape($ListName))\s*=\s*\[(?<body>.*?)\];")
-    if (-not $declaration.Success) { throw "The list UpdateFeedKeys.$ListName ('IReadOnlyList<string> $ListName = [ ... ];') was not found in $($script:FeedSignature.KeysSource)." }
-    $body = $declaration.Groups['body'].Value
+    $declarations = [regex]::Matches($SourceText, "(?s)\bIReadOnlyList<string>\s+$([regex]::Escape($ListName))\s*=\s*\[(?<body>.*?)\];")
+    if ($declarations.Count -eq 0) { throw "The list UpdateFeedKeys.$ListName ('IReadOnlyList<string> $ListName = [ ... ];') was not found in $($script:FeedSignature.KeysSource)." }
+    if ($declarations.Count -gt 1 -and $ListName -ceq $script:FeedSignature.KeysList) { throw "UpdateFeedKeys.$ListName is declared $($declarations.Count) times in $($script:FeedSignature.KeysSource) (#if?); the release scripts cannot tell which one a Release build trusts." }
+    $body = $declarations[0].Groups['body'].Value
     $literal = '(?s)"""(?<pem>.*?)"""'
     $keys = @(foreach ($match in [regex]::Matches($body, $literal)) { ConvertFrom-FeedPublicKeyPem $match.Groups['pem'].Value })
     $rest = [regex]::Replace([regex]::Replace($body, $literal, ''), '//[^\n]*', '')

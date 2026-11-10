@@ -364,8 +364,9 @@ public sealed partial class UpdateCheckService : IDisposable
         }
         catch (UpdateFeedRejectedException ex)
         {
-            // The release on offer stays like after any failure: it came from a feed that passed the check (or from update-state.json,
-            // and a Velopack installation checks its feed again before it downloads anything).
+            // The release on offer stays like after any failure: it came from a feed that passed the check in this run (a Velopack
+            // installation then downloads only what that verified feed pinned by size and SHA-256), or from update-state.json
+            // (then a Velopack installation checks its feed again before it downloads anything).
             LogFeedRejected(ex.Feed.FeedName, ex.Feed.Reason, ex.Feed.ClaimedVersion?.ToString());
             if (SetFeedRejection(ex.Feed))
             {

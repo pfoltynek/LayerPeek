@@ -167,6 +167,21 @@ Otevřené (ui-dev a qa-reviewer, 2026-11-10):
 21. `-AddToPublished` teď vyžaduje `.sig` i u feedu druhého OS, takže přidání OS k vydání zveřejněnému před T-181 se odmítne
     (předpoklad: v pořádku, T-180 `-AddToPublished` ruší).
 
+Otevřené (qa-reviewer, bezpečnostní revize 2026-11-10):
+22. **Rada „stáhněte a nainstalujte ručně“ při odmítnutí:** text na záložce (`SettingsUpdateRejected`) i manuály radí stáhnout
+    novou verzi ze stránky vydání na GitHubu a nainstalovat ji ručně. Odmítnutý podpis je ale přesně situace, kdy vydání na GitHubu
+    může být škodlivé (útočník s přístupem k vydáním), a notifikace navíc ukazuje verzi, kterou si vybral útočník („Verze 9.9.9
+    nebyla nainstalována…“). Rada tak útočníkovi pomáhá obejít ochranu. Návrh: text změnit na „neinstalujte ji ručně; počkejte
+    na další vydání nebo ověřte oznámení v README / na stránce projektu“ (8 jazyků + manuály) – rozhodne uživatel.
+23. **Podpis neváže kanál stabilní / předběžné vydání:** podepsaná data jsou jen prefix + RID + feed. Podepsaný feed předběžného
+    vydání (např. `0.5.0-rc.1`) může útočník znovu nahrát jako stabilní vydání. Nabídku stejně filtruje `UpdateCheckService`
+    podle přípony semver, takže uživatel bez předběžných verzí ji nedostane; zbytkové riziko je jen „podstrčení“ pravé podepsané
+    verze. Zapsat jako přijatelné zbytkové riziko do `docs/release.md`, nebo kanál do podpisu přidat?
+24. **Odpověď k otázce 11 upřesněna:** nabídka z platné kontroly **v tomto běhu** se při pozdějším odmítnutí neověřuje znovu –
+    `AppUpdates.ApplyAsync` použije uložený `UpdateInfo` z dřívější ověřené kontroly a stáhne balíček připnutý tímto ověřeným
+    feedem (velikost + SHA-256). Bezpečnostně v pořádku, jen tvrzení „instalace z ní stejně nejdřív feed ověří znovu“ platí jen
+    pro nabídku z `update-state.json`. Má instalace po aktivním odmítnutí raději vůbec neproběhnout?
+
 ## Poznámky k implementaci
 Koncept (core-dev, 2026-11-10; skripty vydání, UI, notifikace, `docs/release.md` a CHANGELOG zbývají):
 - Průzkum Velopacku 1.2.161 v `docs/velopack.md`, bod 13: Velopack podpis feedu nemá, updater nic znovu nestahuje, přesné
@@ -228,3 +243,19 @@ Zdroje:
 - .NET `ECDsa`: https://learn.microsoft.com/dotnet/api/system.security.cryptography.ecdsa
 - minisign: https://jedisct1.github.io/minisign/
 - NSec: https://nsec.rocks/
+
+## Review
+qa-reviewer, 2026-11-10 (bezpečnostní revize celé větve, `git diff origin/develop...HEAD`):
+- **Blokující nálezy: žádné.** Úkol zůstává v `in-progress` kvůli produkčnímu klíči, zkušebnímu vydání a otázkám 8–24.
+- Ověřeno: feed i `.sig` se čtou jen přes naše přepsané `GetReleaseFeed` (GitHub, loopback, složka), přesné bajty se ověří a teprve
+  ty samé bajty se předají parseru Velopacku (žádné TOCTOU); záložní cesta `SimpleFileSource` na `*.nupkg` je zavřená;
+  `GitBaseAsset` přenáší `SHA256`/`Size`/`SHA1` z ověřeného feedu (ověřeno za běhu nad Velopack 1.2.161); `DownloadUpdatesAsync`
+  feed znovu nečte; testovací klíč jen v Debug a jen pro testovací zdroj; limity 1 MiB / 256 B a timeout 30 s; pojmenovaný
+  klient přes `IHttpClientFactory` bez loggerů; P1363 s pevnou délkou, DER odmítnut, soukromý klíč a jiná křivka odmítnuty;
+  skripty nevypisují klíč ani heslo, `-SkipFeedSignature` upload i publish odmítnou.
+- Opraveno: `Get-TrustedFeedKeys` četl při dvou deklaracích `Production` (`#if DEBUG` / `#else`) tu první, tedy možná jinou, než
+  zkompiluje Release – teď je odmítne (Pester test). Komentář v `UpdateCheckService` k nabídce z dřívější kontroly upřesněn
+  (otázka 24).
+- Drobnosti (ne blokující): zpráva výjimky „feed listed but not found“ obsahuje název vydání z GitHubu (nedůvěryhodný text v logu);
+  kontrola křivky `Curve.Oid.Value` je ověřená jen na macOS – Windows běh testů v T-125 ji pokryje.
+
