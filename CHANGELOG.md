@@ -23,6 +23,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings, the printer's **Camera** sub-tab: in Italian, Spanish, French and Polish the **Keep the last minutes
   (dashcam)** check box was cut off; the labels are shorter now.
 
+### Security
+
+- **Updates are verified with a signature** (installations from `Setup.exe` on Windows and the app in Applications on
+  macOS): the update feed of every release is signed with an offline key that is never on GitHub, and LayerPeek refuses
+  an update whose feed is unsigned, changed or signed with another key, so that a taken-over GitHub account cannot ship
+  a malicious update. Versions before this one still accept any update, including this one; the protection starts once
+  this version runs. The first download of an installer is not covered: check it against `SHA256SUMS-*.txt`.
+
 ## [0.5.0] - 2026-11-05
 
 ### Added

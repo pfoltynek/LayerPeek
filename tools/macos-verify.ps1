@@ -1196,7 +1196,7 @@ $checks = @(
         $version = Get-AppVersion
         $names = Get-MacReleaseFileNames -Version $version -Runtime 'osx-arm64'
         $dmg = Join-Path $script:Repo 'artifacts' 'release' $version 'dist' $names.DiskImage
-        if (-not (Test-Path -LiteralPath $dmg)) { Skip-VerifyCheck "no $($names.DiskImage) in artifacts/release/$version/dist; build it first: caffeinate -d -u -i pwsh scripts/release-build.ps1" }
+        if (-not (Test-Path -LiteralPath $dmg)) { Skip-VerifyCheck "no $($names.DiskImage) in artifacts/release/$version/dist; build it first: caffeinate -d -u -i pwsh scripts/release-build.ps1 -SkipFeedSignature" }
         $temp = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-verify-gk-$(New-ShortId)"
         $mount = Join-Path $temp 'mnt'
         $copy = Join-Path $temp 'copy'

@@ -264,7 +264,7 @@ $checks = @(
         -Closes 'T-017 kritérium 6 (odinstalace smaže registraci COM aktivátoru toastů)' -Action {
         param($c)
         $setup = Join-Path $script:Repo 'artifacts' 'release' (Get-AppVersion) 'dist' (Get-VelopackSetupFileName -Version (Get-AppVersion) -Runtime $script:Runtime)
-        if (-not (Test-Path -LiteralPath $setup)) { Skip-VerifyCheck "no installer $setup; build it first: pwsh scripts/release-build.ps1" }
+        if (-not (Test-Path -LiteralPath $setup)) { Skip-VerifyCheck "no installer $setup; build it first: pwsh scripts/release-build.ps1 -SkipFeedSignature" }
         $result = Invoke-ChildPwsh $c 'run-e2e-installer' @('-File', (Join-Path $script:Repo 'tools' 'run-e2e.ps1'), '-Class', '*VelopackInstallerTests')
         $totals = Get-VerifyRunE2ETotals $result.Output
         if ($result.ExitCode -ne 0 -or -not $totals -or $totals.Failed -gt 0) { return New-VerifyResult FAIL "run-e2e.ps1 exit code $($result.ExitCode)$(if ($totals) { "; $(Format-Totals $totals)" })." }
@@ -280,7 +280,7 @@ $checks = @(
         if (Test-Path -LiteralPath $paths.State) { return New-VerifyResult PASS 'already installed by an earlier run of this script (win.uninstall removes it).' }
         $version = Get-AppVersion
         $setup = Join-Path $script:Repo 'artifacts' 'release' $version 'dist' (Get-VelopackSetupFileName -Version $version -Runtime $script:Runtime)
-        if (-not (Test-Path -LiteralPath $setup)) { Skip-VerifyCheck "no installer $setup; build it first: pwsh scripts/release-build.ps1" }
+        if (-not (Test-Path -LiteralPath $setup)) { Skip-VerifyCheck "no installer $setup; build it first: pwsh scripts/release-build.ps1 -SkipFeedSignature" }
         if ((Test-Path -LiteralPath $paths.UpdateExe) -or (Test-RegistryKey $script:UninstallSubKey)) { Skip-VerifyCheck 'LayerPeek is installed on this machine; the check never touches a real installation.' }
         Wait-NoLayerPeek $c 'before the install'
         Backup-Install
