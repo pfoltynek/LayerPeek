@@ -1453,6 +1453,24 @@
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Przenieś LayerPeek do folderu Aplikacje; wtedy będzie mógł się sam aktualizować.</value>
   </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>Aktualizacja LayerPeek odrzucona</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Wersja {0} nie została zainstalowana, ponieważ nie udało się zweryfikować jej podpisu. Kliknij, aby zobaczyć szczegóły.</value>
+  </data>
+  <data name="NotificationUpdateRejectedBodyNoVersion" xml:space="preserve">
+    <value>Aktualizacja nie została zainstalowana, ponieważ nie udało się zweryfikować jej podpisu. Kliknij, aby zobaczyć szczegóły.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>Aktualizacja została odrzucona.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek odrzucił aktualizację, ponieważ nie udało się zweryfikować jej podpisu, więc nic nie zostało zainstalowane. Pobierz nową wersję ze strony wydania na GitHubie i zainstaluj ją ręcznie.</value>
+  </data>
+  <data name="SettingsUpdateRejectedVersion" xml:space="preserve">
+    <value>Odrzucona wersja: {0}</value>
+  </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Nagrywaj</value>
   </data>

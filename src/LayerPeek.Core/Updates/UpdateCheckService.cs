@@ -59,7 +59,9 @@ public sealed record UpdateCheckTimings(TimeSpan StartDelay, TimeSpan Interval, 
 /// <item>Failures of a check are only logged (no network, 403 rate limit, 404, invalid data): the release on offer stays.</item>
 /// <item>A feed that failed its signature check (<see cref="UpdateFeedRejectedException"/>, T-181) is a failure too, but it is
 /// kept in <see cref="FeedRejection"/> (<see cref="FeedRejectionChanged"/>) until a later check succeeds, so that the UI can
-/// show it; other failures leave it as it is.</item>
+/// show it; other failures leave it as it is. One notification per refused offer (decision 2026-11-10): for a
+/// <see cref="RejectionKey"/> other than the one notified last (remembered in <see cref="IUpdateStateStore"/>), a refused
+/// feed without a key once per run; with notifications switched off the offer counts as notified.</item>
 /// </list>
 /// Thread-safe; events are raised on the thread that made the change (a timer thread or the caller of a check).
 /// </summary>
@@ -80,6 +82,7 @@ public sealed partial class UpdateCheckService : IDisposable
     private UpdateState _state = UpdateState.Empty;
     private UpdateRelease? _available;
     private RejectedUpdateFeed? _feedRejection;
+    private bool _unkeyedRejectionNotified;
     private Task? _loading;
     private Task<UpdateCheckResult>? _check;
     private ITimer? _timer;
@@ -369,6 +372,7 @@ public sealed partial class UpdateCheckService : IDisposable
                 RaiseFeedRejectionChanged();
             }
 
+            await NotifyRejectionIfNewAsync(ex.Feed, preferences).ConfigureAwait(false);
             return new UpdateCheckResult(UpdateCheckOutcome.FeedRejected, null, ex.Feed);
         }
         catch (Exception ex)
@@ -472,6 +476,79 @@ public sealed partial class UpdateCheckService : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// What tells one refused offer from the next for its notification (decision 2026-11-10, open question 10 of T-181): the
+    /// version the feed claims, else the hash of the feed; <see langword="null"/> when the feed was not read at all (then
+    /// one notification per run).
+    /// </summary>
+    internal static string? RejectionKey(RejectedUpdateFeed feed)
+    {
+        ArgumentNullException.ThrowIfNull(feed);
+        return feed.ClaimedVersion is { } version ? "version:" + version
+            : feed.FeedSha256 is { } hash ? "sha256:" + hash
+            : null;
+    }
+
+    /// <summary>
+    /// The notification about the refused <paramref name="feed"/> when it is another offer than the one notified last
+    /// (<see cref="RejectionKey"/>); then the state with its key is saved.
+    /// </summary>
+    private async Task NotifyRejectionIfNewAsync(RejectedUpdateFeed feed, UpdatePreferences preferences)
+    {
+        string? key = RejectionKey(feed);
+        UpdateState? state = null;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (key is null)
+            {
+                if (_unkeyedRejectionNotified)
+                {
+                    return;
+                }
+
+                _unkeyedRejectionNotified = true;
+            }
+            else
+            {
+                if (string.Equals(_state.NotifiedRejection, key, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _state = _state with { NotifiedRejection = key };
+                state = _state;
+            }
+        }
+
+        string? version = feed.ClaimedVersion?.ToString();
+        if (preferences.Notify)
+        {
+            try
+            {
+                _notifications.ShowUpdateRejected(new UpdateRejectedNotification(version, preferences.PlaySound));
+                LogRejectionNotified(version);
+            }
+            catch (Exception ex)
+            {
+                LogRejectionNotificationFailed(ex, version);
+            }
+        }
+        else
+        {
+            LogRejectionNotNotified(version);
+        }
+
+        if (state is not null)
+        {
+            await SaveAsync(state).ConfigureAwait(false);
+        }
+    }
+
     private async Task SaveAsync(UpdateState state)
     {
         try
@@ -567,6 +644,15 @@ public sealed partial class UpdateCheckService : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the new version {Version} could not be shown.")]
     private partial void LogNotificationFailed(Exception exception, ReleaseVersion version);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the refused update (claimed version {ClaimedVersion}).")]
+    private partial void LogRejectionNotified(string? claimedVersion);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "No notification for the refused update (claimed version {ClaimedVersion}): notifications are switched off.")]
+    private partial void LogRejectionNotNotified(string? claimedVersion);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the refused update (claimed version {ClaimedVersion}) could not be shown.")]
+    private partial void LogRejectionNotificationFailed(Exception exception, string? claimedVersion);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The update state could not be read; the next check starts afresh.")]
     private partial void LogStateUnreadable(Exception exception);

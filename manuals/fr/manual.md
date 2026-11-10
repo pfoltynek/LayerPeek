@@ -508,6 +508,12 @@ dans le menu de l'icône et une seule fois sous forme de notification.
 
 Vos paramètres et vos mots de passe sont conservés.
 
+**Mise à jour refusée :** la version installée n'accepte une mise à jour que si sa signature peut être vérifiée. Sinon,
+LayerPeek n'installe rien et affiche une notification (une seule fois par version proposée ; un clic ouvre les
+paramètres) ainsi qu'une erreur dans l'onglet **Démarrage et mises à jour**, qui reste affichée jusqu'à ce qu'une
+vérification ultérieure réussisse. Téléchargez la nouvelle version depuis la page de la version sur GitHub et
+installez-la manuellement.
+
 ## 13. Où sont stockées vos données
 
 | Quoi | Windows | macOS |

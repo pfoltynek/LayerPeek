@@ -28,9 +28,10 @@ internal enum UpdateAction
 /// and restart (Q6 a, <see cref="AppUpdates.ApplyAsync"/>). A macOS <c>.app</c> that runs translocated or from the
 /// <c>.dmg</c> gets no update (Q8 a): it opens the release page and the settings window says to move the app first.</item>
 /// <item><see cref="Changed"/> reports a new <see cref="Available"/> or <see cref="IsInstalling"/>, on any thread.</item>
+/// <item>The refused feed of the service (T-181) for the Startup and updates tab (<see cref="IUpdateFeedRejections"/>).</item>
 /// </list>
 /// </summary>
-internal sealed partial class UpdateOffer : IMonitoringObserver, IDisposable
+internal sealed partial class UpdateOffer : IMonitoringObserver, IUpdateFeedRejections, IDisposable
 {
     private readonly UpdateCheckService _service;
     private readonly AppUpdates? _installer;
@@ -69,6 +70,17 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IDisposable
 
     /// <summary>The newer release on offer, or <see langword="null"/>.</summary>
     public UpdateRelease? Available => _service.Available;
+
+    /// <inheritdoc/>
+    public RejectedUpdateFeed? FeedRejection => _service.FeedRejection;
+
+    /// <inheritdoc/>
+    /// <remarks>Raised by the service on its thread; subscribed to the service directly, so nothing is kept here.</remarks>
+    public event EventHandler? FeedRejectionChanged
+    {
+        add => _service.FeedRejectionChanged += value;
+        remove => _service.FeedRejectionChanged -= value;
+    }
 
     /// <summary>A Velopack update is being downloaded; the app quits once it is ready.</summary>
     public bool IsInstalling => _installing;

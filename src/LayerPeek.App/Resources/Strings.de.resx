@@ -1453,6 +1453,24 @@
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Verschieben Sie LayerPeek in den Ordner „Programme“; dann kann es sich selbst aktualisieren.</value>
   </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>LayerPeek-Update abgelehnt</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Version {0} wurde nicht installiert, weil ihre Signatur nicht überprüft werden konnte. Für Details hier klicken.</value>
+  </data>
+  <data name="NotificationUpdateRejectedBodyNoVersion" xml:space="preserve">
+    <value>Ein Update wurde nicht installiert, weil seine Signatur nicht überprüft werden konnte. Für Details hier klicken.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>Das Update wurde abgelehnt.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek hat das Update abgelehnt, weil seine Signatur nicht überprüft werden konnte; es wurde nichts installiert. Laden Sie die neue Version von der Release-Seite auf GitHub herunter und installieren Sie sie manuell.</value>
+  </data>
+  <data name="SettingsUpdateRejectedVersion" xml:space="preserve">
+    <value>Abgelehnte Version: {0}</value>
+  </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Aufnahme starten</value>
   </data>

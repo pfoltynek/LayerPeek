@@ -1453,6 +1453,24 @@
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Mueve LayerPeek a la carpeta Aplicaciones; después podrá actualizarse solo.</value>
   </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>Actualización de LayerPeek rechazada</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>La versión {0} no se ha instalado porque no se ha podido verificar su firma. Haz clic para ver los detalles.</value>
+  </data>
+  <data name="NotificationUpdateRejectedBodyNoVersion" xml:space="preserve">
+    <value>Una actualización no se ha instalado porque no se ha podido verificar su firma. Haz clic para ver los detalles.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>La actualización se ha rechazado.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek ha rechazado la actualización porque no se ha podido verificar su firma, así que no se ha instalado nada. Descarga la nueva versión desde la página de la versión en GitHub e instálala manualmente.</value>
+  </data>
+  <data name="SettingsUpdateRejectedVersion" xml:space="preserve">
+    <value>Versión rechazada: {0}</value>
+  </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Grabar</value>
   </data>

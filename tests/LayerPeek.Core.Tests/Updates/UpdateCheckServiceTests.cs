@@ -437,6 +437,120 @@ public sealed class UpdateCheckServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ARefusedOfferIsNotifiedOncePerClaimedVersion()
+    {
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
+
+        // The hourly retry of a refused feed (and a manual check) notifies only once for the same version.
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        UpdateRejectedNotification first = Assert.Single(_notifications.Rejected);
+        Assert.Equal("9.9.9", first.Version);
+        Assert.False(first.PlaySound);
+        Assert.Equal("version:9.9.9", _store.State.NotifiedRejection);
+        Assert.Empty(_notifications.Shown);
+
+        // Another reason for the same version is the same offer; a new version notifies again (decision 2026-11-10).
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9", UpdateFeedRejection.SignatureMissing));
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Single(_notifications.Rejected);
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.10"));
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(["9.9.9", "9.9.10"], _notifications.Rejected.Select(static n => n.Version));
+        Assert.Equal("version:9.9.10", _store.State.NotifiedRejection);
+    }
+
+    [Fact]
+    public async Task ARestartDoesNotNotifyTheSameRefusedOfferAgain()
+    {
+        _store.State = UpdateState.Empty with { NotifiedRejection = "version:9.9.9" };
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+        await WaitForLoadAsync();
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
+
+        UpdateCheckResult result = await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateCheckOutcome.FeedRejected, result.Outcome);
+        Assert.Equal(Rejected("9.9.9"), service.FeedRejection);
+        Assert.Empty(_notifications.Rejected);
+    }
+
+    [Fact]
+    public async Task ARefusedFeedWithoutAVersionIsKeyedByItsHash()
+    {
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+        _checker.Failure = new UpdateFeedRejectedException(new RejectedUpdateFeed("releases.osx-arm64.json", UpdateFeedRejection.SignatureMissing, null, new string('B', 64)));
+
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(Assert.Single(_notifications.Rejected).Version);
+        Assert.Equal("sha256:" + new string('B', 64), _store.State.NotifiedRejection);
+    }
+
+    [Fact]
+    public async Task ARefusedFeedWithoutAnyKeyIsNotifiedOncePerRun()
+    {
+        _checker.Failure = new UpdateFeedRejectedException(Rejected(null, UpdateFeedRejection.FeedTooLarge));
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(Assert.Single(_notifications.Rejected).Version);
+        // Nothing to remember: the next run notifies once more.
+        Assert.Null(_store.State.NotifiedRejection);
+        service.Dispose();
+        using UpdateCheckService restarted = new(_checker, ReleaseVersion.Parse("0.3.1"), _store, _notifications, _time, _logger, Timings);
+        restarted.ApplyPreferences(On);
+        await restarted.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, _notifications.Rejected.Count);
+    }
+
+    [Fact]
+    public async Task WithNotificationsOffARefusedOfferCountsAsNotified()
+    {
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On with { Notify = false });
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        service.ApplyPreferences(On);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(_notifications.Rejected);
+        Assert.Equal("version:9.9.9", _store.State.NotifiedRejection);
+    }
+
+    [Fact]
+    public async Task AFailingRefusalNotificationIsOnlyLogged()
+    {
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+        _notifications.Failure = new InvalidOperationException("no notification center");
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
+
+        UpdateCheckResult result = await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateCheckOutcome.FeedRejected, result.Outcome);
+        Assert.Contains(_logger.Entries, entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Warning
+            && entry.Message.Contains("notification for the refused update", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("1.2.3", "ABCD", "version:1.2.3")]
+    [InlineData(null, "ABCD", "sha256:ABCD")]
+    [InlineData(null, null, null)]
+    public void TheKeyOfARefusedOfferIsItsVersionElseItsHash(string? version, string? hash, string? key) =>
+        Assert.Equal(key, UpdateCheckService.RejectionKey(new RejectedUpdateFeed("releases.win-x64.json", UpdateFeedRejection.SignatureUntrusted, version is null ? null : ReleaseVersion.Parse(version), hash)));
+
+    [Fact]
     public void TheRejectionCarriesNoFeedContentInItsMessage()
     {
         UpdateFeedRejectedException exception = new(Rejected("9.9.9"));
@@ -518,10 +632,13 @@ public sealed class UpdateCheckServiceTests : IDisposable
     private sealed class RecordingNotifications : INotificationService
     {
         private readonly ConcurrentQueue<UpdateNotification> _shown = new();
+        private readonly ConcurrentQueue<UpdateRejectedNotification> _rejected = new();
 
         public Exception? Failure { get; set; }
 
         public IReadOnlyList<UpdateNotification> Shown => [.. _shown];
+
+        public IReadOnlyList<UpdateRejectedNotification> Rejected => [.. _rejected];
 
         public void Show(PrintNotification notification) => throw new InvalidOperationException("No print notification is expected.");
 
@@ -533,6 +650,16 @@ public sealed class UpdateCheckServiceTests : IDisposable
             }
 
             _shown.Enqueue(notification);
+        }
+
+        public void ShowUpdateRejected(UpdateRejectedNotification notification)
+        {
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+
+            _rejected.Enqueue(notification);
         }
     }
 }

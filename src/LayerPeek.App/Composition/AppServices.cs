@@ -1065,6 +1065,8 @@ internal static partial class AppServices
             // T-058: "Check now" (Q4 a) and the hint to move the macOS app to Applications first (Q8 a).
             CheckForUpdatesNow = services.GetRequiredService<UpdateOffer>().CheckNowAsync,
             ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,
+            // T-181: the error of a refused update feed while the refusal is active.
+            FeedRejections = services.GetRequiredService<UpdateOffer>(),
             // T-146: the default folder, whether this build can record and "Open recordings folder".
             Recordings = services.GetRequiredService<ICameraRecordings>(),
             // T-154: the detector kinds of this version and the last frames of the bed region editor.

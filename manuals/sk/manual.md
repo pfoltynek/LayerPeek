@@ -471,6 +471,11 @@ sa ukáže ako **Je dostupná nová verzia X.Y.Z** v ponuke ikony a raz aj ako u
 
 Vaše nastavenia a heslá zostanú zachované.
 
+**Aktualizácia odmietnutá:** nainštalovaná verzia prijme aktualizáciu, iba keď sa dá overiť jej podpis. Keď sa to nedá,
+LayerPeek nič nenainštaluje a zobrazí upozornenie (raz pre každú ponúkanú verziu; kliknutím sa otvoria nastavenia) a
+chybu na karte **Spustenie a aktualizácie**, ktorá tam zostane, kým niektorá ďalšia kontrola neuspeje. Stiahnite si
+novú verziu zo stránky vydania na GitHube a nainštalujte ju ručne.
+
 ## 13. Kde sú uložené vaše údaje
 
 | Čo | Windows | macOS |

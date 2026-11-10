@@ -82,6 +82,30 @@ internal static class ToastContentBuilder
     }
 
     /// <summary>
+    /// The toast about a refused update (T-181) in <paramref name="textCulture"/>: title and one line, with the launch argument
+    /// <see cref="ToastLaunchArgument.UpdateSettings"/> (a click opens the Startup and updates tab).
+    /// </summary>
+    public static string BuildUpdateRejected(UpdateRejectedNotification notification, CultureInfo textCulture)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        ArgumentNullException.ThrowIfNull(textCulture);
+        StringBuilder xml = new(512);
+        xml.Append("<toast launch=\"");
+        AppendEscaped(xml, ToastLaunchArgument.UpdateSettings);
+        xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, UpdateNotificationText.RejectedTitle(textCulture));
+        AppendText(xml, UpdateNotificationText.RejectedBody(notification.Version is { } version ? Clean(version) : null, textCulture));
+        xml.Append("</binding></visual>");
+        if (!notification.PlaySound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
     /// The toast about a failed camera recording (T-146) in <paramref name="textCulture"/>: the printer name, "Camera recording
     /// failed" and the reason (<see cref="RecordingNotificationText"/>), with the launch argument
     /// <see cref="ToastLaunchArgument.RecordingSettings"/> (a click opens the settings window on the Recording tab).

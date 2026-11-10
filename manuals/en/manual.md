@@ -468,6 +468,11 @@ this off). A new version shows up as **New version X.Y.Z available** in the icon
 
 Your settings and passwords are kept.
 
+**Update refused:** the installed version accepts an update only when its signature can be verified. When it cannot,
+LayerPeek installs nothing and shows a notification (once per offered version; clicking it opens the settings) and an
+error on the **Startup and updates** tab, which stays until a later check succeeds. Download the new version from the
+release page on GitHub and install it by hand.
+
 ## 13. Where your data is stored
 
 | What | Windows | macOS |

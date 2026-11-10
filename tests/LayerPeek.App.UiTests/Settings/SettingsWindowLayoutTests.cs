@@ -357,6 +357,27 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(CutTexts(mac.Window, $"{language} / macOS not in LayerPeek.app"));
             mac.Window.Close();
 
+            // T-181: a refused update feed (only an installation that updates itself: never with the hint to move the app) next to
+            // the longest other contents of the tab, the macOS hint that Login Items need approval with its button.
+            SettingsWindowHarness refused = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
+                autostart: new MemoryApprovalAutostart { RequiresApproval = true },
+                macTerms: true,
+                checkForUpdatesNow: static _ => Task.FromResult(new LayerPeek.Core.Updates.UpdateCheckResult(LayerPeek.Core.Updates.UpdateCheckOutcome.FeedRejected, null, LayerPeek.App.Tests.Updates.FakeFeedRejections.Refused("10.20.30-beta.12"))),
+                feedRejections: new LayerPeek.App.Tests.Updates.FakeFeedRejections(LayerPeek.App.Tests.Updates.FakeFeedRejections.Refused("10.20.30-beta.12")));
+            refused.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            await refused.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
+            refused.Window.Settle();
+            Assert.True(refused.Find<Border>("SettingsUpdateRejected").IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsUpdateRejected, refused.Find<TextBlock>("SettingsUpdateRejectedText").Text);
+            Assert.True(refused.Find<TextBlock>("SettingsUpdateRejectedVersion").IsEffectivelyVisible);
+            Assert.True(refused.Find<TextBlock>("SettingsOpenAtLoginNeedsApproval").IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsUpdateRejectedResult, refused.Find<TextBlock>("SettingsUpdateCheckResult").Text);
+            problems.AddRange(ScrollingViewers(refused.Window, $"{language} / update refused"));
+            problems.AddRange(CutTexts(refused.Window, $"{language} / update refused"));
+            refused.Window.Close();
+
             // T-019 (user decisions 2026-10-29): switched off in System Settings. Opening the window shows the hint and the button
             // under the option; Save says so in a macOS status of its own; the button opens System Settings (here only counted).
             MemoryApprovalAutostart approval = new()

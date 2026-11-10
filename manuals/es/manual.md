@@ -491,6 +491,11 @@ notificación.
 
 Su configuración y sus contraseñas se conservan.
 
+**Actualización rechazada:** la versión instalada solo acepta una actualización cuando puede verificar su firma. Si no
+puede, LayerPeek no instala nada y muestra una notificación (una vez por cada versión ofrecida; al hacer clic se abre la
+configuración) y un error en la pestaña **Inicio y actualizaciones**, que permanece hasta que una comprobación posterior
+tenga éxito. Descargue la nueva versión desde la página de la versión en GitHub e instálela a mano.
+
 ## 13. Dónde se guardan sus datos
 
 | Qué | Windows | macOS |

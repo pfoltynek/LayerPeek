@@ -1544,6 +1544,30 @@
     <value>Move LayerPeek to the Applications folder; then it can update itself.</value>
     <comment>T-058 (macOS, Q8 a): hint on the Startup and updates tab when the app runs from the disk image or Downloads (translocated) and cannot update itself.</comment>
   </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>LayerPeek update refused</value>
+    <comment>T-181: title of the notification about a refused update (its feed failed the signature check); shown once per offered version.</comment>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Version {0} was not installed because its signature could not be verified. Click for details.</value>
+    <comment>T-181: text of the notification about a refused update; {0} = the version the refused feed names. A click opens the Startup and updates tab.</comment>
+  </data>
+  <data name="NotificationUpdateRejectedBodyNoVersion" xml:space="preserve">
+    <value>An update was not installed because its signature could not be verified. Click for details.</value>
+    <comment>T-181: text of the notification about a refused update whose feed names no version. A click opens the Startup and updates tab.</comment>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>The update was refused.</value>
+    <comment>T-181: result of "Check now" when the update feed was refused; the error box below explains it.</comment>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek refused the update because its signature could not be verified, so nothing was installed. Download the new version from the release page on GitHub and install it by hand.</value>
+    <comment>T-181: error box on the Startup and updates tab while the update feed is refused (its signature could not be verified). No technical reasons; points to the release page and a manual install.</comment>
+  </data>
+  <data name="SettingsUpdateRejectedVersion" xml:space="preserve">
+    <value>Refused version: {0}</value>
+    <comment>T-181: hint line in the error box; {0} = the version the refused feed names (untrusted, shown only).</comment>
+  </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>Start _recording</value>
     <comment>Item of a printer submenu (T-146) while its camera is not recorded; starts a manual recording. "_" marks the access key: unique within the submenu and the same as in MenuStopRecording.</comment>

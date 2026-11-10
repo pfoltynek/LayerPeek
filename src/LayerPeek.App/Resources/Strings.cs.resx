@@ -1453,6 +1453,24 @@
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Přesuňte LayerPeek do složky Aplikace, pak se bude aktualizovat sám.</value>
   </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>Aktualizace LayerPeeku odmítnuta</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Verze {0} se nenainstalovala, protože nešlo ověřit její podpis. Klikněte pro podrobnosti.</value>
+  </data>
+  <data name="NotificationUpdateRejectedBodyNoVersion" xml:space="preserve">
+    <value>Aktualizace se nenainstalovala, protože nešlo ověřit její podpis. Klikněte pro podrobnosti.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>Aktualizace byla odmítnuta.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek aktualizaci odmítl, protože nešlo ověřit její podpis, a nic nenainstaloval. Stáhněte novou verzi ze stránky vydání na GitHubu a nainstalujte ji ručně.</value>
+  </data>
+  <data name="SettingsUpdateRejectedVersion" xml:space="preserve">
+    <value>Odmítnutá verze: {0}</value>
+  </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Nahrávat</value>
   </data>

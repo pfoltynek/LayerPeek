@@ -9,11 +9,19 @@ namespace LayerPeek.App.Notifications;
 /// fixed <see cref="Identifier"/> (macOS: the identifier of the request; Windows: the tag of the toast), so that the
 /// notification of a newer version replaces the previous one, and the launch argument <see cref="ToastLaunchArgument.Update"/>:
 /// a click starts the update action (the release page, or the update of a Velopack installation).
+/// <para>
+/// T-181: the notification about a refused update (its feed failed the signature check) has its own fixed
+/// <see cref="RejectedIdentifier"/> (a later refusal replaces it, never the offer of a good update) and the launch argument
+/// <see cref="ToastLaunchArgument.UpdateSettings"/>: a click opens the Startup and updates tab, where the error stays.
+/// </para>
 /// </summary>
 internal static class UpdateNotificationText
 {
     /// <summary>Identifier of the update notification (at most 64 characters for a Windows tag).</summary>
     public const string Identifier = "layerpeek-update-available";
+
+    /// <summary>Identifier of the notification about a refused update (T-181).</summary>
+    public const string RejectedIdentifier = "layerpeek-update-rejected";
 
     /// <summary>The title in <paramref name="textCulture"/>.</summary>
     public static string Title(CultureInfo textCulture) => Text(nameof(Strings.NotificationUpdateTitle), textCulture);
@@ -24,6 +32,17 @@ internal static class UpdateNotificationText
         ArgumentNullException.ThrowIfNull(version);
         return string.Format(textCulture, Text(nameof(Strings.NotificationUpdateBody), textCulture), version);
     }
+
+    /// <summary>The title of the notification about a refused update (T-181) in <paramref name="textCulture"/>.</summary>
+    public static string RejectedTitle(CultureInfo textCulture) => Text(nameof(Strings.NotificationUpdateRejectedTitle), textCulture);
+
+    /// <summary>
+    /// The text of the notification about a refused update in <paramref name="textCulture"/>, with the version the feed claims
+    /// when it names one.
+    /// </summary>
+    public static string RejectedBody(string? version, CultureInfo textCulture) => version is null
+        ? Text(nameof(Strings.NotificationUpdateRejectedBodyNoVersion), textCulture)
+        : string.Format(textCulture, Text(nameof(Strings.NotificationUpdateRejectedBody), textCulture), version);
 
     private static string Text(string name, CultureInfo culture)
     {

@@ -491,6 +491,11 @@ als Benachrichtigung.
 
 Ihre Einstellungen und Passwörter bleiben erhalten.
 
+**Update abgelehnt:** Die installierte Version nimmt ein Update nur an, wenn seine Signatur überprüft werden kann. Wenn
+das nicht geht, installiert LayerPeek nichts und zeigt eine Benachrichtigung (einmal pro angebotener Version; ein Klick
+öffnet die Einstellungen) und einen Fehler auf dem Tab **Autostart und Updates**, der bleibt, bis eine spätere Prüfung
+gelingt. Laden Sie die neue Version von der Release-Seite auf GitHub herunter und installieren Sie sie manuell.
+
 ## 13. Wo Ihre Daten gespeichert werden
 
 | Was | Windows | macOS |

@@ -36,6 +36,16 @@ public interface INotificationService
     }
 
     /// <summary>
+    /// Shows that an update was refused because its feed failed the signature check (T-181), once per offered version (the
+    /// caller remembers which). The same rules as <see cref="Show"/>: thread-safe, returns quickly, may throw. Its click opens
+    /// the settings window on the Startup and updates tab, where the error stays. Default: not shown (platforms without
+    /// notifications).
+    /// </summary>
+    void ShowUpdateRejected(UpdateRejectedNotification notification)
+    {
+    }
+
+    /// <summary>
     /// Shows that a camera recording could not start or ended with an error (T-146; the only notified recording event,
     /// user decision 2026-11-03 on T-145). The same rules as <see cref="Show"/>: thread-safe, returns quickly, may throw.
     /// A click opens the settings window (where the folder and the limit are). Default: not shown (platforms without
@@ -82,6 +92,14 @@ public sealed record TimelapseExportNotification(
 /// <param name="Version">The new version (<c>0.3.2</c>).</param>
 /// <param name="PlaySound">Whether it plays a sound (the "all notifications" sound setting only: it is information).</param>
 public sealed record UpdateNotification(string Version, bool PlaySound);
+
+/// <summary>What the notification about a refused update shows (T-181); texts are localized by the implementations.</summary>
+/// <param name="Version">
+/// The version the refused feed claims (<see cref="Updates.RejectedUpdateFeed.ClaimedVersion"/>; untrusted, shown only), or
+/// <see langword="null"/> when it names none.
+/// </param>
+/// <param name="PlaySound">Whether it plays a sound (like <see cref="UpdateNotification.PlaySound"/>).</param>
+public sealed record UpdateRejectedNotification(string? Version, bool PlaySound);
 
 /// <summary>
 /// What the notification about a failed camera recording shows (T-146); texts are localized by the implementations from

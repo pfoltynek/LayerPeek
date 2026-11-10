@@ -496,6 +496,11 @@ come notifica.
 
 Le tue impostazioni e password vengono mantenute.
 
+**Aggiornamento rifiutato:** la versione installata accetta un aggiornamento solo se è possibile verificarne la firma.
+Se non è possibile, LayerPeek non installa nulla e mostra una notifica (una volta per ogni versione offerta; un clic apre
+le impostazioni) e un errore nella scheda **Avvio e aggiornamenti**, che resta finché un controllo successivo non riesce.
+Scarica la nuova versione dalla pagina della release su GitHub e installala a mano.
+
 ## 13. Dove vengono salvati i tuoi dati
 
 | Cosa | Windows | macOS |
