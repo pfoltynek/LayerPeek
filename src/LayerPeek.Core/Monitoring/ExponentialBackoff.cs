@@ -20,7 +20,8 @@ internal static class ExponentialBackoff
         long ticks = initial.Ticks;
         for (int failure = 1; failure < consecutiveFailures && ticks < max.Ticks; failure++)
         {
-            ticks *= 2;
+            // Capped before doubling, so a cap near TimeSpan.MaxValue cannot overflow into a negative delay.
+            ticks = ticks > max.Ticks / 2 ? max.Ticks : ticks * 2;
         }
 
         return ticks < max.Ticks ? TimeSpan.FromTicks(ticks) : max;

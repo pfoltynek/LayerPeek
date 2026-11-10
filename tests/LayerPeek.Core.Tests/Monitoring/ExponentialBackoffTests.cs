@@ -27,4 +27,8 @@ public sealed class ExponentialBackoffTests
         Assert.Equal(Initial, ExponentialBackoff.Delay(Initial, Initial, consecutiveFailures));
         Assert.Equal(Initial, ExponentialBackoff.Delay(Initial, TimeSpan.FromSeconds(1), consecutiveFailures));
     }
+
+    [Fact]
+    public void HugeCapDoesNotOverflow() =>
+        Assert.Equal(TimeSpan.MaxValue, ExponentialBackoff.Delay(TimeSpan.FromTicks(1), TimeSpan.MaxValue, int.MaxValue));
 }
