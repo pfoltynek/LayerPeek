@@ -1,7 +1,7 @@
 ---
 id: T-181
 title: Podepsaný feed aktualizací (podpis releases.<RID>.json offline klíčem, ověření v aplikaci)
-status: todo
+status: in-progress
 owner: core-dev
 priority: P2
 platform: all
@@ -89,12 +89,12 @@ Dnes: `src/LayerPeek.App/Installer/VelopackUpdateEngine.cs` používá
   verzi), jen k „zamrznutí“ aktualizací – přijatelné zbytkové riziko, zapsat.
 
 ## Akceptační kritéria
-- [ ] `docs/velopack.md`: výsledek průzkumu (hash pole ve feedu, co klient skutečně kontroluje, body rozšíření
+- [x] `docs/velopack.md`: výsledek průzkumu (hash pole ve feedu, co klient skutečně kontroluje, body rozšíření
       `GithubSource`, zda updater stahuje znovu) s odkazy na konkrétní soubory zdroje Velopack 1.2.161
-- [ ] Testy ověření (unit, bez sítě): platný podpis → feed přijat; feed změněný o jeden bajt → odmítnut; chybějící
+- [x] Testy ověření (unit, bez sítě): platný podpis → feed přijat; feed změněný o jeden bajt → odmítnut; chybějící
       `.sig` → odmítnut; `.sig` podepsaný jiným klíčem → odmítnut; podpis feedu jiného RID → odmítnut; poškozený /
       prázdný / příliš dlouhý `.sig` → odmítnut bez výjimky ven
-- [ ] Test `VelopackUpdateEngine` / zdroje (fake zdroj nebo loopback server 127.0.0.1): při neplatném podpisu
+- [x] Test `VelopackUpdateEngine` / zdroje (fake zdroj nebo loopback server 127.0.0.1): při neplatném podpisu
       `CheckAsync` nevrátí aktualizaci a balíček se nestáhne
 - [ ] E2E test aktualizace (T-128, testovací feed) projde s feedem podepsaným testovacím klíčem a
       selže s nepodepsaným
@@ -123,10 +123,48 @@ Rozhodnuto uživatelem 2026-11-06:
 5. Odmítnutý podpis: **chyba na záložce „Spuštění a aktualizace“ i notifikace.**
 6. Zkušební běhy: **ano**, `-SkipFeedSignature`, který `release-upload.ps1` odmítne.
 
-Zbývá: jak často se smí notifikace o odmítnutém podpisu opakovat (navrhnout při implementaci).
+7. Opakování notifikace o odmítnutém podpisu (rozhodnuto 2026-11-10): **jednou pro každou nabízenou verzi** (stejně jako
+   běžná notifikace o aktualizaci: nová verze s neplatným podpisem upozorní znovu); chyba na záložce „Spuštění a
+   aktualizace“ zůstává vidět stále.
+
+Otevřené (core-dev, 2026-11-10):
+8. **Produkční klíč zatím neexistuje** (vytvoří ho uživatel na offline médiu). `UpdateFeedKeys.Production` je zatím prázdný
+   zástupný seznam, takže každý feed z GitHubu se odmítne (fail closed) a instalace Velopacku nenabídne žádnou aktualizaci.
+   Jak se má build chovat, dokud klíč není? Návrh: v kódu ponechat fail closed a `release-build.ps1` (bez `-SkipFeedSignature`)
+   ať odmítne vydání, dokud je seznam prázdný nebo veřejný klíč ze zadaného soukromého klíče v seznamu není – tak nejde vydat
+   verzi, která by žádnou další aktualizaci nepřijala.
+9. **Které vydání se čte:** Velopack (`GitBase`) slučuje feedy až 10 nejnovějších vydání. Nový zdroj čte jen feed nejnovějšího
+   vydání (podle zveřejnění), které má feed daného RID; při odmítnutí se na starší vydání nepřechází. Důvod: starší
+   nepodepsaná vydání by jinak buď blokovala aktualizace, nebo by se musela tiše přeskakovat; navíc 3 požadavky místo 11.
+   Rozdíl nastane jen při vydání mimo pořadí verzí (např. oprava starší řady zveřejněná po novější verzi). Potvrdit, nebo
+   chtít variantu „ověřit každý z 10 feedů, neplatné vynechat, chybu hlásit jen u nejnovějšího“?
+10. **Klíč notifikace:** `FeedRejection.ClaimedVersion` je verze, kterou odmítnutý feed **tvrdí** (nedůvěryhodná, vybral ji
+    autor feedu; přečtená stejným parserem Velopacku jen jako semver). Bezpečná je jen pro rozlišení nabídek a zobrazení; útočník
+    s přístupem k vydáním ale může zvyšováním verze vyvolat další notifikaci (každé zvýšení = nové nahrání). Když feed verzi
+    nemá (chybí, je příliš velký, není JSON), je klíčem `FeedSha256`, a když feed nejde přečíst vůbec, žádný klíč není
+    (návrh: notifikovat jednou za běh aplikace). Potvrdit, že je to pro UI v pořádku.
+11. **Nabídka z dřívější kontroly:** při odmítnutém feedu zůstává `UpdateCheckService.Available` (nabídka z dřívější platné
+    kontroly nebo z `update-state.json`) stejně jako po jiné chybě; instalace z ní v Velopacku stejně nejdřív feed ověří znovu,
+    takže nic nestáhne. Má UI nabídku při odmítnutí skrýt?
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+Koncept (core-dev, 2026-11-10; skripty vydání, UI, notifikace, `docs/release.md` a CHANGELOG zbývají):
+- Průzkum Velopacku 1.2.161 v `docs/velopack.md`, bod 13: Velopack podpis feedu nemá, updater nic znovu nestahuje, přesné
+  bajty jdou ověřit přepsáním `GetReleaseFeed` v potomcích zdrojů (bez reflexe a forku).
+- Core: `UpdateFeedVerifier` (ECDSA P-256/SHA-256, data `LayerPeek-feed-v1\n<RID>\n<bajty>`, `.sig` = base64 podpisu
+  IEEE P1363, nejvýš 256 B, seznam klíčů kvůli rotaci), `UpdateFeedRejectedException` + `RejectedUpdateFeed` (důvod,
+  tvrzená verze, SHA-256 feedu), `UpdateCheckOutcome.FeedRejected`, `UpdateCheckService.FeedRejection` a
+  `FeedRejectionChanged`, `UpdateCheckResult.Rejection`.
+- App: `Installer/SignedUpdateSource` (GitHub jen s produkčními klíči, testovací zdroje jen s testovacím klíčem, klíče nejdou
+  předat zvenku), `Installer/UpdateFeedKeys` (produkční klíč zatím zástupně prázdný, testovací jen v Debug), pojmenovaný
+  klient `LayerPeek.UpdateFeed` s limity a timeoutem, `VelopackUpdateEngine` ho používá.
+- Testy: sdílený vektor `tests/Shared/Fixtures/UpdateFeed` (testovací pár klíčů – není tajný, i šifrovaná varianta s heslem
+  `layerpeek-test-only`; podpis z PowerShellu 7), `UpdateFeedVerifierTests`, testy odmítnutí v `UpdateCheckServiceTests`,
+  `SignedUpdateSourceTests` (složka, loopback přes falešný handler, GitHub přes falešný seznam vydání, engine s
+  `TestVelopackLocator`). `MacUpdateE2ETests` nejdřív ověří odmítnutí nepodepsaného feedu, pak aktualizaci s podepsaným;
+  verze bere z `Directory.Build.props` (dřív pevně 0.3.1 → 0.3.2, od verze 0.4.0 test neprocházel). Windows E2E
+  (`UpdateTests`) feedy podepisuje testovacím klíčem, na Windows zatím nespuštěno.
+- Žádný nový balíček (`System.Security.Cryptography` je součást .NET).
 
 Mimo rozsah (zapsat jako alternativy, nerozhodovat):
 - **SignPath Foundation** – bezplatný Authenticode podpis pro open-source projekty; vyžaduje build v GitHub Actions

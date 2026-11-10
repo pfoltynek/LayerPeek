@@ -372,6 +372,78 @@ public sealed class UpdateCheckServiceTests : IDisposable
         Assert.Empty(_checker.Checks);
     }
 
+    private static RejectedUpdateFeed Rejected(string? claimed, UpdateFeedRejection reason = UpdateFeedRejection.SignatureUntrusted) =>
+        new("releases.osx-arm64.json", reason, claimed is null ? null : ReleaseVersion.Parse(claimed), claimed is null ? null : new string('A', 64));
+
+    [Fact]
+    public async Task ARejectedFeedIsItsOwnOutcomeKeptUntilACheckSucceeds()
+    {
+        UpdateCheckService service = Create("0.3.1");
+        int changes = 0;
+        service.FeedRejectionChanged += (_, _) => changes++;
+        service.ApplyPreferences(On);
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
+
+        UpdateCheckResult result = await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateCheckOutcome.FeedRejected, result.Outcome);
+        Assert.Null(result.Release);
+        Assert.Equal(Rejected("9.9.9"), result.Rejection);
+        Assert.Equal(Rejected("9.9.9"), service.FeedRejection);
+        Assert.Null(service.Available);
+        Assert.Empty(_notifications.Shown);
+        Assert.Equal(1, changes);
+        // Logged as a warning with the reason and the claimed version, like a failure no check (due again an hour later).
+        Assert.Contains(_logger.Entries, entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Warning
+            && entry.Message.Contains("releases.osx-arm64.json was rejected (SignatureUntrusted, it claims version 9.9.9)", StringComparison.Ordinal));
+        Assert.Null(_store.State.LastCheck);
+
+        // The same rejection again is no change; another network failure leaves it as it is.
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        _checker.Failure = new HttpRequestException("offline");
+        Assert.Equal(UpdateCheckOutcome.Failed, (await service.CheckNowAsync(TestContext.Current.CancellationToken)).Outcome);
+        Assert.Equal(Rejected("9.9.9"), service.FeedRejection);
+        Assert.Equal(1, changes);
+
+        // A rejected feed that claims another version is a new rejection (decision 2026-11-10: one notification per version).
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.10"));
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(ReleaseVersion.Parse("9.9.10"), service.FeedRejection?.ClaimedVersion);
+        Assert.Equal(2, changes);
+
+        // A good feed clears it.
+        _checker.Failure = null;
+        _checker.Next = Release("0.3.2");
+        Assert.Equal(UpdateCheckOutcome.UpdateAvailable, (await service.CheckNowAsync(TestContext.Current.CancellationToken)).Outcome);
+        Assert.Null(service.FeedRejection);
+        Assert.Equal(3, changes);
+    }
+
+    [Fact]
+    public async Task ARejectedFeedKeepsTheOfferOfAnEarlierGoodFeed()
+    {
+        _checker.Next = Release("0.3.2");
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        _checker.Failure = new UpdateFeedRejectedException(Rejected(null, UpdateFeedRejection.SignatureMissing));
+
+        UpdateCheckResult result = await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(UpdateCheckOutcome.FeedRejected, result.Outcome);
+        Assert.Equal(UpdateFeedRejection.SignatureMissing, service.FeedRejection?.Reason);
+        Assert.Equal(ReleaseVersion.Parse("0.3.2"), service.Available?.Version);
+        Assert.Single(_notifications.Shown);
+    }
+
+    [Fact]
+    public void TheRejectionCarriesNoFeedContentInItsMessage()
+    {
+        UpdateFeedRejectedException exception = new(Rejected("9.9.9"));
+
+        Assert.Equal("The update feed 'releases.osx-arm64.json' was rejected: SignatureUntrusted.", exception.Message);
+    }
+
     private UpdateCheckService Create(string running) =>
         _service = new UpdateCheckService(_checker, ReleaseVersion.Parse(running), _store, _notifications, _time, _logger, Timings);
 

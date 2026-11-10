@@ -22,10 +22,17 @@ public enum UpdateCheckOutcome
 
     /// <summary>The check failed (no network, the rate limit of GitHub, invalid data); details in the log.</summary>
     Failed,
+
+    /// <summary>
+    /// The update feed failed its signature check (T-181, <see cref="UpdateCheckService.FeedRejection"/>): nothing is offered from
+    /// it and nothing was downloaded.
+    /// </summary>
+    FeedRejected,
 }
 
 /// <param name="Release">The release on offer for <see cref="UpdateCheckOutcome.UpdateAvailable"/>; otherwise <see langword="null"/>.</param>
-public sealed record UpdateCheckResult(UpdateCheckOutcome Outcome, UpdateRelease? Release);
+/// <param name="Rejection">The refused feed for <see cref="UpdateCheckOutcome.FeedRejected"/> (T-181); otherwise <see langword="null"/>.</param>
+public sealed record UpdateCheckResult(UpdateCheckOutcome Outcome, UpdateRelease? Release, RejectedUpdateFeed? Rejection = null);
 
 /// <summary>When the service checks (Q1 a, 2026-10-30); tests use short or fake times.</summary>
 /// <param name="StartDelay">After the start, so that the check never delays the start or the first poll of the printers.</param>
@@ -50,6 +57,9 @@ public sealed record UpdateCheckTimings(TimeSpan StartDelay, TimeSpan Interval, 
 /// <item>One notification per new version: for a version above the one notified last (remembered in
 /// <see cref="IUpdateStateStore"/>); with notifications switched off the version counts as notified.</item>
 /// <item>Failures of a check are only logged (no network, 403 rate limit, 404, invalid data): the release on offer stays.</item>
+/// <item>A feed that failed its signature check (<see cref="UpdateFeedRejectedException"/>, T-181) is a failure too, but it is
+/// kept in <see cref="FeedRejection"/> (<see cref="FeedRejectionChanged"/>) until a later check succeeds, so that the UI can
+/// show it; other failures leave it as it is.</item>
 /// </list>
 /// Thread-safe; events are raised on the thread that made the change (a timer thread or the caller of a check).
 /// </summary>
@@ -69,6 +79,7 @@ public sealed partial class UpdateCheckService : IDisposable
     private UpdatePreferences? _preferences;
     private UpdateState _state = UpdateState.Empty;
     private UpdateRelease? _available;
+    private RejectedUpdateFeed? _feedRejection;
     private Task? _loading;
     private Task<UpdateCheckResult>? _check;
     private ITimer? _timer;
@@ -115,6 +126,25 @@ public sealed partial class UpdateCheckService : IDisposable
 
     /// <summary><see cref="Available"/> changed; raised outside the lock, on the thread that changed it.</summary>
     public event EventHandler? AvailableChanged;
+
+    /// <summary>
+    /// The feed the last check that reached it refused (T-181), or <see langword="null"/>: set by a rejected feed, cleared by the
+    /// next successful check; a check that failed otherwise (no network) leaves it as it is. A rejection of the same feed again
+    /// (equal record: name, reason, claimed version, hash) is no change.
+    /// </summary>
+    public RejectedUpdateFeed? FeedRejection
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _feedRejection;
+            }
+        }
+    }
+
+    /// <summary><see cref="FeedRejection"/> changed; raised outside the lock, on the thread that changed it.</summary>
+    public event EventHandler? FeedRejectionChanged;
 
     /// <summary>
     /// The settings of the current run: the first call starts the service (reads the remembered state, then the timer), later
@@ -329,6 +359,18 @@ public sealed partial class UpdateCheckService : IDisposable
         {
             return new UpdateCheckResult(UpdateCheckOutcome.Failed, null);
         }
+        catch (UpdateFeedRejectedException ex)
+        {
+            // The release on offer stays like after any failure: it came from a feed that passed the check (or from update-state.json,
+            // and a Velopack installation checks its feed again before it downloads anything).
+            LogFeedRejected(ex.Feed.FeedName, ex.Feed.Reason, ex.Feed.ClaimedVersion?.ToString());
+            if (SetFeedRejection(ex.Feed))
+            {
+                RaiseFeedRejectionChanged();
+            }
+
+            return new UpdateCheckResult(UpdateCheckOutcome.FeedRejected, null, ex.Feed);
+        }
         catch (Exception ex)
         {
             // Not an error of the app: no network, the rate limit (403), a missing repository (404), invalid data.
@@ -340,6 +382,7 @@ public sealed partial class UpdateCheckService : IDisposable
             ? newest
             : null;
         bool changed;
+        bool rejectionCleared;
         UpdateState state;
         lock (_gate)
         {
@@ -351,6 +394,13 @@ public sealed partial class UpdateCheckService : IDisposable
             _state = _state with { LastCheck = _time.GetUtcNow(), Latest = offered };
             state = _state;
             changed = SetAvailableLocked(offered);
+            rejectionCleared = _feedRejection is not null;
+            _feedRejection = null;
+        }
+
+        if (rejectionCleared)
+        {
+            RaiseFeedRejectionChanged();
         }
 
         if (offered is null)
@@ -455,6 +505,33 @@ public sealed partial class UpdateCheckService : IDisposable
         return true;
     }
 
+    /// <returns>Whether <see cref="FeedRejection"/> changed (never after disposal).</returns>
+    private bool SetFeedRejection(RejectedUpdateFeed feed)
+    {
+        lock (_gate)
+        {
+            if (_disposed || Equals(_feedRejection, feed))
+            {
+                return false;
+            }
+
+            _feedRejection = feed;
+            return true;
+        }
+    }
+
+    private void RaiseFeedRejectionChanged()
+    {
+        try
+        {
+            FeedRejectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            LogHandlerFailed(ex);
+        }
+    }
+
     private void RaiseAvailableChanged()
     {
         try
@@ -479,6 +556,9 @@ public sealed partial class UpdateCheckService : IDisposable
     [LoggerMessage(Level = LogLevel.Information, Message = "Checking for updates failed; nothing changes.")]
     private partial void LogCheckFailed(Exception exception);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Update check: the update feed {Feed} was rejected ({Reason}, it claims version {ClaimedVersion}); no update is offered from it and nothing was downloaded.")]
+    private partial void LogFeedRejected(string feed, UpdateFeedRejection reason, string? claimedVersion);
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the new version {Version}.")]
     private partial void LogNotified(ReleaseVersion version);
 
@@ -494,6 +574,6 @@ public sealed partial class UpdateCheckService : IDisposable
     [LoggerMessage(Level = LogLevel.Warning, Message = "The update state could not be saved.")]
     private partial void LogStateNotSaved(Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "A handler of the available update failed.")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "A handler of an update check event failed.")]
     private partial void LogHandlerFailed(Exception exception);
 }
