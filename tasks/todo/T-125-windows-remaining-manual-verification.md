@@ -365,6 +365,11 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       (`AirPrintingDetectorCostTests` s `LAYERPEEK_DETECTION_REPORT=<soubor>`), zapsat ms na vzorek. Mac: 0,58 ms (výřez
       Core One) a 1,27 ms (celý snímek).
 
+### 2r. Stabilní .NET 11 (z T-193, ověřeno na Macu 2026-11-10)
+- [ ] **T-193** (Windows): nainstalovat SDK `11.0.100` (GA; `global.json` už nepovoluje RC). `dotnet --version` = `11.0.100`,
+      `dotnet build` a `dotnet test` bez chyb a varování, `pwsh scripts/aot-smoke.ps1` PASS (win-x64, runtime 11.0.0),
+      `pwsh scripts/release-build.ps1` projde (Velopack `Setup.exe`, zip, feed). Výsledek zapsat do poznámek T-193.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
