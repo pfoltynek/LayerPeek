@@ -11,16 +11,24 @@ namespace LayerPeek.Core.Cameras;
 /// and yielded as a frame; the frames in between are never decoded. The hub schedules the next one after every sample
 /// (<see cref="RequestKeyFrame"/>).
 /// </para>
+/// <para>
+/// T-184: each decoded frame is converted to BGRA only in the sizes that are wanted: in the camera's resolution while
+/// <see cref="FullResolutionDue"/> (by default always; the hub limits it to the times a full-resolution reader takes a
+/// frame), and scaled down to fit <see cref="DisplaySize"/> when one is set. A single key frame decoded on its own is
+/// always converted in full resolution.
+/// </para>
 /// </summary>
 public sealed class CameraStreamDemand
 {
-    /// <summary>No key frame is wanted (<see cref="KeyFrameDue"/> is never reached).</summary>
-    private const long NoKeyFrame = long.MaxValue;
+    /// <summary>A due time that is never reached (no key frame, no frame in full resolution).</summary>
+    private const long Never = long.MaxValue;
 
     private readonly TimeProvider _timeProvider;
     private volatile bool _frames;
     private volatile bool _packets;
-    private long _keyFrameDue = NoKeyFrame;
+    private long _keyFrameDue = Never;
+    private long _fullResolutionDue = long.MinValue;
+    private long _displaySize;
 
     public CameraStreamDemand(bool frames, bool packets)
         : this(frames, packets, TimeProvider.System)
@@ -61,13 +69,47 @@ public sealed class CameraStreamDemand
         get
         {
             long due = Interlocked.Read(ref _keyFrameDue);
-            return due != NoKeyFrame && _timeProvider.GetTimestamp() >= due;
+            return due != Never && _timeProvider.GetTimestamp() >= due;
         }
     }
 
     /// <summary>Wants the first key frame at or after <paramref name="timestamp"/> (of the clock given to the constructor).</summary>
-    public void RequestKeyFrame(long timestamp) => Interlocked.Exchange(ref _keyFrameDue, Math.Min(timestamp, NoKeyFrame - 1));
+    public void RequestKeyFrame(long timestamp) => Interlocked.Exchange(ref _keyFrameDue, Math.Min(timestamp, Never - 1));
 
     /// <summary>No key frame is wanted any more.</summary>
-    public void CancelKeyFrame() => Interlocked.Exchange(ref _keyFrameDue, NoKeyFrame);
+    public void CancelKeyFrame() => Interlocked.Exchange(ref _keyFrameDue, Never);
+
+    /// <summary>
+    /// The largest frame a display reader wants (T-184): every decoded frame is also converted scaled down to fit it, see
+    /// <see cref="CameraStreamItem.DisplayFrame"/>; <see langword="null"/> (the default): no frames for display. Read by
+    /// the reader for every frame; a change applies from the next frame on, without interrupting the stream.
+    /// </summary>
+    public CameraFrameSize? DisplaySize
+    {
+        get => CameraFrameSize.Unpack(Interlocked.Read(ref _displaySize));
+        set => Interlocked.Exchange(ref _displaySize, CameraFrameSize.Pack(value));
+    }
+
+    /// <summary>
+    /// Whether the decoded frame is wanted in the camera's resolution now (<see cref="CameraStreamItem.Frame"/>): always
+    /// unless the hub limited it with <see cref="RequestFullResolution"/> or <see cref="CancelFullResolution"/>. Checked by
+    /// the reader for every frame; costs one clock read only while a later time is requested.
+    /// </summary>
+    public bool FullResolutionDue
+    {
+        get
+        {
+            long due = Interlocked.Read(ref _fullResolutionDue);
+            return due == long.MinValue || (due != Never && _timeProvider.GetTimestamp() >= due);
+        }
+    }
+
+    /// <summary>
+    /// Wants frames in full resolution from <paramref name="timestamp"/> on (of the clock given to the constructor);
+    /// <see cref="long.MinValue"/>: every frame (the default).
+    /// </summary>
+    public void RequestFullResolution(long timestamp) => Interlocked.Exchange(ref _fullResolutionDue, Math.Min(timestamp, Never - 1));
+
+    /// <summary>No frame is wanted in full resolution (only for display, if a <see cref="DisplaySize"/> is set).</summary>
+    public void CancelFullResolution() => Interlocked.Exchange(ref _fullResolutionDue, Never);
 }
