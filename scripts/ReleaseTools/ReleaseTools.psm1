@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     Shared helpers of the release scripts (T-055): version, tag, changelog, runtime selection, git state checks,
-    build marker, archives, checksums and the GitHub upload plan.
+    build marker, archives, checksums, the update feed signature (T-181) and the GitHub upload plan.
 
 .DESCRIPTION
     Pure functions (no git, gh or dotnet calls) take plain values and return values or problem lists, so that the
@@ -520,7 +520,9 @@ function Get-BuildInfoProblems {
     <#
     .SYNOPSIS
         Pure check of a build marker before upload: same version and commit as HEAD, built from a clean tree, only
-        uploadable runtimes, and the files in dist exactly the files listed in the marker. Returns problem messages.
+        uploadable runtimes, the update feeds signed (T-181: FeedSignature.Status 'signed' and a releases.<rid>.json.sig
+        next to every releases.<rid>.json; a trial build of -SkipFeedSignature or a marker without the status is refused),
+        and the files in dist exactly the files listed in the marker. Returns problem messages.
     #>
     param(
         $BuildInfo,
@@ -540,6 +542,15 @@ function Get-BuildInfoProblems {
     foreach ($rid in @($BuildInfo.Runtimes)) {
         if (-not $Config.Contains($rid)) { $problems.Add("Build output contains unknown runtime '$rid'."); continue }
         if (-not $Config[$rid].Uploadable) { $problems.Add("Build output contains $rid, which must not be uploaded: $($Config[$rid].BlockedReason). Rebuild without it.") }
+    }
+    # T-181: installations that verify the update feed refuse a feed without a valid signature.
+    $signature = if ($BuildInfo.PSObject.Properties['FeedSignature']) { $BuildInfo.FeedSignature } else { $null }
+    $status = if ($signature -and $signature.PSObject.Properties['Status']) { $signature.Status } else { $null }
+    if ($status -ceq 'skipped') { $problems.Add('Build output was made with -SkipFeedSignature (a trial build): its update feed is not signed, and installed apps that verify the feed would refuse the update. Rebuild with the signing key (docs/release.md).') }
+    elseif ($status -cne 'signed') { $problems.Add('Build output has no update feed signature (made before T-181?). Rebuild with the signing key (docs/release.md).') }
+    $names = @($BuildInfo.Files | ForEach-Object { $_.Name })
+    foreach ($feed in @($names | Where-Object { $_ -cmatch '^releases\.[^/\\]+\.json$' })) {
+        if ($names -cnotcontains "$feed.sig") { $problems.Add("Build output has $feed without its signature $feed.sig. Rebuild with the signing key.") }
     }
     $expected = @($BuildInfo.Files | ForEach-Object { $_.Name }) + @($BuildInfo.ChecksumFile)
     $missing = @($expected | Where-Object { $DistFiles -cnotcontains $_ })
@@ -581,7 +592,8 @@ function Test-ReleaseMarkerFileName {
         True for the files that make an OS visible in a release: its checksum file (GitHubReleaseChecker of the app, T-113)
         and the Velopack feed files (releases.<rid>.json, assets.<rid>.json, RELEASES-<rid>; Velopack, T-058). Added to a
         published release (release-upload.ps1 -AddToPublished) they are uploaded only after every other file, so that no
-        app is offered a release whose packages are not there yet.
+        app is offered a release whose packages are not there yet. The feed signature (releases.<rid>.json.sig, T-181) is
+        no marker: it goes with the packages, before its feed (Get-UploadBatches).
     #>
     param([Parameter(Mandatory)] [string] $Name)
     [bool]($Name -cmatch '^(SHA256SUMS-[a-z]+\.txt|releases\.[^/\\]+\.json|assets\.[^/\\]+\.json|RELEASES-[^/\\]+)$')
@@ -694,9 +706,10 @@ function Get-PublishProblems {
     <#
     .SYNOPSIS
         Pure check before a draft release is published: it exists, is a draft, has the checksum file of every
-        expected OS and the Velopack feed (releases.<rid>.json) of every released RID of that OS (T-058), every file
-        listed in the checksum files is uploaded with the listed SHA256, no other file is uploaded and no file of a
-        runtime that must not be uploaded (Uploadable = $false in the runtime table) is there.
+        expected OS and the Velopack feed (releases.<rid>.json) of every released RID of that OS (T-058), every uploaded
+        feed has its signature releases.<rid>.json.sig (T-181), every file listed in the checksum files is uploaded with
+        the listed SHA256, no other file is uploaded and no file of a runtime that must not be uploaded (Uploadable =
+        $false in the runtime table) is there.
     .PARAMETER Release
         Release as returned by Get-GitHubRelease ($null = no release).
     .PARAMETER Checksums
@@ -731,6 +744,10 @@ function Get-PublishProblems {
             if (-not (@($assets | Where-Object { $_.name -ceq $feed }))) { $problems.Add("Release $Tag has no $($feed): installations of $rid would not find the update.") }
         }
     }
+    # T-181: also with -AllowIncomplete (no expected OS), every feed that is there must be signed.
+    foreach ($feed in @($assets | ForEach-Object name | Where-Object { $_ -cmatch '^releases\.[^/\\]+\.json$' })) {
+        if (-not (@($assets | Where-Object { $_.name -ceq "$feed.sig" }))) { $problems.Add("Release $Tag has $feed but no $($feed).sig: installed apps that verify the update feed would refuse the update. Rebuild with the signing key and upload.") }
+    }
     $listed = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($sumsName in $Checksums.Keys) {
         $null = $listed.Add($sumsName)
@@ -764,6 +781,368 @@ function Test-RuntimeFileName {
     #>
     param([Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $Runtime)
     [bool]($Name -match "(^|[-.])$([regex]::Escape($Runtime))([-.]|$)")
+}
+
+# Signed update feed (T-181, docs/release.md "Podpis feedu aktualizací", format in docs/velopack.md point 13 and in
+# LayerPeek.Core.Updates.UpdateFeedVerifier): every releases.<rid>.json gets releases.<rid>.json.sig, an ECDSA P-256 /
+# SHA-256 signature (IEEE P1363, 64 bytes, one line of base64) over "LayerPeek-feed-v1\n" + RID + "\n" + the feed bytes.
+# The private key is an encrypted PKCS#8 PEM on offline media; it is read from its path, decrypted only in memory with a
+# password given as a SecureString, and never copied, printed or written anywhere. The trusted public keys are read from
+# the C# source of the app (UpdateFeedKeys.Production), the single source of truth, so that the script refuses a key that
+# the released app would not trust.
+$script:FeedSignature = [pscustomobject]@{
+    Domain             = 'LayerPeek-feed-v1'
+    KeysSource         = 'src/LayerPeek.App/Installer/UpdateFeedKeys.cs'
+    KeysList           = 'Production'
+    KeyVariable        = 'LAYERPEEK_FEED_SIGNING_KEY'
+    SignatureLength    = 64
+    MaxSignatureBytes  = 256
+    # An encrypted PKCS#8 PEM of a P-256 key has about 400 bytes; anything much larger is not a key file.
+    MaxKeyFileBytes    = 16384
+    # New keys (New-UpdateFeedSigningKey): PBES2 with PBKDF2-SHA256 and AES-256-CBC, like the test key of the fixtures.
+    KdfIterations      = 600000
+    MinPasswordLength  = 16
+    P256Oid            = '1.2.840.10045.3.1.7'
+}
+
+function Get-FeedSignatureSettings {
+    <# .SYNOPSIS The fixed values of the update feed signature (T-181). #>
+    $script:FeedSignature
+}
+
+function Get-UpdateFeedFileName {
+    <# .SYNOPSIS The Velopack update feed of a RID (channel = RID): releases.<rid>.json. #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    "releases.$Runtime.json"
+}
+
+function Get-UpdateFeedSignatureFileName {
+    <# .SYNOPSIS The signature of the update feed of a RID: releases.<rid>.json.sig (T-181). #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    "releases.$Runtime.json.sig"
+}
+
+function Get-UpdateFeedSignedData {
+    <#
+    .SYNOPSIS
+        The bytes a feed signature covers: ASCII "LayerPeek-feed-v1" LF RID LF, then the exact bytes of the feed file, so that
+        the signature of one RID's feed is worthless for another RID or any other purpose. Same as
+        UpdateFeedVerifier.SignedDataOf of the app.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [byte[]] $Feed, [Parameter(Mandatory)] [string] $Runtime)
+    if ($Runtime -cnotmatch '^[A-Za-z0-9._-]{1,64}$') { throw "The update channel must be a RID such as 'osx-arm64', not '$Runtime'." }
+    $prefix = [System.Text.Encoding]::ASCII.GetBytes("$($script:FeedSignature.Domain)`n$Runtime`n")
+    $data = [byte[]]::new($prefix.Length + $Feed.Length)
+    [Array]::Copy($prefix, $data, $prefix.Length)
+    [Array]::Copy($Feed, 0, $data, $prefix.Length, $Feed.Length)
+    # The comma keeps the array one object (PowerShell would unroll it into single bytes).
+    , $data
+}
+
+function Get-FeedKeyFingerprint {
+    <# .SYNOPSIS Lower-case SHA-256 of a SubjectPublicKeyInfo: names a public key in messages and in build-info.json. #>
+    param([Parameter(Mandatory)] [byte[]] $SubjectPublicKeyInfo)
+    [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($SubjectPublicKeyInfo)).ToLowerInvariant()
+}
+
+function ConvertFrom-FeedPublicKeyPem {
+    <#
+    .SYNOPSIS
+        One PEM 'PUBLIC KEY' (SubjectPublicKeyInfo) of an ECDSA P-256 key, leading whitespace of its lines ignored (the
+        indentation of a C# raw string literal). Returns Pem, SubjectPublicKeyInfo and Sha256; throws for anything else,
+        including a private key.
+    #>
+    param([Parameter(Mandatory)] [string] $Pem)
+    $normalized = ((($Pem -replace "`r", '') -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join "`n")
+    if ($normalized -cnotmatch '^-----BEGIN PUBLIC KEY-----\n(?<base64>[A-Za-z0-9+/=\n]+)\n-----END PUBLIC KEY-----$') {
+        throw 'A trusted update feed key must be one PEM PUBLIC KEY (SubjectPublicKeyInfo).'
+    }
+    $spki = [Convert]::FromBase64String(($Matches.base64 -replace "`n", ''))
+    $key = [System.Security.Cryptography.ECDsa]::Create()
+    try {
+        $read = 0
+        try { $key.ImportSubjectPublicKeyInfo($spki, [ref] $read) }
+        catch { throw 'A trusted update feed key must be an ECDSA P-256 public key.' }
+        if ($read -ne $spki.Length -or $key.ExportParameters($false).Curve.Oid.Value -cne $script:FeedSignature.P256Oid) {
+            throw 'A trusted update feed key must be an ECDSA P-256 public key.'
+        }
+    }
+    finally { $key.Dispose() }
+    [pscustomobject]@{ Pem = $normalized; SubjectPublicKeyInfo = $spki; Sha256 = Get-FeedKeyFingerprint $spki }
+}
+
+function Get-TrustedFeedKeys {
+    <#
+    .SYNOPSIS
+        The trusted public keys of a list in UpdateFeedKeys.cs of the app (default: Production, the keys of the GitHub
+        feed), parsed from the C# source text: the list is '<name> = [ ... ];' with one raw string literal PEM per key.
+        Throws when the list is not found or contains anything but PEM literals, commas and // comments, so that a changed
+        source never reads as "no keys" or "fewer keys" silently. Returns ConvertFrom-FeedPublicKeyPem objects.
+    .DESCRIPTION
+        Parsing the source keeps the app the single place of the keys (decision of T-181: constants in the binary, never
+        read from a file); Get-AppLanguageCodes reads AppLanguages.cs the same way. Of two declarations (#if DEBUG / #else)
+        the first is read.
+    #>
+    param([Parameter(Mandatory)] [string] $SourceText, [string] $ListName = $script:FeedSignature.KeysList)
+    $declaration = [regex]::Match($SourceText, "(?s)\bIReadOnlyList<string>\s+$([regex]::Escape($ListName))\s*=\s*\[(?<body>.*?)\];")
+    if (-not $declaration.Success) { throw "The list UpdateFeedKeys.$ListName ('IReadOnlyList<string> $ListName = [ ... ];') was not found in $($script:FeedSignature.KeysSource)." }
+    $body = $declaration.Groups['body'].Value
+    $literal = '(?s)"""(?<pem>.*?)"""'
+    $keys = @(foreach ($match in [regex]::Matches($body, $literal)) { ConvertFrom-FeedPublicKeyPem $match.Groups['pem'].Value })
+    $rest = [regex]::Replace([regex]::Replace($body, $literal, ''), '//[^\n]*', '')
+    if ($rest -notmatch '^[\s,]*$') { throw "UpdateFeedKeys.$ListName in $($script:FeedSignature.KeysSource) has entries other than raw string PEM literals; the release scripts cannot read it." }
+    $fingerprints = @($keys | ForEach-Object Sha256)
+    if (@($fingerprints | Sort-Object -Unique).Count -ne $fingerprints.Count) { throw "UpdateFeedKeys.$ListName lists a key twice." }
+    $keys
+}
+
+function Get-FeedSigningTrustProblems {
+    <#
+    .SYNOPSIS
+        Pure check of a signing key against the keys the released app trusts: the list must not be empty (the app would
+        accept no update at all, fail closed) and, given PublicKey (the SubjectPublicKeyInfo of the signing key), must
+        contain it. Returns problem messages.
+    #>
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys,
+        [byte[]] $PublicKey,
+        [string] $ListName = $script:FeedSignature.KeysList
+    )
+    $source = "$($script:FeedSignature.KeysSource) (UpdateFeedKeys.$ListName)"
+    if ($TrustedKeys.Count -eq 0) {
+        return @("$source trusts no key yet, so the app of this build would accept no signed update at all. Add the public key of the signing key there first (docs/release.md, 'Podpis feedu aktualizací'), or make a trial build that cannot be uploaded with -SkipFeedSignature.")
+    }
+    if ($null -eq $PublicKey) { return @() }
+    $fingerprint = Get-FeedKeyFingerprint $PublicKey
+    if (@($TrustedKeys | Where-Object Sha256 -CEQ $fingerprint).Count -eq 0) {
+        return @("The signing key (public key SHA-256 $fingerprint) is not trusted by $source, which trusts $(@($TrustedKeys | ForEach-Object Sha256) -join ', '). The installed apps would refuse its signature: wrong key medium, or the public key was never added (docs/release.md).")
+    }
+    @()
+}
+
+function Read-FeedSigningKeyFile {
+    <#
+    .SYNOPSIS
+        The text of the encrypted signing key at Path (offline media), checked to be one encrypted PKCS#8 PEM. An unencrypted
+        private key is refused: it must never lie on a medium in clear. Never prints the content.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "The update feed signing key $Path does not exist. Is the key medium connected?" }
+    $length = (Get-Item -LiteralPath $Path).Length
+    if ($length -gt $script:FeedSignature.MaxKeyFileBytes) { throw "$Path ($length bytes) is no update feed signing key (an encrypted PKCS#8 PEM, docs/release.md)." }
+    $text = [System.IO.File]::ReadAllText($Path)
+    if ($text -cmatch '-----BEGIN (?:EC |RSA )?PRIVATE KEY-----') { throw "$Path is an unencrypted private key. The update feed signing key must be an encrypted PKCS#8 PEM ('ENCRYPTED PRIVATE KEY', docs/release.md); never keep it unencrypted." }
+    if ([regex]::Matches($text, '-----BEGIN ENCRYPTED PRIVATE KEY-----').Count -ne 1) { throw "$Path is no update feed signing key: expected one encrypted PKCS#8 PEM ('ENCRYPTED PRIVATE KEY', docs/release.md)." }
+    $text
+}
+
+function Read-FeedSigningKeyPassword {
+    <# .SYNOPSIS Asks for the password of the signing key (SecureString, not echoed); throws in a non-interactive session. #>
+    param([Parameter(Mandatory)] [string] $Path)
+    try { $password = Read-Host -AsSecureString -Prompt "Password of the update feed signing key $Path" }
+    catch { throw "No password for the update feed signing key: this session is not interactive. Run the build in a terminal, or pass -FeedSigningKeyPassword (a SecureString)." }
+    if ($null -eq $password -or $password.Length -eq 0) {
+        if ($password) { $password.Dispose() }
+        throw 'No password for the update feed signing key was entered.'
+    }
+    $password
+}
+
+function Invoke-WithSecureStringChars {
+    <#
+    .SYNOPSIS
+        Runs Action with the characters of a SecureString in a char[] and zeroes both the char[] and the unmanaged copy
+        afterwards, also on failure. The characters never become a .NET string.
+    #>
+    param([Parameter(Mandatory)] [System.Security.SecureString] $SecureString, [Parameter(Mandatory)] [scriptblock] $Action)
+    $pointer = [IntPtr]::Zero
+    $chars = [char[]]::new($SecureString.Length)
+    try {
+        $pointer = [System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($SecureString)
+        [System.Runtime.InteropServices.Marshal]::Copy($pointer, $chars, 0, $chars.Length)
+        & $Action $chars
+    }
+    finally {
+        [Array]::Clear($chars)
+        if ($pointer -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($pointer) }
+    }
+}
+
+function Import-FeedSigningKey {
+    <#
+    .SYNOPSIS
+        Decrypts the signing key (text of Read-FeedSigningKeyFile) with its password into an ECDsa object; the caller must
+        dispose it as soon as it is not needed. Refuses a key that is not ECDSA P-256. Wrong password: a clear error that
+        contains neither the password nor the key.
+    #>
+    param([Parameter(Mandatory)] [string] $EncryptedPem, [Parameter(Mandatory)] [System.Security.SecureString] $Password)
+    $key = [System.Security.Cryptography.ECDsa]::Create()
+    try {
+        $imported = Invoke-WithSecureStringChars -SecureString $Password -Action {
+            param([char[]] $Chars)
+            try { $key.ImportFromEncryptedPem($EncryptedPem, $Chars); $true }
+            catch { $false }
+        }
+        if (-not $imported) { throw 'The update feed signing key cannot be decrypted: wrong password, or the key file is damaged.' }
+        if ($key.ExportParameters($false).Curve.Oid.Value -cne $script:FeedSignature.P256Oid) { throw 'The update feed signing key is not an ECDSA P-256 key.' }
+        $result = $key
+        $key = $null
+        $result
+    }
+    finally {
+        if ($key) { $key.Dispose() }
+    }
+}
+
+function New-UpdateFeedSignature {
+    <# .SYNOPSIS Signs a feed for a RID with the (decrypted) signing key; returns the base64 text of the .sig file (88 characters). #>
+    param(
+        [Parameter(Mandatory)] [System.Security.Cryptography.ECDsa] $Key,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [byte[]] $Feed,
+        [Parameter(Mandatory)] [string] $Runtime
+    )
+    $signature = $Key.SignData((Get-UpdateFeedSignedData -Feed $Feed -Runtime $Runtime), [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+        [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)
+    if ($signature.Length -ne $script:FeedSignature.SignatureLength) { throw "Unexpected signature length $($signature.Length); the signing key is not ECDSA P-256." }
+    [Convert]::ToBase64String($signature)
+}
+
+function Test-UpdateFeedSignature {
+    <#
+    .SYNOPSIS
+        True when SignatureFile (the bytes of releases.<rid>.json.sig) is a signature of one of TrustedKeys over Feed for
+        the RID, by the rules of the app's UpdateFeedVerifier: at most 256 bytes, ASCII whitespace around one base64 line of
+        exactly 64 signature bytes. Never throws for any content of Feed or SignatureFile.
+    #>
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [byte[]] $Feed,
+        [Parameter(Mandatory)] [string] $Runtime,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [byte[]] $SignatureFile,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys
+    )
+    if ($SignatureFile.Length -eq 0 -or $SignatureFile.Length -gt $script:FeedSignature.MaxSignatureBytes) { return $false }
+    $text = [System.Text.Encoding]::ASCII.GetString($SignatureFile).Trim(' ', "`t", "`r", "`n")
+    if ($text -cnotmatch '^[A-Za-z0-9+/]{86}==$') { return $false }
+    $signature = [Convert]::FromBase64String($text)
+    if ($signature.Length -ne $script:FeedSignature.SignatureLength) { return $false }
+    $data = Get-UpdateFeedSignedData -Feed $Feed -Runtime $Runtime
+    foreach ($trusted in $TrustedKeys) {
+        $key = [System.Security.Cryptography.ECDsa]::Create()
+        try {
+            $read = 0
+            $key.ImportSubjectPublicKeyInfo($trusted.SubjectPublicKeyInfo, [ref] $read)
+            if ($key.VerifyData($data, $signature, [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+                    [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)) { return $true }
+        }
+        catch { }
+        finally { $key.Dispose() }
+    }
+    $false
+}
+
+function Add-UpdateFeedSignatures {
+    <#
+    .SYNOPSIS
+        Signs releases.<rid>.json of every RID in DistDirectory into releases.<rid>.json.sig (base64 + LF), then reads the
+        written file back and verifies it against TrustedKeys (the keys of the app) like the app will. Returns the paths of
+        the .sig files. Throws when a feed is missing, a .sig already exists or the verification fails (the .sig is then
+        deleted).
+    #>
+    param(
+        [Parameter(Mandatory)] [System.Security.Cryptography.ECDsa] $Key,
+        [Parameter(Mandatory)] [string] $DistDirectory,
+        [Parameter(Mandatory)] [string[]] $Runtimes,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys
+    )
+    foreach ($rid in $Runtimes) {
+        $feedPath = Join-Path $DistDirectory (Get-UpdateFeedFileName $rid)
+        $signaturePath = Join-Path $DistDirectory (Get-UpdateFeedSignatureFileName $rid)
+        if (-not (Test-Path -LiteralPath $feedPath -PathType Leaf)) { throw "There is no update feed $(Split-Path -Leaf $feedPath) of $rid in $DistDirectory to sign." }
+        if (Test-Path -LiteralPath $signaturePath) { throw "Release file already exists: $signaturePath" }
+        $feed = [System.IO.File]::ReadAllBytes($feedPath)
+        $signature = New-UpdateFeedSignature -Key $Key -Feed $feed -Runtime $rid
+        [System.IO.File]::WriteAllText($signaturePath, "$signature`n", [System.Text.UTF8Encoding]::new($false))
+        if (-not (Test-UpdateFeedSignature -Feed $feed -Runtime $rid -SignatureFile ([System.IO.File]::ReadAllBytes($signaturePath)) -TrustedKeys $TrustedKeys)) {
+            Remove-Item -LiteralPath $signaturePath -Force
+            throw "The signature of $(Split-Path -Leaf $feedPath) does not verify with the keys of $($script:FeedSignature.KeysSource); nothing was signed."
+        }
+        $signaturePath
+    }
+}
+
+function New-UpdateFeedSigningKey {
+    <#
+    .SYNOPSIS
+        Creates a new update feed key pair (docs/release.md, 'Podpis feedu aktualizací'): the private key as an encrypted
+        PKCS#8 PEM (PBES2, PBKDF2-SHA256 with 600 000 iterations, AES-256-CBC) at Path, the public key (SubjectPublicKeyInfo
+        PEM, not secret) at PublicKeyPath. Asks for the password twice unless Password is given; at least 16 characters.
+        Never overwrites a file. Returns the paths, the public key PEM to put into UpdateFeedKeys.Production and its SHA-256.
+    .EXAMPLE
+        Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
+        New-UpdateFeedSigningKey -Path /Volumes/LP-KEY/layerpeek-feed-key.pem -PublicKeyPath /Volumes/LP-KEY/layerpeek-feed-key.public.pem
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Path,
+        [Parameter(Mandatory)] [string] $PublicKeyPath,
+        [System.Security.SecureString] $Password
+    )
+    foreach ($file in $Path, $PublicKeyPath) { if (Test-Path -LiteralPath $file) { throw "$file already exists; a key file is never overwritten." } }
+    $owned = $null
+    if (-not $Password) {
+        $owned = Read-Host -AsSecureString -Prompt 'Password of the new update feed signing key'
+        $again = Read-Host -AsSecureString -Prompt 'The same password again'
+        try {
+            $same = Invoke-WithSecureStringChars -SecureString $owned -Action {
+                param([char[]] $First)
+                Invoke-WithSecureStringChars -SecureString $again -Action {
+                    param([char[]] $Second)
+                    $equal = $First.Length -eq $Second.Length
+                    for ($i = 0; $equal -and $i -lt $First.Length; $i++) { $equal = $First[$i] -ceq $Second[$i] }
+                    $equal
+                }
+            }
+        }
+        finally { $again.Dispose() }
+        if (-not $same) { $owned.Dispose(); throw 'The two passwords differ; no key was created.' }
+        $Password = $owned
+    }
+    try {
+        if ($Password.Length -lt $script:FeedSignature.MinPasswordLength) { throw "The password must have at least $($script:FeedSignature.MinPasswordLength) characters; no key was created." }
+        $key = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+        try {
+            $pbe = [System.Security.Cryptography.PbeParameters]::new([System.Security.Cryptography.PbeEncryptionAlgorithm]::Aes256Cbc,
+                [System.Security.Cryptography.HashAlgorithmName]::SHA256, $script:FeedSignature.KdfIterations)
+            $encrypted = Invoke-WithSecureStringChars -SecureString $Password -Action { param([char[]] $Chars) $key.ExportEncryptedPkcs8PrivateKeyPem($Chars, $pbe) }
+            $publicPem = $key.ExportSubjectPublicKeyInfoPem()
+            $fingerprint = Get-FeedKeyFingerprint $key.ExportSubjectPublicKeyInfo()
+        }
+        finally { $key.Dispose() }
+        $utf8 = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($Path, "$encrypted`n", $utf8)
+        # Owner only where the file system supports it (not on FAT / exFAT media); the file is encrypted either way.
+        if (-not $IsWindows) { try { [System.IO.File]::SetUnixFileMode($Path, [System.IO.UnixFileMode]'UserRead, UserWrite') } catch { } }
+        [System.IO.File]::WriteAllText($PublicKeyPath, "$publicPem`n", $utf8)
+        [pscustomobject]@{ Path = $Path; PublicKeyPath = $PublicKeyPath; PublicKeyPem = $publicPem; PublicKeySha256 = $fingerprint }
+    }
+    finally {
+        if ($owned) { $owned.Dispose() }
+    }
+}
+
+function Get-UploadBatches {
+    <#
+    .SYNOPSIS
+        The order of an upload, one gh call per batch: first the packages and the feed signatures (releases.<rid>.json.sig,
+        T-181), then the files that make an OS visible (Test-ReleaseMarkerFileName: checksum file and Velopack feed). So the
+        signature is always uploaded before its feed, and no app sees a feed whose packages or signature are not there yet.
+        Returns objects with Files (paths, in the given order); empty batches are left out.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $Paths)
+    $packages = @($Paths | Where-Object { -not (Test-ReleaseMarkerFileName (Split-Path -Leaf $_)) })
+    $markers = @($Paths | Where-Object { Test-ReleaseMarkerFileName (Split-Path -Leaf $_) })
+    foreach ($batch in @(, $packages) + @(, $markers)) {
+        if ($batch.Count -gt 0) { [pscustomobject]@{ Files = [string[]] $batch } }
+    }
 }
 
 # Velopack packaging (T-017, docs/velopack.md point 12). Fixed by the user: package id, title and AppUserModelID
@@ -2594,7 +2973,7 @@ function Get-ReleaseFlowPlan {
         [pscustomobject]@{ Id = 'DeleteBranch'; Outward = $false; Title = "Delete the local branch $branch"
             Detail = "git branch -d $branch" }
         [pscustomobject]@{ Id = 'Build'; Outward = $false; Title = "Build $($f.Runtimes -join ', ') from the tag"
-            Detail = "git switch --detach $tag; pwsh scripts/release-build.ps1" }
+            Detail = "git switch --detach $tag; pwsh scripts/release-build.ps1 (signing key: `$env:LAYERPEEK_FEED_SIGNING_KEY, password asked)" }
         [pscustomobject]@{ Id = 'Upload'; Outward = $true; Title = 'Create or fill the draft release (confirm y/N)'
             Detail = "pwsh scripts/release-upload.ps1$repoArgument -DryRun, then pwsh scripts/release-upload.ps1$repoArgument; never published here" }
     )
@@ -2624,7 +3003,7 @@ function Format-ReleaseFlowPlan {
             # T-113: the other OS went first; this one is added to the published release, not by release.ps1.
             $repoArgument = if ($Facts.RepositoryArgument) { " -Repo $($Facts.RepositoryArgument)" } else { '' }
             "  It has no $($Facts.ChecksumFile) yet. Add the files of this OS (docs/release.md, release on two machines):"
-            "    git switch --detach $($Facts.Tag); pwsh scripts/release-build.ps1; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
+            "    git switch --detach $($Facts.Tag); pwsh scripts/release-build.ps1 -FeedSigningKey <key file>; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
         }
     }
     if ($Facts.PSObject.Properties['ToolchainSkipped'] -and $Facts.ToolchainSkipped) {
@@ -2658,7 +3037,7 @@ function Get-ReleaseNextSteps {
         "  pwsh scripts/release-publish.ps1$repoArgument -AllowIncomplete   # only the $this files so far"
         '  git switch develop'
         "The $other files follow on a $other machine (docs/release.md, release on two machines), without release.ps1:"
-        "  git fetch $Remote --tags; git switch --detach $tag; pwsh scripts/release-build.ps1"
+        "  git fetch $Remote --tags; git switch --detach $tag; pwsh scripts/release-build.ps1 -FeedSigningKey <key file>"
         "  pwsh scripts/release-upload.ps1$repoArgument -AddToPublished   # after the publish above"
         "  (or before publishing: pwsh scripts/release-upload.ps1$repoArgument into the draft, then publish without -AllowIncomplete)"
     )

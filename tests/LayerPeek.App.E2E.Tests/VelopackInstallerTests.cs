@@ -54,7 +54,7 @@ public sealed class VelopackInstallerTests(E2EFixture fixture)
         Assert.SkipWhen(E2EFixture.IsNativeAot, "The installer of the release build is tested once, in the pass against the Debug exe.");
         Assert.SkipUnless(RuntimeInformation.OSArchitecture == Architecture.X64, $"The {Runtime} installer runs on x64 Windows only.");
         string setup = SetupPath();
-        Assert.SkipUnless(File.Exists(setup), $"No installer {setup}: build it first with pwsh scripts/release-build.ps1 (T-055, T-017).");
+        Assert.SkipUnless(File.Exists(setup), $"No installer {setup}: build it first with pwsh scripts/release-build.ps1 -SkipFeedSignature (T-055, T-017, T-181).");
         Assert.SkipWhen(InstallerKind.IsInstalled(), $"LayerPeek is installed on this machine ({InstallerKind.InstallFolder}); the test never touches a real installation.");
         Assert.SkipWhen(KeyExists(InstallerKind.UninstallSubKey), $@"HKCU\{InstallerKind.UninstallSubKey} exists (a real installation); the test never touches it.");
         Assert.SkipWhen(IsElevated(), "The tests run as administrator: an install without UAC cannot be told from one with it.");

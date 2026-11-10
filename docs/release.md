@@ -5,7 +5,7 @@ Vydání se dělá lokálně bez CI (GitHub Actions se nepoužívají, T-016 zam
 | Skript | Co dělá | Mění GitHub? |
 |---|---|---|
 | `scripts/release.ps1` | **jeden příkaz** pro kroky 1–3 níže: větev `release/X.Y.Z`, sloučení do `main` + tag, sloučení zpět do `develop`, sestavení tagu a nahrání do konceptu; nikdy nezveřejňuje (viz „Vydání jedním příkazem“) | ano, jen push a koncept po potvrzení (kromě `-DryRun`) |
-| `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, na Windows instalátor Velopack (T-017), na macOS `LayerPeek.app` od `vpk` + `.dmg` + `.tar.gz` + balíček a feed Velopacku (T-019, T-058), `SHA256SUMS-<os>.txt` | ne |
+| `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, na Windows instalátor Velopack (T-017), na macOS `LayerPeek.app` od `vpk` + `.dmg` + `.tar.gz` + balíček a feed Velopacku (T-019, T-058), podpis feedu offline klíčem (T-181, viz „Podpis feedu aktualizací“), `SHA256SUMS-<os>.txt` | ne |
 | `scripts/release-upload.ps1` | kontroly, vytvoření konceptu vydání (první běh) nebo nahrání do existujícího konceptu (druhý OS); s `-AddToPublished` doplnění chybějícího OS do zveřejněného vydání (T-113) | ano (kromě `-DryRun`) |
 | `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění | ano (kromě `-DryRun`) |
 | `scripts/ReleaseTools/ReleaseTools.Tests.ps1` | Pester testy logiky skriptů bez sítě (spouští je i `dotnet test`, viz níže) | ne |
@@ -20,6 +20,7 @@ Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.
 - První nahrání vytvoří **koncept** (`--draft`). Verze `0.x` jsou na GitHubu označené jako předběžné (`--prerelease`).
 - Poznámky k vydání jsou sekce verze z `CHANGELOG.md` (formát [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), anglicky podle `CLAUDE.md`).
 - Bez placeného podpisu: Windows soubory jsou nepodepsané, macOS má jen ad-hoc podpis bez notarizace (T-019, viz „Balení pro macOS“).
+- Feed aktualizací `releases.<RID>.json` je od T-181 podepsaný offline klíčem (ECDSA P-256) a aplikace aktualizaci bez platného podpisu odmítne (rozhodnuto 2026-11-06, viz „Podpis feedu aktualizací“).
 
 ## Vydání jedním příkazem (`scripts/release.ps1`, T-055)
 
@@ -53,7 +54,7 @@ pwsh scripts/release-publish.ps1 -DryRun
 pwsh scripts/release-publish.ps1 -AllowIncomplete   # only the macOS files so far
 git switch develop
 The Windows files follow on a Windows machine (docs/release.md, release on two machines), without release.ps1:
-  git fetch origin --tags; git switch --detach vX.Y.Z; pwsh scripts/release-build.ps1
+  git fetch origin --tags; git switch --detach vX.Y.Z; pwsh scripts/release-build.ps1 -FeedSigningKey <key file>
   pwsh scripts/release-upload.ps1 -AddToPublished   # after the publish above
   (or before publishing: pwsh scripts/release-upload.ps1 into the draft, then publish without -AllowIncomplete)
 ```
@@ -74,6 +75,7 @@ The Windows files follow on a Windows machine (docs/release.md, release on two m
 - **Stažení (rozhodnuto 2026-10-24):** ostrý běh na začátku, ještě před kontrolami, spustí `git fetch --no-tags origin` (s `-Repo` remote toho repozitáře). Mění jen sledovací větve `origin/*`; žádná lokální větev ani tag se nevytvoří ani neposune. `develop` musí být dál stejný jako `origin/develop`, jinak skript požádá o `git pull --ff-only`.
 - **`-DryRun`:** nic nezmění v gitu ani na GitHubu a nic nestahuje, jen čte (`git ls-remote`, `gh auth status`, `gh release view`) a vypíše plán. Nestažený `origin/main` / `origin/develop` ohlásí s příkazem `git fetch origin`. Změnu `CHANGELOG.md` ověří na kopii v dočasné složce.
 - **`-Repo owner/název`:** jako u uploadu a publish (zkušební vydání); push `main`, tagu a `develop` pak jde na remote tohoto repozitáře a kontroly se dělají proti němu. **Jen v samostatném dočasném klonu bez `origin`** (viz „Zkušební vydání“): klon, jehož `origin` je jiný repozitář, skript odmítne, aby jeho `main` a `develop` nedostaly sloučení cizího vydání.
+- **Podpis feedu (T-181):** krok 7 spouští `release-build.ps1` bez parametrů, klíč proto bere z proměnné prostředí. Před spuštěním připoj médium s klíčem a nastav `$env:LAYERPEEK_FEED_SIGNING_KEY = '<cesta ke klíči>'` ve stejném terminálu; build se zeptá na heslo (viz „Podpis feedu aktualizací“). Bez proměnné krok 7 skončí chybou a další běh `release.ps1` začne znovu buildem.
 - **Potvrzení** čte `Read-Host`, takže mohou přijít i z roury, jeden řádek na otázku (tak to dělají Pester testy: `'X.Y.Z', 'y', 'y' | pwsh scripts/release.ps1 -Version X.Y.Z`). Neinteraktivní relace znamená „ne“.
 
 ### Co `release.ps1` zkontroluje předem
@@ -110,7 +112,7 @@ Opakované spuštění **se stejnou verzí** zjistí, co je hotové, a pokračuj
 | 3: tag je na `origin` na stejném commitu a `origin/main` ho obsahuje |
 | 4 / 5: lokální / `origin/develop` obsahuje commit vydání |
 | 6: lokální `release/X.Y.Z` už neexistuje |
-| 7: `artifacts/release/X.Y.Z/build-info.json` je z commitu tagu, z čistého stromu a soubory sedí se součty |
+| 7: `artifacts/release/X.Y.Z/build-info.json` je z commitu tagu, z čistého stromu, s podepsaným feedem (ne `-SkipFeedSignature`, T-181) a soubory sedí se součty |
 | 8: koncept obsahuje všechny soubory místního buildu se stejným SHA256 (nebo je vydání už zveřejněné) |
 
 | Situace | Co dělat |
@@ -152,7 +154,7 @@ git switch develop
 ```powershell
 git fetch origin --tags
 git switch --detach vX.Y.Z                         # čistý strom, tag z origin
-pwsh scripts/release-build.ps1                     # build tohoto OS z tagu
+pwsh scripts/release-build.ps1 -FeedSigningKey <cesta ke klíči>   # build tohoto OS z tagu, podpis feedu (T-181)
 pwsh scripts/release-upload.ps1 -AddToPublished -DryRun
 pwsh scripts/release-upload.ps1 -AddToPublished    # doplní soubory tohoto OS do zveřejněného vydání
 git switch develop
@@ -163,7 +165,7 @@ Co `-AddToPublished` dělá a hlídá:
 - Platí všechny kontroly uploadu (tag na `HEAD` = `<Version>`, tag na `origin`, `HEAD` v `origin/main`, čistý strom, značka sestavení, součty).
 - Vydání musí existovat a být **zveřejněné** (koncept: nahraj bez přepínače a zveřejni) a nesmí ještě obsahovat `SHA256SUMS-<os>.txt` tohoto OS. Soubory jednoho OS se doplní jen jednou; OS, jehož součty už ve vydání jsou, skript odmítne.
 - **Nikdy nic nepřepíše** (s `-Force` se nekombinuje). Soubory se stejným SHA256 přeskočí (navázání po přerušení: stačí spustit znovu). Nedokončený soubor (GitHub ho hlásí ve stavu `starter`, bez `digest`) nebo soubor s jiným obsahem odmítne s návodem: soubor smaž ručně na stránce vydání (*Edit*) a spusť znovu.
-- Nejdřív nahraje balíčky (`.zip`, `Setup.exe`, `.nupkg`, `.dmg`, `.tar.gz`) a **až potom** soubory, podle kterých aplikace OS ve vydání pozná: `SHA256SUMS-<os>.txt` a feed Velopacku (`releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`). Během nahrávání tak žádná aplikace nedostane nabídku vydání, jehož balíčky tam ještě nejsou.
+- Nejdřív nahraje balíčky (`.zip`, `Setup.exe`, `.nupkg`, `.dmg`, `.tar.gz`) a podpisy feedu (`releases.<RID>.json.sig`, T-181) a **až potom** soubory, podle kterých aplikace OS ve vydání pozná: `SHA256SUMS-<os>.txt` a feed Velopacku (`releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`). Během nahrávání tak žádná aplikace nedostane nabídku vydání, jehož balíčky tam ještě nejsou.
 - Na konci zkontroluje celé zveřejněné vydání stejně jako `release-publish.ps1`: součty obou OS, feed každého vydávaného RID, každý soubor ze součtů se stejným SHA256, nic navíc. Při problému skončí s kódem 1 a vypíše ho (soubory už jsou nahrané, oprav ručně).
 - Bez přepínače se chování nemění: nahrání do zveřejněného vydání skript odmítne (`Release vX.Y.Z is already published …`) a nově jen poradí `-AddToPublished`.
 
@@ -188,7 +190,7 @@ git switch -c release/X.Y.Z
 - V `CHANGELOG.md` dej sekci verze skutečné datum vydání: `## [X.Y.Z] - YYYY-MM-DD` (zástupné `- unreleased` nahraď datem; změny z `## [Unreleased]` přesuň do ní a `## [Unreleased]` nech prázdnou nahoře). Skript vydání odmítne sekci bez platného data (i `unreleased`), prázdnou sekci i chybějící sekci.
 - Commit, případné opravy jen stabilizační.
 
-Volitelně ověř balení ještě před tagem: `pwsh scripts/release-build.ps1` jde spustit na libovolném commitu (výstup se ale nahraje jen z tagovaného commitu).
+Volitelně ověř balení ještě před tagem: `pwsh scripts/release-build.ps1 -SkipFeedSignature` jde spustit na libovolném commitu bez klíče (takový výstup se nenahraje nikdy, výstup s podpisem jen z tagovaného commitu).
 
 ### 2. Sloučení do `main`, tag a push
 
@@ -210,7 +212,7 @@ Na čistém checkoutu tagovaného commitu (pracovní strom nesmí obsahovat žá
 
 ```powershell
 git switch --detach vX.Y.Z
-pwsh scripts/release-build.ps1                 # build, testy, publish win-x64, smoke test, zip, instalátor, SHA256SUMS-windows.txt
+pwsh scripts/release-build.ps1 -FeedSigningKey E:\layerpeek-feed-key.pem   # build, testy, publish win-x64, smoke test, zip, instalátor, podpis feedu, SHA256SUMS-windows.txt
 pwsh scripts/release-upload.ps1 -DryRun         # jen kontroly a výpis, co by se nahrálo
 pwsh scripts/release-upload.ps1                 # vytvoří koncept vydání a nahraje soubory
 ```
@@ -223,7 +225,7 @@ Stejné příkazy na Macu (Apple Silicon), **až když běh prvního OS úspěš
 
 ```bash
 git switch --detach vX.Y.Z
-pwsh scripts/release-build.ps1                 # build, testy, publish osx-arm64, smoke test, LayerPeek.app, .dmg, .tar.gz, SHA256SUMS-macos.txt
+pwsh scripts/release-build.ps1 -FeedSigningKey /Volumes/LP-KEY/layerpeek-feed-key.pem   # build, testy, publish osx-arm64, smoke test, LayerPeek.app, .dmg, .tar.gz, podpis feedu, SHA256SUMS-macos.txt
 pwsh scripts/release-upload.ps1 -DryRun         # kontroly a výpis, co by se přidalo do konceptu
 pwsh scripts/release-upload.ps1                 # přidá soubory macOS do konceptu z běhu na Windows (jde-li Mac první, koncept vytvoří)
 ```
@@ -262,14 +264,15 @@ shasum -a 256 -c SHA256SUMS-macos.txt
 artifacts/release/<verze>/
   publish/<rid>/        Native AOT publish složka (vstup balení)
   dist/                 soubory k nahrání: archivy, později instalátory, SHA256SUMS-<os>.txt
-  build-info.json       značka sestavení: verze, commit, čistý strom, RID, soubory a jejich SHA256, výsledek smoke testu
+  build-info.json       značka sestavení: verze, commit, čistý strom, RID, soubory a jejich SHA256, podpis feedu, výsledek smoke testu
 ```
 
 - Archiv: `LayerPeek-<verze>-<RID>.zip` (Windows, obsah publish složky bez nadřazené složky), `.tar.gz` (macOS, podepsaná `LayerPeek.app`, zachová spustitelný bit).
 - macOS (T-019, T-058): `LayerPeek-<verze>-osx-arm64.dmg`, balíček a feed Velopacku (`LayerPeek-<verze>-osx-arm64-full.nupkg`, `releases.osx-arm64.json`, `assets.osx-arm64.json`, `RELEASES-osx-arm64`; `Portable.zip` ani `.pkg` se nevydávají) a podepsaná aplikace od `vpk` pro místní použití v `artifacts/release/<verze>/app/osx-arm64/portable/LayerPeek.app` (nenahrává se).
 - Instalátor Velopack (jen Windows, T-017, viz „Instalátor pro Windows“ níže): `LayerPeek-<verze>-<RID>-Setup.exe` a soubory aktualizací `LayerPeek-<verze>-<RID>-full.nupkg`, `releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`. `vpk` pracuje ve vlastní složce `velopack-<RID>` vedle `dist/` a po zkopírování ji skript smaže.
 - **Ladicí symboly se nevydávají** (rozhodnuto 2026-10-21): archiv neobsahuje soubory `*.pdb` ani nic ze složek `*.dSYM` a nikam se nenahrávají. V publish složce zůstanou pro lokální ladění. Zip `win-x64` má tak asi 70 MB místo 120 MB.
-- Kontrolní součty: jeden soubor na OS, formát `sha256sum` (`<hash>  <soubor>`, LF), obsahuje všechny soubory z `dist/` tohoto běhu.
+- Podpis feedu (T-181): `releases.<RID>.json.sig` ke každému `releases.<RID>.json` (jeden řádek base64 + LF). `build-info.json` má `FeedSignature`: `Status` `signed` (s `PublicKeySha256`, otiskem veřejného klíče) nebo `skipped` (`-SkipFeedSignature`).
+- Kontrolní součty: jeden soubor na OS, formát `sha256sum` (`<hash>  <soubor>`, LF), obsahuje všechny soubory z `dist/` tohoto běhu (i `.sig`).
 - Build zastaví jakékoli varování (`-warnaserror` u `dotnet build` i `dotnet publish`, tedy i trim/AOT varování z ILC). Testy běží v konfiguraci Release.
 - Na Windows skript ověří, že *Product version* exe odpovídá `<Version>`.
 - Smoke test běží jen pro RID tohoto stroje (OS a architektura). Ostatní RID skript vypíše jako „not verified by running“. Smoke test běží nad hotovou publish složkou (`aot-smoke.ps1 -PublishDir`) a skript ověří, že ji nezměnil.
@@ -296,6 +299,9 @@ Navíc jen `release-upload.ps1`:
 | chybí výstup `release-build.ps1` | `No build output for version …` |
 | výstup je z jiného commitu / verze / ze špinavého stromu | `Build output comes from commit …` / `… was made from a working tree with uncommitted …` |
 | výstup obsahuje neznámý RID (např. `win-arm64`) | `Build output contains unknown runtime …` |
+| zkušební build `release-build.ps1 -SkipFeedSignature` (T-181) | `Build output was made with -SkipFeedSignature (a trial build) …` |
+| `build-info.json` bez stavu podpisu (build starší než T-181) | `Build output has no update feed signature (made before T-181?) …` |
+| `releases.<RID>.json` bez `releases.<RID>.json.sig` ve výstupu | `Build output has releases.<RID>.json without its signature …` |
 | v `dist/` je soubor navíc, chybí nebo nesedí SHA256 | `dist contains files not produced by the build` / `… does not match its SHA256` |
 | vydání už je zveřejněné (bez `-AddToPublished`) | `Release vX.Y.Z is already published … To add the files of an OS … -AddToPublished` |
 | soubor se stejným názvem, ale jiným obsahem už je nahraný | `Already uploaded with different content … Re-run with -Force` |
@@ -304,6 +310,16 @@ Navíc jen `release-upload.ps1`:
 | `-AddToPublished`: součty tohoto OS už ve vydání jsou | `Published release vX.Y.Z already contains SHA256SUMS-<os>.txt` |
 | `-AddToPublished`: soubor s jiným obsahem / nedokončený | `… is in release vX.Y.Z with different content … Nothing is overwritten` / `… its upload did not finish (state starter, no SHA256)` |
 | `-AddToPublished`: kontrola celého vydání po nahrání | `Check of the published release vX.Y.Z REFUSED …` |
+
+Navíc jen `release-publish.ps1` (a kontrola po `release-upload.ps1 -AddToPublished`):
+
+| Kontrola | Hláška (začátek) |
+|---|---|
+| vydání neexistuje / už je zveřejněné | `There is no release for vX.Y.Z` / `Release vX.Y.Z is already published` |
+| chybí `SHA256SUMS-<os>.txt` některého OS (bez `-AllowIncomplete`) | `Release vX.Y.Z has no SHA256SUMS-<os>.txt` |
+| chybí feed `releases.<RID>.json` vydávaného RID | `Release vX.Y.Z has no releases.<RID>.json: installations of …` |
+| feed `releases.<RID>.json` bez podpisu `releases.<RID>.json.sig` (T-181, i s `-AllowIncomplete`) | `Release vX.Y.Z has releases.<RID>.json but no releases.<RID>.json.sig …` |
+| soubor chybí, nesedí SHA256 nebo není v žádném souboru součtů | `… is listed in … but not uploaded` / `Uploaded … does not match its SHA256` / `… is uploaded but not listed in any checksum file` |
 
 Skripty `origin` jen čtou jedním `git ls-remote`, nic nestahují ani nepushují (lokální refy se nemění). `gh auth status` se volá bez výpisu.
 
@@ -317,7 +333,115 @@ Skripty `origin` jen čtou jedním `git ls-remote`, nic nestahují ani nepushuj�
 | druhý OS spustil `release-upload.ps1` dřív, než první doběhl | nedělej to: druhý OS spouštěj až po úspěšném konci prvního běhu. Souběžné vytvoření konceptu ze dvou strojů není ošetřené ani ověřené (viz zkušební vydání). Když se to stane, zkontroluj na GitHubu, že vznikl jen jeden koncept (případný druhý smaž), a spusť upload znovu |
 | nahrání bylo přerušené (pád, Ctrl+C) | spusť `release-upload.ps1` znovu. Nedokončený soubor může na GitHubu zůstat ve stavu `starter` bez `digest`: skript ho bere jako „jiný obsah“ a bez `-Force` ho odmítne, s `-Force` ho přepíše. Chování ověřit při zkušebním vydání |
 | `release-build.ps1` hlásí chybějící komponentu MSVC | viz [prerequisites.md](prerequisites.md) |
+| `release-build.ps1` hlásí chybu klíče feedu (`No update feed signing key`, `… does not exist. Is the key medium connected?`, `… trusts no key yet`, `… is not trusted by …`, `cannot be decrypted`) | viz „Podpis feedu aktualizací“ níže (tabulka „Co `release-build.ps1` odmítne“) |
 | druhý OS nesestaví tag kvůli zastaralým referenčním snímkům UI svého OS (`Snapshot '…': N pixels differ`), protože první OS přegeneroval jen svoje | kód aplikace je v pořádku, ale tag už je pushnutý, takže ho neměň. Přegeneruj snímky v `develop` (`LAYERPEEK_UPDATE_SNAPSHOTS=1`, běžná větev `feature/*`). Pak v čisté kopii tagu nahraď jen rozdílné PNG z `develop`: seznam ulož do souboru (`git diff --name-only vX.Y.Z develop -- tests/LayerPeek.App.UiTests/Snapshots/<OS>/ > snapshots.txt`, soubor mimo repozitář), `xargs git update-index --skip-worktree < snapshots.txt` a soubory přepiš z `develop`, např. `while read f; do git show "develop:$f" > "$f"; done < snapshots.txt`. Pak `release-build.ps1`, `release-upload.ps1` a nakonec `xargs git update-index --no-skip-worktree < snapshots.txt` a `xargs git checkout -- < snapshots.txt`. Binárka vzniká jen z kódu tagu, referenční PNG testů se do ní nedostanou. Poprvé použito u 0.5.0 na Macu (2026-11-05, po T-170) s výslovným souhlasem uživatele. Před vydáním proto na obou OS spusť testy UI (T-125/T-127) |
+
+## Podpis feedu aktualizací (T-181)
+
+Velopack ověřuje stažený balíček jen proti SHA256 ve feedu `releases.<RID>.json`. Ten ale leží ve stejném vydání na GitHubu jako balíček, takže kdo převezme účet nebo token, mohl by vydat škodlivou aktualizaci. Proto feed podepisuje **offline soukromý klíč** (nikdy na GitHubu ani v repozitáři) a aplikace aktualizaci odmítne, když podpis `releases.<RID>.json.sig` chybí nebo neodpovídá veřejnému klíči zabudovanému v binárce (`src/LayerPeek.App/Installer/UpdateFeedKeys.cs`, seznam `Production`). Formát podpisu (ECDSA P-256 / SHA-256, podepsaná data `LayerPeek-feed-v1\n<RID>\n<bajty feedu>`, jeden řádek base64) popisuje [velopack.md](velopack.md), bod 13.
+
+### Jak podepisují skripty
+
+- **`release-build.ps1`** podepíše každý `releases.<RID>.json` do `releases.<RID>.json.sig` v `dist/`. Klíč je **šifrovaný PEM (PKCS#8)** na offline médiu; cestu dostane parametrem `-FeedSigningKey <cesta>` nebo z proměnné prostředí `LAYERPEEK_FEED_SIGNING_KEY` (tu používá `release.ps1`). Heslo se zadává do výzvy (nevypisuje se). Pro volání z jiného skriptu PowerShellu jde předat `-FeedSigningKeyPassword` jako `SecureString`; heslo nikdy nepiš jako text do příkazové řádky (zůstalo by v historii).
+- **Kontroly ještě před dlouhým buildem**, v tomto pořadí: klíč je zadaný → soubor existuje a je šifrovaný (nešifrovaný soukromý klíč skript odmítne) → `UpdateFeedKeys.Production` není prázdný (bez dotazu na heslo) → heslo → dešifrování jen v paměti → veřejný klíč odvozený ze soukromého je v `UpdateFeedKeys.Production`. Pak skript vypíše otisk veřejného klíče (SHA-256) a `The key medium may be disconnected now`: médium s klíčem jde odpojit. Skript si do konce buildu drží jen šifrovaný text klíče a heslo (`SecureString`).
+- **Po zabalení** klíč znovu dešifruje, podepíše feedy, každý zapsaný `.sig` přečte zpět a ověří proti klíčům z `UpdateFeedKeys.Production` stejně jako aplikace, a klíč i heslo hned zahodí (`Dispose`, pomocné pole znaků vynulované). `.sig` patří do `SHA256SUMS-<os>.txt` i `build-info.json` (`FeedSignature`: `Status` `signed` a `PublicKeySha256`, jen otisk veřejného klíče).
+- **Seznam důvěryhodných klíčů čte skript přímo ze zdroje aplikace** (`UpdateFeedKeys.cs`, stejně jako jazyky z `AppLanguages.cs`): jediný zdroj pravdy, žádný druhý soubor, který by se mohl rozejít. Seznam, který skript nedokáže celý přečíst (jiný tvar než PEM v raw string literálech, čárky a komentáře `//`), je chyba, nikdy tiché „žádné klíče“.
+- **Soukromý klíč ani heslo** skript nikam nekopíruje, nevypisuje ani nezapisuje (ani do `artifacts/`, ani do logu); hlídají to Pester testy.
+- **Dokud je `UpdateFeedKeys.Production` prázdný**, build bez `-SkipFeedSignature` odmítne (otázka 8 v T-181): nevznikne vydání, jehož aplikace by už žádnou další aktualizaci nepřijala.
+- **Zkušební build** `-SkipFeedSignature` klíč nepotřebuje; `build-info.json` ho označí (`Status` `skipped`) a `release-upload.ps1` ho odmítne. Hodí se pro místní ověření balení (`macos-verify.ps1`, `windows-verify.ps1`, E2E test instalátoru).
+- **`release-upload.ps1`** nahraje `.sig` spolu s balíčky v prvním volání `gh release upload` a feed až v druhém (nový koncept nejdřív vytvoří prázdný). Feed tak na GitHubu nikdy není bez svého podpisu.
+- **`release-publish.ps1`** (i kontrola po `-AddToPublished`) odmítne vydání, kde u některého `releases.<RID>.json` chybí `.sig`, i s `-AllowIncomplete`.
+
+Co `release-build.ps1` odmítne (před buildem, kód 1):
+
+| Kontrola | Hláška (začátek) |
+|---|---|
+| klíč nezadaný (ani `-FeedSigningKey`, ani `LAYERPEEK_FEED_SIGNING_KEY`) | `No update feed signing key. Connect the key medium and pass -FeedSigningKey …` |
+| `-SkipFeedSignature` spolu s klíčem nebo heslem | `-SkipFeedSignature builds without the update feed signature; do not pass …` |
+| soubor klíče neexistuje (médium nepřipojené) | `The update feed signing key … does not exist. Is the key medium connected?` |
+| soubor je nešifrovaný soukromý klíč / není šifrovaný PEM | `… is an unencrypted private key …` / `… is no update feed signing key …` |
+| `UpdateFeedKeys.Production` je prázdný | `… (UpdateFeedKeys.Production) trusts no key yet …` |
+| seznam v `UpdateFeedKeys.cs` nejde celý přečíst | `UpdateFeedKeys.Production … has entries other than raw string PEM literals …` |
+| neinteraktivní relace bez `-FeedSigningKeyPassword` / prázdné heslo | `No password for the update feed signing key: this session is not interactive …` |
+| špatné heslo nebo poškozený soubor | `The update feed signing key cannot be decrypted: wrong password, or the key file is damaged.` |
+| veřejný klíč není v `UpdateFeedKeys.Production` (jiné médium, klíč nepřidaný) | `The signing key (public key SHA-256 …) is not trusted by …` |
+
+### Vytvoření páru klíčů (jednou)
+
+Na stroji vydání, nejlépe bez připojení k síti, s připojeným médiem pro klíč (USB 1). Soukromý klíč se zapisuje rovnou na médium, nikdy na disk počítače ani do cloudu:
+
+```powershell
+Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
+New-UpdateFeedSigningKey -Path /Volumes/LP-KEY/layerpeek-feed-key.pem -PublicKeyPath /Volumes/LP-KEY/layerpeek-feed-key.public.pem
+# Windows: New-UpdateFeedSigningKey -Path E:\layerpeek-feed-key.pem -PublicKeyPath E:\layerpeek-feed-key.public.pem
+```
+
+- Funkce se dvakrát zeptá na heslo (musí se shodovat, aspoň 16 znaků). Silné heslo: dlouhá heslová fráze z náhodných slov, nikde jinde nepoužitá. Ulož ho **odděleně od klíče** (např. ve správci hesel); kdo má médium i heslo, může podepsat aktualizaci.
+- Vytvoří klíč ECDSA P-256 a zapíše ho jako šifrovaný PEM PKCS#8 (`ENCRYPTED PRIVATE KEY`: PBES2, PBKDF2-SHA256 s 600 000 iteracemi, AES-256-CBC; stejně jako testovací klíč v `tests/Shared/Fixtures/UpdateFeed`). Na macOS a Linuxu nastaví právo jen pro vlastníka (na FAT/exFAT se to nedá; soubor je šifrovaný tak jako tak). Veřejný klíč (PEM `PUBLIC KEY`, není tajný) uloží vedle a vrátí ho i s otiskem SHA-256. Existující soubor nikdy nepřepíše.
+
+### Uložení a záloha
+
+- **Primární médium (USB 1):** šifrovaný klíč a veřejný klíč. Připojuje se jen při vydání.
+- **Záloha (USB 2) na jiném místě:** zkopíruj šifrovaný soubor z média na médium (ne přes disk počítače ani cloud) a ověř, že jde dešifrovat a má stejný otisk:
+
+  ```powershell
+  Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
+  $key = Import-FeedSigningKey -EncryptedPem (Read-FeedSigningKeyFile /Volumes/LP-KEY-2/layerpeek-feed-key.pem) -Password (Read-Host -AsSecureString 'Heslo')
+  Get-FeedKeyFingerprint $key.ExportSubjectPublicKeyInfo(); $key.Dispose()
+  ```
+
+- **Ztráta klíče** (obou médií nebo hesla): nainstalované verze už žádnou aktualizaci nepřijmou. Postup je stejný jako při kompromitaci (nový klíč, nová verze, ruční přeinstalace).
+
+### Veřejný klíč do aplikace
+
+1. Na větvi úkolu vlož PEM veřejného klíče do `UpdateFeedKeys.Production` v `src/LayerPeek.App/Installer/UpdateFeedKeys.cs` jako raw string literál (stejný tvar jako testovací klíč v `Test`) a odstraň poznámku PLACEHOLDER.
+2. `dotnet test`: Pester test ověří, že seznam jde přečíst a testovací klíč v něm není.
+3. Sloučit do `develop` běžným postupem. Od první verze s tímto klíčem musí mít každé vydání `.sig` (skripty to vynutí) a podepisuje se jen klíčem ze seznamu této verze.
+
+### Podepisování při vydání
+
+- Jen z **čistého checkoutu tagu** na stroji vydání (`git switch --detach vX.Y.Z`); podepisuje se na Windows i na Macu stejným klíčem (rozhodnuto 2026-11-06).
+- Médium připoj těsně před buildem a po hlášce `The key medium may be disconnected now` ho **odpoj** (nejpozději po skončení buildu). Heslo zadávej jen do výzvy skriptu.
+
+```powershell
+pwsh scripts/release-build.ps1 -FeedSigningKey /Volumes/LP-KEY/layerpeek-feed-key.pem   # Windows: -FeedSigningKey E:\layerpeek-feed-key.pem
+```
+
+S `release.ps1` nastav proměnnou ve stejném terminálu a po vydání ji smaž:
+
+```powershell
+$env:LAYERPEEK_FEED_SIGNING_KEY = '/Volumes/LP-KEY/layerpeek-feed-key.pem'
+pwsh scripts/release.ps1 -Version X.Y.Z
+Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY
+```
+
+### Rotace klíče (plánovaná výměna)
+
+Aplikace má kvůli rotaci seznam klíčů:
+
+1. Vytvoř nový pár klíčů (nové médium a záloha, viz výše).
+2. **Verze N:** přidej nový veřejný klíč do `UpdateFeedKeys.Production` vedle starého. Verzi N podepiš ještě **starým** klíčem: instalace před N znají jen starý klíč.
+3. **Verze N+1 a další:** podepisuj **novým** klíčem. Instalace od N ho přijmou.
+4. Starý klíč ze seznamu odeber až v některé pozdější verzi a pak zlikviduj obě jeho kopie.
+
+Instalace starší než N, která N vynechá, aktualizaci N+1 odmítne: aplikace čte jen feed nejnovějšího vydání (otázka 9 v T-181). Mezi N a N+1 proto nech dost času (uživatelé se mají stihnout aktualizovat na N); kdo N vynechá, musí nainstalovat ručně.
+
+### Kompromitace (únik) soukromého klíče
+
+Bezpečná rotace aktualizací **nejde**: útočník se starým klíčem může podepsat i „rotaci“, tedy verzi s vlastním klíčem v seznamu. Postup:
+
+1. Nový pár klíčů. V `UpdateFeedKeys.Production` nahraď starý klíč novým (starý odeber hned, ne až později).
+2. Nová verze podepsaná novým klíčem.
+3. Oznámení v `README.md` / `README.cz.md` a v textu vydání (a `### Security` v `CHANGELOG.md`): nainstalované verze tuto aktualizaci odmítnou a mohou přijmout aktualizaci podepsanou uniklým klíčem; uživatelé musí novou verzi **stáhnout a nainstalovat ručně** z GitHubu a ověřit ji podle `SHA256SUMS-*.txt`.
+4. Zkontroluj účet GitHub (tokeny, 2FA, vydání, která nevydal správce) a podezřelá vydání smaž.
+
+### Rozsah ochrany
+
+- Chrání jen **aktualizace přes Velopack** (Windows instalace ze `Setup.exe`, macOS aplikace v Aplikacích).
+- **První stažení** instalátoru (`Setup.exe`, `.dmg`, `.zip`, `.tar.gz`) z GitHubu podpis nemá; tam pomáhá jen T-180 (neměnná vydání) a ruční kontrola `SHA256SUMS-*.txt`, které jsou ale ve stejném vydání.
+- Aplikace mimo Velopack (`GitHubReleaseChecker`, T-058) jen otevře stránku vydání, nic neinstaluje.
+- **Už nainstalované verze bez ověření** (vydané před T-181) přijmou jakoukoli aktualizaci, i nepodepsanou; chráněná je instalace až od chvíle, kdy běží verze s ověřením. Od prvního vydání s ověřením musí mít **každé** vydání `.sig` (jinak by ho verze s ověřením odmítly); `release-build.ps1`, `release-upload.ps1` a `release-publish.ps1` to vynucují.
+- **Opětovné nahrání staršího podepsaného feedu (replay)** k instalaci starší verze nevede (Velopack instaluje jen vyšší verzi), jen „zmrazí“ aktualizace. Přijatelné zbytkové riziko. Podpis feedu jednoho RID nejde použít pro jiný RID (RID je součástí podepsaných dat).
 
 ## Bod rozšíření pro instalátory (T-017, T-019)
 
@@ -406,7 +530,7 @@ dotnet vpk --skip-updates pack --packId LayerPeek --packVersion <verze> --packDi
 Skutečnou tichou instalaci a odinstalaci na vývojovém stroji dělá E2E test `VelopackInstallerTests` (druh zásahu `Installer`), jen přes `tools/run-e2e.ps1` s varováním a žurnálem obnovy:
 
 ```powershell
-pwsh scripts/release-build.ps1                     # vytvoří artifacts/release/<verze>/dist/LayerPeek-<verze>-win-x64-Setup.exe
+pwsh scripts/release-build.ps1 -SkipFeedSignature  # vytvoří artifacts/release/<verze>/dist/LayerPeek-<verze>-win-x64-Setup.exe (bez klíče, jen místně)
 pwsh tools/run-e2e.ps1 -Class '*VelopackInstallerTests'
 ```
 
@@ -433,6 +557,8 @@ Invoke-Pester scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1 -Output Detaile
 Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `ScriptPesterTestsPass`, jeden případ na soubor testů) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
 
 Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, odmítnutí souborů RID, který se nahrávat nesmí, a odmítnutí `win-arm64`). Balení pro macOS (T-019): `Info.plist` ze šablony (verze, `LSUIElement`, bundle identifikátor shodný s aplikací), sestavení bundlu bez ladicích symbolů, lokalizace `InfoPlist.strings` (T-097: kopie do bundlu, kontroly, parser `.strings`, na macOS `plutil -lint` a podpis s nimi), pořadí a argumenty podpisu, argumenty `hdiutil`, typ procesu z `lsappinfo` a registrace v LaunchServices; na macOS i skutečný ad-hoc podpis s `codesign --verify --deep --strict` (a rozbitá pečeť po změně souboru), `.icns` (16 a 32 px ze zjednodušené varianty beze změny pixelů, 64 px a víc z předlohy; odmítnutí PNG špatné velikosti) a ověřený `.dmg` a `.tar.gz` bez `._*` nad zástupným bundlem (nic se nepřipojuje). Záloha smoke testu: místa bundle identifikátoru a domény `defaults` nad zástupnou složkou se zástupným `defaults`. Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
+
+Podpis feedu (T-181) ověří `ReleaseTools.Tests.ps1`: sdílený testovací vektor `tests/Shared/Fixtures/UpdateFeed` (podpis z vektoru ověří PowerShell, podpis z PowerShellu ověří veřejný klíč vektoru; změněný feed, jiný RID, jiný klíč a poškozený `.sig` odmítnuty stejně jako v C#), čtení seznamu klíčů ze skutečného `UpdateFeedKeys.cs` (testovací klíč Debug = klíč vektoru, v `Production` nikdy), odmítnutí neznámého tvaru seznamu, prázdného seznamu, nedůvěryhodného klíče, nešifrovaného a chybějícího souboru klíče a špatného hesla, podpis a ověření celé složky `dist/`, vytvoření páru klíčů, pořadí nahrání (`.sig` před feedem) a značku `-SkipFeedSignature`. Skutečný `release-build.ps1` běží v dočasném repozitáři (jen skripty, verze a `UpdateFeedKeys.cs` s testovacím seznamem): bez klíče, s chybějícím / nešifrovaným klíčem, s prázdným seznamem (bez dotazu na heslo), s nedůvěryhodným klíčem, se špatným a chybějícím heslem skončí chybou ještě před buildem; s důvěryhodným klíčem ho přijme a vypíše jen otisk veřejného klíče. Ve výpisech ani souborech se nesmí objevit heslo ani žádný řádek soukromého klíče (ani šifrovaného). `ReleaseOrchestrator.Tests.ps1` proti falešnému `gh`: zkušební build odmítnut (i `-DryRun`), nový koncept vznikne prázdný a `.sig` se nahraje s balíčky před feedem, `release-publish.ps1` odmítne feed bez `.sig`. Celý podepsaný build (s `dotnet`) Pester nespouští, ověřuje ho zkušební vydání.
 
 Doplnění OS do zveřejněného vydání (T-113) ověří `ReleaseTools.Tests.ps1` čistými funkcemi (`Get-AddToPublishedProblems`: chybějící vydání, koncept, součty OS už ve vydání, stejné soubory přeskočit, jiný obsah a stav `starter` odmítnout; `Test-ReleaseMarkerFileName`; `Get-PublishProblems -Published`) a `ReleaseOrchestrator.Tests.ps1` skutečnými skripty `release-upload.ps1` a `release-publish.ps1` proti falešnému `gh` (stav vydání v dočasné složce, i `release download` a `release edit`): první OS → koncept → `-AllowIncomplete`, druhý OS bez přepínače odmítnut, s `-Force` odmítnut, špinavý strom odmítnut, `-DryRun` nic nezmění, doplnění ve dvou voláních `gh release upload` (balíčky, pak součty a feed), text a příznaky beze změny, opakování odmítnuto, navázání po přerušení, jiný obsah a nedokončený soubor odmítnuty.
 
@@ -466,12 +592,14 @@ Postup (`<owner>` = tvůj účet, název např. `LayerPeek-release-trial`):
 3. Sestavení a koncept:
 
    ```powershell
-   pwsh scripts/release-build.ps1
+   pwsh scripts/release-build.ps1 -FeedSigningKey <klíč>
    pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun
    pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial
    ```
 
    Kontrola: na GitHubu je koncept `v0.1.0` označený jako předběžný, s poznámkami z `CHANGELOG.md`, se zipem a `SHA256SUMS-windows.txt`.
+
+   Build pro nahrání musí mít podepsaný feed (T-181): `release-build.ps1 -FeedSigningKey <klíč>` s klíčem, jehož veřejný klíč je v `UpdateFeedKeys.Production` zkoušeného commitu. Zkušební build `-SkipFeedSignature` upload odmítne (to je potřeba ověřit také). Ověření, že nainstalovaná verze s ověřením podepsanou aktualizaci přijme a nepodepsanou odmítne, patří do T-125 / T-127.
 
 4. Opakování: druhé spuštění `release-upload.ps1` musí soubory přeskočit („skip, identical file already uploaded“). Po novém `release-build.ps1` musí nahrání odmítnout jiný obsah a s `-Force` ho přepsat. Přidání souborů druhého OS se ověří během na Macu (T-019) stejným postupem.
 
@@ -499,7 +627,7 @@ Postup (`<owner>` = tvůj účet, název např. `LayerPeek-release-trial`):
    ```powershell
    git fetch trial --tags
    git switch --detach v0.1.0
-   pwsh scripts/release-build.ps1
+   pwsh scripts/release-build.ps1 -FeedSigningKey <klíč>
    pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial               # musí odmítnout: already published, s radou -AddToPublished
    pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -AddToPublished -DryRun
    pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -AddToPublished

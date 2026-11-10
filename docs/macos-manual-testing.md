@@ -147,7 +147,7 @@ vydání (sezení 11). Skript nic z toho neoznačí jako hotové.
 1. **Release sestavení.** LayerPeek nesmí běžet.
    ```bash
    cd -P /cesta/k/LayerPeek
-   caffeinate -d -u -i pwsh scripts/release-build.ps1
+   caffeinate -d -u -i pwsh scripts/release-build.ps1 -SkipFeedSignature   # místní build bez klíče feedu (T-181)
    cd artifacts/release/0.3.1/dist && shasum -a 256 -c SHA256SUMS-macos.txt && cd -
    ```
    **Očekávání:** skript skončí kódem 0; v `artifacts/release/<verze>/dist/` jsou `LayerPeek-<verze>-osx-arm64.dmg`,
@@ -371,7 +371,7 @@ LayerPeek nesmí běžet; tiskárna nastavená (pro krok 3 se simulátorem nebo 
 
 ## Sezení 9 – Aktualizace přes stávající instalaci (ad-hoc podpis)
 
-1. Udělat malou změnu nebo jen znovu sestavit (nový ad-hoc podpis): `caffeinate -d -u -i pwsh scripts/release-build.ps1`,
+1. Udělat malou změnu nebo jen znovu sestavit (nový ad-hoc podpis): `caffeinate -d -u -i pwsh scripts/release-build.ps1 -SkipFeedSignature`,
    ukončit LayerPeek, novou `LayerPeek.app` z `.dmg` přetáhnout přes starou v Aplikacích, spustit.
 2. **Zapsat:** (a) ptá se macOS znovu na Místní síť (T-097 krok 4)? (b) zůstalo povolení oznámení (T-020 krok 4)?
    (c) při prvním čtení hesla tiskárny dialog Klíčenky „LayerPeek chce použít důvěrné informace…“ (Povolit / Vždy
@@ -405,7 +405,7 @@ LayerPeek nesmí běžet; tiskárna nastavená (pro krok 3 se simulátorem nebo 
 ## Sezení 11 – Nahrání do konceptu vydání (volitelné, zapisuje na GitHub)
 
 Jen ve zkušebním repozitáři podle [release.md](release.md), „Zkušební vydání (testovací repozitář)“: v čistém klonu na
-otagovaném commitu `pwsh scripts/release-build.ps1`, `pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun`,
+otagovaném commitu `pwsh scripts/release-build.ps1 -FeedSigningKey <klíč>`, `pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun`,
 pak bez `-DryRun` do konceptu z běhu na Windows; na GitHubu `.dmg`, `.tar.gz` a `SHA256SUMS-macos.txt` vedle souborů
 Windows; `release-publish.ps1 -Repo … -DryRun` bez `-AllowIncomplete` projde. Stažení `.dmg` z konceptu je zároveň
 nejvěrnější varianta kroku 1.2. **Uzavírá:** T-019 kritérium 2.

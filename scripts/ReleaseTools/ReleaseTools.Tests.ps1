@@ -530,9 +530,14 @@ Describe 'Build marker' {
         $script:Head = 'a' * 40
         $script:Info = [pscustomobject]@{
             Version = '0.1.0'; Commit = $script:Head; Dirty = $false; Runtimes = @('win-x64'); ChecksumFile = 'SHA256SUMS-windows.txt'
-            Files = @([pscustomobject]@{ Name = 'P-0.1.0-win-x64.zip'; Runtime = 'win-x64'; Sha256 = '0' * 64 })
+            Files = @(
+                [pscustomobject]@{ Name = 'P-0.1.0-win-x64.zip'; Runtime = 'win-x64'; Sha256 = '0' * 64 },
+                [pscustomobject]@{ Name = 'releases.win-x64.json'; Runtime = 'win-x64'; Sha256 = '1' * 64 },
+                [pscustomobject]@{ Name = 'releases.win-x64.json.sig'; Runtime = 'win-x64'; Sha256 = '2' * 64 }
+            )
+            FeedSignature = [pscustomobject]@{ Status = 'signed'; PublicKeySha256 = 'f' * 64 }
         }
-        $script:DistNames = @('P-0.1.0-win-x64.zip', 'SHA256SUMS-windows.txt')
+        $script:DistNames = @('P-0.1.0-win-x64.zip', 'releases.win-x64.json', 'releases.win-x64.json.sig', 'SHA256SUMS-windows.txt')
         function Problems($Info, [string[]] $Dist = $script:DistNames) { Get-BuildInfoProblems -BuildInfo $Info -Version '0.1.0' -Head $script:Head -DistFiles $Dist }
     }
     It 'accepts a build of HEAD from a clean tree' {
@@ -560,7 +565,26 @@ Describe 'Build marker' {
     }
     It 'refuses files added to or missing in dist' {
         Assert-Problems (Problems $script:Info ($script:DistNames + 'old.zip')) 'not produced by the build: old.zip'
-        Assert-Problems (Problems $script:Info @('SHA256SUMS-windows.txt')) 'missing in dist: P-0.1.0-win-x64.zip'
+        Assert-Problems (Problems $script:Info @('releases.win-x64.json', 'releases.win-x64.json.sig', 'SHA256SUMS-windows.txt')) 'missing in dist: P-0.1.0-win-x64.zip'
+    }
+    It 'refuses a trial build of release-build.ps1 -SkipFeedSignature (T-181)' {
+        $trial = Copy-With $script:Info @{
+            FeedSignature = [pscustomobject]@{ Status = 'skipped'; PublicKeySha256 = $null }
+            Files         = @($script:Info.Files | Where-Object Name -CNE 'releases.win-x64.json.sig')
+        }
+        Assert-Problems (Problems $trial @($script:DistNames | Where-Object { $_ -cne 'releases.win-x64.json.sig' })) `
+            'made with -SkipFeedSignature \(a trial build\)', 'releases\.win-x64\.json without its signature releases\.win-x64\.json\.sig'
+    }
+    It 'refuses a build marker without the feed signature status (built before T-181) or with an unknown one' {
+        $old = $script:Info.PSObject.Copy()
+        $old.PSObject.Properties.Remove('FeedSignature')
+        Assert-Problems (Problems $old) 'has no update feed signature \(made before T-181\?\)'
+        Assert-Problems (Problems (Copy-With $script:Info @{ FeedSignature = [pscustomobject]@{ Status = 'maybe' } })) 'has no update feed signature'
+        Assert-Problems (Problems (Copy-With $script:Info @{ FeedSignature = $null })) 'has no update feed signature'
+    }
+    It 'refuses a signed build whose feed has no signature file (T-181)' {
+        $unsigned = Copy-With $script:Info @{ Files = @($script:Info.Files | Where-Object Name -CNE 'releases.win-x64.json.sig') }
+        Assert-Problems (Problems $unsigned @($script:DistNames | Where-Object { $_ -cne 'releases.win-x64.json.sig' })) 'releases\.win-x64\.json without its signature'
     }
 }
 
@@ -593,15 +617,18 @@ Describe 'Upload plan' {
 
 Describe 'Publish checks' {
     BeforeAll {
-        $script:WinSums = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json' = 'a' * 64 }
-        $script:MacSums = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json' = 'b' * 64 }
+        $script:WinSums = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json' = 'a' * 64; 'releases.win-x64.json.sig' = 'c' * 64 }
+        $script:MacSums = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json' = 'b' * 64; 'releases.osx-arm64.json.sig' = 'd' * 64 }
+        # The first four are the Windows files, the rest the macOS files.
         $script:Complete = @(
             [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; digest = "sha256:$('1' * 64)" },
             [pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = "sha256:$('7' * 64)" },
             [pscustomobject]@{ name = 'releases.win-x64.json'; digest = "sha256:$('a' * 64)" },
+            [pscustomobject]@{ name = 'releases.win-x64.json.sig'; digest = "sha256:$('c' * 64)" },
             [pscustomobject]@{ name = 'P-0.1.0-osx-arm64.tar.gz'; digest = "sha256:$('2' * 64)" },
             [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = "sha256:$('8' * 64)" },
-            [pscustomobject]@{ name = 'releases.osx-arm64.json'; digest = "sha256:$('b' * 64)" }
+            [pscustomobject]@{ name = 'releases.osx-arm64.json'; digest = "sha256:$('b' * 64)" },
+            [pscustomobject]@{ name = 'releases.osx-arm64.json.sig'; digest = "sha256:$('d' * 64)" }
         )
         $script:BothSums = [ordered]@{ 'SHA256SUMS-windows.txt' = $script:WinSums; 'SHA256SUMS-macos.txt' = $script:MacSums }
         function Release([object[]] $Assets, [bool] $Draft = $true) { [pscustomobject]@{ isDraft = $Draft; assets = $Assets; url = 'https://example.invalid' } }
@@ -614,7 +641,7 @@ Describe 'Publish checks' {
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) 'already published'
     }
     It 'refuses a draft without the macOS files unless incomplete releases are allowed' {
-        $windowsOnly = @($script:Complete | Select-Object -First 3)
+        $windowsOnly = @($script:Complete | Select-Object -First 4)
         $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = $script:WinSums }
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) 'no SHA256SUMS-macos.txt'
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
@@ -635,8 +662,8 @@ Describe 'Publish checks' {
         $feed = $Feed
         $assets = @($script:Complete | Where-Object name -CNE $feed)
         $sums = [ordered]@{
-            'SHA256SUMS-windows.txt' = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64 }
-            'SHA256SUMS-macos.txt'   = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64 }
+            'SHA256SUMS-windows.txt' = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json.sig' = 'c' * 64 }
+            'SHA256SUMS-macos.txt'   = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json.sig' = 'd' * 64 }
         }
         $sums['SHA256SUMS-windows.txt']['releases.win-x64.json'] = 'a' * 64
         $sums['SHA256SUMS-macos.txt']['releases.osx-arm64.json'] = 'b' * 64
@@ -645,10 +672,25 @@ Describe 'Publish checks' {
         # Allowed incomplete (a trial release): only the uploaded files are checked.
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
     }
+    It 'refuses a feed without its signature releases.<RID>.json.sig, also when incomplete releases are allowed (T-181: <Feed>)' -ForEach @(
+        @{ Feed = 'releases.win-x64.json'; SumsFile = 'SHA256SUMS-windows.txt' },
+        @{ Feed = 'releases.osx-arm64.json'; SumsFile = 'SHA256SUMS-macos.txt' }
+    ) {
+        $feed = $Feed
+        $assets = @($script:Complete | Where-Object name -CNE "$feed.sig")
+        $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = [ordered]@{}; 'SHA256SUMS-macos.txt' = [ordered]@{} }
+        foreach ($name in $script:WinSums.Keys) { $sums['SHA256SUMS-windows.txt'][$name] = $script:WinSums[$name] }
+        foreach ($name in $script:MacSums.Keys) { $sums['SHA256SUMS-macos.txt'][$name] = $script:MacSums[$name] }
+        $sums[$SumsFile].Remove("$feed.sig")
+        $pattern = "Release v0\.1\.0 has $([regex]::Escape($feed)) but no $([regex]::Escape($feed))\.sig: installed apps that verify the update feed would refuse"
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) $pattern
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums) $pattern
+        Assert-Problems (Get-PublishProblems -Release (Release $assets $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums -Published) $pattern
+    }
     It 'checks a published release with -Published (the check after release-upload.ps1 -AddToPublished, T-113)' {
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published)
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published) 'is a draft, not published'
-        $macOnly = @($script:Complete | Select-Object -Skip 3)
+        $macOnly = @($script:Complete | Select-Object -Skip 4)
         Assert-Problems (Get-PublishProblems -Release (Release $macOnly $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums ([ordered]@{ 'SHA256SUMS-macos.txt' = $script:MacSums }) -Published) 'no SHA256SUMS-windows.txt'
     }
 }
@@ -702,12 +744,353 @@ Describe 'Adding an OS to a published release (T-113)' {
         @{ Name = 'releases.osx-arm64.json'; Expected = $true }
         @{ Name = 'assets.osx-arm64.json'; Expected = $true }
         @{ Name = 'RELEASES-win-x64'; Expected = $true }
+        @{ Name = 'releases.win-x64.json.sig'; Expected = $false }
+        @{ Name = 'releases.osx-arm64.json.sig'; Expected = $false }
         @{ Name = 'LayerPeek-0.1.0-win-x64.zip'; Expected = $false }
         @{ Name = 'LayerPeek-0.1.0-win-x64-Setup.exe'; Expected = $false }
         @{ Name = 'LayerPeek-0.1.0-osx-arm64-full.nupkg'; Expected = $false }
         @{ Name = 'LayerPeek-0.1.0-osx-arm64.dmg'; Expected = $false }
     ) {
         Test-ReleaseMarkerFileName $Name | Should -Be $Expected
+    }
+}
+
+Describe 'Update feed signature (T-181)' {
+    BeforeAll {
+        # The shared test vector of the C# tests (tests/Shared/Fixtures/UpdateFeed): the PowerShell side must agree with
+        # LayerPeek.Core.Updates.UpdateFeedVerifier in both directions.
+        $script:Vector = Join-Path $script:RepoRoot 'tests' 'Shared' 'Fixtures' 'UpdateFeed'
+        $script:VectorFeed = [System.IO.File]::ReadAllBytes((Join-Path $script:Vector 'releases.osx-arm64.json'))
+        $script:VectorSignature = [System.IO.File]::ReadAllBytes((Join-Path $script:Vector 'releases.osx-arm64.json.sig'))
+        $script:TestPublic = ConvertFrom-FeedPublicKeyPem ([System.IO.File]::ReadAllText((Join-Path $script:Vector 'test-feed-key.public.pem')))
+        $script:EncryptedKeyPath = Join-Path $script:Vector 'test-feed-key.private.encrypted.pem'
+        $script:PlainKeyPath = Join-Path $script:Vector 'test-feed-key.private.pem'
+        $script:TestPassword = 'layerpeek-test-only'
+        $script:KeysSourcePath = Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Installer' 'UpdateFeedKeys.cs'
+        function SecurePassword([string] $Text = $script:TestPassword) { ConvertTo-SecureString $Text -AsPlainText -Force }
+        function Open-TestKey { Import-FeedSigningKey -EncryptedPem (Read-FeedSigningKeyFile $script:EncryptedKeyPath) -Password (SecurePassword) }
+        function Ascii([string] $Text) { , [System.Text.Encoding]::ASCII.GetBytes($Text) }
+        function Verify([byte[]] $Feed = $script:VectorFeed, [string] $Runtime = 'osx-arm64', [byte[]] $Signature = $script:VectorSignature, [object[]] $Keys = @($script:TestPublic)) {
+            Test-UpdateFeedSignature -Feed $Feed -Runtime $Runtime -SignatureFile $Signature -TrustedKeys $Keys
+        }
+        function Get-KeyListSource([string[]] $Pems, [string] $Extra = '') {
+            # A minimal UpdateFeedKeys.cs with the given keys in Production, written like the real one (raw string literals).
+            $items = @($Pems | ForEach-Object { "        `"`"`"`n" + (($_.Trim() -split "`n" | ForEach-Object { "        $($_.Trim())" }) -join "`n") + "`n        `"`"`"," })
+            "internal static class UpdateFeedKeys`n{`n    public static readonly IReadOnlyList<string> Production =`n    [`n$($items -join "`n")$Extra`n    ];`n}`n"
+        }
+        # Another P-256 key that nobody trusts, and a key of another curve. (Variable names unlike the -ForEach keys below:
+        # PowerShell variables ignore case.)
+        $otherKey = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+        try { $script:OtherPublic = ConvertFrom-FeedPublicKeyPem $otherKey.ExportSubjectPublicKeyInfoPem() } finally { $otherKey.Dispose() }
+        $curve384Key = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP384)
+        try { $script:P384Pem = $curve384Key.ExportSubjectPublicKeyInfoPem() } finally { $curve384Key.Dispose() }
+
+        # What must never appear in output, logs or files: the password, every base64 line of both private key files (so
+        # also no copy of the encrypted file) and the private scalar D.
+        $script:Secrets = [System.Collections.Generic.List[string]]::new()
+        $script:Secrets.Add($script:TestPassword)
+        foreach ($file in $script:EncryptedKeyPath, $script:PlainKeyPath) {
+            foreach ($line in [System.IO.File]::ReadAllLines($file)) { if ($line -cmatch '^[A-Za-z0-9+/=]{16,}$') { $script:Secrets.Add($line) } }
+        }
+        $secretKey = Open-TestKey
+        try {
+            $d = $secretKey.ExportParameters($true).D
+            $script:Secrets.Add([Convert]::ToBase64String($d))
+            $script:Secrets.Add([Convert]::ToHexString($d))
+        }
+        finally { $secretKey.Dispose() }
+        function Assert-NoSecret([AllowEmptyString()] [string] $Text, [string] $Where) {
+            foreach ($secret in $script:Secrets) { if ($Text.Contains($secret, [StringComparison]::OrdinalIgnoreCase)) { throw "A secret of the test key appears in $Where." } }
+        }
+        function Assert-NoSecretInFolder([string] $Folder) {
+            foreach ($file in @(Get-ChildItem -LiteralPath $Folder -Recurse -File -Force)) {
+                Assert-NoSecret ([System.IO.File]::ReadAllText($file.FullName)) $file.FullName
+            }
+        }
+    }
+
+    It 'verifies the signature of the shared test vector (made by PowerShell, verified by the C# tests too)' {
+        Verify | Should -BeTrue
+    }
+    It 'refuses the vector for a changed feed, another RID or another key, and accepts it during a rotation' {
+        $changed = [byte[]] $script:VectorFeed.Clone()
+        $changed[20] = $changed[20] -bxor 1
+        Verify -Feed $changed | Should -BeFalse
+        Verify -Runtime 'win-x64' | Should -BeFalse
+        Verify -Keys @($script:OtherPublic) | Should -BeFalse
+        Verify -Keys @() | Should -BeFalse
+        Verify -Keys @($script:OtherPublic, $script:TestPublic) | Should -BeTrue
+    }
+    It 'reads the signature file like the app: whitespace around it ignored, anything else malformed (never throws)' {
+        $base64 = [System.Text.Encoding]::ASCII.GetString($script:VectorSignature).Trim()
+        Verify -Signature (Ascii " `t$base64`r`n`n") | Should -BeTrue
+        Verify -Signature (Ascii $base64) | Should -BeTrue
+        $sixtyThree = [Convert]::ToBase64String([byte[]]::new(63))
+        foreach ($bad in @('', ' ', "`n", "$base64$base64", ($base64.Substring(0, 87) + '*'), ($base64 -replace '\+', '-' -replace '/', '_'),
+                $sixtyThree, "$base64 x", ((' ' * 200) + $base64))) {
+            Verify -Signature (Ascii $bad) | Should -BeFalse -Because "signature file '$bad'"
+        }
+        Verify -Signature ([byte[]]::new(0)) | Should -BeFalse
+        Verify -Signature (Ascii ($base64 + (' ' * 170))) | Should -BeFalse -Because 'more than 256 bytes'
+    }
+    It 'builds the signed data like the app: domain prefix, RID, LF, then the exact feed bytes' {
+        $data = Get-UpdateFeedSignedData -Feed (Ascii "{`"a`":1}`n") -Runtime 'osx-arm64'
+        $data.GetType() | Should -Be ([byte[]])
+        [System.Text.Encoding]::ASCII.GetString($data) | Should -BeExactly "LayerPeek-feed-v1`nosx-arm64`n{`"a`":1}`n"
+        foreach ($runtime in 'osx/arm64', 'a b', ('x' * 65), 'ü') {
+            Assert-ThrowsMatching { Get-UpdateFeedSignedData -Feed (Ascii 'x') -Runtime $runtime } 'must be a RID'
+        }
+    }
+    It 'signs in PowerShell so that the public key of the test vector verifies it (<_>)' -ForEach 'osx-arm64', 'win-x64' {
+        $runtime = $_
+        $key = Open-TestKey
+        try {
+            $first = New-UpdateFeedSignature -Key $key -Feed $script:VectorFeed -Runtime $runtime
+            $second = New-UpdateFeedSignature -Key $key -Feed $script:VectorFeed -Runtime $runtime
+        }
+        finally { $key.Dispose() }
+        $first | Should -Match '^[A-Za-z0-9+/]{86}==$'
+        # ECDSA signatures are randomized: two signatures differ, both verify.
+        $second | Should -Not -BeExactly $first
+        foreach ($signature in $first, $second) {
+            Verify -Runtime $runtime -Signature (Ascii "$signature`n") | Should -BeTrue
+            Verify -Runtime ($runtime -eq 'win-x64' ? 'osx-arm64' : 'win-x64') -Signature (Ascii "$signature`n") | Should -BeFalse
+        }
+    }
+    It 'reads the trusted keys from the source of the app: the Debug test key is the fixture key, never a production key' {
+        $source = [System.IO.File]::ReadAllText($script:KeysSourcePath)
+        $test = @(Get-TrustedFeedKeys $source -ListName 'Test')
+        $test.Count | Should -Be 1
+        $test[0].Sha256 | Should -BeExactly $script:TestPublic.Sha256
+        # Throws when the production list changes shape, so a change can never read as "no keys" silently.
+        $production = @(Get-TrustedFeedKeys $source)
+        @($production | Where-Object Sha256 -EQ $script:TestPublic.Sha256) | Should -BeNullOrEmpty -Because 'the test key must never sign a release'
+    }
+    It 'parses a production list with two keys during a rotation, comments included' {
+        $source = Get-KeyListSource @($script:OtherPublic.Pem, $script:TestPublic.Pem) "`n        // the old key goes in 1.2.0"
+        @(Get-TrustedFeedKeys $source | ForEach-Object Sha256) | Should -BeExactly @($script:OtherPublic.Sha256, $script:TestPublic.Sha256)
+        @(Get-TrustedFeedKeys (Get-KeyListSource @())) | Should -BeNullOrEmpty
+    }
+    It 'refuses a key list it cannot read completely (<Case>)' -ForEach @(
+        @{ Case = 'no list'; Source = 'internal static class UpdateFeedKeys { }'; Pattern = 'UpdateFeedKeys\.Production .* was not found' }
+        @{ Case = 'a reference to a constant'; Source = "public static readonly IReadOnlyList<string> Production = [ Key2026, ];"; Pattern = 'entries other than raw string PEM literals' }
+        @{ Case = 'a private key'; Plain = $true; Pattern = 'must be one PEM PUBLIC KEY' }
+        @{ Case = 'a P-384 key'; P384 = $true; Pattern = 'must be an ECDSA P-256 public key' }
+        @{ Case = 'a key twice'; Twice = $true; Pattern = 'lists a key twice' }
+    ) {
+        $text = if ($Plain) { Get-KeyListSource @([System.IO.File]::ReadAllText($script:PlainKeyPath)) }
+        elseif ($P384) { Get-KeyListSource @($script:P384Pem) }
+        elseif ($Twice) { Get-KeyListSource @($script:TestPublic.Pem, $script:TestPublic.Pem) }
+        else { $Source }
+        Assert-ThrowsMatching { Get-TrustedFeedKeys $text } $Pattern
+    }
+    It 'refuses an empty trusted list and a signing key the list does not trust' {
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @()) 'UpdateFeedKeys\.Production\) trusts no key yet.*-SkipFeedSignature'
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @() -PublicKey $script:TestPublic.SubjectPublicKeyInfo) 'trusts no key yet'
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic) -PublicKey $script:TestPublic.SubjectPublicKeyInfo) `
+            "The signing key \(public key SHA-256 $($script:TestPublic.Sha256)\) is not trusted by .* which trusts $($script:OtherPublic.Sha256)"
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic, $script:TestPublic) -PublicKey $script:TestPublic.SubjectPublicKeyInfo)
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:TestPublic))
+    }
+    It 'refuses a missing, unencrypted or foreign key file' {
+        Assert-ThrowsMatching { Read-FeedSigningKeyFile (Join-Path $script:TempRoot 'no-such-key.pem') } 'does not exist\. Is the key medium connected\?'
+        Assert-ThrowsMatching { Read-FeedSigningKeyFile $script:PlainKeyPath } 'is an unencrypted private key.*encrypted PKCS#8 PEM'
+        Assert-ThrowsMatching { Read-FeedSigningKeyFile (Join-Path $script:Vector 'test-feed-key.public.pem') } 'expected one encrypted PKCS#8 PEM'
+        $large = New-TempFile 'large-key.pem' ('A' * 20000)
+        Assert-ThrowsMatching { Read-FeedSigningKeyFile $large } 'is no update feed signing key'
+        Read-FeedSigningKeyFile $script:EncryptedKeyPath | Should -Match '-----BEGIN ENCRYPTED PRIVATE KEY-----'
+    }
+    It 'refuses a wrong password without repeating it' {
+        $message = $null
+        try { $null = Import-FeedSigningKey -EncryptedPem (Read-FeedSigningKeyFile $script:EncryptedKeyPath) -Password (SecurePassword 'wrong-password-4711') }
+        catch { $message = "$_" }
+        $message | Should -Match 'cannot be decrypted: wrong password, or the key file is damaged'
+        $message | Should -Not -Match 'wrong-password-4711'
+    }
+    It 'signs every feed of the build in dist, verifies each with the trusted keys and leaves no secret in output or files' {
+        $dist = Join-Path $script:TempRoot 'sign-dist'
+        $null = New-Item -ItemType Directory -Path $dist
+        [System.IO.File]::WriteAllBytes((Join-Path $dist 'releases.osx-arm64.json'), $script:VectorFeed)
+        [System.IO.File]::WriteAllText((Join-Path $dist 'releases.win-x64.json'), '{"Assets":[]}')
+        [System.IO.File]::WriteAllText((Join-Path $dist 'LayerPeek-0.1.0-osx-arm64.dmg'), 'dmg')
+        $output = @(& {
+                $key = Open-TestKey
+                try { Add-UpdateFeedSignatures -Key $key -DistDirectory $dist -Runtimes 'osx-arm64', 'win-x64' -TrustedKeys @($script:OtherPublic, $script:TestPublic) }
+                finally { $key.Dispose() }
+            } *>&1)
+        @($output | ForEach-Object { Split-Path -Leaf "$_" }) | Should -BeExactly @('releases.osx-arm64.json.sig', 'releases.win-x64.json.sig')
+        foreach ($rid in 'osx-arm64', 'win-x64') {
+            $signature = [System.IO.File]::ReadAllBytes((Join-Path $dist "releases.$rid.json.sig"))
+            [System.Text.Encoding]::ASCII.GetString($signature) | Should -Match '^[A-Za-z0-9+/]{86}==\n$'
+            Verify -Feed ([System.IO.File]::ReadAllBytes((Join-Path $dist "releases.$rid.json"))) -Runtime $rid -Signature $signature | Should -BeTrue
+        }
+        Assert-NoSecret ($output | Out-String) 'the output of Add-UpdateFeedSignatures'
+        Assert-NoSecretInFolder $dist
+        @(Get-ChildItem -LiteralPath $dist -File | ForEach-Object Name | Sort-Object) | Should -BeExactly @('LayerPeek-0.1.0-osx-arm64.dmg', 'releases.osx-arm64.json', 'releases.osx-arm64.json.sig', 'releases.win-x64.json', 'releases.win-x64.json.sig')
+    }
+    It 'refuses a missing feed and an existing signature, and deletes a signature the trusted keys do not verify' {
+        $dist = Join-Path $script:TempRoot 'sign-refuse'
+        $null = New-Item -ItemType Directory -Path $dist
+        [System.IO.File]::WriteAllBytes((Join-Path $dist 'releases.osx-arm64.json'), $script:VectorFeed)
+        $key = Open-TestKey
+        try {
+            Assert-ThrowsMatching { Add-UpdateFeedSignatures -Key $key -DistDirectory $dist -Runtimes 'win-x64' -TrustedKeys @($script:TestPublic) } 'no update feed releases\.win-x64\.json of win-x64'
+            Assert-ThrowsMatching { Add-UpdateFeedSignatures -Key $key -DistDirectory $dist -Runtimes 'osx-arm64' -TrustedKeys @($script:OtherPublic) } 'does not verify with the keys of src/LayerPeek\.App/Installer/UpdateFeedKeys\.cs; nothing was signed'
+            Test-Path -LiteralPath (Join-Path $dist 'releases.osx-arm64.json.sig') | Should -BeFalse
+            [System.IO.File]::WriteAllText((Join-Path $dist 'releases.osx-arm64.json.sig'), 'old')
+            Assert-ThrowsMatching { Add-UpdateFeedSignatures -Key $key -DistDirectory $dist -Runtimes 'osx-arm64' -TrustedKeys @($script:TestPublic) } 'Release file already exists'
+        }
+        finally { $key.Dispose() }
+    }
+    It 'creates a key pair (encrypted private key, public key for UpdateFeedKeys.Production) that signs verifiable feeds' {
+        $folder = Join-Path $script:TempRoot 'new-key'
+        $null = New-Item -ItemType Directory -Path $folder
+        $private = Join-Path $folder 'feed-key.pem'
+        $public = Join-Path $folder 'feed-key.public.pem'
+        $password = 'correct horse battery staple'
+        Assert-ThrowsMatching { New-UpdateFeedSigningKey -Path $private -PublicKeyPath $public -Password (SecurePassword 'too-short') } 'at least 16 characters'
+        @(Get-ChildItem -LiteralPath $folder) | Should -BeNullOrEmpty
+        $created = New-UpdateFeedSigningKey -Path $private -PublicKeyPath $public -Password (SecurePassword $password)
+        $trusted = ConvertFrom-FeedPublicKeyPem ([System.IO.File]::ReadAllText($public))
+        $created.PublicKeySha256 | Should -BeExactly $trusted.Sha256
+        (ConvertFrom-FeedPublicKeyPem $created.PublicKeyPem).Sha256 | Should -BeExactly $trusted.Sha256
+        $text = Read-FeedSigningKeyFile $private
+        $text | Should -Not -Match 'BEGIN PRIVATE KEY'
+        if (-not $IsWindows) { (Get-Item -LiteralPath $private).UnixFileMode | Should -Be ([System.IO.UnixFileMode]'UserRead, UserWrite') }
+        $key = Import-FeedSigningKey -EncryptedPem $text -Password (SecurePassword $password)
+        try { $signature = New-UpdateFeedSignature -Key $key -Feed $script:VectorFeed -Runtime 'osx-arm64' }
+        finally { $key.Dispose() }
+        Verify -Signature (Ascii $signature) -Keys @($trusted) | Should -BeTrue
+        Assert-ThrowsMatching { New-UpdateFeedSigningKey -Path $private -PublicKeyPath (Join-Path $folder 'other.pem') -Password (SecurePassword $password) } 'already exists; a key file is never overwritten'
+    }
+    It 'uploads every feed signature before the feeds, with the packages (Get-UploadBatches)' {
+        $paths = @('d/LayerPeek-0.1.0-osx-arm64.dmg', 'd/releases.osx-arm64.json', 'd/releases.osx-arm64.json.sig', 'd/SHA256SUMS-macos.txt',
+            'd/assets.osx-arm64.json', 'd/LayerPeek-0.1.0-osx-arm64-full.nupkg', 'd/RELEASES-osx-arm64')
+        $batches = @(Get-UploadBatches -Paths $paths)
+        $batches.Count | Should -Be 2
+        @($batches[0].Files | Split-Path -Leaf) | Should -BeExactly @('LayerPeek-0.1.0-osx-arm64.dmg', 'releases.osx-arm64.json.sig', 'LayerPeek-0.1.0-osx-arm64-full.nupkg')
+        @($batches[1].Files | Split-Path -Leaf) | Should -BeExactly @('releases.osx-arm64.json', 'SHA256SUMS-macos.txt', 'assets.osx-arm64.json', 'RELEASES-osx-arm64')
+        @(Get-UploadBatches -Paths @('d/releases.osx-arm64.json')).Count | Should -Be 1
+        @(Get-UploadBatches -Paths @()) | Should -BeNullOrEmpty
+    }
+    It 'marks a build of -SkipFeedSignature in build-info.json and signs the feeds before the checksum file (release-build.ps1)' {
+        $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))
+        $script | Should -Match "Status = 'skipped'"
+        $script | Should -Match 'FeedSignature = \$feedSignature'
+        $script.IndexOf('Add-UpdateFeedSignatures') | Should -BeLessThan $script.IndexOf('Write-Sha256Sums')
+        # The key is checked before the long build.
+        $script.IndexOf('$feedSigning = Get-FeedSigning') | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
+    }
+
+    Context 'release-build.ps1: the signing key before the build (sandbox repository)' -Skip:(-not ($IsWindows -or $IsMacOS)) {
+        BeforeAll {
+            # A throw-away repository with only what release-build.ps1 reads before the build: the scripts, the version and
+            # UpdateFeedKeys.cs (its Production list set per test). There is no solution, no package list and no tool manifest
+            # there, so a run that gets past the key check stops right after it, before anything is built or deleted.
+            $script:Sandbox = Join-Path $script:TempRoot 'sign-repo'
+            $null = New-Item -ItemType Directory -Path (Join-Path $script:Sandbox 'scripts' 'ReleaseTools'), (Join-Path $script:Sandbox 'src' 'LayerPeek.App' 'Installer')
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-build.ps1') -Destination (Join-Path $script:Sandbox 'scripts')
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'ReleaseTools' 'ReleaseTools.psm1') -Destination (Join-Path $script:Sandbox 'scripts' 'ReleaseTools')
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'Directory.Build.props') -Destination $script:Sandbox
+            $script:SandboxKeys = Join-Path $script:Sandbox 'src' 'LayerPeek.App' 'Installer' 'UpdateFeedKeys.cs'
+            $script:RealKeysSource = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Installer' 'UpdateFeedKeys.cs'))
+            $null = G $script:Sandbox init --quiet
+            $null = G $script:Sandbox add --all
+            $null = G $script:Sandbox commit --quiet --message 'sandbox'
+            $script:SandboxBuild = Join-Path $script:Sandbox 'scripts' 'release-build.ps1'
+            $script:KeyHash = Get-FileSha256 $script:EncryptedKeyPath
+
+            function Set-SandboxProductionKeys([string[]] $Pems) {
+                # The real UpdateFeedKeys.cs with another Production list (raw string literals, as written in the app).
+                $items = @($Pems | ForEach-Object { "        `"`"`"`n" + (($_.Trim() -split "`n" | ForEach-Object { "        $($_.Trim())" }) -join "`n") + "`n        `"`"`"," })
+                $list = if ($items.Count -gt 0) { "[`n$($items -join "`n")`n    ];" } else { '[];' }
+                $text = [regex]::Replace($script:RealKeysSource, '(?s)(IReadOnlyList<string>\s+Production\s*=\s*)\[.*?\];', { param($m) $m.Groups[1].Value + $list })
+                [System.IO.File]::WriteAllText($script:SandboxKeys, $text)
+            }
+            function Invoke-SandboxBuild {
+                # The build script in a child pwsh. -Password goes in as a SecureString made in the child from an environment
+                # variable of this test only (the test password is public); -KeyVariable sets LAYERPEEK_FEED_SIGNING_KEY.
+                param([string[]] $Arguments = @(), [string] $Password, [string] $KeyVariable)
+                $saved = @{}
+                $environment = @{ LAYERPEEK_FEED_SIGNING_KEY = $KeyVariable; LAYERPEEK_TEST_FEED_KEY_PASSWORD = $Password }
+                foreach ($name in $environment.Keys) { $saved[$name] = [Environment]::GetEnvironmentVariable($name); [Environment]::SetEnvironmentVariable($name, $environment[$name]) }
+                try {
+                    $quoted = @($Arguments | ForEach-Object { if ($_ -cmatch '^-[A-Za-z]+$') { $_ } else { "'$($_ -replace "'", "''")'" } }) -join ' '
+                    $passwordArgument = if ($Password) { '-FeedSigningKeyPassword (ConvertTo-SecureString $env:LAYERPEEK_TEST_FEED_KEY_PASSWORD -AsPlainText -Force)' } else { '' }
+                    $command = "& '$($script:SandboxBuild -replace "'", "''")' $quoted $passwordArgument; exit `$LASTEXITCODE"
+                    $output = Invoke-Pwsh -NoProfile -NonInteractive -Command $command 2>&1 | Out-String
+                    [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+                }
+                finally {
+                    foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) }
+                }
+            }
+            function Assert-NothingBuilt {
+                Test-Path -LiteralPath (Join-Path $script:Sandbox 'artifacts') | Should -BeFalse
+                Get-FileSha256 $script:EncryptedKeyPath | Should -BeExactly $script:KeyHash
+                Assert-NoSecretInFolder (Join-Path $script:Sandbox 'scripts')
+            }
+        }
+        BeforeEach { Set-SandboxProductionKeys @($script:TestPublic.Pem) }
+
+        It 'fails without a key, before anything is built' {
+            $result = Invoke-SandboxBuild
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'Release build FAILED: No update feed signing key\. Connect the key medium and pass -FeedSigningKey <path> or set LAYERPEEK_FEED_SIGNING_KEY'
+            $result.Output | Should -Match '-SkipFeedSignature'
+            Assert-NothingBuilt
+        }
+        It 'refuses -SkipFeedSignature together with a key' {
+            $result = Invoke-SandboxBuild @('-SkipFeedSignature', '-FeedSigningKey', $script:EncryptedKeyPath)
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'do not pass -FeedSigningKey or -FeedSigningKeyPassword with it'
+            Assert-NothingBuilt
+        }
+        It 'refuses a missing key file (environment variable) and an unencrypted key (parameter)' {
+            $missing = Invoke-SandboxBuild -KeyVariable (Join-Path $script:TempRoot 'unplugged' 'key.pem')
+            $missing.ExitCode | Should -Be 1 -Because $missing.Output
+            $missing.Output | Should -Match 'does not exist\. Is the key medium connected\?'
+            $plain = Invoke-SandboxBuild @('-FeedSigningKey', $script:PlainKeyPath)
+            $plain.ExitCode | Should -Be 1 -Because $plain.Output
+            $plain.Output | Should -Match 'is an unencrypted private key'
+            Assert-NoSecret $plain.Output 'the build output'
+            Assert-NothingBuilt
+        }
+        It 'refuses every key while UpdateFeedKeys.Production is empty, without asking for the password' {
+            Set-SandboxProductionKeys @()
+            $result = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath)
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'UpdateFeedKeys\.Production\) trusts no key yet'
+            $result.Output | Should -Not -Match 'not interactive'
+            Assert-NothingBuilt
+        }
+        It 'refuses a key that the app does not trust, without printing a secret' {
+            Set-SandboxProductionKeys @($script:OtherPublic.Pem)
+            $result = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath) -Password $script:TestPassword
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match "The signing key \(public key SHA-256 $($script:TestPublic.Sha256)\) is not trusted by"
+            Assert-NoSecret $result.Output 'the build output'
+            Assert-NothingBuilt
+        }
+        It 'needs the password: refuses a wrong one and a non-interactive run without one' {
+            $wrong = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath) -Password 'wrong-password-4711'
+            $wrong.ExitCode | Should -Be 1 -Because $wrong.Output
+            $wrong.Output | Should -Match 'cannot be decrypted: wrong password'
+            $wrong.Output | Should -Not -Match 'wrong-password-4711'
+            $none = Invoke-SandboxBuild -KeyVariable $script:EncryptedKeyPath
+            $none.ExitCode | Should -Be 1 -Because $none.Output
+            $none.Output | Should -Match 'this session is not interactive.*-FeedSigningKeyPassword'
+            Assert-NothingBuilt
+        }
+        It 'accepts a trusted key before the build and prints only the SHA-256 of its public key, never a secret' {
+            $result = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath) -Password $script:TestPassword
+            $result.Output | Should -Match "Update feed signing key accepted \(public key SHA-256 $($script:TestPublic.Sha256), trusted by UpdateFeedKeys\.Production\)\. The key medium may be disconnected now\."
+            # The sandbox has nothing to build: the run stops right after the key check.
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'Release build FAILED'
+            Assert-NoSecret $result.Output 'the build output'
+            Assert-NothingBuilt
+        }
     }
 }
 
@@ -885,7 +1268,10 @@ Describe 'Velopack packaging (T-017)' {
         }
         $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = [ordered]@{ $name = '4' * 64 } }
         # Without expected OS: only the files are checked (a complete Windows draft would also need releases.win-x64.json).
-        Assert-Problems (Get-PublishProblems -Release $release -Tag v0.1.0 -ExpectedOs @() -Checksums $sums -Config $script:BlockedRuntimeConfig) 'belongs to test-blocked, which must not be released: test only'
+        # A feed alone also lacks its signature (T-181).
+        $patterns = @('belongs to test-blocked, which must not be released: test only')
+        if ($name -ceq 'releases.test-blocked.json') { $patterns += 'has releases\.test-blocked\.json but no releases\.test-blocked\.json\.sig' }
+        Assert-Problems (Get-PublishProblems -Release $release -Tag v0.1.0 -ExpectedOs @() -Checksums $sums -Config $script:BlockedRuntimeConfig) $patterns
     }
     It 'tells the files of a RID apart (<Name> / <Runtime> = <Expected>)' -ForEach @(
         @{ Name = 'releases.win-x64.json'; Runtime = 'osx-arm64'; Expected = $false },
