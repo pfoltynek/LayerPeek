@@ -370,6 +370,11 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `dotnet build` a `dotnet test` bez chyb a varování, `pwsh scripts/aot-smoke.ps1` PASS (win-x64, runtime 11.0.0),
       `pwsh scripts/release-build.ps1` projde (Velopack `Setup.exe`, zip, feed). Výsledek zapsat do poznámek T-193.
 
+### 2s. Podepsaný feed aktualizací (z T-181, implementováno na Macu 2026-11-10)
+- [ ] **T-181** (krit. „E2E test aktualizace … s feedem podepsaným testovacím klíčem“, část Windows): `pwsh tools/run-e2e.ps1
+      -Class '*UpdateTests*'` PASS (feed podepsaný testovacím klíčem přijat, nepodepsaný odmítnut); notifikace o odmítnutí
+      (toast) a kliknutí otevře záložku „Spuštění a aktualizace“.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
