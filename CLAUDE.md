@@ -29,7 +29,7 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 
 ## Tech stack
 
-- .NET 11 (SDK pinned in `global.json`, prerelease allowed), C# latest, nullable enabled, warnings as errors.
+- .NET 11 (SDK pinned in `global.json`, stable releases only since T-193), C# latest, nullable enabled, warnings as errors.
 - Central package management: versions only in `Directory.Packages.props`; `PackageReference` without `Version`.
 - UI: Avalonia 12 (`TrayIcon`, `NativeMenu`), MVVM via CommunityToolkit.Mvvm.
 - Tests: xUnit v3 on Microsoft.Testing.Platform (`dotnet test`). No VSTest packages.
