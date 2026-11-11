@@ -346,6 +346,13 @@ Na macOS sleduje `~/Library/Application Support/LayerPeek`, `~/Library/Logs/Laye
 
 **Referenční snímky UI testů (T-095):** stejný font Inter se na Windows a macOS rasterizuje jinak, proto má každý OS vlastní sadu PNG. Windows reference zůstávají v `tests/LayerPeek.App.UiTests/Snapshots/` (včetně `TrayIcons/`), macOS má kopii celého stromu v `Snapshots/macOS/`. `SnapshotAssert` vybírá sadu podle OS (`ReferenceSet`), `LAYERPEEK_UPDATE_SNAPSHOTS=1` přepíše jen sadu aktuálního OS. Chybějící reference aktuálního OS test shodí s jasnou zprávou (nový snímek se tedy vytváří na obou OS). Nové reference je potřeba před uložením zkontrolovat okem.
 
+## Nastavení GC a Native AOT (T-191, měření)
+
+A/B měření (2026-11-11, macOS Apple Silicon, simulátor se 3 tiskárnami) výchozího buildu proti `ConcurrentGarbageCollection=false`,
+`OptimizationPreference=Size` a obojímu: v CPU, paměti, vláknech ani startu žádný měřitelný rozdíl. `Size` zmenší exe
+o 1,9 %. Doporučení je build neměnit. Hlavní náklad je zobrazení kamery (~20 % jádra), ne GC. Tabulky a postup jsou
+v [aot-gc-settings.md](aot-gc-settings.md).
+
 ## Logování
 
 Aplikace loguje přes `Microsoft.Extensions.Logging` a `[LoggerMessage]`; jediný provider je vlastní souborový `FileLogProvider` (T-024, `App/Logging`, bez NuGet balíčku, kompatibilní s Native AOT).
