@@ -69,6 +69,20 @@ public sealed class FFmpegCameraFeedAllocationTests
         Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(new CameraFrameSubscriptionOptions { DisplaySize = new CameraFrameSize(640, 640) })));
     }
 
+    [FFmpegFact]
+    public async Task SteadyStateGrayscaleFramesDoNotAllocate()
+    {
+        // T-189: the samples of print failure detection scaled from the luma plane, nothing in BGRA.
+        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureGrayscalePassAsync));
+    }
+
+    [FFmpegFact]
+    public async Task SteadyStateGrayscaleFramesThroughTheHubDoNotAllocate()
+    {
+        // T-189: grayscale frames of the decoder copied into the subscriber's own buffers (every frame, the worst case).
+        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(new CameraFrameSubscriptionOptions { Grayscale = new CameraGrayscaleSize(320, 180) })));
+    }
+
     /// <summary>
     /// The smallest allocation of up to three valid passes. All threads are counted, so a pass during which the thread
     /// pool started or retired workers (allocations of the runtime, not of the feed) measures nothing and is repeated.
@@ -198,6 +212,39 @@ public sealed class FFmpegCameraFeedAllocationTests
 
                 Assert.True(await items.MoveNextAsync());
                 Assert.True(items.Current.DisplayFrame.Width > 0);
+            }
+
+            long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            return ThreadPool.ThreadCount == threads ? allocated : null;
+        }
+        finally
+        {
+            await items.DisposeAsync();
+        }
+    }
+
+    /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> grayscale frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
+    private static async Task<long?> MeasureGrayscalePassAsync()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        CameraStreamDemand demand = new(frames: true, packets: false);
+        demand.CancelFullResolution();
+        demand.RequestGrayscale(new CameraGrayscaleSize(320, 180), long.MinValue);
+        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
+        IAsyncEnumerator<CameraStreamItem> items = feed.ReadAsync(demand, ct).GetAsyncEnumerator(ct);
+        try
+        {
+            for (int i = 0; i < 1 + WarmUpFrames; i++)
+            {
+                Assert.True(await items.MoveNextAsync());
+            }
+
+            int threads = ThreadPool.ThreadCount;
+            long before = GC.GetTotalAllocatedBytes(precise: true);
+            for (int i = 0; i < MeasuredFrames; i++)
+            {
+                Assert.True(await items.MoveNextAsync());
+                Assert.True(items.Current.GrayscaleFrame.Width > 0);
             }
 
             long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;

@@ -23,7 +23,11 @@ namespace LayerPeek.Core.Cameras;
 /// the decoder's conversion to the largest size any of them wants; the others get the camera's resolution. A frame is
 /// converted in full resolution only when a full-resolution subscriber takes it: every frame for one that wants every
 /// frame, only the one it is due for for one with a <see cref="CameraFrameSubscriptionOptions.MinFrameInterval"/>
-/// (print failure detection beside an open camera window costs one full conversion per sample, not one per frame).</item>
+/// (the alarm snapshot beside an open camera window costs one full conversion, not one per frame).</item>
+/// <item>T-189: grayscale subscribers (<see cref="CameraFrameSubscriptionOptions.Grayscale"/>, print failure detection)
+/// get the frame the decoder scaled straight from the picture's luma, only the one they are due for; no BGRA frame is
+/// converted for them. A feed that yields only BGRA frames (or a subscriber of a second grayscale size) gets its samples
+/// converted from the full frame while copying.</item>
 /// <item>T-188: a lease of the camera window (<see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>) taken
 /// while the connection waits between reconnect attempts ends the wait (<see cref="CameraReconnectSignal"/>); the other
 /// consumers join the connection as it is.</item>
@@ -368,10 +372,11 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
-    /// Under the lock: which conversions the subscribers need (T-153, T-184). The key frame the earliest subscriber of key
-    /// frames only is due for (without full decoding the decoder decodes exactly that one); the time the earliest
-    /// full-resolution subscriber wants its next frame (every frame for one without an interval); and the size that fits
-    /// every display subscriber. Scheduled again after every frame a subscriber with an interval took.
+    /// Under the lock: which conversions the subscribers need (T-153, T-184, T-189). The key frame the earliest subscriber of
+    /// key frames only is due for (without full decoding the decoder decodes exactly that one); the time the earliest
+    /// full-resolution subscriber and the earliest grayscale subscriber want their next frame (every frame for one without
+    /// an interval); and the size that fits every display subscriber. Scheduled again after every frame a subscriber with an
+    /// interval took.
     /// </summary>
     private static void ScheduleFrames(PrinterStream stream)
     {
@@ -379,6 +384,8 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         bool keyFrameWanted = false;
         long fullDue = long.MaxValue;
         bool fullWanted = false;
+        long grayscaleDue = long.MaxValue;
+        CameraGrayscaleSize? grayscale = null;
         CameraFrameSize? display = null;
         foreach (CameraFrameSubscription subscriber in stream.Frames)
         {
@@ -398,6 +405,12 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             {
                 display = display is { } other ? CameraFrameSize.Union(other, size) : size;
             }
+            else if (subscriber.Grayscale is { } gray && (grayscale is null || grayscale == gray))
+            {
+                // The decoder converts one grayscale size; a subscriber of another one is served from full frames.
+                grayscale = gray;
+                grayscaleDue = Math.Min(grayscaleDue, due);
+            }
             else
             {
                 fullWanted = true;
@@ -405,16 +418,9 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             }
         }
 
+        // The conversions first, the key frame last: a decoder that sees the new key frame request (every write is a full
+        // fence) also sees what that key frame is to be converted into.
         CameraStreamDemand demand = stream.Demand;
-        if (keyFrameWanted && stream.Run is not null)
-        {
-            demand.RequestKeyFrame(keyFrameDue);
-        }
-        else
-        {
-            demand.CancelKeyFrame();
-        }
-
         if (fullWanted)
         {
             demand.RequestFullResolution(fullDue);
@@ -424,7 +430,24 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             demand.CancelFullResolution();
         }
 
+        if (grayscale is { } grayscaleSize)
+        {
+            demand.RequestGrayscale(grayscaleSize, grayscaleDue);
+        }
+        else
+        {
+            demand.CancelGrayscale();
+        }
+
         demand.DisplaySize = display;
+        if (keyFrameWanted && stream.Run is not null)
+        {
+            demand.RequestKeyFrame(keyFrameDue);
+        }
+        else
+        {
+            demand.CancelKeyFrame();
+        }
     }
 
     /// <summary>A subscriber changed its display size: the running stream converts the next frame accordingly.</summary>
@@ -527,6 +550,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         stream.Demand.Packets = false;
         stream.Demand.CancelKeyFrame();
         stream.Demand.CancelFullResolution();
+        stream.Demand.CancelGrayscale();
         stream.Demand.DisplaySize = null;
         stream.FramesLinger = false;
         stream.StopLinger = false;
@@ -600,22 +624,28 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
                 }
 
                 // T-184: display subscribers take the scaled frame; without one (the image already fits, or a feed that does
-                // not scale) the full one. Full-resolution subscribers never get a scaled frame; either may be empty.
+                // not scale) the full one. Full-resolution subscribers never get a scaled frame. T-189: grayscale subscribers
+                // take the grayscale frame of their size; without one (a feed that does not convert, another size) the full
+                // one, converted while copying. Any of them may be empty.
                 CameraFrame full = item.Frame;
                 CameraFrame display = item.DisplayFrame.Width > 0 ? item.DisplayFrame : full;
+                CameraGrayscaleFrame grayscale = item.GrayscaleFrame;
                 long now = _timeProvider.GetTimestamp();
                 bool reschedule = false;
                 foreach (CameraFrameSubscription subscriber in subscribers)
                 {
-                    ref readonly CameraFrame frame = ref subscriber.IsDisplay ? ref display : ref full;
-                    if (frame.Width == 0)
+                    bool isDisplay = subscriber.IsDisplay;
+                    bool isGray = !isDisplay && subscriber.Grayscale is { } size && grayscale.Is(size);
+                    ref readonly CameraFrame frame = ref isDisplay ? ref display : ref full;
+                    if (!isGray && frame.Width == 0)
                     {
                         continue;
                     }
 
                     try
                     {
-                        reschedule |= subscriber.Publish(frame, now) && (subscriber.KeyFramesOnly || subscriber.IsThrottled);
+                        bool taken = isGray ? subscriber.PublishGrayscale(grayscale, now) : subscriber.Publish(frame, now);
+                        reschedule |= taken && (subscriber.KeyFramesOnly || subscriber.IsThrottled);
                     }
                     catch (Exception ex)
                     {

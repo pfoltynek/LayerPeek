@@ -150,7 +150,8 @@ internal sealed class FakeCameraFeed : ICameraFeed
 
     /// <summary>
     /// T-184: the frames converted like the decoder does: scaled down to the demand's display size (same fill, the
-    /// source size kept), in full resolution when no display size is wanted, a full frame is due, or the frame fits.
+    /// source size kept), in full resolution when no display size is wanted, a full frame or a grayscale sample is due, or the
+    /// frame fits.
     /// </summary>
     public async IAsyncEnumerable<CameraStreamItem> ReadAsync(CameraStreamDemand demand, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -181,7 +182,8 @@ internal sealed class FakeCameraFeed : ICameraFeed
                 scaled = new CameraFrame(fit.Width, fit.Height, stride, display.AsMemory(0, length), frame.Width, frame.Height);
             }
 
-            bool full = scaled.Width == 0 || demand.FullResolutionDue;
+            // T-189: no grayscale conversion here; a due grayscale sample is served from the full frame by the hub.
+            bool full = scaled.Width == 0 || demand.FullResolutionDue || demand.GrayscaleDue;
             yield return CameraStreamItem.FromFrames(full ? frame : default, scaled);
         }
     }

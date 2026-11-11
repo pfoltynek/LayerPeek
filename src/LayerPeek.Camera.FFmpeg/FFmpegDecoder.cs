@@ -21,8 +21,9 @@ internal sealed class InterruptFlag
 }
 
 /// <summary>
-/// The native part of one camera connection: demuxer, H.264 decoder and BGRA conversion (in the camera's resolution and/or
-/// scaled down for display, T-184, as the <see cref="CameraStreamDemand"/> wants). Not thread-safe; every
+/// The native part of one camera connection: demuxer, H.264 decoder and conversion into BGRA (in the camera's resolution
+/// and/or scaled down for display, T-184) and into grayscale (T-189), as the <see cref="CameraStreamDemand"/> wants. Not
+/// thread-safe; every
 /// member except <see cref="HoldsNativeResources"/> is called on the feed's decoder thread only. Blocking FFmpeg
 /// calls return early once the <see cref="InterruptFlag"/> is set; they then throw <see cref="OperationCanceledException"/>
 /// (the caller translates it). Failures throw <see cref="CameraFeedException"/> with a message free of the address.
@@ -70,9 +71,11 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     private bool _needKeyFrame;
     private long _decodedFrames;
 
-    // T-184: the conversion in the camera's resolution and the one scaled down for display, each with its own buffer.
+    // T-184: the conversion in the camera's resolution and the one scaled down for display, each with its own buffer;
+    // T-189: the grayscale samples of print failure detection, from the luma plane.
     private readonly BgraConverter _full = new();
     private readonly BgraConverter _display = new();
+    private readonly GrayscaleConverter _grayscale = new();
 
     public FFmpegDecoder(string url, bool isNetwork, TimeSpan ioTimeout, InterruptFlag interrupt)
     {
@@ -260,10 +263,10 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// <summary>
     /// The next item by <paramref name="demand"/> (T-143): first the stream description (when
     /// <paramref name="emitInfo"/>), then every video packet while packets are wanted, before it is decoded, and the
-    /// decoded frames while frames are wanted, converted in the sizes the demand wants (<see cref="CameraStreamItem.Frame"/>,
-    /// <see cref="CameraStreamItem.DisplayFrame"/>). Nothing is decoded without frame demand, except a single key frame when
-    /// <see cref="CameraStreamDemand.KeyFrameDue"/> (T-153: decoded on its own, the packets in between are never decoded);
-    /// when frames are wanted again after packets were skipped, decoding restarts at the next key frame. Returns
+    /// decoded frames while frames are wanted, converted in the forms the demand wants (<see cref="CameraStreamItem.Frame"/>,
+    /// <see cref="CameraStreamItem.DisplayFrame"/>, <see cref="CameraStreamItem.GrayscaleFrame"/>). Nothing is decoded without
+    /// frame demand, except a single key frame when <see cref="CameraStreamDemand.KeyFrameDue"/> (T-153: decoded on its own,
+    /// the packets in between are never decoded); when frames are wanted again after packets were skipped, decoding restarts at the next key frame. Returns
     /// <see langword="false"/> at the end of the stream. Packet data (copied into a reused buffer) and frames are valid
     /// until the next call (or, for frames, until the buffer is replaced after a size change; the old buffer is then left
     /// to the garbage collector, so a consumer holding on to it never sees freed memory).
@@ -293,7 +296,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 if (received == 0)
                 {
                     Interlocked.Increment(ref _decodedFrames);
-                    item = Convert(demand, keyFrame: false);
+                    item = Convert(demand);
                     return true;
                 }
 
@@ -432,7 +435,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             {
                 Interlocked.Increment(ref _decodedFrames);
                 // Converted into the reused buffer before the flush below releases the decoder's picture.
-                item = Convert(demand, keyFrame: true);
+                item = Convert(demand);
                 return true;
             }
 
@@ -529,6 +532,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     {
         _full.Dispose();
         _display.Dispose();
+        _grayscale.Dispose();
 
         AVFrame* frame = _frame;
         ffmpeg.av_frame_free(&frame);
@@ -634,12 +638,13 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     };
 
     /// <summary>
-    /// Converts the decoded picture in <c>_frame</c> as <paramref name="demand"/> wants it (T-184): scaled down to fit its
-    /// display size, and in full resolution while that is due (always for a <paramref name="keyFrame"/> decoded on its own,
-    /// T-153). An image that already fits the display size is converted once, in full resolution, for both. With neither
-    /// wanted (a lingering connection) nothing is converted and the item carries no pixels.
+    /// Converts the decoded picture in <c>_frame</c> as <paramref name="demand"/> wants it, also a key frame decoded on its
+    /// own (T-153): scaled down to fit its display size (T-184), in full resolution while that is due, and into grayscale
+    /// while that is due (T-189: print failure detection gets no BGRA frame). An image that already fits the display size
+    /// is converted once, in full resolution, for both. With nothing wanted (a lingering connection) nothing is converted
+    /// and the item carries no pixels.
     /// </summary>
-    private CameraStreamItem Convert(CameraStreamDemand demand, bool keyFrame)
+    private CameraStreamItem Convert(CameraStreamDemand demand)
     {
         int width = _frame->width;
         int height = _frame->height;
@@ -671,7 +676,14 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 break;
         }
 
-        bool full = keyFrame || demand.FullResolutionDue;
+        bool full = demand.FullResolutionDue;
+        CameraGrayscaleFrame grayscaleFrame = default;
+        if (demand.GrayscaleDue && demand.GrayscaleSize is { } grayscaleSize)
+        {
+            // From the luma plane of the decoded picture, scaled straight to the detectors' size (see GrayscaleConverter).
+            grayscaleFrame = _grayscale.Convert(_frame, format, fullRange, grayscaleSize.Width, grayscaleSize.Height);
+        }
+
         CameraFrame displayFrame = default;
         if (demand.DisplaySize is { } displaySize)
         {
@@ -689,6 +701,6 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         }
 
         CameraFrame fullFrame = full ? _full.Convert(_frame, format, fullRange, width, height) : default;
-        return CameraStreamItem.FromFrames(fullFrame, displayFrame);
+        return CameraStreamItem.FromFrames(fullFrame, displayFrame, grayscaleFrame);
     }
 }
