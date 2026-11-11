@@ -36,6 +36,26 @@ public interface INotificationService
     }
 
     /// <summary>
+    /// Shows that an update was refused because its feed failed the signature check (T-181), once per offered version (the
+    /// caller remembers which). The same rules as <see cref="Show"/>: thread-safe, returns quickly, may throw. Its click opens
+    /// the settings window on the Startup and updates tab, where the error stays. Default: not shown (platforms without
+    /// notifications).
+    /// </summary>
+    void ShowUpdateRejected(UpdateRejectedNotification notification)
+    {
+    }
+
+    /// <summary>
+    /// Withdraws the notification about a new version (<see cref="ShowUpdateAvailable"/>) from the notification center when it
+    /// is still there, also one left by an earlier run (T-181: a later feed was refused, so the offer is withdrawn, user decision
+    /// 2026-11-11). The same rules as <see cref="Show"/>: thread-safe, returns quickly (keeps the order of the notifications
+    /// before it), may throw. Default: nothing (platforms without notifications).
+    /// </summary>
+    void WithdrawUpdateAvailable()
+    {
+    }
+
+    /// <summary>
     /// Shows that a camera recording could not start or ended with an error (T-146; the only notified recording event,
     /// user decision 2026-11-03 on T-145). The same rules as <see cref="Show"/>: thread-safe, returns quickly, may throw.
     /// A click opens the settings window (where the folder and the limit are). Default: not shown (platforms without
@@ -82,6 +102,13 @@ public sealed record TimelapseExportNotification(
 /// <param name="Version">The new version (<c>0.3.2</c>).</param>
 /// <param name="PlaySound">Whether it plays a sound (the "all notifications" sound setting only: it is information).</param>
 public sealed record UpdateNotification(string Version, bool PlaySound);
+
+/// <summary>
+/// What the notification about a refused update shows (T-181); texts are localized by the implementations. No version: the one
+/// a refused feed claims is chosen by its author and untrusted (user decision 2026-11-11), so it is never shown.
+/// </summary>
+/// <param name="PlaySound">Whether it plays a sound (like <see cref="UpdateNotification.PlaySound"/>).</param>
+public sealed record UpdateRejectedNotification(bool PlaySound);
 
 /// <summary>
 /// What the notification about a failed camera recording shows (T-146); texts are localized by the implementations from

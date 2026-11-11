@@ -25,7 +25,9 @@ public sealed class JsonUpdateStateStoreTests : IDisposable
         UpdateState state = new(
             new DateTimeOffset(2026, 10, 30, 9, 15, 0, TimeSpan.Zero),
             new UpdateRelease(version, new Uri("https://github.com/pfoltynek/LayerPeek/releases/tag/v0.4.0-beta.1"), IsPrerelease: true),
-            ReleaseVersion.Parse("0.3.2"));
+            ReleaseVersion.Parse("0.3.2"),
+            "version:0.4.1",
+            NotifiedVersionWithdrawn: true);
 
         await Store().SaveAsync(state, TestContext.Current.CancellationToken);
         UpdateState loaded = await Store().LoadAsync(TestContext.Current.CancellationToken);
@@ -33,6 +35,8 @@ public sealed class JsonUpdateStateStoreTests : IDisposable
         Assert.Equal(state.LastCheck, loaded.LastCheck);
         Assert.Equal(state.Latest, loaded.Latest);
         Assert.Equal(state.NotifiedVersion, loaded.NotifiedVersion);
+        Assert.Equal("version:0.4.1", loaded.NotifiedRejection);
+        Assert.True(loaded.NotifiedVersionWithdrawn);
         Assert.False(File.Exists(Path.Combine(_folder, JsonUpdateStateStore.FileName + ".tmp")));
     }
 
@@ -82,6 +86,56 @@ public sealed class JsonUpdateStateStoreTests : IDisposable
 
         Assert.Null(loaded.Latest);
         Assert.Null(loaded.NotifiedVersion);
+    }
+
+    [Fact]
+    public async Task AFileWithoutTheNotifiedRejectionStillReads()
+    {
+        // Written by a version before T-181: the same format, one field fewer.
+        Directory.CreateDirectory(_folder);
+        await File.WriteAllTextAsync(
+            Path.Combine(_folder, JsonUpdateStateStore.FileName),
+            """{ "version": 1, "notifiedVersion": "0.4.0" }""",
+            TestContext.Current.CancellationToken);
+
+        UpdateState loaded = await Store().LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(ReleaseVersion.Parse("0.4.0"), loaded.NotifiedVersion);
+        Assert.Null(loaded.NotifiedRejection);
+        Assert.False(loaded.NotifiedVersionWithdrawn);
+    }
+
+    [Fact]
+    public async Task AWithdrawnNotificationIsWrittenOnlyWhenSetAndNeedsANotifiedVersion()
+    {
+        await Store().SaveAsync(UpdateState.Empty with { NotifiedVersion = ReleaseVersion.Parse("0.4.0") }, TestContext.Current.CancellationToken);
+        string path = Path.Combine(_folder, JsonUpdateStateStore.FileName);
+        Assert.DoesNotContain("notifiedVersionWithdrawn", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken), StringComparison.Ordinal);
+
+        // Damaged: the flag without a version it could be about reads as not set.
+        await File.WriteAllTextAsync(path, """{ "version": 1, "notifiedVersion": "0.4", "notifiedVersionWithdrawn": true }""", TestContext.Current.CancellationToken);
+
+        UpdateState loaded = await Store().LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(loaded.NotifiedVersion);
+        Assert.False(loaded.NotifiedVersionWithdrawn);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(257)]
+    public async Task AnEmptyOrTooLongNotifiedRejectionReadsAsMissing(int length)
+    {
+        Directory.CreateDirectory(_folder);
+        await File.WriteAllTextAsync(
+            Path.Combine(_folder, JsonUpdateStateStore.FileName),
+            $$"""{ "version": 1, "notifiedVersion": "0.4.0", "notifiedRejection": "{{new string('a', length)}}" }""",
+            TestContext.Current.CancellationToken);
+
+        UpdateState loaded = await Store().LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(loaded.NotifiedRejection);
+        Assert.Equal(ReleaseVersion.Parse("0.4.0"), loaded.NotifiedVersion);
     }
 
     private JsonUpdateStateStore Store() => new(_folder, TimeProvider.System, _logger);

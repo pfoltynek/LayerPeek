@@ -400,7 +400,15 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `%LOCALAPPDATA%\LayerPeek\cache` a `%LOCALAPPDATA%\LayerPeek.Build` stejné jako před během (cache buildu FFmpeg se
       nepřesouvá ani nemaže).
 
-### 2v. Záložka Kamera a snímková frekvence malého náhledu (z T-185, implementováno na Macu 2026-11-11)
+### 2v. Podepsaný feed aktualizací (z T-181, implementováno na Macu 2026-11-10)
+- [ ] **T-181** (krit. „E2E test aktualizace … s feedem podepsaným testovacím klíčem“, část Windows): `pwsh tools/run-e2e.ps1
+      -Class '*UpdateTests*'` PASS (feed podepsaný testovacím klíčem přijat, nepodepsaný odmítnut); notifikace o odmítnutí
+      (toast) a kliknutí otevře záložku „Spuštění a aktualizace“.
+- [ ] **T-181** (rozhodnutí 2026-11-11, část Windows): toast „Je dostupná nová verze“ z dřívější platné kontroly zmizí
+      z centra oznámení, jakmile se feed odmítne (`RemoveGroupedTagWithId`, tag `layerpeek-update-available`, i toast
+      z dřívějšího běhu); v menu ikony je místo nabídky „Aktualizace odmítnuta…“ a otevře záložku „Spuštění a aktualizace“.
+
+### 2w. Záložka Kamera a snímková frekvence malého náhledu (z T-185, implementováno na Macu 2026-11-11)
 - [ ] **T-185** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
       a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) šestou hlavní záložku „Kamera“
       a kratší záhlaví (fr „Démarrage, MàJ“, it „Riprese“, pl „Start i aktualizacje“, sk „Štart a aktualizácie“) v řádku

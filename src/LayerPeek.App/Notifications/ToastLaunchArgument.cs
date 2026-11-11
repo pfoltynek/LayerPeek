@@ -10,7 +10,8 @@ namespace LayerPeek.App.Notifications;
 /// toast opens the current address and a removed printer opens nothing. The test notification of the settings window
 /// (T-101) carries the fixed <see cref="Settings"/> instead: its click brings the settings window to the front on the
 /// General tab; the notification about a failed camera recording (T-146) the fixed <see cref="RecordingSettings"/> (the
-/// Recording tab); the notification about a new version (T-058) the fixed <see cref="Update"/>. The notification of a
+/// Recording tab); the notification about a new version (T-058) the fixed <see cref="Update"/>; the notification about a
+/// refused update (T-181) the fixed <see cref="UpdateSettings"/> (the Startup and updates tab). The notification of a
 /// suspected print failure (T-154) carries <c>camera=</c> and the printer id (its click opens the printer's camera window),
 /// its "False alarm" button <c>false-alarm=</c> and the alarm id (<see cref="ForFalseAlarm"/>). The notification about a
 /// finished JPEG export (T-165) or timelapse from a recording (T-164) carries <c>recordings=</c> and the printer id (its
@@ -38,6 +39,12 @@ internal static class ToastLaunchArgument
     public const string RecordingSettings = "settings=recording";
 
     /// <summary>
+    /// The argument of the notification about a refused update (T-181): open the settings window on the Startup and updates
+    /// tab, where the error is shown. Exactly this text; no printer id can produce it.
+    /// </summary>
+    public const string UpdateSettings = "settings=updates";
+
+    /// <summary>
     /// The argument of the notification about a new version (T-058): start the update action (the release page, or the update
     /// of a Velopack installation). Exactly this text; no printer id can produce it.
     /// </summary>
@@ -58,8 +65,9 @@ internal static class ToastLaunchArgument
     public static bool IsUpdate([NotNullWhen(true)] string? argument) => string.Equals(argument, Update, StringComparison.Ordinal);
 
     /// <summary>
-    /// Whether <paramref name="argument"/> is exactly <see cref="Settings"/> (the test notification, T-101) or
-    /// <see cref="RecordingSettings"/> (a failed recording, T-146): a click that opens the settings window.
+    /// Whether <paramref name="argument"/> is exactly <see cref="Settings"/> (the test notification, T-101),
+    /// <see cref="RecordingSettings"/> (a failed recording, T-146) or <see cref="UpdateSettings"/> (a refused update, T-181):
+    /// a click that opens the settings window.
     /// </summary>
     public static bool IsSettings([NotNullWhen(true)] string? argument) => TryGetSettingsPage(argument, out _);
 
@@ -69,6 +77,12 @@ internal static class ToastLaunchArgument
         if (string.Equals(argument, Settings, StringComparison.Ordinal))
         {
             page = SettingsPage.General;
+            return true;
+        }
+
+        if (string.Equals(argument, UpdateSettings, StringComparison.Ordinal))
+        {
+            page = SettingsPage.StartupUpdates;
             return true;
         }
 

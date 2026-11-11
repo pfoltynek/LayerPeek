@@ -93,6 +93,12 @@ public enum TrayMenuCommand
     /// installation.
     /// </summary>
     Update,
+
+    /// <summary>
+    /// "Update refused…" (T-181, user decision 2026-11-11), instead of <see cref="Update"/> while the update feed is refused:
+    /// the settings window on the Startup and updates tab, where the error is.
+    /// </summary>
+    UpdateRejected,
     Quit,
 }
 

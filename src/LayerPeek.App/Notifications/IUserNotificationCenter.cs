@@ -68,6 +68,12 @@ internal interface IUserNotificationCenter
     /// <summary>Hands the notification to the OS (delivery is asynchronous; its failures are logged by the implementation).</summary>
     void Post(UserNotificationRequest request);
 
+    /// <summary>
+    /// Removes the delivered and the pending notification with <paramref name="identifier"/> (T-181: the withdrawn update offer);
+    /// nothing when there is none. Asynchronous in the OS.
+    /// </summary>
+    void Remove(string identifier);
+
     /// <summary>Removes every delivered and pending notification of the app (the test cleanup only).</summary>
     void RemoveAll();
 

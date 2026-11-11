@@ -1459,6 +1459,9 @@
   <data name="MenuUpdateDownloading" xml:space="preserve">
     <value>Stahuje se verze {0}…</value>
   </data>
+  <data name="MenuUpdateRejected" xml:space="preserve">
+    <value>Aktualizace odmítnuta…</value>
+  </data>
   <data name="MenuUpdateInstallHint" xml:space="preserve">
     <value>Stáhne aktualizaci, ukončí LayerPeek a spustí novou verzi.</value>
   </data>
@@ -1497,6 +1500,18 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Přesuňte LayerPeek do složky Aplikace, pak se bude aktualizovat sám.</value>
+  </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>Aktualizace LayerPeeku odmítnuta</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Aktualizace se nenainstalovala, protože nešlo ověřit její podpis. Klikněte pro podrobnosti.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>Aktualizace byla odmítnuta.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek aktualizaci odmítl, protože nešlo ověřit její podpis, a nic nenainstaloval. Tuto verzi neinstalujte ručně: počkejte na další vydání nebo sledujte oznámení projektu.</value>
   </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Nahrávat</value>

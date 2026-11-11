@@ -52,7 +52,7 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // Guarded by _gate.
-    // PrintNotification, UpdateNotification (T-058), RecordingNotification (T-146), TimelapseExportNotification (T-165) or PrintFailureNotification (T-154), in
+    // PrintNotification, UpdateNotification (T-058), UpdateRejectedNotification and UpdateNotificationWithdrawal (T-181), RecordingNotification (T-146), TimelapseExportNotification (T-165) or PrintFailureNotification (T-154), in
     // the order they came.
     private readonly Queue<object> _pending = new();
     private readonly Queue<SettingsRequest> _requests = new();
@@ -150,6 +150,42 @@ internal sealed partial class ToastNotificationService : INotificationService, I
             }
 
             _pending.Enqueue(notification);
+            EnsureStarted();
+            Monitor.Pulse(_gate);
+        }
+    }
+
+    /// <summary>The toast about a refused update (T-181), queued like a printer toast; tagged, so a later one replaces it.</summary>
+    public void ShowUpdateRejected(UpdateRejectedNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || _unavailable || _pending.Count >= MaxPending)
+            {
+                return;
+            }
+
+            _pending.Enqueue(notification);
+            EnsureStarted();
+            Monitor.Pulse(_gate);
+        }
+    }
+
+    /// <summary>
+    /// Withdraws the toast about a new version (T-181) from the notification center by its tag
+    /// <see cref="UpdateNotificationText.Identifier"/>, also one of an earlier run; queued like a toast (after one that still waits).
+    /// </summary>
+    public void WithdrawUpdateAvailable()
+    {
+        lock (_gate)
+        {
+            if (_disposed || _unavailable || _pending.Count >= MaxPending)
+            {
+                return;
+            }
+
+            _pending.Enqueue(UpdateNotificationWithdrawal.Instance);
             EnsureStarted();
             Monitor.Pulse(_gate);
         }
@@ -314,6 +350,14 @@ internal sealed partial class ToastNotificationService : INotificationService, I
                         if (notification is UpdateNotification update)
                         {
                             ShowUpdate(session, update);
+                        }
+                        else if (notification is UpdateRejectedNotification rejected)
+                        {
+                            ShowUpdateRejected(session, rejected);
+                        }
+                        else if (notification is UpdateNotificationWithdrawal)
+                        {
+                            WithdrawUpdate(session);
                         }
                         else if (notification is RecordingNotification recording)
                         {
@@ -501,6 +545,32 @@ internal sealed partial class ToastNotificationService : INotificationService, I
         }
     }
 
+    private void ShowUpdateRejected(IToastSession session, UpdateRejectedNotification notification)
+    {
+        try
+        {
+            session.Show(ToastContentBuilder.BuildUpdateRejected(notification, _textCulture()), UpdateNotificationText.RejectedIdentifier);
+            LogUpdateRejectedShown();
+        }
+        catch (Exception ex)
+        {
+            LogUpdateRejectedShowFailed(ex);
+        }
+    }
+
+    private void WithdrawUpdate(IToastSession session)
+    {
+        try
+        {
+            session.Remove(UpdateNotificationText.Identifier);
+            LogUpdateWithdrawn();
+        }
+        catch (Exception ex)
+        {
+            LogUpdateWithdrawFailed(ex);
+        }
+    }
+
     private void ShowRecording(IToastSession session, RecordingNotification notification)
     {
         try
@@ -624,6 +694,18 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The toast for the new version {Version} could not be shown.")]
     private partial void LogUpdateShowFailed(Exception exception, string version);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Toast shown for the refused update.")]
+    private partial void LogUpdateRejectedShown();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The toast for the refused update could not be shown.")]
+    private partial void LogUpdateRejectedShowFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The toast about the update offer was withdrawn.")]
+    private partial void LogUpdateWithdrawn();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The toast about the update offer could not be withdrawn.")]
+    private partial void LogUpdateWithdrawFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Showing the test notification failed.")]
     private partial void LogTestFailed(Exception exception);

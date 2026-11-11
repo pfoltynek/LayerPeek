@@ -9,6 +9,8 @@
     contained in its main branch) and refuses unless:
       - the release exists and is still a draft,
       - the checksum file of every OS (SHA256SUMS-windows.txt, SHA256SUMS-macos.txt) is uploaded,
+      - every Velopack feed (releases.<rid>.json) has its signature releases.<rid>.json.sig (T-181; also with
+        -AllowIncomplete),
       - every file listed in the checksum files is uploaded with the listed SHA256 and no other file is,
       - no file of a runtime that must not be released (Uploadable = $false in the runtime table) is uploaded.
     The checksum files are downloaded into a temporary folder that is always deleted. Versions 0.x stay marked as

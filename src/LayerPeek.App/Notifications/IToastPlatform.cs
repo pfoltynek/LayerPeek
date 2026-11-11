@@ -29,6 +29,13 @@ internal interface IToastSession : IDisposable
     /// </param>
     void Show(string toastXml, string? tag);
 
+    /// <summary>
+    /// Removes the toast with <paramref name="tag"/> (and no group) of the app from the notification center, also one of an
+    /// earlier run (T-181: the withdrawn update offer); nothing when there is none.
+    /// </summary>
+    /// <exception cref="Exception">Windows refused.</exception>
+    void Remove(string tag);
+
     /// <summary>Whether Windows shows the toasts of the app (switched off in Settings, by policy...; T-010, T-101).</summary>
     /// <exception cref="Exception">Windows did not say.</exception>
     ToastNotifierSetting Setting { get; }

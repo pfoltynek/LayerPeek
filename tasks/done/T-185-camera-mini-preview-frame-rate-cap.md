@@ -130,7 +130,7 @@ Otázka z implementace (ui-dev, 2026-11-11, blokuje dokončení):
 ## Poznámky k implementaci
 
 - Uzavřeno 2026-11-11: zbývající ověření na Windows (snímky UI sady Windows, testy se Segoe UI, volitelně měření)
-  přesunuto do T-125 (oddíl 2v) podle `tasks/README.md`.
+  přesunuto do T-125 (oddíl 2w) podle `tasks/README.md`.
 
 ### Stav (ui-dev + core-dev, 2026-11-11)
 Hotovo: jádro, nastavení, okno kamery, nová hlavní záložka **Kamera** v nastavení, texty, manuály, snímky a měření.
@@ -159,7 +159,7 @@ Hotovo: jádro, nastavení, okno kamery, nová hlavní záložka **Kamera** v na
   `AuxiliaryWindowSizeUiTests`. Při 640 se záhlaví zalomí (jako dosud u 5 záložek ve většině jazyků, rozhodnutí 10).
 - Referenční snímky UI (macOS sada `tests/LayerPeek.App.UiTests/Snapshots/macOS/`, 40 souborů nastavení) přegenerované
   (`LAYERPEEK_UPDATE_SNAPSHOTS=1`), změna jen v řádku záložek. Sada Windows a běh testů se Segoe UI → přesunuto do
-  T-125 (oddíl 2v).
+  T-125 (oddíl 2w).
 - Oprava během práce: `SettingsViewModel` omezoval `SelectedTabIndex` na 5 záložek (`TabCount`), teď 6.
 - UI testy `SettingsWindowCameraTabUiTests` (výchozí stav s texty a přístupnými názvy, Plynulý = posuvník na konci
   a „Bez omezení“, posun posuvníku = Vlastní, uložení).

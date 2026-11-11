@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Builds the release files of this machine's OS: build + tests, Native AOT publish per RID, AOT smoke test,
-    archives and SHA256 checksums. Uploads nothing (see scripts/release-upload.ps1).
+    archives, the signed update feed and SHA256 checksums. Uploads nothing (see scripts/release-upload.ps1).
 
 .DESCRIPTION
     Native AOT does not compile across operating systems: Windows RIDs are built on Windows, macOS RIDs on a Mac.
@@ -11,7 +11,8 @@
         artifacts/release/<version>/publish/<rid>/   Native AOT publish folder
         artifacts/release/<version>/dist/            files to upload: archives, the Velopack installer and update feed (Windows),
                                                      the .dmg and the .tar.gz of LayerPeek.app and the Velopack package and
-                                                     update feed (macOS, T-058) + SHA256SUMS-<os>.txt
+                                                     update feed (macOS, T-058), the signature of every update feed
+                                                     releases.<rid>.json.sig (T-181) + SHA256SUMS-<os>.txt
         artifacts/release/<version>/app/<rid>/       the signed LayerPeek.app of vpk (macOS, T-019, T-058: portable/)
         artifacts/release/<version>/build-info.json  build marker (version, commit, clean tree, files) that
                                                      release-upload.ps1 checks so that no older build is uploaded
@@ -20,6 +21,18 @@
     The script may run on any commit (e.g. to try the packaging); only a build of the tagged release commit from a
     clean working tree can be uploaded.
 
+    Update feed signature (T-181, docs/release.md "Podpis feedu aktualizací"): every releases.<rid>.json is signed with the
+    offline private key, an encrypted PKCS#8 PEM given by -FeedSigningKey or LAYERPEEK_FEED_SIGNING_KEY. Before the long
+    build the script checks that the source of the app (src/LayerPeek.App/Installer/UpdateFeedKeys.cs, Production) trusts
+    at least one key, asks for the password, decrypts the key in memory and refuses it unless its public key is in that
+    list; it prints the SHA-256 of the public key and then drops the key, its text and the password: nothing secret stays in
+    memory during the build. The key medium stays connected until the end: after packaging the script reads the key file
+    again from the same path (when it is missing, it asks to connect the medium and retry instead of failing the build),
+    asks for the password a second time, refuses the key unless it is the same key as checked at the start (same public
+    key), signs the feeds, verifies every signature against the trusted keys and disposes the key and the password. The key
+    is never copied, printed or written; build-info.json names only the SHA-256 of the public key. Without a key the build
+    fails, unless -SkipFeedSignature makes a trial build that release-upload.ps1 refuses.
+
 .PARAMETER Runtime
     RIDs to build. Default: the default RIDs of this OS (Windows: win-x64, macOS: osx-arm64). RIDs of another OS and
     unknown RIDs are refused; Windows ARM64 (win-arm64) is not supported (T-130).
@@ -27,15 +40,35 @@
 .PARAMETER SmokeSeconds
     How long the published app must keep running in the AOT smoke test. Default 10.
 
+.PARAMETER FeedSigningKey
+    Path of the encrypted private key of the update feed (offline media). Default: the environment variable
+    LAYERPEEK_FEED_SIGNING_KEY. The file must be there at the start and again at the end of the build (keep the key medium
+    connected). The password is asked for twice (not echoed): before the build and for signing after packaging, unless
+    -FeedSigningKeyPassword is given.
+
+.PARAMETER FeedSigningKeyPassword
+    The password of -FeedSigningKey as a SecureString, for a run without a prompt (e.g. from another PowerShell script:
+    & scripts/release-build.ps1 -FeedSigningKeyPassword (Read-Host -AsSecureString)). Never pass a password as plain text
+    on a command line: it ends up in the shell history. Used for both steps (the check before the build and the signing
+    after it); the script works on copies and disposes each right after use, the caller disposes the original.
+
+.PARAMETER SkipFeedSignature
+    A trial build without the update feed signature (no key needed). build-info.json marks it, and release-upload.ps1
+    refuses to upload it.
+
 .EXAMPLE
-    pwsh scripts/release-build.ps1
-    pwsh scripts/release-build.ps1 -Runtime win-x64
+    pwsh scripts/release-build.ps1 -FeedSigningKey /Volumes/LP-KEY/layerpeek-feed-key.pem
+    pwsh scripts/release-build.ps1 -Runtime win-x64 -FeedSigningKey E:\layerpeek-feed-key.pem
+    pwsh scripts/release-build.ps1 -SkipFeedSignature
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
 param(
     [string[]] $Runtime,
-    [ValidateRange(1, 600)] [int] $SmokeSeconds = 10
+    [ValidateRange(1, 600)] [int] $SmokeSeconds = 10,
+    [string] $FeedSigningKey,
+    [System.Security.SecureString] $FeedSigningKeyPassword,
+    [switch] $SkipFeedSignature
 )
 
 $ErrorActionPreference = 'Stop'
@@ -182,6 +215,29 @@ function Invoke-Native {
     if ($LASTEXITCODE -ne 0) { throw "$Description failed with exit code $LASTEXITCODE." }
 }
 
+function Get-FeedSigning {
+    # T-181: checks the signing key before the long build (Confirm-FeedSigningKey) and returns only what the signing after
+    # packaging needs to read and check the key again: its full path, the SHA-256 of its public key and the trusted
+    # (public) keys; $null for -SkipFeedSignature. The key, its text and the password copy are already gone when this
+    # returns (decision of question 17).
+    if ($SkipFeedSignature) {
+        if ($FeedSigningKey -or $FeedSigningKeyPassword) { throw '-SkipFeedSignature builds without the update feed signature; do not pass -FeedSigningKey or -FeedSigningKeyPassword with it.' }
+        Write-Host 'Trial build without the update feed signature (-SkipFeedSignature): release-upload.ps1 will refuse it.' -ForegroundColor Yellow
+        return $null
+    }
+    $settings = Get-FeedSignatureSettings
+    $keyPath = if ($FeedSigningKey) { $FeedSigningKey } else { [Environment]::GetEnvironmentVariable($settings.KeyVariable) }
+    if (-not $keyPath) {
+        throw "No update feed signing key. Connect the key medium and pass -FeedSigningKey <path> or set $($settings.KeyVariable) (docs/release.md, 'Podpis feedu aktualizací'); for a trial build that cannot be uploaded use -SkipFeedSignature."
+    }
+    # The full path: the signing at the end must read the same file whatever the current folder is then.
+    $keyPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($keyPath)
+    $trusted = @(Get-TrustedFeedKeys ([System.IO.File]::ReadAllText((Join-Path $repoRoot $settings.KeysSource))))
+    $checked = Confirm-FeedSigningKey -KeyPath $keyPath -TrustedKeys $trusted -Password $FeedSigningKeyPassword
+    Write-Host "Update feed signing key accepted (public key SHA-256 $($checked.PublicKeySha256), trusted by UpdateFeedKeys.$($settings.KeysList)). Keep the key medium connected: the feeds are signed with it at the end of the build, and the password is asked for again then."
+    [pscustomobject]@{ KeyPath = $checked.KeyPath; PublicKeySha256 = $checked.PublicKeySha256; TrustedKeys = $trusted }
+}
+
 function Get-FolderSnapshot {
     # Relative path, size and write time of every file: proves that the smoke run left the publish folder unchanged.
     param([Parameter(Mandatory)] [string] $Path)
@@ -190,6 +246,7 @@ function Get-FolderSnapshot {
         Sort-Object) -join "`n"
 }
 
+$feedSigning = $null
 try {
     $hostOs = Get-HostOs
     $hostArchitecture = Get-HostArchitecture
@@ -208,6 +265,9 @@ try {
             Write-Host "$rid is built for local verification only and cannot be uploaded: $($config[$rid].BlockedReason)." -ForegroundColor Yellow
         }
     }
+
+    # T-181: the signing key is checked (and its password asked for) before the long build, not after it.
+    $feedSigning = Get-FeedSigning
 
     # Fails before the long build when the AOT toolchain of a requested RID is missing (shared with scripts/release.ps1).
     $toolchainProblems = @(Get-NativeToolchainProblems -Runtimes $runtimes -HostOs $hostOs)
@@ -280,6 +340,23 @@ try {
         }
     }
 
+    # T-181: the signature of every update feed with the key read and decrypted again (the same key as checked before the
+    # build), verified against the keys of the app; then the key is gone.
+    if ($feedSigning) {
+        Write-Host '==> Signing the update feeds (key medium and password needed again)' -ForegroundColor Cyan
+        $null = Invoke-FeedSigning -KeyPath $feedSigning.KeyPath -ExpectedPublicKeySha256 $feedSigning.PublicKeySha256 -TrustedKeys $feedSigning.TrustedKeys `
+            -DistDirectory $distDir -Runtimes $runtimes -Password $FeedSigningKeyPassword
+        foreach ($rid in $runtimes) {
+            $name = Get-UpdateFeedSignatureFileName $rid
+            $files.Add([pscustomobject]@{ Name = $name; Runtime = $rid; Step = 'feed-signature'; Sha256 = Get-FileSha256 (Join-Path $distDir $name) })
+            Write-Host "$name verified with the keys of UpdateFeedKeys.$((Get-FeedSignatureSettings).KeysList)"
+        }
+        $feedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = $feedSigning.PublicKeySha256 }
+    }
+    else {
+        $feedSignature = [ordered]@{ Status = 'skipped'; PublicKeySha256 = $null }
+    }
+
     $checksumFile = Get-ChecksumFileName $hostOs
     $null = Write-Sha256Sums -Directory $distDir -FileName $checksumFile -Files @($files | ForEach-Object Name)
     $sumsProblems = @(Get-Sha256SumsProblems (Join-Path $distDir $checksumFile))
@@ -288,15 +365,16 @@ try {
     # Re-checked at the end: a change during the build also makes it unreleasable.
     $dirty = $dirty -or @(Get-GitStatusLines $repoRoot).Count -gt 0 -or (Get-GitHead $repoRoot) -ne $head
     $buildInfo = [ordered]@{
-        Version      = $version
-        Commit       = $head
-        Dirty        = $dirty
-        Os           = $hostOs
-        Runtimes     = $runtimes
-        ChecksumFile = $checksumFile
-        Files        = $files.ToArray()
-        Smoke        = $smoke
-        CreatedUtc   = [DateTime]::UtcNow.ToString('o')
+        Version       = $version
+        Commit        = $head
+        Dirty         = $dirty
+        Os            = $hostOs
+        Runtimes      = $runtimes
+        ChecksumFile  = $checksumFile
+        Files         = $files.ToArray()
+        FeedSignature = $feedSignature
+        Smoke         = $smoke
+        CreatedUtc    = [DateTime]::UtcNow.ToString('o')
     }
     $buildInfo | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
 
@@ -308,6 +386,7 @@ try {
     }
     foreach ($rid in $smoke.Keys) { Write-Host "  AOT smoke test ${rid}: $($smoke[$rid])" }
     if ($dirty) { Write-Host 'Built from a dirty working tree: release-upload.ps1 will refuse this output.' -ForegroundColor Yellow }
+    if (-not $feedSigning) { Write-Host 'Built with -SkipFeedSignature: the update feed is not signed and release-upload.ps1 will refuse this output.' -ForegroundColor Yellow }
     Write-Host 'Next step: pwsh scripts/release-upload.ps1 -DryRun' -ForegroundColor Green
     exit 0
 }

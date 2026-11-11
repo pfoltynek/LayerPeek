@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -16,10 +17,11 @@ namespace LayerPeek.App.Tests.Platform.MacOS;
 /// <summary>
 /// End-to-end test of the update of the macOS app through Velopack (T-058, decision Q10 a), on demand only (<c>LAYERPEEK_E2E=1</c>
 /// on macOS) and entirely in a temporary folder (user decision 2026-10-30): the real Debug app in the test bundle
-/// <c>LayerPeek E2E.app</c> (test identifier, never in /Applications), packed by <c>vpk</c> twice from one build as 0.3.1 and
-/// 0.3.2 (ad hoc, hardened runtime; the JIT of the Debug app needs <c>allow-jit</c>, so the test signs with entitlements of its
-/// own, the release check of T-108 is the Pester test of the release script), version 0.3.1 "installed" from its Portable.zip,
-/// 0.3.2 served as a local folder feed through <see cref="AppEnvironment.TestUpdateSourceVariable"/>; no network at all. The app
+/// <c>LayerPeek E2E.app</c> (test identifier, never in /Applications), packed by <c>vpk</c> twice from one build as the version of
+/// the worktree and the next patch version (ad hoc, hardened runtime; the JIT of the Debug app needs <c>allow-jit</c>, so the test signs with entitlements of its
+/// own, the release check of T-108 is the Pester test of the release script), the older one "installed" from its Portable.zip,
+/// the newer one served as a local folder feed through <see cref="AppEnvironment.TestUpdateSourceVariable"/>; no network at all. The
+/// feed of vpk is first offered unsigned, which the app rejects (T-181), then signed with the test key (<see cref="TestUpdateFeed"/>). The app
 /// runs in the isolated test mode as a child of the test host (no notification center, no Login Item), with <c>HOME</c> in the
 /// temporary folder, so that Velopack (its log and package cache) and its updater <c>UpdateMac</c> write only there. The click
 /// on the update notification is the instance command a click sends; then the app downloads, quits and <c>UpdateMac</c>
@@ -31,8 +33,11 @@ namespace LayerPeek.App.Tests.Platform.MacOS;
 [SupportedOSPlatform("macos")]
 public sealed class MacUpdateE2ETests
 {
-    private const string Running = "0.3.1";
-    private const string Next = "0.3.2";
+    /// <summary>The version of this worktree (<c>Directory.Build.props</c>), which the assemblies report: the installed one.</summary>
+    private static string Running { get; } = XDocument.Load(Path.Combine(TestWorktree.Root, "Directory.Build.props")).Descendants("Version").Single().Value.Trim();
+
+    /// <summary>The next patch version: the update in the feed (above the version the assemblies of both packages report).</summary>
+    private static string Next { get; } = NextPatch(Running);
     private const string BundleName = "LayerPeek E2E.app";
     private const string LsRegister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
@@ -57,7 +62,7 @@ public sealed class MacUpdateE2ETests
         Directory.CreateDirectory(feed);
         try
         {
-            // 0.3.1 and 0.3.2 of the same build; only the Info.plist version and the package version differ.
+            // Both versions of the same build; only the Info.plist version and the package version differ.
             string entitlements = Path.Combine(run, "e2e.entitlements");
             await File.WriteAllTextAsync(entitlements, TestEntitlements, cancellationToken);
             string portable = await PackAsync(run, Running, entitlements, cancellationToken);
@@ -80,7 +85,28 @@ public sealed class MacUpdateE2ETests
                 ["HOME"] = home,
             };
 
-            // 1. 0.3.1 finds 0.3.2 in the feed (2 s after the start in the test mode).
+            // 0. The feed of vpk has no signature (T-181): the installed version rejects it and offers nothing.
+            using (Process unsigned = StartApp(app, variables))
+            {
+                try
+                {
+                    await UntilAsync(() => Log(data).Contains("releases.osx-arm64.json was rejected (SignatureMissing", StringComparison.Ordinal), unsigned, data, "the update check to reject the unsigned feed", cancellationToken);
+                    Assert.DoesNotContain($"version {Next} is available", Log(data), StringComparison.Ordinal);
+                    Send(data, suffix, new InstanceCommand(InstanceCommandKind.Quit));
+                    await WaitForExitAsync(unsigned, data, "the app to quit after the rejected feed", cancellationToken);
+                    Assert.Equal(0, unsigned.ExitCode);
+                }
+                finally
+                {
+                    Stop(unsigned);
+                }
+            }
+
+            Assert.Empty(Directory.EnumerateFiles(home, "*.nupkg", SearchOption.AllDirectories));
+            // Signed with the test key, which only the test source trusts (never the GitHub feed).
+            TestUpdateFeed.SignFile(Path.Combine(feed, "releases.osx-arm64.json"), "osx-arm64");
+
+            // 1. The installed version finds the next one in the signed feed (2 s after the start in the test mode).
             using (Process first = StartApp(app, variables))
             {
                 try
@@ -113,7 +139,7 @@ public sealed class MacUpdateE2ETests
             TestContext.Current.SendDiagnosticMessage($"Velopack files in the temporary HOME: {string.Join(", ", Directory.EnumerateFiles(home, "*", SearchOption.AllDirectories).Select(file => Path.GetRelativePath(home, file)))}");
 
             // 4. The updated app starts again and quits normally. (Within a day it does not ask the feed again: it offers what the
-            // last check found; its assemblies are the same build, so it still calls itself 0.3.1.)
+            // last check found; its assemblies are the same build, so it still calls itself the older version.)
             using Process second = StartApp(app, variables);
             try
             {
@@ -140,6 +166,12 @@ public sealed class MacUpdateE2ETests
             Assert.Empty(await RegisteredPathsUnderAsync(run, CancellationToken.None));
             TestDirectories.Delete(run);
         }
+    }
+
+    private static string NextPatch(string version)
+    {
+        Version parsed = Version.Parse(version.Split('-')[0]);
+        return $"{parsed.Major}.{parsed.Minor}.{parsed.Build + 1}";
     }
 
     /// <summary>The entitlements of the test bundle: the JIT of the Debug app under the hardened runtime, and the runtime of DOTNET_ROOT.</summary>

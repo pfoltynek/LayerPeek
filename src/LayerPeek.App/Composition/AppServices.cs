@@ -582,7 +582,10 @@ internal static partial class AppServices
         // GitHub asks for a User-Agent; the system proxy is used (the request goes to the internet, unlike the printers').
         services.AddHttpClient(GitHubReleaseChecker.HttpClientName, client => GitHubReleaseChecker.ConfigureClient(client, version))
             .RemoveAllLoggers();
-        services.AddSingleton(sp => CreateUpdateInstallation(environment, windows, sp.GetRequiredService<ILogger<AppUpdates>>()));
+        // The signed feed of Velopack and its signature (T-181); the system proxy is used, like for the release list.
+        services.AddHttpClient(SignedUpdateSource.HttpClientName, client => SignedUpdateSource.ConfigureClient(client, version))
+            .RemoveAllLoggers();
+        services.AddSingleton(sp => CreateUpdateInstallation(environment, windows, sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<ILogger<AppUpdates>>()));
         services.AddSingleton(static sp => CreateUpdateStateStore(sp));
         services.AddSingleton(sp =>
         {
@@ -620,7 +623,7 @@ internal static partial class AppServices
     /// (a translocated app or one on the mounted <c>.dmg</c> cannot replace itself, Q8 a). Never in the test mode, except with
     /// the update feed of the end-to-end test (Q10 a), never for the <c>.zip</c> or a development build.
     /// </summary>
-    private static UpdateInstallation CreateUpdateInstallation(AppEnvironment environment, bool windows, ILogger<AppUpdates> logger)
+    private static UpdateInstallation CreateUpdateInstallation(AppEnvironment environment, bool windows, IHttpClientFactory httpClients, ILogger<AppUpdates> logger)
     {
         string? executable = Environment.ProcessPath;
         UpdateSource? testSource = null;
@@ -634,13 +637,13 @@ internal static partial class AppServices
 
         if (windows && OperatingSystem.IsWindows() && VelopackInstallation.IsInstalled(executable, File.Exists))
         {
-            return new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(testSource), logger), NeedsMoveToApplications: false);
+            return new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(httpClients, testSource), logger), NeedsMoveToApplications: false);
         }
 
         if (!windows && OperatingSystem.IsMacOS() && VelopackInstallation.IsInstalledMac(executable, File.Exists))
         {
             return MacAppBundle.BundleOf(executable) is { } bundle && MacAppBundle.IsPermanentLocation(bundle, MacAppBundle.IsOnReadOnlyVolume)
-                ? new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(testSource), logger), NeedsMoveToApplications: false)
+                ? new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(httpClients, testSource), logger), NeedsMoveToApplications: false)
                 : new UpdateInstallation(null, NeedsMoveToApplications: true);
         }
 
@@ -1064,6 +1067,8 @@ internal static partial class AppServices
             // T-058: "Check now" (Q4 a) and the hint to move the macOS app to Applications first (Q8 a).
             CheckForUpdatesNow = services.GetRequiredService<UpdateOffer>().CheckNowAsync,
             ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,
+            // T-181: the error of a refused update feed while the refusal is active.
+            FeedRejections = services.GetRequiredService<UpdateOffer>(),
             // T-146: the default folder, whether this build can record and "Open recordings folder".
             Recordings = services.GetRequiredService<ICameraRecordings>(),
             // T-154: the detector kinds of this version and the last frames of the bed region editor.

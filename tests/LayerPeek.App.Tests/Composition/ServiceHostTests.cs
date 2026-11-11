@@ -132,6 +132,10 @@ public sealed class ServiceHostTests
         {
         }
 
+        public void ShowUpdateSettings()
+        {
+        }
+
         public void OpenManual()
         {
         }

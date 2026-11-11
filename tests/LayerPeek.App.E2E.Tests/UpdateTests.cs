@@ -96,6 +96,8 @@ public sealed class UpdateTests(E2EFixture fixture)
             Assert.Equal(Running, InstalledVersion(install));
             // Up to date at first: the feed lists only the installed version.
             File.Copy(packages.RunningFeed, Path.Combine(feed, FeedFileName));
+            // Signed with the test key (T-181), which only the test source of a Debug build trusts.
+            TestUpdateFeed.SignFile(Path.Combine(feed, FeedFileName), Runtime);
             report.AppendLine(CultureInfo.InvariantCulture, $"Installed {PackId} {Running} (portable) in {install}; feed {feed}");
 
             Dictionary<string, string> switches = new()
@@ -113,6 +115,8 @@ public sealed class UpdateTests(E2EFixture fixture)
 
                 // The new version appears in the feed; the manual check of the settings window finds it.
                 File.Copy(packages.NextPackage, Path.Combine(feed, Path.GetFileName(packages.NextPackage)));
+                // The signature before the feed (as release-upload.ps1 uploads them): no check sees the new feed with the old one.
+                TestUpdateFeed.SignFile(packages.NextFeed, Runtime, Path.Combine(feed, FeedFileName + ".sig"));
                 File.Copy(packages.NextFeed, Path.Combine(feed, FeedFileName), overwrite: true);
                 ToastMatch banner = await CheckNowAndWaitForBannerAsync(toastRun, report);
 

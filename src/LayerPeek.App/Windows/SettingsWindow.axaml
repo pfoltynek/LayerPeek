@@ -1296,6 +1296,8 @@
               T-058: the update check, on by default (Q2 a), and pre-releases by the same rule in every distribution and on
               every OS (Q3 a). "Check now" with its result next to it (Q4 a, like the test notification of T-101; the text
               wraps for long translations). macOS: a translocated app or one on the .dmg is told to move to Applications (Q8 a).
+              T-181 (decisions 5 and 7): while the update feed is refused, its error stays under the button in the colours of the
+              notice (the text wraps; no version and no button, user decision 2026-11-11).
             -->
             <StackPanel>
               <CheckBox AutomationProperties.AutomationId="SettingsCheckForUpdates"
@@ -1335,6 +1337,17 @@
                          Text="{Binding UpdateCheckResultText}"
                          IsVisible="{Binding ShowsUpdateCheckResult}" />
             </Grid>
+            <Border AutomationProperties.AutomationId="SettingsUpdateRejected"
+                    Background="{DynamicResource NoticeBrush}"
+                    CornerRadius="4"
+                    Padding="10,6"
+                    IsVisible="{Binding ShowsUpdateRejected}">
+              <TextBlock AutomationProperties.AutomationId="SettingsUpdateRejectedText"
+                         AutomationProperties.LiveSetting="Polite"
+                         Classes="error"
+                         Margin="0"
+                         Text="{Binding [SettingsUpdateRejected], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            </Border>
             <TextBlock AutomationProperties.AutomationId="SettingsUpdateMoveToApplications"
                        Classes="hint"
                        IsVisible="{Binding ShowsMoveToApplications}"
