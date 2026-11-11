@@ -199,7 +199,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-188 | Kamera – exponenciální backoff při opětovném připojení (výkon) (hotovo) | all | core-dev | P2 | – |
 | T-189 | Detekce chyb tisku – snímek z jasové složky (Y) bez převodu do BGRA (výkon) (hotovo) | all | core-dev | P3 | – |
 | T-193 | Přechod z .NET 11 RC na stabilní .NET 11 (GA) (hotovo, Windows v T-125) | all | qa-reviewer | P1 | – |
-| T-190 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) | all | ui-dev | P3 | – |
+| T-190 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) (zamítnuto 2026-11-11) | all | ui-dev | P3 | – |
 | T-191 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) | all | qa-reviewer | P3 | – |
 | T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) | all | architect | P3 | T-184, T-185 |
 

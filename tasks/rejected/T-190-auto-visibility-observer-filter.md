@@ -1,12 +1,14 @@
 ---
 id: T-190
 title: Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil
-status: in-progress
+status: rejected
 owner: ui-dev
 priority: P3
 platform: all
 depends_on: []
 ---
+
+> **Zamítnuto (rozhodnutí uživatele 2026-11-11):** varianta 3 z otevřených otázek – automat potřebuje i neměněné snímky pro kontrolu čerstvosti a jedno `Post` na tiskárnu za interval dotazování je levné. Úkol se nebude implementovat.
 
 ## Cíl
 Výkonnostní analýza (2026-11-06): `CameraWindowAutoVisibilityObserver` (T-151) posílá na UI vlákno
@@ -48,6 +50,8 @@ Možnosti (rozhodnutí uživatele):
 3. **Úkol zrušit / nechat beze změny**: jedno `Post` na tiskárnu za interval dotazování (výchozí 5 s) je levné.
 
 Doporučení ui-dev: 3, případně 1, pokud je změna tolerance spánku přijatelná.
+
+Rozhodnuto uživatelem 2026-11-11: **varianta 3** – úkol zamítnut.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
