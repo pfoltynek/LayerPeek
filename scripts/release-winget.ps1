@@ -16,7 +16,10 @@
 
     The GitHub token is read with gh auth token only after the confirmation and reaches wingetcreate only through
     WINGET_CREATE_GITHUB_TOKEN of this process while it runs: never as an argument (process list, history), never
-    printed (wingetcreate's output is redacted), never stored. A fine-grained token (github_pat_...) is refused.
+    printed (wingetcreate's output is redacted), never stored. Before the plan the scopes of the gh token are checked
+    (gh api; wingetcreate needs public_repo, which a gh OAuth login has): a fine-grained or unscoped token (for example
+    GH_TOKEN of T-180) is refused with the steps of a temporary login (gh auth login --web, afterwards gh auth logout).
+    wingetcreate's telemetry is switched off in its settings.json before it runs (other settings stay).
 
 .PARAMETER Version
     The released version X.Y.Z. Default: <Version> of Directory.Build.props.

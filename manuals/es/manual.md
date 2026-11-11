@@ -518,6 +518,9 @@ notificación.
 - **Windows, versión instalada:** el elemento del menú descarga la actualización, cierra LayerPeek e inicia la nueva
   versión.
 - **Windows, versión ZIP:** el elemento del menú abre la página de la versión; descargue el nuevo ZIP a mano.
+- **Windows, instalada con winget:** use también el elemento del menú. `winget upgrade` (también dentro de
+  `winget upgrade --all`) funciona, pero cierra de golpe LayerPeek si está en ejecución, no lo vuelve a iniciar (inícielo
+  desde el menú Inicio) y borra los archivos de registro de `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS:** el elemento del menú descarga la actualización y reinicia LayerPeek, pero solo cuando la app está en
   **Aplicaciones** (no en la imagen de disco ni en Descargas).
 

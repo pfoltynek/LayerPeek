@@ -239,6 +239,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo) | windows | qa-reviewer | P2 | – |
 | T-162 | FFmpeg pro Windows – připnutý build BtbN už neexistuje (404) (hotovo; ověření v T-125) | windows | core-dev | P1 | – |
 | T-186 | Kamera – pozastavení streamu při zamčení počítače a vypnutém displeji (výkon) | windows | ui-dev | P2 | – |
+| T-201 | Přeinstalace (`winget upgrade`) nemá znovu zapnout spouštění po přihlášení (hook instalace) | windows | ui-dev | P1 | T-059 |
 
 ### macOS (`macos`) – jen na Macu, později
 
