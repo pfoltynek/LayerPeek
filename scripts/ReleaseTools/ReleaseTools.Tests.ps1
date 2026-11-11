@@ -102,6 +102,8 @@ BeforeAll {
         New-StandInFile (Join-Path $root 'prefs' 'com.example.other.plist') 'other prefs'
         # Like ~/Library/Caches and ~/Library/HTTPStorages, which always exist.
         $null = New-Item -ItemType Directory -Path (Join-Path $root 'caches'), (Join-Path $root 'http')
+        # T-196: the FFmpeg build cache next to the cache of the app; never moved or deleted.
+        New-StandInFile (Join-Path $root 'caches' 'LayerPeek.Build' 'ffmpeg' 'osx-arm64-key' 'libavcodec.dylib') 'ffmpeg build'
         $root
     }
     # The identifier of build/macos/Info.plist: aot-smoke.ps1 -ProfileRoot uses it too.
@@ -1824,7 +1826,7 @@ Describe 'AOT smoke script with an existing publish folder' {
         New-StandInFile (Join-Path $smokeProfile.Folders[1] 'LayerPeek.log') 'exe log'
         $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -RestoreOnly -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
         $LASTEXITCODE | Should -Be 0 -Because $output
-        $output | Should -Match 'Restored the data and log folders'
+        $output | Should -Match 'Restored the data, log and cache folders'
         $output | Should -Not -Match 'Publishing|Starting'
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
         $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -RestoreOnly -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
@@ -1849,16 +1851,18 @@ Describe 'AOT smoke backup of the data and log folders' {
                 (Join-Path $library 'Logs' 'LayerPeek'),
                 (Join-Path $library 'Saved Application State' "$id.savedState"),
                 (Join-Path $library 'Caches' $id),
-                (Join-Path $library 'HTTPStorages' $id))
+                (Join-Path $library 'HTTPStorages' $id),
+                (Join-Path $library 'Caches' 'LayerPeek'))
             @($smokeProfile.Preferences | ForEach-Object Domain) | Should -BeExactly @($id, 'LayerPeek')
             @($smokeProfile.Preferences | ForEach-Object Path) | Should -BeExactly @((Join-Path $library 'Preferences' "$id.plist"), (Join-Path $library 'Preferences' 'LayerPeek.plist'))
         }
         else {
-            $smokeProfile.Folders.Count | Should -Be 2
+            $smokeProfile.Folders.Count | Should -Be 3
             @($smokeProfile.Preferences).Count | Should -Be 0
             $smokeProfile.Folders[0] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek')
-            # Only the logs: %LOCALAPPDATA%\LayerPeek may hold the installed app (Velopack).
+            # Only the logs and the cache (T-196): %LOCALAPPDATA%\LayerPeek may hold the installed app (Velopack).
             $smokeProfile.Folders[1] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs')
+            $smokeProfile.Folders[2] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'cache')
         }
         $smokeProfile.Journal | Should -BeExactly "$($smokeProfile.Folders[0]).aot-smoke-journal.json"
     }
@@ -1889,6 +1893,40 @@ Describe 'AOT smoke backup of the data and log folders' {
         Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
         foreach ($folder in $smokeProfile.Folders) { Test-Path -LiteralPath $folder | Should -BeFalse }
         Test-Path -LiteralPath $smokeProfile.Journal | Should -BeFalse
+    }
+    It 'moves an existing cache of the app aside and back unchanged, never the FFmpeg build cache next to it (T-196)' {
+        $root = New-SmokeStandInProfile
+        $cache = Join-Path $root 'caches' 'LayerPeek'
+        New-StandInFile (Join-Path $cache 'last-frames' 'printer-1.jpg') 'user frame'
+        $build = Join-Path $root 'caches' 'LayerPeek.Build'
+        $before = Get-TreeState $root
+        $buildBefore = Get-TreeState $build
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root -BundleIdentifier $script:StandInBundleId
+        $smokeProfile.Folders | Should -Contain $cache
+        $smokeProfile.Folders | Should -Not -Contain $build
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        Test-Path -LiteralPath $cache | Should -BeFalse
+        Test-Path -LiteralPath (Get-SmokeBackupPath $cache) | Should -BeTrue
+        Get-TreeState $build | Should -BeExactly $buildBefore
+        # The exe writes its own cache.
+        New-StandInFile (Join-Path $cache 'last-frames' 'printer-1.jpg') 'exe frame'
+        New-StandInFile (Join-Path $cache 'notification-images' 'a.png') 'exe image'
+
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+        Get-TreeState $root | Should -BeExactly $before
+    }
+    It 'deletes a cache of the app the exe created although there was none, and keeps the FFmpeg build cache (T-196)' {
+        $root = New-SmokeStandInProfile
+        $cache = Join-Path $root 'caches' 'LayerPeek'
+        $before = Get-TreeState $root
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root -BundleIdentifier $script:StandInBundleId
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        Test-Path -LiteralPath (Get-SmokeBackupPath $cache) | Should -BeFalse
+        New-StandInFile (Join-Path $cache 'notification-images' 'a.png') 'exe image'
+
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+        Test-Path -LiteralPath $cache | Should -BeFalse
+        Get-TreeState $root | Should -BeExactly $before
     }
     It 'finishes a restore that was interrupted half way without losing the data' {
         $root = New-SmokeStandInProfile

@@ -58,7 +58,7 @@ Zbytek složky tvoří nativní knihovny (Skia 14,5 MiB, HarfBuzz, AvaloniaNativ
   `LAYERPEEK_INSTANCE_SUFFIX` existují jen v Debug sestavení). Každý běh proto odsunul profil žurnálovanými funkcemi
   `Backup-SmokeProfile` / `Restore-SmokeProfile` z `scripts/ReleaseTools`. Jsou to stejné funkce jako v
   `scripts/aot-smoke.ps1`: složky dat, logů, Saved Application State, Caches/HTTPStorages bundlu a domény `defaults`.
-  Navíc se hlídala složka `~/Library/Caches/LayerPeek`, kterou smoke profil nepokrývá (běhy ji nevytvořily). Po každém
+  Navíc se hlídala složka `~/Library/Caches/LayerPeek`, kterou smoke profil tehdy nepokrýval (běhy ji nevytvořily; od T-196 ji pokrývá). Po každém
   běhu se porovnal otisk profilu (SHA-256 souborů, export domén, položky Klíčenky se službou `LayerPeek`) s otiskem
   před měřením. Výsledek byl ve všech 24 bězích shodný a shodný byl i na konci.
 

@@ -10,9 +10,10 @@
     On Windows it also checks that the app created its Start menu shortcut for notifications (T-010)
     and restores the previous shortcut (or removes it) afterwards, and so the registration of its toast activator
     (HKCU\Software\Classes\CLSID\{CLSID}, LocalServer32 = the exe, T-068, T-133).
-    The Release exe has no test mode, so it would write into the real data and log folders of the app
-    (macOS ~/Library/Application Support/LayerPeek and ~/Library/Logs/LayerPeek, Windows %APPDATA%\LayerPeek and
-    %LOCALAPPDATA%\LayerPeek\logs) and on macOS into what the system keeps under the bundle identifier (T-019:
+    The Release exe has no test mode, so it would write into the real data, log and cache folders of the app
+    (macOS ~/Library/Application Support/LayerPeek, ~/Library/Logs/LayerPeek and ~/Library/Caches/LayerPeek, Windows
+    %APPDATA%\LayerPeek, %LOCALAPPDATA%\LayerPeek\logs and %LOCALAPPDATA%\LayerPeek\cache, T-196; never the FFmpeg build
+    cache LayerPeek.Build) and on macOS into what the system keeps under the bundle identifier (T-019:
     ~/Library/Saved Application State/<id>.savedState, ~/Library/Caches/<id>, ~/Library/HTTPStorages/<id> and the defaults
     domains <id> and LayerPeek in ~/Library/Preferences). Right before the exe starts, the script writes a journal and moves
     the existing folders aside (renamed to <folder>.aot-smoke-backup next to them, T-095) and exports and deletes the
@@ -92,11 +93,11 @@ if ($SkipShellIntegration -and -not $ProfileRoot) {
 }
 
 Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Force
-# The data and log folders of the app: moved aside while the Release exe (no test mode) runs, then moved back.
+# The data, log and cache folders of the app: moved aside while the Release exe (no test mode) runs, then moved back.
 $smokeProfile = Get-SmokeProfile -ProfileRoot $ProfileRoot
 try {
     if (Restore-SmokeProfile -SmokeProfile $smokeProfile) {
-        Write-Host 'Restored the data and log folders of the app (and its macOS preferences, saved state and caches) from an interrupted smoke run.' -ForegroundColor Yellow
+        Write-Host 'Restored the data, log and cache folders of the app (and its macOS preferences, saved state and caches) from an interrupted smoke run.' -ForegroundColor Yellow
     }
     elseif ($RestoreOnly) {
         Write-Host 'Nothing to restore: no interrupted smoke run.'
