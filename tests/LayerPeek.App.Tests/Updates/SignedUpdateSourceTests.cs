@@ -294,6 +294,7 @@ public sealed class SignedUpdateSourceTests : IDisposable
         ReleaseVersion next = ReleaseVersion.Parse("0.3.2");
         Assert.False(await updates.ApplyAsync(new UpdateRelease(next, UpdateRelease.PageFor(next), false), true, () => { quit = true; return Task.CompletedTask; }, Token));
         Assert.False(quit);
+        Assert.True(updates.IsFeedRejected);
         Assert.Empty(Directory.EnumerateFiles(packages, "*.nupkg*"));
     }
 

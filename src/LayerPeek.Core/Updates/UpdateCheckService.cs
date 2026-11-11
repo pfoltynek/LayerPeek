@@ -62,6 +62,10 @@ public sealed record UpdateCheckTimings(TimeSpan StartDelay, TimeSpan Interval, 
 /// show it; other failures leave it as it is. One notification per refused offer (decision 2026-11-10): for a
 /// <see cref="RejectionKey"/> other than the one notified last (remembered in <see cref="IUpdateStateStore"/>), a refused
 /// feed without a key once per run; with notifications switched off the offer counts as notified.</item>
+/// <item>While a feed is refused nothing is offered (user decision 2026-11-11, open questions 11, 12 and 24 of T-181): the
+/// release of an earlier good check (this run or <see cref="IUpdateStateStore"/>) is withdrawn and forgotten, together with
+/// its notification (<see cref="INotificationService.WithdrawUpdateAvailable"/>), and the remembered state no longer offers
+/// it after a restart. The next successful check offers again what its feed names.</item>
 /// </list>
 /// Thread-safe; events are raised on the thread that made the change (a timer thread or the caller of a check).
 /// </summary>
@@ -115,7 +119,10 @@ public sealed partial class UpdateCheckService : IDisposable
     /// <summary>The version of the running app.</summary>
     public ReleaseVersion RunningVersion => _running;
 
-    /// <summary>The newest release above the running version on offer now, or <see langword="null"/>.</summary>
+    /// <summary>
+    /// The newest release above the running version on offer now, or <see langword="null"/>; always <see langword="null"/>
+    /// while <see cref="FeedRejection"/> is set.
+    /// </summary>
     public UpdateRelease? Available
     {
         get
@@ -258,7 +265,8 @@ public sealed partial class UpdateCheckService : IDisposable
         {
             _state = state;
             preferences = _preferences;
-            changed = !_disposed && SetAvailableLocked(Offered(state.Latest));
+            // A manual check before the settings came may already have refused the feed: then the remembered offer stays withdrawn.
+            changed = !_disposed && _feedRejection is null && SetAvailableLocked(Offered(state.Latest));
         }
 
         if (changed)
@@ -364,16 +372,8 @@ public sealed partial class UpdateCheckService : IDisposable
         }
         catch (UpdateFeedRejectedException ex)
         {
-            // The release on offer stays like after any failure: it came from a feed that passed the check in this run (a Velopack
-            // installation then downloads only what that verified feed pinned by size and SHA-256), or from update-state.json
-            // (then a Velopack installation checks its feed again before it downloads anything).
             LogFeedRejected(ex.Feed.FeedName, ex.Feed.Reason, ex.Feed.ClaimedVersion?.ToString());
-            if (SetFeedRejection(ex.Feed))
-            {
-                RaiseFeedRejectionChanged();
-            }
-
-            await NotifyRejectionIfNewAsync(ex.Feed, preferences).ConfigureAwait(false);
+            await RejectAsync(ex.Feed, preferences).ConfigureAwait(false);
             return new UpdateCheckResult(UpdateCheckOutcome.FeedRejected, null, ex.Feed);
         }
         catch (Exception ex)
@@ -478,6 +478,71 @@ public sealed partial class UpdateCheckService : IDisposable
     }
 
     /// <summary>
+    /// A check refused <paramref name="feed"/>: it becomes <see cref="FeedRejection"/> and the offer is withdrawn (decision
+    /// 2026-11-11), in one step under the lock, so that no reader sees a release on offer next to the refusal. The withdrawal
+    /// is saved, so that a restart does not offer the remembered release again before its next check; the notification of the
+    /// offer is withdrawn whenever the refusal starts (it may also be left from an earlier run), before the refusal is notified.
+    /// </summary>
+    private async Task RejectAsync(RejectedUpdateFeed feed, UpdatePreferences preferences)
+    {
+        bool started;
+        bool rejectionChanged;
+        bool offerWithdrawn;
+        UpdateState? withdrawn = null;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            started = _feedRejection is null;
+            rejectionChanged = !Equals(_feedRejection, feed);
+            _feedRejection = feed;
+            offerWithdrawn = SetAvailableLocked(null);
+            if (_state.Latest is not null)
+            {
+                _state = _state with { Latest = null };
+                withdrawn = _state;
+            }
+        }
+
+        if (rejectionChanged)
+        {
+            RaiseFeedRejectionChanged();
+        }
+
+        if (offerWithdrawn)
+        {
+            LogOfferWithdrawn();
+            RaiseAvailableChanged();
+        }
+
+        if (started)
+        {
+            WithdrawOfferNotification();
+        }
+
+        // The notification saves the state when it remembers a new key; the withdrawn offer is part of that state.
+        if (!await NotifyRejectionIfNewAsync(feed, preferences).ConfigureAwait(false) && withdrawn is not null)
+        {
+            await SaveAsync(withdrawn).ConfigureAwait(false);
+        }
+    }
+
+    private void WithdrawOfferNotification()
+    {
+        try
+        {
+            _notifications.WithdrawUpdateAvailable();
+        }
+        catch (Exception ex)
+        {
+            LogWithdrawFailed(ex);
+        }
+    }
+
+    /// <summary>
     /// What tells one refused offer from the next for its notification (decision 2026-11-10, open question 10 of T-181): the
     /// version the feed claims, else the hash of the feed; <see langword="null"/> when the feed was not read at all (then
     /// one notification per run).
@@ -494,7 +559,8 @@ public sealed partial class UpdateCheckService : IDisposable
     /// The notification about the refused <paramref name="feed"/> when it is another offer than the one notified last
     /// (<see cref="RejectionKey"/>); then the state with its key is saved.
     /// </summary>
-    private async Task NotifyRejectionIfNewAsync(RejectedUpdateFeed feed, UpdatePreferences preferences)
+    /// <returns>Whether the state was saved.</returns>
+    private async Task<bool> NotifyRejectionIfNewAsync(RejectedUpdateFeed feed, UpdatePreferences preferences)
     {
         string? key = RejectionKey(feed);
         UpdateState? state = null;
@@ -502,14 +568,14 @@ public sealed partial class UpdateCheckService : IDisposable
         {
             if (_disposed)
             {
-                return;
+                return false;
             }
 
             if (key is null)
             {
                 if (_unkeyedRejectionNotified)
                 {
-                    return;
+                    return false;
                 }
 
                 _unkeyedRejectionNotified = true;
@@ -518,7 +584,7 @@ public sealed partial class UpdateCheckService : IDisposable
             {
                 if (string.Equals(_state.NotifiedRejection, key, StringComparison.Ordinal))
                 {
-                    return;
+                    return false;
                 }
 
                 _state = _state with { NotifiedRejection = key };
@@ -526,12 +592,13 @@ public sealed partial class UpdateCheckService : IDisposable
             }
         }
 
+        // Only the log names the claimed version (untrusted); the notification never shows it (decision 2026-11-11).
         string? version = feed.ClaimedVersion?.ToString();
         if (preferences.Notify)
         {
             try
             {
-                _notifications.ShowUpdateRejected(new UpdateRejectedNotification(version, preferences.PlaySound));
+                _notifications.ShowUpdateRejected(new UpdateRejectedNotification(preferences.PlaySound));
                 LogRejectionNotified(version);
             }
             catch (Exception ex)
@@ -544,10 +611,13 @@ public sealed partial class UpdateCheckService : IDisposable
             LogRejectionNotNotified(version);
         }
 
-        if (state is not null)
+        if (state is null)
         {
-            await SaveAsync(state).ConfigureAwait(false);
+            return false;
         }
+
+        await SaveAsync(state).ConfigureAwait(false);
+        return true;
     }
 
     private async Task SaveAsync(UpdateState state)
@@ -581,21 +651,6 @@ public sealed partial class UpdateCheckService : IDisposable
 
         _available = release;
         return true;
-    }
-
-    /// <returns>Whether <see cref="FeedRejection"/> changed (never after disposal).</returns>
-    private bool SetFeedRejection(RejectedUpdateFeed feed)
-    {
-        lock (_gate)
-        {
-            if (_disposed || Equals(_feedRejection, feed))
-            {
-                return false;
-            }
-
-            _feedRejection = feed;
-            return true;
-        }
     }
 
     private void RaiseFeedRejectionChanged()
@@ -645,6 +700,12 @@ public sealed partial class UpdateCheckService : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the new version {Version} could not be shown.")]
     private partial void LogNotificationFailed(Exception exception, ReleaseVersion version);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Update check: the release on offer is withdrawn while the update feed is refused.")]
+    private partial void LogOfferWithdrawn();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the withdrawn update offer could not be removed.")]
+    private partial void LogWithdrawFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the refused update (claimed version {ClaimedVersion}).")]
     private partial void LogRejectionNotified(string? claimedVersion);

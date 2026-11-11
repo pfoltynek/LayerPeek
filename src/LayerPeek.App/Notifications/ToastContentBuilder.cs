@@ -94,7 +94,7 @@ internal static class ToastContentBuilder
         AppendEscaped(xml, ToastLaunchArgument.UpdateSettings);
         xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
         AppendText(xml, UpdateNotificationText.RejectedTitle(textCulture));
-        AppendText(xml, UpdateNotificationText.RejectedBody(notification.Version is { } version ? Clean(version) : null, textCulture));
+        AppendText(xml, UpdateNotificationText.RejectedBody(textCulture));
         xml.Append("</binding></visual>");
         if (!notification.PlaySound)
         {

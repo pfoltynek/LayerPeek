@@ -245,6 +245,32 @@ Skripty vydání (qa-reviewer, 2026-11-10):
   souborech. Na Macu prošel `release-build.ps1 -SkipFeedSignature` (AOT, vpk, smoke) a skutečný feed podepsaný testovacím
   klíčem proti dočasnému seznamu ověřil C# `UpdateFeedVerifier`.
 
+UI – rozhodnutí 2026-11-11 (ui-dev):
+- Otázka 22: rámeček na záložce „Spuštění a aktualizace“, notifikace i příručky (oddíl 12, 8 jazyků) už neradí stáhnout a
+  nainstalovat ručně, ale „tuto verzi neinstalujte ručně, počkejte na další vydání nebo sledujte oznámení projektu“. Řádek
+  s odmítnutou verzí zmizel, notifikace verzi neuvádí (`UpdateRejectedNotification` ji už nenese); tvrzená verze zůstává jen
+  klíčem `notifiedRejection` a v logu. Řetězce `SettingsUpdateRejectedVersion` a `NotificationUpdateRejectedBodyNoVersion`
+  odebrány, nový `MenuUpdateRejected`.
+- Otázky 11, 12, 24: `UpdateCheckService` při odmítnutí v jednom kroku pod zámkem nastaví `FeedRejection` a stáhne
+  `Available` (i nabídku z `update-state.json`, uloží `latest: null`, takže ji nevrátí ani restart; nabídka načtená po ruční
+  kontrole před nastavením zůstane stažená). Při začátku odmítnutí zavolá `INotificationService.WithdrawUpdateAvailable`
+  (před notifikací o odmítnutí): Windows `ToastNotificationHistory.Remove(tag, "", AUMID)` (`RemoveGroupedTagWithId`, tag
+  `layerpeek-update-available`, i toast z dřívějšího běhu), macOS `removePending/DeliveredNotificationsWithIdentifiers:`;
+  oboje ve frontě notifikací (přijde až po nabídce, která ještě čeká), na macOS bez dotazu na oprávnění. `AppUpdates`
+  (vrstva enginu) si pamatuje odmítnutí poslední kontroly (`IsFeedRejected`) a instalaci odmítne před stažením i po něm
+  (kontrola během stahování); odmítnutí při kontrole zapamatované nabídky = nic se nestáhne, neotevře se stránka vydání a
+  `UpdateOffer` spustí kontrolu služby, aby se odmítnutí ukázalo v menu, na záložce a v notifikaci. Menu ikony: místo
+  „Je dostupná nová verze …“ (na stejném místě, změna na místě) „Aktualizace odmítnuta…“, kliknutí otevře záložku
+  „Spuštění a aktualizace“ (`ITrayAppCommands.ShowUpdateSettings`, stejná záložka jako `settings=updates`). Další platná
+  kontrola odmítnutí zruší a nabídka se vrátí; verze se počítá jako už oznámená, takže se notifikace o ní znovu neukáže.
+- Otázka 13: rámeček bez tlačítka (beze změny).
+- Testy: `UpdateCheckServiceTests` (stažení nabídky z běhu i z uloženého stavu a po restartu, pořadí stažení a notifikace,
+  obnovení), `AppUpdatesTests` (odmítnutí blokuje dřívější nabídku, zapamatovanou nabídku i odmítnutí během stahování),
+  `UpdateOfferTests`, `TrayMenuUpdateTests` (nahrazení na místě, položka bez nabídky, kliknutí), `UpdateRejectedNotificationTests`
+  (stažení toastu / notifikace macOS podle identifikátoru a v pořadí fronty, selhání jen v logu). UI test záložky ve všech
+  jazycích prošel. Neověřeno: skutečné stažení toastu na Windows (přidáno do T-125, oddíl 2s) a skutečné stažení notifikace
+  v Centru oznámení macOS (jen fake).
+
 Stav 2026-11-10: zbývá produkční klíč (vytvoří uživatel na offline médiu, veřejný klíč do `UpdateFeedKeys.Production`),
 odpovědi na otázky 8–21 a zkušební vydání. Dokud je `Production` prázdný, nesmí vyjít vydání z této větve (nepřijalo by
 žádnou další aktualizaci) – podepsaný build ho ani nedovolí.

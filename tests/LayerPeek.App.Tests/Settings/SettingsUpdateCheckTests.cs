@@ -1,3 +1,4 @@
+using LayerPeek.App.Resources;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tests.Updates;
@@ -140,8 +141,6 @@ public sealed class SettingsUpdateCheckTests : IDisposable
         SettingsViewModel vm = await LoadAsync(new AppSettings());
 
         Assert.True(vm.ShowsUpdateRejected);
-        Assert.True(vm.ShowsUpdateRejectedVersion);
-        Assert.Equal("Refused version: 0.5.0", vm.UpdateRejectedVersionText);
         // The tab shows it; no check of this window found it.
         Assert.False(vm.ShowsUpdateCheckResult);
     }
@@ -157,8 +156,6 @@ public sealed class SettingsUpdateCheckTests : IDisposable
         Assert.False(vm.ShowsUpdateRejected);
         _dispatcher.RunAll();
         Assert.True(vm.ShowsUpdateRejected);
-        Assert.False(vm.ShowsUpdateRejectedVersion);
-        Assert.Null(vm.UpdateRejectedVersionText);
 
         // A later good check clears it.
         _rejections.Set(null);
@@ -213,16 +210,24 @@ public sealed class SettingsUpdateCheckTests : IDisposable
     }
 
     [Fact]
-    public async Task TheRefusedVersionFollowsTheLanguage()
+    public void TheRefusalNamesNoVersionAndAdvisesNoManualInstall()
     {
-        _rejections.Current = Refused("0.5.0");
-        SettingsViewModel vm = await LoadAsync(new AppSettings());
+        // User decision 2026-11-11 (open question 22 of T-181): the release itself may be malicious.
+        using (new CultureScope("en-US"))
+        {
+            Assert.Equal(
+                "LayerPeek refused the update because its signature could not be verified, so nothing was installed. Do not install this version by hand: wait for the next release or follow the project's announcements.",
+                Strings.SettingsUpdateRejected);
+        }
 
         using (new CultureScope("cs-CZ"))
         {
-            vm.RefreshTexts();
-            Assert.Equal("Odmítnutá verze: 0.5.0", vm.UpdateRejectedVersionText);
+            Assert.Equal(
+                "LayerPeek aktualizaci odmítl, protože nešlo ověřit její podpis, a nic nenainstaloval. Tuto verzi neinstalujte ručně: počkejte na další vydání nebo sledujte oznámení projektu.",
+                Strings.SettingsUpdateRejected);
         }
+
+        Assert.Null(Strings.ResourceManager.GetString("SettingsUpdateRejectedVersion", System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]

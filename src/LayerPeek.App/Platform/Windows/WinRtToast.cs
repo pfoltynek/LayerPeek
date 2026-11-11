@@ -434,6 +434,33 @@ internal sealed class WinRtToastHistory : IToastHistory
     public void Clear(string appUserModelId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appUserModelId);
+        With(toasts =>
+        {
+            using HString id = HString.Create(appUserModelId);
+            toasts.ClearWithId(id.Handle);
+        });
+    }
+
+    /// <summary>
+    /// Removes the toast with <paramref name="tag"/> and no group of <paramref name="appUserModelId"/> (T-181). The overload with
+    /// the app id: an app without package identity has no implicit one; an empty group is the group of a toast that set none.
+    /// </summary>
+    /// <exception cref="Exception">WinRT toasts are not available, or Windows refused.</exception>
+    public static void Remove(string appUserModelId, string tag)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appUserModelId);
+        ArgumentException.ThrowIfNullOrEmpty(tag);
+        With(toasts =>
+        {
+            using HString id = HString.Create(appUserModelId);
+            using HString tagText = HString.Create(tag);
+            using HString noGroup = HString.Create(string.Empty);
+            toasts.RemoveGroupedTagWithId(tagText.Handle, noGroup.Handle, id.Handle);
+        });
+    }
+
+    private static void With(Action<IToastNotificationHistory> action)
+    {
         using ComApartment apartment = ComApartment.EnterMultithreaded();
         using HString className = HString.Create(WinRtClassNames.ToastNotificationManager);
         Marshal.ThrowExceptionForHR(ComNative.RoGetActivationFactory(className.Handle, in WinRtInterfaceIds.ToastNotificationManagerStatics2, out nint statics));
@@ -444,8 +471,7 @@ internal sealed class WinRtToastHistory : IToastHistory
             IToastNotificationHistory toasts = ComObjects.Wrap<IToastNotificationHistory>(history);
             try
             {
-                using HString id = HString.Create(appUserModelId);
-                toasts.ClearWithId(id.Handle);
+                action(toasts);
             }
             finally
             {

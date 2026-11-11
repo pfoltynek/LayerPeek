@@ -374,6 +374,9 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] **T-181** (krit. „E2E test aktualizace … s feedem podepsaným testovacím klíčem“, část Windows): `pwsh tools/run-e2e.ps1
       -Class '*UpdateTests*'` PASS (feed podepsaný testovacím klíčem přijat, nepodepsaný odmítnut); notifikace o odmítnutí
       (toast) a kliknutí otevře záložku „Spuštění a aktualizace“.
+- [ ] **T-181** (rozhodnutí 2026-11-11, část Windows): toast „Je dostupná nová verze“ z dřívější platné kontroly zmizí
+      z centra oznámení, jakmile se feed odmítne (`RemoveGroupedTagWithId`, tag `layerpeek-update-available`, i toast
+      z dřívějšího běhu); v menu ikony je místo nabídky „Aktualizace odmítnuta…“ a otevře záložku „Spuštění a aktualizace“.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

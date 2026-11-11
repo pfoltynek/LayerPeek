@@ -14,7 +14,8 @@ namespace LayerPeek.App.Settings;
 /// T-181 (decisions 5 and 7): while the update feed is refused (its signature could not be verified) the tab shows the error
 /// under the button, whichever check found it; it follows <see cref="FeedRejections"/> on the UI thread. The result of a manual
 /// check that no longer fits (up to date or available while refused, refused while no longer) is cleared rather than shown
-/// next to a contradicting error.
+/// next to a contradicting error. The error names no version (user decision 2026-11-11: the one a refused feed claims is
+/// chosen by its author) and advises no manual install.
 /// </para>
 /// </summary>
 public sealed partial class SettingsViewModel
@@ -122,25 +123,10 @@ public sealed partial class SettingsViewModel
     /// <summary>The update feed is refused (T-181): the error stays on the tab until a later check succeeds.</summary>
     public bool ShowsUpdateRejected => _feedRejection is not null;
 
-    /// <summary>
-    /// "Refused version: X.Y.Z" under the error, when the refused feed names a version (untrusted, shown only); otherwise
-    /// <see langword="null"/>.
-    /// </summary>
-    public string? UpdateRejectedVersionText => _feedRejection?.ClaimedVersion is { } version
-        ? Format(Strings.SettingsUpdateRejectedVersion, version.ToString())
-        : null;
-
-    /// <summary>The refused version is named.</summary>
-    public bool ShowsUpdateRejectedVersion => _feedRejection?.ClaimedVersion is not null;
-
     private bool CanCheckForUpdates => CheckForUpdatesNow is not null && !_isCheckingForUpdates && !_disposed;
 
-    /// <summary>The result and the refused version in the new language.</summary>
-    private void RefreshUpdateTexts()
-    {
-        OnPropertyChanged(nameof(UpdateCheckResultText));
-        OnPropertyChanged(nameof(UpdateRejectedVersionText));
-    }
+    /// <summary>The result in the new language (the error box binds its text to the localized strings itself).</summary>
+    private void RefreshUpdateTexts() => OnPropertyChanged(nameof(UpdateCheckResultText));
 
     private void DisposeUpdates()
     {
@@ -167,10 +153,13 @@ public sealed partial class SettingsViewModel
             return;
         }
 
+        bool shownBefore = _feedRejection is not null;
         _feedRejection = rejection;
-        OnPropertyChanged(nameof(ShowsUpdateRejected));
-        OnPropertyChanged(nameof(UpdateRejectedVersionText));
-        OnPropertyChanged(nameof(ShowsUpdateRejectedVersion));
+        if (shownBefore != (rejection is not null))
+        {
+            OnPropertyChanged(nameof(ShowsUpdateRejected));
+        }
+
         ClearContradictingResult();
     }
 

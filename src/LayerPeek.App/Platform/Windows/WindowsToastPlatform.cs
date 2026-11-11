@@ -203,11 +203,13 @@ internal sealed class WindowsToastSession : IToastSession
     private readonly ToastActivationCallback _callback;
     private readonly ToastFailedCallback _failedCallback;
     private readonly Action<Exception> _releaseFailed;
+    private readonly string _appUserModelId;
     private readonly Queue<WinRtToast> _recent = new(KeptToasts + 1);
     private bool _disposed;
 
-    private WindowsToastSession(WinRtToastFactory factory, WinRtToastNotifier notifier, ToastActivationCallback callback, ToastFailedCallback failedCallback, Action<Exception> releaseFailed)
+    private WindowsToastSession(string appUserModelId, WinRtToastFactory factory, WinRtToastNotifier notifier, ToastActivationCallback callback, ToastFailedCallback failedCallback, Action<Exception> releaseFailed)
     {
+        _appUserModelId = appUserModelId;
         _factory = factory;
         _notifier = notifier;
         _callback = callback;
@@ -229,7 +231,7 @@ internal sealed class WindowsToastSession : IToastSession
         {
             notifier = factory.CreateNotifier(appUserModelId);
             callback = new ToastActivationCallback(activated);
-            return new WindowsToastSession(factory, notifier, callback, new ToastFailedCallback(failed), releaseFailed);
+            return new WindowsToastSession(appUserModelId, factory, notifier, callback, new ToastFailedCallback(failed), releaseFailed);
         }
         catch
         {
@@ -278,6 +280,13 @@ internal sealed class WindowsToastSession : IToastSession
         {
             Disposables.DisposeAll([_recent.Dequeue()], _releaseFailed);
         }
+    }
+
+    /// <summary>The history of the app's toasts (<see cref="WinRtToastHistory.Remove"/>), on the thread of the session.</summary>
+    public void Remove(string tag)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        WinRtToastHistory.Remove(_appUserModelId, tag);
     }
 
     public void Dispose()

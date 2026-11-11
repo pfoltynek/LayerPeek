@@ -481,9 +481,11 @@ Nowa wersja pojawi się jako **Dostępna nowa wersja X.Y.Z** w menu ikony i jedn
 Twoje ustawienia i hasła zostają zachowane.
 
 **Aktualizacja odrzucona:** zainstalowana wersja przyjmuje aktualizację tylko wtedy, gdy da się zweryfikować jej podpis.
-Jeśli się nie da, LayerPeek niczego nie instaluje i pokazuje powiadomienie (raz dla każdej oferowanej wersji; kliknięcie
-otwiera ustawienia) oraz błąd na karcie **Uruchamianie i aktualizacje**, który pozostaje, dopóki kolejne sprawdzenie się
-nie powiedzie. Pobierz nową wersję ze strony wydania na GitHubie i zainstaluj ją ręcznie.
+Jeśli się nie da, LayerPeek niczego nie instaluje: pokazuje powiadomienie (raz dla każdej oferowanej wersji; kliknięcie
+otwiera ustawienia) oraz błąd na karcie **Uruchamianie i aktualizacje**, a menu ikony zamiast nowej wersji pokazuje
+**Aktualizacja odrzucona…** (powiadomienie o nowej wersji znika). Tak pozostaje, dopóki kolejne sprawdzenie się nie
+powiedzie. Nie instaluj tej wersji ręcznie, samo wydanie mogło zostać podmienione: poczekaj na kolejne wydanie lub
+śledź ogłoszenia projektu.
 
 ## 13. Gdzie są przechowywane Twoje dane
 

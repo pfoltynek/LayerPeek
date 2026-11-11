@@ -27,8 +27,11 @@ internal enum UpdateAction
 /// <item>One action for the menu item and the notification: the release page, or in a Velopack installation download, quit
 /// and restart (Q6 a, <see cref="AppUpdates.ApplyAsync"/>). A macOS <c>.app</c> that runs translocated or from the
 /// <c>.dmg</c> gets no update (Q8 a): it opens the release page and the settings window says to move the app first.</item>
-/// <item><see cref="Changed"/> reports a new <see cref="Available"/> or <see cref="IsInstalling"/>, on any thread.</item>
-/// <item>The refused feed of the service (T-181) for the Startup and updates tab (<see cref="IUpdateFeedRejections"/>).</item>
+/// <item><see cref="Changed"/> reports a new <see cref="Available"/>, <see cref="IsInstalling"/> or <see cref="FeedRejection"/>,
+/// on any thread.</item>
+/// <item>The refused feed of the service (T-181) for the Startup and updates tab (<see cref="IUpdateFeedRejections"/>) and the
+/// tray menu. While it is refused nothing is offered (the service withdraws the offer, user decision 2026-11-11) and a Velopack
+/// installation installs nothing (<see cref="AppUpdates.IsFeedRejected"/>); a click then opens no release page either.</item>
 /// </list>
 /// </summary>
 internal sealed partial class UpdateOffer : IMonitoringObserver, IUpdateFeedRejections, IDisposable
@@ -56,7 +59,8 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IUpdateFeedReje
         NeedsMoveToApplications = installer is null && needsMoveToApplications;
         _urls = urls;
         _logger = logger;
-        _service.AvailableChanged += OnAvailableChanged;
+        _service.AvailableChanged += OnServiceChanged;
+        _service.FeedRejectionChanged += OnServiceChanged;
     }
 
     /// <summary>The version of the running app.</summary>
@@ -85,7 +89,7 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IUpdateFeedReje
     /// <summary>A Velopack update is being downloaded; the app quits once it is ready.</summary>
     public bool IsInstalling => _installing;
 
-    /// <summary><see cref="Available"/> or <see cref="IsInstalling"/> changed (any thread).</summary>
+    /// <summary><see cref="Available"/>, <see cref="IsInstalling"/> or <see cref="FeedRejection"/> changed (any thread).</summary>
     public event EventHandler? Changed;
 
     /// <summary>
@@ -135,13 +139,27 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IUpdateFeedReje
         try
         {
             bool scheduled = await _installer.ApplyAsync(release, _includePrereleases, quit, _disposing.Token).ConfigureAwait(true);
-            if (!scheduled)
+            if (scheduled)
             {
-                // The download failed (logged): the release page lets the user update by hand.
-                await _urls.OpenAsync(release.ReleasePage).ConfigureAwait(true);
+                return true;
             }
 
-            return scheduled;
+            if (_installer.IsFeedRejected)
+            {
+                // Never the release page of a refused feed (decision 2026-11-11, open question 22 of T-181). The check of a
+                // release remembered from an earlier run found the refusal: a check of the service withdraws the offer and
+                // shows the refusal in the menu, on the tab and as a notification.
+                if (_service.FeedRejection is null)
+                {
+                    _ = RecheckAsync();
+                }
+
+                return false;
+            }
+
+            // The download failed (logged): the release page lets the user update by hand.
+            await _urls.OpenAsync(release.ReleasePage).ConfigureAwait(true);
+            return false;
         }
         catch (Exception ex)
         {
@@ -178,8 +196,21 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IUpdateFeedReje
 
     public void Dispose()
     {
-        _service.AvailableChanged -= OnAvailableChanged;
+        _service.AvailableChanged -= OnServiceChanged;
+        _service.FeedRejectionChanged -= OnServiceChanged;
         _disposing.Cancel();
+    }
+
+    private async Task RecheckAsync()
+    {
+        try
+        {
+            await _service.CheckNowAsync(_disposing.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The app quits.
+        }
     }
 
     private void Apply(AppSettings settings)
@@ -196,7 +227,7 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IUpdateFeedReje
         RaiseChanged();
     }
 
-    private void OnAvailableChanged(object? sender, EventArgs e) => RaiseChanged();
+    private void OnServiceChanged(object? sender, EventArgs e) => RaiseChanged();
 
     private void RaiseChanged()
     {

@@ -371,7 +371,6 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             refused.Window.Settle();
             Assert.True(refused.Find<Border>("SettingsUpdateRejected").IsEffectivelyVisible);
             Assert.Equal(Strings.SettingsUpdateRejected, refused.Find<TextBlock>("SettingsUpdateRejectedText").Text);
-            Assert.True(refused.Find<TextBlock>("SettingsUpdateRejectedVersion").IsEffectivelyVisible);
             Assert.True(refused.Find<TextBlock>("SettingsOpenAtLoginNeedsApproval").IsEffectivelyVisible);
             Assert.Equal(Strings.SettingsUpdateRejectedResult, refused.Find<TextBlock>("SettingsUpdateCheckResult").Text);
             problems.AddRange(ScrollingViewers(refused.Window, $"{language} / update refused"));

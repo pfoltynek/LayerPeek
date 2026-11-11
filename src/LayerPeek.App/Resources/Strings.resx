@@ -1492,6 +1492,10 @@
     <value>Downloading version {0}…</value>
     <comment>T-058: the same item (disabled) while the update of an installed app downloads; {0} = the version.</comment>
   </data>
+  <data name="MenuUpdateRejected" xml:space="preserve">
+    <value>Update refused…</value>
+    <comment>T-181: tray menu item instead of MenuUpdateAvailable while the update feed is refused; opens the settings on the Startup and updates tab. Plain text, no access key, no version.</comment>
+  </data>
   <data name="MenuUpdateInstallHint" xml:space="preserve">
     <value>Downloads the update, quits LayerPeek and starts the new version.</value>
     <comment>T-058: tooltip of the update item in an installed app (Velopack): what a click does.</comment>
@@ -1549,24 +1553,16 @@
     <comment>T-181: title of the notification about a refused update (its feed failed the signature check); shown once per offered version.</comment>
   </data>
   <data name="NotificationUpdateRejectedBody" xml:space="preserve">
-    <value>Version {0} was not installed because its signature could not be verified. Click for details.</value>
-    <comment>T-181: text of the notification about a refused update; {0} = the version the refused feed names. A click opens the Startup and updates tab.</comment>
-  </data>
-  <data name="NotificationUpdateRejectedBodyNoVersion" xml:space="preserve">
     <value>An update was not installed because its signature could not be verified. Click for details.</value>
-    <comment>T-181: text of the notification about a refused update whose feed names no version. A click opens the Startup and updates tab.</comment>
+    <comment>T-181: text of the notification about a refused update. Names no version (the one a refused feed claims is untrusted, user decision 2026-11-11). A click opens the Startup and updates tab.</comment>
   </data>
   <data name="SettingsUpdateRejectedResult" xml:space="preserve">
     <value>The update was refused.</value>
     <comment>T-181: result of "Check now" when the update feed was refused; the error box below explains it.</comment>
   </data>
   <data name="SettingsUpdateRejected" xml:space="preserve">
-    <value>LayerPeek refused the update because its signature could not be verified, so nothing was installed. Download the new version from the release page on GitHub and install it by hand.</value>
-    <comment>T-181: error box on the Startup and updates tab while the update feed is refused (its signature could not be verified). No technical reasons; points to the release page and a manual install.</comment>
-  </data>
-  <data name="SettingsUpdateRejectedVersion" xml:space="preserve">
-    <value>Refused version: {0}</value>
-    <comment>T-181: hint line in the error box; {0} = the version the refused feed names (untrusted, shown only).</comment>
+    <value>LayerPeek refused the update because its signature could not be verified, so nothing was installed. Do not install this version by hand: wait for the next release or follow the project's announcements.</value>
+    <comment>T-181: error box on the Startup and updates tab while the update feed is refused (its signature could not be verified). No technical reasons and no version; never advises a manual install (user decision 2026-11-11: the release itself may be malicious).</comment>
   </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>Start _recording</value>
