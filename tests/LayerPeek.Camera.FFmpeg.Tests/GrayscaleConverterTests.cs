@@ -71,6 +71,66 @@ public sealed unsafe class GrayscaleConverterTests
         }
     }
 
+    /// <summary>
+    /// Semi-planar (luma plane alone) and 10-bit (converted as a whole) pictures of odd and equal sizes: limited-range
+    /// black and white become 0 and 255 there too.
+    /// </summary>
+    [FFmpegTheory]
+    [InlineData(AVPixelFormat.AV_PIX_FMT_NV12, 1281, 721)]
+    [InlineData(AVPixelFormat.AV_PIX_FMT_NV12, 32, 16)]
+    [InlineData(AVPixelFormat.AV_PIX_FMT_YUV420P10LE, 1281, 721)]
+    [InlineData(AVPixelFormat.AV_PIX_FMT_YUV420P10LE, 32, 16)]
+    public void OtherLayoutsAreExpandedToFullRange(AVPixelFormat format, int sourceWidth, int sourceHeight)
+    {
+        FFmpegRuntime.EnsureLoaded();
+        bool wide = format == AVPixelFormat.AV_PIX_FMT_YUV420P10LE;
+        using GrayscaleConverter converter = new();
+        foreach ((int luma, int expected) in new[] { (16, 0), (235, 255) })
+        {
+            AVFrame* frame = ffmpeg.av_frame_alloc();
+            frame->width = sourceWidth;
+            frame->height = sourceHeight;
+            frame->format = (int)format;
+            Assert.Equal(0, ffmpeg.av_frame_get_buffer(frame, 0));
+            try
+            {
+                for (uint plane = 0; plane < 3 && frame->data[plane] != null; plane++)
+                {
+                    // Neutral chroma; plane 0 the luma (10-bit: four times the 8-bit level).
+                    int rows = plane == 0 ? sourceHeight : (sourceHeight + 1) / 2;
+                    int samples = plane == 0 ? sourceWidth : format == AVPixelFormat.AV_PIX_FMT_NV12 ? (sourceWidth + 1) / 2 * 2 : (sourceWidth + 1) / 2;
+                    int value = plane == 0 ? luma : 128;
+                    for (int y = 0; y < rows; y++)
+                    {
+                        byte* row = frame->data[plane] + (y * frame->linesize[plane]);
+                        if (wide)
+                        {
+                            new Span<ushort>(row, samples).Fill((ushort)(value * 4));
+                        }
+                        else
+                        {
+                            new Span<byte>(row, samples).Fill((byte)value);
+                        }
+                    }
+                }
+
+                CameraGrayscaleFrame gray = converter.Convert(frame, format, fullRange: false, 32, 16);
+
+                for (int y = 0; y < gray.Height; y++)
+                {
+                    foreach (byte pixel in gray.Pixels.Span.Slice(y * gray.Stride, gray.Width))
+                    {
+                        Assert.InRange(pixel, Math.Max(expected - 1, 0), Math.Min(expected + 1, 255));
+                    }
+                }
+            }
+            finally
+            {
+                Free(frame);
+            }
+        }
+    }
+
     [FFmpegFact]
     public void FullRangeLumaIsKept()
     {
@@ -99,6 +159,29 @@ public sealed unsafe class GrayscaleConverterTests
             CameraGrayscaleFrame gray = converter.Convert(frame, AVPixelFormat.AV_PIX_FMT_YUV420P, fullRange: false, 32, 16);
 
             Assert.InRange(Halves(gray).Left, 127, 129);
+        }
+        finally
+        {
+            Free(frame);
+        }
+    }
+
+    /// <summary>A stream that changes its range reuses the cached scaler; the range of each picture still applies (scaled and copied).</summary>
+    [FFmpegTheory]
+    [InlineData(32, 16)]
+    [InlineData(Width, Height)]
+    public void ARangeChangeIsAppliedToTheReusedScaler(int width, int height)
+    {
+        AVFrame* frame = Picture(126, 126);
+        using GrayscaleConverter converter = new();
+        try
+        {
+            foreach (bool fullRange in new[] { true, false, true, false })
+            {
+                CameraGrayscaleFrame gray = converter.Convert(frame, AVPixelFormat.AV_PIX_FMT_YUV420P, fullRange, width, height);
+
+                Assert.InRange(Halves(gray).Left, fullRange ? 126 : 127, fullRange ? 126 : 129);
+            }
         }
         finally
         {
