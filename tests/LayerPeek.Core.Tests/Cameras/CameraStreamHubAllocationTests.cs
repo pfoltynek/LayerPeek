@@ -83,18 +83,28 @@ public sealed class CameraStreamHubAllocationTests
     [Fact]
     public async Task GrayscaleKeyFrameSamplesDoNotAllocate()
     {
-        long allocated = await Task.Run(MeasureSamplesAsync, TestContext.Current.CancellationToken);
+        long allocated = await Task.Run(() => MeasureSamplesAsync(fromFeed: false), TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, allocated);
+    }
+
+    [Fact]
+    public async Task GrayscaleKeyFrameSamplesOfTheFeedDoNotAllocate()
+    {
+        // T-189: the feed converts the samples itself; the hub only copies them.
+        long allocated = await Task.Run(() => MeasureSamplesAsync(fromFeed: true), TestContext.Current.CancellationToken);
 
         Assert.Equal(0, allocated);
     }
 
     /// <summary>
-    /// T-153: the sample lease of print failure detection (key frames only, downscaled to grayscale while copying) and the
-    /// key frame scheduling after every sample allocate nothing.
+    /// T-153: the sample lease of print failure detection (key frames only, downscaled to grayscale while copying, or
+    /// <paramref name="fromFeed"/> as grayscale frames of the feed, T-189) and the key frame scheduling after every sample
+    /// allocate nothing.
     /// </summary>
-    private static async Task<long> MeasureSamplesAsync()
+    private static async Task<long> MeasureSamplesAsync(bool fromFeed)
     {
-        LockstepFeed feed = new(packets: false);
+        LockstepFeed feed = new(packets: false, grayscale: fromFeed ? new CameraGrayscaleSize(320, 180) : null);
         await using CameraStreamHub hub = new(new ReconnectingCameraFeed(new SingleFeedFactory(feed), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance), TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
         using Stopper stopper = new(feed);
         int notified = 0;
@@ -106,13 +116,17 @@ public sealed class CameraStreamHubAllocationTests
         });
         await feed.Started.WaitAsync(TestContext.Current.CancellationToken);
 
+        int sourceWidth = 0;
         void Step()
         {
             feed.Produce();
-            while (samples.TakeLatest() is null)
+            CameraFrameBuffer? sample;
+            while ((sample = samples.TakeLatest()) is null)
             {
                 Thread.Yield();
             }
+
+            sourceWidth = sample.SourceWidth;
         }
 
         for (int i = 0; i < WarmUp; i++)
@@ -133,6 +147,8 @@ public sealed class CameraStreamHubAllocationTests
         }
 
         Assert.True(notified > 0);
+        // The feed's grayscale frames (their source is the camera's 1280 × 720), or the fake's 4 × 2 BGRA frames.
+        Assert.Equal(fromFeed ? 1280 : 4, sourceWidth);
         return minimum;
     }
 
@@ -198,7 +214,9 @@ public sealed class CameraStreamHubAllocationTests
         private static readonly CameraStreamInfo Info = new(CameraVideoCodec.H264, 4, 2, CameraTimeBase.Rtp90kHz, default);
 
         private readonly bool _packets;
+        private readonly CameraGrayscaleSize? _grayscale;
         private readonly byte[] _pixels = new byte[4 * 2 * CameraFrame.BytesPerPixel];
+        private readonly byte[] _luma;
         private readonly byte[] _data = new byte[6000];
         private readonly SemaphoreSlim _credits = new(0);
         private readonly SemaphoreSlim _requests = new(0);
@@ -209,9 +227,14 @@ public sealed class CameraStreamHubAllocationTests
         private long _pts;
         private volatile bool _stopped;
 
-        public LockstepFeed(bool packets)
+        private CameraStreamDemand? _demand;
+
+        /// <param name="grayscale">Yields grayscale frames of this size while the demand wants them (T-189), as the decoder does.</param>
+        public LockstepFeed(bool packets, CameraGrayscaleSize? grayscale = null)
         {
             _packets = packets;
+            _grayscale = grayscale;
+            _luma = new byte[grayscale?.Length ?? 0];
             _producer = new Thread(Run) { IsBackground = true };
             _producer.Start();
         }
@@ -224,7 +247,11 @@ public sealed class CameraStreamHubAllocationTests
 
         public IAsyncEnumerable<CameraFrame> ReadFramesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public IAsyncEnumerable<CameraStreamItem> ReadAsync(CameraStreamDemand demand, CancellationToken cancellationToken) => this;
+        public IAsyncEnumerable<CameraStreamItem> ReadAsync(CameraStreamDemand demand, CancellationToken cancellationToken)
+        {
+            _demand = demand;
+            return this;
+        }
 
         public IAsyncEnumerator<CameraStreamItem> GetAsyncEnumerator(CancellationToken cancellationToken = default) => this;
 
@@ -280,7 +307,9 @@ public sealed class CameraStreamHubAllocationTests
                 _pts += 4500;
                 Current = _packets
                     ? CameraStreamItem.FromPacket(new CameraPacket(_data, _pts, _pts, 4500, IsKeyFrame: false, CameraTimeBase.Rtp90kHz))
-                    : CameraStreamItem.FromFrame(new CameraFrame(4, 2, 4 * CameraFrame.BytesPerPixel, _pixels));
+                    : _grayscale is { } size && _demand is { GrayscaleDue: true }
+                        ? CameraStreamItem.FromFrames(default, default, new CameraGrayscaleFrame(size.Width, size.Height, size.Width, _luma, 1280, 720))
+                        : CameraStreamItem.FromFrame(new CameraFrame(4, 2, 4 * CameraFrame.BytesPerPixel, _pixels));
                 _source.SetResult(true);
             }
         }

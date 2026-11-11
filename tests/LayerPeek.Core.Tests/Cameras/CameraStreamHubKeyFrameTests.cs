@@ -207,6 +207,71 @@ public sealed class CameraStreamHubKeyFrameTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task TheSamplesAreGrayscaleOfTheFeedAndNoFrameIsConvertedInFull()
+    {
+        // T-189: the decoder scales the luma plane straight to the samples' size.
+        using CameraFrameSubscription samples = _hub.SubscribeFrames("mk4", StreamUri, Samples());
+        FakeItemFeed feed = await _factory.FeedAsync(1);
+        CameraStreamDemand demand = await feed.Started;
+        Assert.False(demand.FullResolutionDue);
+        Assert.True(demand.GrayscaleDue);
+        Assert.Equal(new CameraGrayscaleSize(16, 16), demand.GrayscaleSize);
+
+        feed.PushFrame(fill: 20, width: 64, height: 36, keyFrame: true);
+        CameraFrameBuffer first = await NextFrameAsync(samples);
+        Assert.Equal((CameraPixelFormat.Gray8, 16, 16, 64, 36, (byte)20), (first.Format, first.Width, first.Height, first.SourceWidth, first.SourceHeight, first.Pixels[0]));
+        Assert.False(demand.GrayscaleDue);
+
+        _time.Advance(Interval);
+        feed.PushFrame(fill: 30, keyFrame: true);
+        Assert.Equal(30, (await NextFrameAsync(samples)).Pixels[0]);
+        Assert.Equal((0, 2), (feed.FullConversions, feed.GrayscaleConversions));
+    }
+
+    [Fact]
+    public async Task AFeedThatIgnoresTheConversionsStillServesTheSamplesFromItsFullFrames()
+    {
+        FakeItemFeedFactory factory = new() { IgnoresConversions = true };
+        await using CameraStreamHub ignoring = new(new ReconnectingCameraFeed(factory, _time, new ListLogger<ReconnectingCameraFeed>(), Options), _time, new ListLogger<CameraStreamHub>());
+        using CameraFrameSubscription samples = ignoring.SubscribeFrames("mk4", StreamUri, Samples());
+        FakeItemFeed feed = await factory.FeedAsync(1);
+
+        feed.PushFrame(fill: 40, keyFrame: true);
+        CameraFrameBuffer sample = await NextFrameAsync(samples);
+
+        // Converted while copying, as before T-189.
+        Assert.Equal((CameraPixelFormat.Gray8, 16, 16, (byte)40), (sample.Format, sample.Width, sample.Height, sample.Pixels[0]));
+        Assert.Equal(0, feed.GrayscaleConversions);
+    }
+
+    [Fact]
+    public async Task ASecondGrayscaleSizeIsServedFromFullFramesOnlyWhenItIsDue()
+    {
+        using CameraFrameSubscription samples = _hub.SubscribeFrames("mk4", StreamUri, Samples());
+        using CameraFrameSubscription other = _hub.SubscribeFrames("mk4", StreamUri, new CameraFrameSubscriptionOptions
+        {
+            KeyFramesOnly = true,
+            MinFrameInterval = Interval,
+            Grayscale = new CameraGrayscaleSize(32, 18),
+        });
+        FakeItemFeed feed = await _factory.FeedAsync(1);
+        CameraStreamDemand demand = await feed.Started;
+        // The feed converts the first size; the second one is a full-resolution subscriber.
+        Assert.Equal(new CameraGrayscaleSize(16, 16), demand.GrayscaleSize);
+        Assert.True(demand.FullResolutionDue);
+
+        feed.PushFrame(fill: 50, keyFrame: true);
+        CameraFrameBuffer first = await NextFrameAsync(samples);
+        CameraFrameBuffer second = await NextFrameAsync(other);
+
+        Assert.Equal((16, 16, (byte)50), (first.Width, first.Height, first.Pixels[0]));
+        Assert.Equal((32, 18, (byte)50), (second.Width, second.Height, second.Pixels[0]));
+        Assert.Equal((1, 1), (feed.FullConversions, feed.GrayscaleConversions));
+        Assert.False(demand.FullResolutionDue);
+        Assert.False(demand.GrayscaleDue);
+    }
+
+    [Fact]
     public void GrayscaleSizeIsValidated()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new CameraGrayscaleSize(CameraGrayscaleSize.MinSide - 1, 180));

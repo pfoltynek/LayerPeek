@@ -23,6 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Camera window performance:** the mini preview and camera windows smaller than the camera image convert the image at
   the size it is shown instead of the camera's full resolution, and each frame is copied once, off the UI thread.
   Snapshots, recordings, timelapses and print failure detection keep the full resolution.
+- **Print failure detection performance:** its samples are scaled straight from the brightness (luma) of the camera
+  image instead of being converted to full-resolution colour first: about a tenth of the work per sample and no
+  full-size colour buffer while only detection watches the camera. The detection thresholds are unchanged.
 
 ### Fixed
 
