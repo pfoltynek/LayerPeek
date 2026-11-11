@@ -97,6 +97,26 @@ public sealed class FFmpegCameraFeedDisplayTests
     }
 
     [FFmpegFact]
+    public async Task ADisplaySizeOnlyALittleSmallerThanTheCameraIsConvertedInFullResolution()
+    {
+        // T-195: scaling down by a few percent costs more than it saves; the renderer scales the full frame.
+        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
+        int frames = 0;
+
+        await foreach (CameraStreamItem item in feed.ReadAsync(DisplayOnly(TestFixtures.Buddy3DWidth - 64, TestFixtures.Buddy3DHeight), Ct))
+        {
+            if (item.Kind == CameraStreamItemKind.Frame)
+            {
+                frames++;
+                Assert.Equal(0, item.DisplayFrame.Width);
+                Assert.Equal((TestFixtures.Buddy3DWidth, TestFixtures.Buddy3DHeight), (item.Frame.Width, item.Frame.Height));
+            }
+        }
+
+        Assert.Equal(TestFixtures.Buddy3DFrameCount, frames);
+    }
+
+    [FFmpegFact]
     public async Task ChangingTheDisplaySizeReconfiguresWithoutInterruptingTheStream()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);

@@ -20,9 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **Camera window performance:** the mini preview and camera windows smaller than the camera image convert the image at
-  the size it is shown instead of the camera's full resolution, and each frame is copied once, off the UI thread.
-  Snapshots, recordings, timelapses and print failure detection keep the full resolution.
+- **Camera window performance:** the mini preview and camera windows clearly smaller than the camera image (up to 70 % of
+  its width) convert the image at the size it is shown instead of the camera's full resolution, and each frame is copied
+  once, off the UI thread. A window only a little smaller keeps the full resolution and lets the display scale it, which
+  measured cheaper. Snapshots, recordings, timelapses and print failure detection keep the full resolution.
 - **Mini preview frame rate:** the mini preview shows at most 10 frames per second by default (the frames in between are
   decoded but not converted, copied or drawn), which saves CPU; the normal window and full screen keep the camera's full
   frame rate. A new **Camera** tab of the settings sets it for all cameras: Economy (5 fps), Balanced (10 fps), Smooth
