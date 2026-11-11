@@ -200,6 +200,16 @@ Rozhodnuto uživatelem 2026-11-11 (otázky 8–24):
 - 22: text odmítnutí (záložka, notifikace, příručky): **neinstalovat ručně, počkat** na další vydání nebo sledovat
   oznámení projektu; **bez řádku s odmítnutou verzí** (verzi volí autor feedu).
 - 23: kanál stabilní / předběžné vydání v podpisu **ne** – přijato jako zbytkové riziko, zapsat do `docs/release.md`.
+
+Otevřené (2026-11-11):
+25. **Pokusy o heslo při podpisu:** skript dovolí 3 pokusy o heslo z výzvy při podpisu na konci buildu (aby překlep
+    nezahodil build). Ponechat?
+26. **Režim „jen podepsat hotový `dist/`“:** když podpis na konci selže, musí se dnes opakovat celý build (~20 min).
+    Doplnit samostatný režim podpisu (případně samostatný úkol)?
+27. **Opětovná notifikace po zrušení odmítnutí:** když odmítnutí skončí a nabízí se stejná verze, položka v menu se vrátí,
+    ale notifikace „dostupná aktualizace“ se neukáže znovu (verze už byla oznámená, notifikace se při odmítnutí stáhla).
+    Ukázat ji znovu?
+
 ## Poznámky k implementaci
 Koncept (core-dev, 2026-11-10; skripty vydání, UI, notifikace, `docs/release.md` a CHANGELOG zbývají):
 - Průzkum Velopacku 1.2.161 v `docs/velopack.md`, bod 13: Velopack podpis feedu nemá, updater nic znovu nestahuje, přesné
@@ -274,6 +284,16 @@ UI – rozhodnutí 2026-11-11 (ui-dev):
 Stav 2026-11-10: zbývá produkční klíč (vytvoří uživatel na offline médiu, veřejný klíč do `UpdateFeedKeys.Production`),
 odpovědi na otázky 8–21 a zkušební vydání. Dokud je `Production` prázdný, nesmí vyjít vydání z této větve (nepřijalo by
 žádnou další aktualizaci) – podepsaný build ho ani nedovolí.
+
+Skripty – rozhodnutí 2026-11-11 (qa-reviewer):
+- Otázka 17: `release-build.ps1` na začátku klíč jen ověří (`Confirm-FeedSigningKey`: soubor a šifrování → `Production`
+  není prázdný → heslo → dešifrování → veřejný klíč v seznamu, vypíše otisk) a hned zahodí klíč, jeho šifrovaný text
+  i kopii hesla; do konce buildu drží jen cestu ke klíči, otisk a veřejné klíče ze seznamu.
+- Po zabalení `Invoke-FeedSigning`: chybějící soubor → interaktivně výzva k připojení média a nový pokus (Enter / `abort`),
+  neinteraktivně jasná chyba. Soubor se čte znovu, heslo podruhé (z výzvy 3 pokusy, `-FeedSigningKeyPassword` jednou);
+  klíč s jiným otiskem než na začátku se odmítne. Pak podpis, ověření, zahození klíče.
+- `docs/release.md`: médium připojené do konce buildu, heslo dvakrát, tabulka chyb při podpisu; zapsána rozhodnutí 16, 18,
+  19, 20, 21 a 23. Pester 398 prošlo, 0 selhalo, 4 přeskočeny.
 
 Mimo rozsah (zapsat jako alternativy, nerozhodovat):
 - **SignPath Foundation** – bezplatný Authenticode podpis pro open-source projekty; vyžaduje build v GitHub Actions
