@@ -1,7 +1,7 @@
 ---
 id: T-181
 title: Podepsaný feed aktualizací (podpis releases.<RID>.json offline klíčem, ověření v aplikaci)
-status: in-progress
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -109,8 +109,9 @@ Dnes: `src/LayerPeek.App/Installer/VelopackUpdateEngine.cs` používá
       `docs/architecture.md`: nový zdroj aktualizací a kde leží veřejný klíč
 - [x] `CHANGELOG.md` (`[Unreleased]`, `### Security`): aktualizace jsou ověřované podpisem
 - [x] Žádný nový NuGet balíček; žádné nové trim/AOT varování
-- [ ] Zkušební vydání (`docs/release.md`, „Zkušební vydání“): podepsaný feed nahraný, nainstalovaná verze s ověřením
-      aktualizaci přijme → přesunout do T-125 / T-127, pokud nejde ověřit v úkolu
+- [x] Zkušební vydání (`docs/release.md`, „Zkušební vydání“): podepsaný feed nahraný, nainstalovaná verze s ověřením
+      aktualizaci přijme → přesunout do T-125 / T-127, pokud nejde ověřit v úkolu → přesunuto do T-127 (zapisuje na GitHub:
+      jen s výslovným souhlasem uživatele a s médiem s produkčním klíčem)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -128,7 +129,7 @@ Rozhodnuto uživatelem 2026-11-06:
    aktualizace“ zůstává vidět stále.
 
 Otevřené (core-dev, 2026-11-10):
-8. **Produkční klíč zatím neexistuje** (vytvoří ho uživatel na offline médiu). `UpdateFeedKeys.Production` je zatím prázdný
+8. *(Vyřešeno 2026-11-11: produkční klíč existuje, viz rozhodnutí níže.)* **Produkční klíč zatím neexistuje** (vytvoří ho uživatel na offline médiu). `UpdateFeedKeys.Production` je zatím prázdný
    zástupný seznam, takže každý feed z GitHubu se odmítne (fail closed) a instalace Velopacku nenabídne žádnou aktualizaci.
    Jak se má build chovat, dokud klíč není? Návrh: v kódu ponechat fail closed a `release-build.ps1` (bez `-SkipFeedSignature`)
    ať odmítne vydání, dokud je seznam prázdný nebo veřejný klíč ze zadaného soukromého klíče v seznamu není – tak nejde vydat
@@ -210,6 +211,17 @@ Otevřené (2026-11-11):
     ale notifikace „dostupná aktualizace“ se neukáže znovu (verze už byla oznámená, notifikace se při odmítnutí stáhla).
     Ukázat ji znovu?
 
+Rozhodnuto uživatelem 2026-11-11 (otázky 8, 25–27):
+- 8: **vyřešeno** – produkční klíč existuje: uživatel ho vytvořil na offline USB s ověřenou zálohou, veřejný klíč je
+  v `UpdateFeedKeys.Production` (otisk SHA-256 `4cb047d19a472427db721e607c76c15ba0fad96e59d564114a62a7e5e7b91e26`).
+  Kontrola prázdného seznamu v `release-build.ps1` zůstává jako pojistka (např. omyl při rotaci); postup „Veřejný klíč
+  do aplikace“ v `docs/release.md` zůstává jako postup pro rotaci.
+- 25: **ponechat 3 pokusy** o heslo při podpisu (beze změny).
+- 26: režim „jen podepsat hotový `dist/`“ = **samostatný úkol T-197** (`dist/` jen z čistého commitu tagu a beze změny od
+  buildu, stejné kontroly klíče jako `release-build.ps1`); v tomto úkolu se neimplementuje.
+- 27: **ano** – když odmítnutí skončí a nabízí se znovu stejná verze, notifikace „dostupná aktualizace“ se ukáže znovu
+  (při odmítnutí se stáhla); jinak dál jednou pro každou verzi.
+
 ## Poznámky k implementaci
 Koncept (core-dev, 2026-11-10; skripty vydání, UI, notifikace, `docs/release.md` a CHANGELOG zbývají):
 - Průzkum Velopacku 1.2.161 v `docs/velopack.md`, bod 13: Velopack podpis feedu nemá, updater nic znovu nestahuje, přesné
@@ -219,7 +231,7 @@ Koncept (core-dev, 2026-11-10; skripty vydání, UI, notifikace, `docs/release.m
   tvrzená verze, SHA-256 feedu), `UpdateCheckOutcome.FeedRejected`, `UpdateCheckService.FeedRejection` a
   `FeedRejectionChanged`, `UpdateCheckResult.Rejection`.
 - App: `Installer/SignedUpdateSource` (GitHub jen s produkčními klíči, testovací zdroje jen s testovacím klíčem, klíče nejdou
-  předat zvenku), `Installer/UpdateFeedKeys` (produkční klíč zatím zástupně prázdný, testovací jen v Debug), pojmenovaný
+  předat zvenku), `Installer/UpdateFeedKeys` (produkční klíč od 2026-11-11, testovací jen v Debug), pojmenovaný
   klient `LayerPeek.UpdateFeed` s limity a timeoutem, `VelopackUpdateEngine` ho používá.
 - Testy: sdílený vektor `tests/Shared/Fixtures/UpdateFeed` (testovací pár klíčů – není tajný, i šifrovaná varianta s heslem
   `layerpeek-test-only`; podpis z PowerShellu 7), `UpdateFeedVerifierTests`, testy odmítnutí v `UpdateCheckServiceTests`,
@@ -281,9 +293,8 @@ UI – rozhodnutí 2026-11-11 (ui-dev):
   jazycích prošel. Neověřeno: skutečné stažení toastu na Windows (přidáno do T-125, oddíl 2v) a skutečné stažení notifikace
   v Centru oznámení macOS (jen fake).
 
-Stav 2026-11-10: zbývá produkční klíč (vytvoří uživatel na offline médiu, veřejný klíč do `UpdateFeedKeys.Production`),
-odpovědi na otázky 8–21 a zkušební vydání. Dokud je `Production` prázdný, nesmí vyjít vydání z této větve (nepřijalo by
-žádnou další aktualizaci) – podepsaný build ho ani nedovolí.
+Stav 2026-11-10 (překonáno 2026-11-11): zbýval produkční klíč, odpovědi na otázky 8–21 a zkušební vydání. Klíč je od
+2026-11-11 v `UpdateFeedKeys.Production`, otázky jsou rozhodnuté, zkušební vydání je v T-127.
 
 Skripty – rozhodnutí 2026-11-11 (qa-reviewer):
 - Otázka 17: `release-build.ps1` na začátku klíč jen ověří (`Confirm-FeedSigningKey`: soubor a šifrování → `Production`
@@ -294,6 +305,28 @@ Skripty – rozhodnutí 2026-11-11 (qa-reviewer):
   klíč s jiným otiskem než na začátku se odmítne. Pak podpis, ověření, zahození klíče.
 - `docs/release.md`: médium připojené do konce buildu, heslo dvakrát, tabulka chyb při podpisu; zapsána rozhodnutí 16, 18,
   19, 20, 21 a 23. Pester 398 prošlo, 0 selhalo, 4 přeskočeny.
+
+Dokončení 2026-11-11 (core-dev):
+- Produkční klíč: `UpdateFeedKeys.Production` obsahuje veřejný klíč uživatele (commit na větvi, otisk výše). Test
+  `EveryProductionKeyIsAP256PublicKey` teď vyžaduje neprázdný seznam (prázdný by odmítl každý feed z GitHubu); Pester dál
+  ověřuje, že testovací klíč v `Production` není. `docs/release.md`: pojistka proti prázdnému seznamu a „Veřejný klíč do
+  aplikace“ přepsané jako postup pro další klíč (rotace), bez zmínky o zástupném seznamu; `docs/velopack.md`: čtení
+  jen nejnovějšího feedu označeno jako potvrzené (otázka 9).
+- Otázka 27: `UpdateState.NotifiedVersionWithdrawn` (v `update-state.json` `notifiedVersionWithdrawn: true`, zapisuje se
+  jen když platí; bez `notifiedVersion` se při čtení zahodí). `UpdateCheckService.RejectAsync` ho nastaví při začátku
+  odmítnutí, když už nějaká verze oznámená byla (spolu se stažením nabídky a notifikace, uloží se, takže platí i po
+  restartu). `NotifyIfNewAsync` pak oznámí i verzi **rovnou** oznámené, ne jen vyšší, a příznak smaže; nižší verze se
+  neoznámí (příznak zůstane, dokud se stažená verze nebo vyšší nenabídne). Při vypnutých notifikacích se verze jako dřív
+  počítá jako oznámená. Bez nových řetězců; manuály (oddíl 12, 8 jazyků) doplněné o „pak se nová verze nabídne znovu
+  a upozornění na ni se ukáže ještě jednou“; `docs/architecture.md` doplněna.
+- Drobnost chování (ne otázka, plyne z jednoduchého pravidla): příznak se nastaví i tehdy, když se původní notifikace
+  neukázala (notifikace byly vypnuté); po zapnutí notifikací před koncem odmítnutí se pak verze oznámí poprvé.
+- Testy: `UpdateCheckServiceTests` (stejná verze se po konci odmítnutí oznámí jednou znovu, další kontrola už ne, nové
+  odmítnutí a jeho konec znovu; i po restartu; nižší verze ne, vyšší jednou; odmítnutí bez oznámené verze nic neopakuje;
+  vypnuté notifikace), `JsonUpdateStateStoreTests` (round trip, příznak se nezapisuje, když neplatí, bez verze se zahodí).
+- Kritérium zkušebního vydání přesunuto do T-127, oddíl 3 (zapisuje na GitHub – jen s výslovným souhlasem uživatele
+  a s médiem s produkčním klíčem); Windows části zůstávají v T-125, oddíl 2v.
+- Nový úkol T-197 (otázka 26).
 
 Mimo rozsah (zapsat jako alternativy, nerozhodovat):
 - **SignPath Foundation** – bezplatný Authenticode podpis pro open-source projekty; vyžaduje build v GitHub Actions

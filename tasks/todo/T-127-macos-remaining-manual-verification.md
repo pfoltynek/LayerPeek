@@ -389,6 +389,16 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       ad-hoc podpisu): po aktualizaci nebo přetažení nové `.app` přes starou (sezení 9.1–9.2) zapsat: dialog Klíčenky
       „LayerPeek chce použít důvěrné informace…“ ano / ne, a po „Povolit“ znovu při dalším startu?; zůstalo povolení
       oznámení?; ptá se macOS znovu na Místní síť?
+- [ ] **T-181** (krit. „Zkušební vydání … podepsaný feed nahraný, nainstalovaná verze s ověřením aktualizaci přijme“;
+      přesunuto 2026-11-11, rozhodnutí uživatele): **jen s výslovným souhlasem uživatele** (zapisuje na GitHub) a
+      s připojeným médiem s produkčním klíčem (heslo zadává uživatel, dvakrát). Postup `docs/release.md`, „Zkušební
+      vydání (testovací repozitář)“: `release-build.ps1 -FeedSigningKey <klíč>` z commitu s produkčním klíčem
+      v `UpdateFeedKeys.Production` (otisk `4cb047d1…7b91e26`) vytvoří `releases.osx-arm64.json.sig`; `release-upload.ps1`
+      nahraje `.sig` před feedem a build s `-SkipFeedSignature` odmítne; `release-publish.ps1` odmítne vydání bez `.sig`.
+      Nainstalovaná verze s ověřením (T-181) podepsanou aktualizaci přijme a nainstaluje; nepodepsaný nebo změněný feed
+      odmítne (záložka „Spuštění a aktualizace“, notifikace, v menu „Aktualizace odmítnuta…“, nic se nestáhne). Po
+      obnovení platného feedu se nabídka vrátí a notifikace o nové verzi se ukáže znovu (otázka 27 v T-181). Výsledek
+      zapsat do poznámek T-181 a `docs/release.md`.
 - [ ] **T-019** (krit. „Výsledek pokusu Velopack na macOS … zapsaný v `docs/velopack.md`, bod 10“): výsledky tří
       předchozích bodů zapsané v `docs/velopack.md`, bod 10 (odstavec „Stále neověřeno“ aktualizovaný), doporučení
       platí, nebo je upravené.

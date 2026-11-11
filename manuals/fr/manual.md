@@ -515,8 +515,9 @@ Vos paramètres et vos mots de passe sont conservés.
 LayerPeek n'installe rien : il affiche une notification (une seule fois par version proposée ; un clic ouvre les
 paramètres) ainsi qu'une erreur dans l'onglet **Démarrage et mises à jour**, et le menu de l'icône affiche **Mise à jour
 refusée…** à la place de la nouvelle version (la notification de la nouvelle version est retirée). Cela reste ainsi
-jusqu'à ce qu'une vérification ultérieure réussisse. N'installez pas cette version manuellement, la publication
-elle-même a pu être falsifiée : attendez la prochaine version ou suivez les annonces du projet.
+jusqu'à ce qu'une vérification ultérieure réussisse : la nouvelle version est alors de nouveau proposée et sa
+notification s'affiche une fois de plus. N'installez pas cette version manuellement, la publication elle-même a pu être
+falsifiée : attendez la prochaine version ou suivez les annonces du projet.
 
 ## 13. Où sont stockées vos données
 

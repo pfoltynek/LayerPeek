@@ -269,7 +269,8 @@ public sealed class SignedUpdateSourceTests : IDisposable
     [Fact]
     public void EveryProductionKeyIsAP256PublicKey()
     {
-        // Empty until the user adds the real key (placeholder, T-181): then every GitHub feed is rejected.
+        // An empty list would reject every GitHub feed: no installed version would ever update again.
+        Assert.NotEmpty(UpdateFeedKeys.Production);
         Assert.Equal(UpdateFeedKeys.Production.Count, new UpdateFeedVerifier(UpdateFeedKeys.Production).TrustedKeyCount);
     }
 

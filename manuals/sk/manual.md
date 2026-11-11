@@ -476,8 +476,9 @@ Vaše nastavenia a heslá zostanú zachované.
 **Aktualizácia odmietnutá:** nainštalovaná verzia prijme aktualizáciu, iba keď sa dá overiť jej podpis. Keď sa to nedá,
 LayerPeek nič nenainštaluje: zobrazí upozornenie (raz pre každú ponúkanú verziu; kliknutím sa otvoria nastavenia) a
 chybu na karte **Spustenie a aktualizácie** a v ponuke ikony namiesto novej verzie ukáže **Aktualizácia odmietnutá…**
-(upozornenie na novú verziu zmizne). Tak to zostane, kým niektorá ďalšia kontrola neuspeje. Túto verziu neinštalujte
-ručne, samotné vydanie mohol niekto podvrhnúť: počkajte na ďalšie vydanie alebo sledujte oznámenia projektu.
+(upozornenie na novú verziu zmizne). Tak to zostane, kým niektorá ďalšia kontrola neuspeje: potom sa nová verzia ponúkne
+znova a upozornenie na ňu sa ukáže ešte raz. Túto verziu neinštalujte ručne, samotné vydanie mohol niekto podvrhnúť:
+počkajte na ďalšie vydanie alebo sledujte oznámenia projektu.
 
 ## 13. Kde sú uložené vaše údaje
 

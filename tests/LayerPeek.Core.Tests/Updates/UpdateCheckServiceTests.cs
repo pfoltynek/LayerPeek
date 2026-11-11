@@ -440,25 +440,100 @@ public sealed class UpdateCheckServiceTests : IDisposable
         Assert.Equal(1, changes);
         Assert.Equal(["shown", "withdrawn", "rejected"], _notifications.Order);
         Assert.Null(_store.State.Latest);
+        Assert.True(_store.State.NotifiedVersionWithdrawn);
 
         // A refusal again withdraws nothing more.
         await service.CheckNowAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, _notifications.Withdrawals);
 
-        // A good check offers again (the version counts as notified: no second notification).
+        // A good check offers again and, its notification having been withdrawn, notifies the same version once more
+        // (user decision 2026-11-11, open question 27 of T-181).
         _checker.Failure = null;
         Assert.Equal(UpdateCheckOutcome.UpdateAvailable, (await service.CheckNowAsync(TestContext.Current.CancellationToken)).Outcome);
         Assert.Null(service.FeedRejection);
         Assert.Equal(ReleaseVersion.Parse("0.3.2"), service.Available?.Version);
         Assert.Equal(2, changes);
-        Assert.Single(_notifications.Shown);
+        Assert.Equal(["shown", "withdrawn", "rejected", "shown"], _notifications.Order);
+        Assert.All(_notifications.Shown, static notification => Assert.Equal("0.3.2", notification.Version));
         Assert.Equal(ReleaseVersion.Parse("0.3.2"), _store.State.Latest?.Version);
+        Assert.False(_store.State.NotifiedVersionWithdrawn);
 
-        // A later refusal withdraws again.
+        // Otherwise once per version: the next good check notifies no more.
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, _notifications.Shown.Count);
+
+        // A later refusal withdraws again, and its end notifies again.
         _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
         await service.CheckNowAsync(TestContext.Current.CancellationToken);
         Assert.Null(service.Available);
         Assert.Equal(2, _notifications.Withdrawals);
+        _checker.Failure = null;
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(3, _notifications.Shown.Count);
+    }
+
+    [Fact]
+    public async Task AfterARefusalANewerVersionIsNotifiedOnceAndAnOlderOneNotAtAll()
+    {
+        _checker.Next = Release("0.3.3");
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        // An older version than the withdrawn one (e.g. the newest is gone) is no new version: no notification, and the
+        // withdrawn one stays due once it is offered again.
+        _checker.Failure = null;
+        _checker.Next = Release("0.3.2");
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Single(_notifications.Shown);
+        Assert.True(_store.State.NotifiedVersionWithdrawn);
+
+        // A newer one is notified once, as always.
+        _checker.Next = Release("0.3.4");
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(["0.3.3", "0.3.4"], _notifications.Shown.Select(static notification => notification.Version));
+        Assert.Equal(ReleaseVersion.Parse("0.3.4"), _store.State.NotifiedVersion);
+        Assert.False(_store.State.NotifiedVersionWithdrawn);
+    }
+
+    [Fact]
+    public async Task ARefusalWithoutANotifiedVersionWithdrawsNoNotificationToRepeat()
+    {
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.False(_store.State.NotifiedVersionWithdrawn);
+
+        _checker.Failure = null;
+        _checker.Next = Release("0.3.2");
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Single(_notifications.Shown);
+    }
+
+    [Fact]
+    public async Task WithNotificationsOffTheVersionOfAWithdrawnNotificationCountsAsNotifiedAgain()
+    {
+        _checker.Next = Release("0.3.2");
+        UpdateCheckService service = Create("0.3.1");
+        service.ApplyPreferences(On);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        _checker.Failure = new UpdateFeedRejectedException(Rejected("9.9.9"));
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        service.ApplyPreferences(On with { Notify = false });
+
+        _checker.Failure = null;
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+        service.ApplyPreferences(On);
+        await service.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.Single(_notifications.Shown);
+        Assert.False(_store.State.NotifiedVersionWithdrawn);
     }
 
     [Fact]
@@ -477,11 +552,21 @@ public sealed class UpdateCheckServiceTests : IDisposable
         Assert.Equal(1, _notifications.Withdrawals);
         Assert.Null(_store.State.Latest);
         Assert.Equal("version:9.9.9", _store.State.NotifiedRejection);
+        Assert.True(_store.State.NotifiedVersionWithdrawn);
         service.Dispose();
         using UpdateCheckService restarted = new(_checker, ReleaseVersion.Parse("0.3.1"), _store, _notifications, _time, _logger, Timings);
         restarted.ApplyPreferences(On);
         await WaitUntilAsync(() => _store.Loads > 1);
         Assert.Null(restarted.Available);
+        Assert.Empty(_notifications.Shown);
+
+        // The refusal ends in the next run: the withdrawn notification of 0.3.2 comes back once (open question 27).
+        _checker.Failure = null;
+        _checker.Next = Release("0.3.2");
+        await restarted.CheckNowAsync(TestContext.Current.CancellationToken);
+        await restarted.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("0.3.2", Assert.Single(_notifications.Shown).Version);
+        Assert.False(_store.State.NotifiedVersionWithdrawn);
     }
 
     [Fact]

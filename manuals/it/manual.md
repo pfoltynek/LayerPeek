@@ -502,8 +502,9 @@ Le tue impostazioni e password vengono mantenute.
 Se non è possibile, LayerPeek non installa nulla: mostra una notifica (una volta per ogni versione offerta; un clic apre
 le impostazioni) e un errore nella scheda **Avvio e aggiornamenti**, e il menu dell’icona mostra **Aggiornamento
 rifiutato…** al posto della nuova versione (la notifica della nuova versione viene rimossa). Resta così finché un
-controllo successivo non riesce. Non installare quella versione a mano, la release stessa potrebbe essere stata
-manomessa: attendi la prossima versione o segui gli annunci del progetto.
+controllo successivo non riesce: allora la nuova versione viene offerta di nuovo e la sua notifica compare ancora una
+volta. Non installare quella versione a mano, la release stessa potrebbe essere stata manomessa: attendi la prossima
+versione o segui gli annunci del progetto.
 
 ## 13. Dove vengono salvati i tuoi dati
 

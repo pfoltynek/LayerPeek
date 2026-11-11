@@ -55,7 +55,8 @@ public sealed record UpdateCheckTimings(TimeSpan StartDelay, TimeSpan Interval, 
 /// <item><see cref="Available"/> is the newest release above the running version that may be offered (pre-releases only when
 /// they are on offer), also the one remembered from the last run; <see cref="AvailableChanged"/> reports every change.</item>
 /// <item>One notification per new version: for a version above the one notified last (remembered in
-/// <see cref="IUpdateStateStore"/>); with notifications switched off the version counts as notified.</item>
+/// <see cref="IUpdateStateStore"/>); with notifications switched off the version counts as notified. The one exception is a
+/// notification withdrawn while a feed was refused (see below): the version it was about is notified once more.</item>
 /// <item>Failures of a check are only logged (no network, 403 rate limit, 404, invalid data): the release on offer stays.</item>
 /// <item>A feed that failed its signature check (<see cref="UpdateFeedRejectedException"/>, T-181) is a failure too, but it is
 /// kept in <see cref="FeedRejection"/> (<see cref="FeedRejectionChanged"/>) until a later check succeeds, so that the UI can
@@ -65,7 +66,8 @@ public sealed record UpdateCheckTimings(TimeSpan StartDelay, TimeSpan Interval, 
 /// <item>While a feed is refused nothing is offered (user decision 2026-11-11, open questions 11, 12 and 24 of T-181): the
 /// release of an earlier good check (this run or <see cref="IUpdateStateStore"/>) is withdrawn and forgotten, together with
 /// its notification (<see cref="INotificationService.WithdrawUpdateAvailable"/>), and the remembered state no longer offers
-/// it after a restart. The next successful check offers again what its feed names.</item>
+/// it after a restart. The next successful check offers again what its feed names and notifies the version of the withdrawn
+/// notification again (user decision 2026-11-11, open question 27 of T-181; also after a restart).</item>
 /// </list>
 /// Thread-safe; events are raised on the thread that made the change (a timer thread or the caller of a check).
 /// </summary>
@@ -433,8 +435,9 @@ public sealed partial class UpdateCheckService : IDisposable
     }
 
     /// <summary>
-    /// The notification for <paramref name="release"/> when its version is above the one notified last; then the state with the
-    /// new notified version is saved.
+    /// The notification for <paramref name="release"/> when its version is above the one notified last, or is that version and
+    /// its notification was withdrawn (<see cref="UpdateState.NotifiedVersionWithdrawn"/>); then the state with the new notified
+    /// version is saved.
     /// </summary>
     /// <returns>Whether the state was saved.</returns>
     private async Task<bool> NotifyIfNewAsync(UpdateRelease? release, UpdatePreferences? preferences)
@@ -447,12 +450,14 @@ public sealed partial class UpdateCheckService : IDisposable
         UpdateState state;
         lock (_gate)
         {
-            if (_disposed || (_state.NotifiedVersion is { } notified && release.Version <= notified))
+            if (_disposed
+                || (_state.NotifiedVersion is { } notified
+                    && (release.Version < notified || (release.Version <= notified && !_state.NotifiedVersionWithdrawn))))
             {
                 return false;
             }
 
-            _state = _state with { NotifiedVersion = release.Version };
+            _state = _state with { NotifiedVersion = release.Version, NotifiedVersionWithdrawn = false };
             state = _state;
         }
 
@@ -481,7 +486,8 @@ public sealed partial class UpdateCheckService : IDisposable
     /// A check refused <paramref name="feed"/>: it becomes <see cref="FeedRejection"/> and the offer is withdrawn (decision
     /// 2026-11-11), in one step under the lock, so that no reader sees a release on offer next to the refusal. The withdrawal
     /// is saved, so that a restart does not offer the remembered release again before its next check; the notification of the
-    /// offer is withdrawn whenever the refusal starts (it may also be left from an earlier run), before the refusal is notified.
+    /// offer is withdrawn whenever the refusal starts (it may also be left from an earlier run), before the refusal is notified;
+    /// the state remembers that, so that the next successful check notifies that version again (open question 27).
     /// </summary>
     private async Task RejectAsync(RejectedUpdateFeed feed, UpdatePreferences preferences)
     {
@@ -500,9 +506,10 @@ public sealed partial class UpdateCheckService : IDisposable
             rejectionChanged = !Equals(_feedRejection, feed);
             _feedRejection = feed;
             offerWithdrawn = SetAvailableLocked(null);
-            if (_state.Latest is not null)
+            bool markWithdrawn = started && _state.NotifiedVersion is not null && !_state.NotifiedVersionWithdrawn;
+            if (_state.Latest is not null || markWithdrawn)
             {
-                _state = _state with { Latest = null };
+                _state = _state with { Latest = null, NotifiedVersionWithdrawn = _state.NotifiedVersionWithdrawn || markWithdrawn };
                 withdrawn = _state;
             }
         }
