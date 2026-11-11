@@ -55,13 +55,23 @@ internal sealed record CameraTarget
     }
 }
 
-/// <summary>Draws camera frames (the window's <c>WriteableBitmap</c>). UI thread only.</summary>
+/// <summary>
+/// Draws camera frames (the window's <c>WriteableBitmap</c>, T-184): written on the streaming thread, shown on the UI thread.
+/// Thread-safe between <see cref="Write"/> and the UI thread members.
+/// </summary>
 internal interface ICameraFrameSink
 {
-    /// <summary>Shows <paramref name="frame"/>; it is valid only during the call (copy it).</summary>
-    void Present(CameraFrameBuffer frame);
+    /// <summary>
+    /// Streaming thread: copies <paramref name="frame"/> (borrowed, valid only during the call) into the bitmap; a new size
+    /// gets a new bitmap, which <see cref="Show"/> puts on screen. Never called after the view model detached the sink or
+    /// stopped the run.
+    /// </summary>
+    void Write(in CameraFrame frame);
 
-    /// <summary>Removes the image (the camera address changed).</summary>
+    /// <summary>UI thread: shows what was written last and redraws it; <see langword="false"/> when nothing was written.</summary>
+    bool Show();
+
+    /// <summary>UI thread: removes the image (the camera address changed).</summary>
     void Clear();
 }
 
@@ -73,9 +83,10 @@ internal interface ICameraFrameSink
 /// <para>
 /// The window takes frames only while it is active (shown and not minimized, <see cref="SetActive"/>): it holds a lease
 /// on the printer's shared connection of the <see cref="CameraStreamHub"/> (T-143), which reconnects by itself and keeps
-/// the connection for other consumers (and for the hub's linger time). Each borrowed frame is copied once into the lease's
-/// reused buffers (<see cref="CameraFrameExchange"/>); normally at most one UI callback is queued, and it hands only the
-/// newest frame to the <see cref="ICameraFrameSink"/>, so a busy UI drops frames instead of queueing them. Pausing,
+/// the connection for other consumers (and for the hub's linger time). The lease asks for frames of the size the image is
+/// drawn at (T-184, <see cref="SetVideoArea"/>). Each borrowed frame is copied once, on the streaming thread, straight into
+/// the bitmap of the <see cref="ICameraFrameSink"/> (<see cref="CameraFrameSubscriptionOptions.FrameReceived"/>); at most
+/// one UI callback is queued, and it only shows the bitmap, so a busy UI skips frames instead of queueing them. Pausing,
 /// closing and disposing release the lease (a "run"); a lease the hub ended because of a failure is taken again after the
 /// reconnect delay.
 /// </para>
@@ -100,21 +111,31 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private readonly TimeSpan _retryDelay;
     private readonly Action _retry;
     private readonly Action _presentFrame;
-    private readonly Action _requestPresent;
     private readonly Action _applyPrinters;
     private readonly Lock _gate = new();
     private readonly ILocalNetworkPrivacy _localNetwork;
 
+    // Taken by the streaming thread for every frame it writes (uncontended), and by the UI thread when the run or the sink
+    // changes: once a run was stopped or the sink detached, no frame of it is written any more (T-184).
+    private readonly Lock _frameGate = new();
+
     // Guarded by _gate (read by monitor threads).
     private bool _disposed;
+
+    // Written by the UI thread under _frameGate, read under it by the streaming thread.
+    private ICameraFrameSink? _sink;
+    private int _runId;
+
+    // Streaming thread → UI thread: a frame callback is queued (1) or not (0); the source size of the last written frame
+    // (CameraFrameSize packing: width << 32 | height), for the aspect ratio.
+    private int _presentQueued;
+    private long _frameSource;
 
     // UI thread only.
     private Uri _streamUri;
     private string _name;
-    private ICameraFrameSink? _sink;
     private CameraFrameSubscription? _lease;
     private ITimer? _retryTimer;
-    private int _runId;
     private TaskCompletionSource _runEnded = CompletedRun();
     private bool _active;
     private CameraWindowMode _mode;
@@ -190,8 +211,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _logger = logger;
         _monitorPaths = monitorPaths;
         _presentFrame = PresentFrame;
-        // Streaming thread: posting may throw (the UI is gone); the hub then ends the lease (see OnLeaseEnded).
-        _requestPresent = () => _dispatcher.Post(_presentFrame);
+        _applyDisplaySize = ApplyDisplaySize;
         _applyPrinters = ApplyPrinters;
 
         // T-035: the remembered state (when the defaults allow it) or the defaults; the window places itself from these.
@@ -483,8 +503,17 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         }
     }
 
-    /// <summary>The window's drawing surface; <see langword="null"/> detaches it (frames are then dropped).</summary>
-    internal void AttachFrameSink(ICameraFrameSink? sink) => _sink = sink;
+    /// <summary>
+    /// The window's drawing surface; <see langword="null"/> detaches it (frames are then dropped). Returns once a frame
+    /// being written into the previous one is done.
+    /// </summary>
+    internal void AttachFrameSink(ICameraFrameSink? sink)
+    {
+        lock (_frameGate)
+        {
+            _sink = sink;
+        }
+    }
 
     /// <summary>
     /// Double-click on the image: normal window → full screen; full screen → the mode it was entered from; mini preview →
@@ -606,7 +635,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         Overlay.Dispose();
         MiniStrip.Dispose();
         StopStream();
-        _sink = null;
+        DisposeDisplaySize();
+        AttachFrameSink(null);
         if (_stateStore.GetRemoveCount(PrinterId) != _stateRemoveCount)
         {
             return;
@@ -646,26 +676,40 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             return;
         }
 
-        int runId = ++_runId;
+        int runId = NextRun();
+        // A callback that could not be posted by an earlier run (the UI was gone) must not block this one's.
+        Volatile.Write(ref _presentQueued, 0);
         TaskCompletionSource ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _runEnded = ended;
         SetStatus(CameraStatus.Connecting);
         // The window's address: the hub switches the printer's connection to it if it still has another one (Apply, T-040).
+        // T-184: frames of the size the image is drawn at (full resolution until the window was laid out).
         CameraFrameSubscription lease = _hub.SubscribeFrames(PrinterId, _streamUri, new CameraFrameSubscriptionOptions
         {
-            FrameAvailable = _requestPresent,
+            FrameReceived = (in CameraFrame frame) => OnFrameReceived(frame, runId),
+            DisplaySize = _videoSize,
             Status = new StatusReporter(this, runId),
             Ended = subscription => OnLeaseEnded(subscription, ended),
         });
         if (lease.IsEnded)
         {
             // The hub is stopping (quitting): nothing to show any more.
-            _runId++;
+            NextRun();
             ended.TrySetResult();
             return;
         }
 
         _lease = lease;
+        _requestedVideoSize = _videoSize;
+    }
+
+    /// <summary>UI thread: a new run; frames and statuses of the previous one are ignored from now on.</summary>
+    private int NextRun()
+    {
+        lock (_frameGate)
+        {
+            return ++_runId;
+        }
     }
 
     private void StopStream()
@@ -679,7 +723,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         _lease = null;
         // Statuses and frames of the released lease are ignored from now on.
-        _runId++;
+        NextRun();
         lease.Dispose();
         _runEnded.TrySetResult();
     }
@@ -723,7 +767,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         }
 
         _lease = null;
-        _runId++;
+        NextRun();
         if (failure is not null && !_disposed)
         {
             SetStatus(new CameraStatus(CameraConnectionState.Error, $"The camera stream failed ({failure.GetType().Name})."));
@@ -789,20 +833,60 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         }
     }
 
+    /// <summary>
+    /// Streaming thread: copies the borrowed <paramref name="frame"/> of run <paramref name="runId"/> into the sink and
+    /// queues one UI callback unless one is queued already. Throwing (posting failed: the UI is gone; the bitmap could not be
+    /// written) ends the lease with a failure (<see cref="OnLeaseEnded"/>).
+    /// </summary>
+    private void OnFrameReceived(in CameraFrame frame, int runId)
+    {
+        lock (_frameGate)
+        {
+            // A frame of a stopped run (the hub was already handing it over) or without a window is dropped.
+            if (runId != _runId || _sink is not { } sink)
+            {
+                return;
+            }
+
+            sink.Write(frame);
+            Interlocked.Exchange(ref _frameSource, ((long)frame.SourceWidth << 32) | (uint)frame.SourceHeight);
+        }
+
+        if (Interlocked.Exchange(ref _presentQueued, 1) == 0)
+        {
+            try
+            {
+                _dispatcher.Post(_presentFrame);
+            }
+            catch
+            {
+                Volatile.Write(ref _presentQueued, 0);
+                throw;
+            }
+        }
+    }
+
     private void PresentFrame()
     {
-        // Only the current lease's frames: a callback of a released one (paused, or the previous address) finds nothing.
-        CameraFrameBuffer? frame = _disposed ? null : _lease?.TakeLatest();
-        if (frame is null || _sink is not { } sink)
+        // Before showing: a frame written from now on queues the next callback.
+        Volatile.Write(ref _presentQueued, 0);
+        if (_disposed || _lease is null || _sink is not { } sink)
         {
             return;
         }
 
         try
         {
-            sink.Present(frame);
+            if (!sink.Show())
+            {
+                // Cleared (another address) after the frame was written: the next frame of the new camera shows.
+                return;
+            }
+
             HasFrame = true;
-            OnFrameShown(frame.Width, frame.Height);
+            // T-184: the camera's size, not the scaled frame's: its rounding would change the ratio with the window size.
+            long source = Interlocked.Read(ref _frameSource);
+            OnFrameShown((int)(source >> 32), (int)(uint)source);
             // A frame was shown: the next failure of a run is a new one (see LogRunFailure).
             Volatile.Write(ref _lastRunFailure, null);
         }
@@ -893,10 +977,11 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {
             _streamUri = target.StreamUri;
-            // Another camera: its predecessor's image must not stay on screen.
+            // Another camera: its predecessor's image must not stay on screen. Stopped first, so that no frame of the old
+            // run is written after the image was removed.
+            StopStream();
             _sink?.Clear();
             HasFrame = false;
-            StopStream();
             SetStatus(CameraStatus.Connecting);
             if (_active)
             {
