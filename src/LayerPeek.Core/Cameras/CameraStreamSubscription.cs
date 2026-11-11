@@ -256,9 +256,10 @@ public sealed class CameraFrameSubscriptionOptions
     public CameraFrameHandler? FrameReceived { get; init; }
 
     /// <summary>
-    /// T-188 (user decision 2026-11-11): the camera window opened or was restored. When this lease is taken while the
-    /// connection waits between reconnect attempts, the next attempt starts at once and its backoff starts over. Off for
-    /// print failure detection, recording and every other consumer: they never shorten the wait.
+    /// T-188 (user decision 2026-11-11): the camera window opened or was restored, or (T-194) the camera test in the
+    /// settings started. When this lease is taken while the connection waits between reconnect attempts, the next attempt
+    /// starts at once and its backoff starts over. Off for print failure detection, recording and every other consumer:
+    /// they never shorten the wait.
     /// </summary>
     public bool ShortensReconnectWait { get; init; }
 }
