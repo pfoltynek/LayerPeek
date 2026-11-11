@@ -1,8 +1,6 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Localization;
@@ -71,7 +69,7 @@ public sealed class CameraWindowLocalNetworkUiTests(HeadlessSession session)
                 window.Settle();
                 Assert.True(viewModel.IsStatusVisible);
                 string hint = viewModel.IsMini ? Strings.CameraMiniLocalNetworkAccessMayBeOff : Strings.LocalNetworkAccessMayBeOff;
-                problems.AddRange(StatusProblems(window, hint, $"{language} / {name}"));
+                problems.AddRange(CameraHarness.StatusProblems(window, $"{language} / {name}", hint));
             }
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
@@ -84,45 +82,4 @@ public sealed class CameraWindowLocalNetworkUiTests(HeadlessSession session)
         Dispatcher.UIThread.RunJobs();
         window.Settle();
     }
-
-    /// <summary>The status border outside the image area (row 0), or a text of it cut or collapsed.</summary>
-    private static IEnumerable<string> StatusProblems(CameraWindow window, string hint, string context)
-    {
-        Border status = window.GetVisualDescendants().OfType<Border>().Single(static b => b.Classes.Contains("overlay") && b.IsEffectivelyVisible);
-        Control surface = window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "Surface");
-        Rect area = BoundsIn(surface, window);
-        Rect bounds = BoundsIn(status, window);
-        if (!area.Contains(bounds))
-        {
-            yield return $"{context}: the status {bounds} is outside the image area {area}.";
-        }
-
-        TextBlock[] texts = [.. status.GetVisualDescendants().OfType<TextBlock>().Where(static t => t.IsEffectivelyVisible)];
-        if (!texts.Any(t => t.Text == hint))
-        {
-            yield return $"{context}: the hint '{hint}' is not shown.";
-        }
-
-        foreach (TextBlock text in texts)
-        {
-            if (text.TextLayout.TextLines.Any(static line => line.HasCollapsed))
-            {
-                yield return $"{context}: '{text.Text}' is cut.";
-            }
-
-            if (text.TextLayout.Height > text.Bounds.Height + 0.5 || text.TextLayout.Width > text.Bounds.Width + 0.5)
-            {
-                yield return $"{context}: '{text.Text}' needs {text.TextLayout.Width:0.#} × {text.TextLayout.Height:0.#} DIP but has {text.Bounds.Width:0.#} × {text.Bounds.Height:0.#}.";
-            }
-
-            Rect textBounds = BoundsIn(text, window);
-            if (!bounds.Contains(textBounds))
-            {
-                yield return $"{context}: '{text.Text}' {textBounds} sticks out of the status {bounds}.";
-            }
-        }
-    }
-
-    private static Rect BoundsIn(Control control, Visual root) =>
-        new(control.TranslatePoint(default, root) ?? throw new InvalidOperationException("Not in the window."), control.Bounds.Size);
 }

@@ -741,6 +741,8 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     public async Task RunEndedByItselfIsRetriedAfterTheReconnectDelay()
     {
         CameraViewModel viewModel = await RunEndedByItselfAsync();
+        // T-188: the window's own retry shows its delay like a reconnect.
+        Assert.Equal("Next attempt in about 5\u00A0s", viewModel.NextAttemptText);
 
         _time.Advance(CameraFeedOptions.Default.ReconnectDelay - TimeSpan.FromMilliseconds(100));
         _dispatcher.RunAll();

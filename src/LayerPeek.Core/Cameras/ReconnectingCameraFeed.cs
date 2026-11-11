@@ -25,7 +25,8 @@ namespace LayerPeek.Core.Cameras;
 /// up to <see cref="CameraFeedOptions.MaxReconnectDelay"/>. An attempt counts as successful once it streams (its first
 /// packet or frame, the moment <see cref="CameraConnectionState.Streaming"/> is reported); the attempt after it waits the
 /// initial delay again. Every failure status carries the planned start of the next attempt
-/// (<see cref="CameraStatus.NextAttemptAt"/>). A new enumeration starts without delay and with a fresh backoff.
+/// (<see cref="CameraStatus.NextAttemptAt"/>). A new enumeration starts without delay and with a fresh backoff. A
+/// <see cref="CameraReconnectSignal"/> ends a wait early: the next attempt starts at once, with the backoff reset.
 /// </para>
 /// </remarks>
 public sealed partial class ReconnectingCameraFeed
@@ -87,11 +88,18 @@ public sealed partial class ReconnectingCameraFeed
     /// timeouts apply to the gaps between any items. <paramref name="demand"/> is passed to every attempt and may change
     /// at any time.
     /// </summary>
-    public IAsyncEnumerable<CameraStreamItem> ReadAsync(Uri streamUri, CameraStreamDemand demand, IProgress<CameraStatus>? status, CancellationToken cancellationToken)
+    public IAsyncEnumerable<CameraStreamItem> ReadAsync(Uri streamUri, CameraStreamDemand demand, IProgress<CameraStatus>? status, CancellationToken cancellationToken) =>
+        ReadAsync(streamUri, demand, status, reconnect: null, cancellationToken);
+
+    /// <summary>
+    /// Like <see cref="ReadAsync(Uri, CameraStreamDemand, IProgress{CameraStatus}?, CancellationToken)"/>; while it waits
+    /// between attempts, <paramref name="reconnect"/> starts the next one at once and resets the backoff (T-188).
+    /// </summary>
+    public IAsyncEnumerable<CameraStreamItem> ReadAsync(Uri streamUri, CameraStreamDemand demand, IProgress<CameraStatus>? status, CameraReconnectSignal? reconnect, CancellationToken cancellationToken)
     {
         Validate(streamUri);
         ArgumentNullException.ThrowIfNull(demand);
-        return ReadCoreAsync(streamUri, demand, status, cancellationToken);
+        return ReadCoreAsync(streamUri, demand, status, reconnect, cancellationToken);
     }
 
     private static void Validate(Uri streamUri)
@@ -109,7 +117,7 @@ public sealed partial class ReconnectingCameraFeed
         [EnumeratorCancellation] CancellationToken stopToken)
     {
         // Awaited right here like below: the state machines of both iterators are reused for every frame.
-        await foreach (CameraStreamItem item in ReadCoreAsync(streamUri, new CameraStreamDemand(frames: true, packets: false), progress, stopToken).ConfigureAwait(false))
+        await foreach (CameraStreamItem item in ReadCoreAsync(streamUri, new CameraStreamDemand(frames: true, packets: false), progress, reconnect: null, stopToken).ConfigureAwait(false))
         {
             if (item.Kind == CameraStreamItemKind.Frame)
             {
@@ -122,6 +130,7 @@ public sealed partial class ReconnectingCameraFeed
         Uri streamUri,
         CameraStreamDemand demand,
         IProgress<CameraStatus>? progress,
+        CameraReconnectSignal? reconnect,
         [EnumeratorCancellation] CancellationToken stopToken)
     {
         string address = UriRedaction.Redact(streamUri);
@@ -196,8 +205,11 @@ public sealed partial class ReconnectingCameraFeed
 
             // The delay is scheduled before the failure is reported, so whoever observes the status sees the retry planned.
             // A streamed attempt reset the count, so it ends with the initial delay.
+            // The reconnect signal can end the wait from the moment it is scheduled.
             TimeSpan reconnectDelay = ExponentialBackoff.Delay(_options.ReconnectDelay, _options.MaxReconnectDelay, ++failedAttempts);
-            Task delay = Task.Delay(reconnectDelay, _timeProvider, stopToken);
+            using CancellationTokenSource wait = CancellationTokenSource.CreateLinkedTokenSource(stopToken);
+            reconnect?.BeginWait(wait);
+            Task delay = Task.Delay(reconnectDelay, _timeProvider, wait.Token);
             status.Report((failure ?? StreamEnded) with { NextAttemptAt = _timeProvider.GetUtcNow() + reconnectDelay });
             try
             {
@@ -206,6 +218,16 @@ public sealed partial class ReconnectingCameraFeed
             catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
             {
                 break;
+            }
+            catch (OperationCanceledException)
+            {
+                // Retried at once (a camera window opened): as if the backoff had never started.
+                failedAttempts = 0;
+                LogRetryingAtOnce(address);
+            }
+            finally
+            {
+                reconnect?.EndWait(wait);
             }
         }
     }
@@ -332,6 +354,9 @@ public sealed partial class ReconnectingCameraFeed
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Camera stream '{Address}' sent no frame within {TimeoutSeconds} s.")]
     private partial void LogNoFrame(string address, double timeoutSeconds);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Camera stream '{Address}' reconnects at once, without waiting for the reconnect delay.")]
+    private partial void LogRetryingAtOnce(string address);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Closing camera stream '{Address}' failed.")]
     private partial void LogCloseFailed(Exception exception, string address);

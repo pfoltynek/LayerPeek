@@ -220,11 +220,12 @@ la grabación, la dashcam y el timelapse.
 ### 5.4 Cuando se pierde la conexión
 
 La ventana se vuelve a conectar sola cuando se pierde la cámara o la wifi; mientras tanto muestra **Conectando con la
-cámara…** o **Sin señal**. Vuelve a intentarlo a los 5 segundos; mientras la cámara siga sin
-responder, la pausa se duplica hasta un minuto. Cuando se apaga la impresora, la ventana se cierra y se vuelve a abrir en el mismo lugar
-cuando la impresora vuelve a estar disponible. Puede desactivarlo en **Configuración → Impresoras → Ventana de la
-cámara** (**Cerrar al apagarse la impresora y volver a abrir al encenderse**). Una ventana que cierre usted mismo
-permanece cerrada.
+cámara…** o **Sin señal**. Vuelve a intentarlo a los 5 segundos; mientras la cámara siga sin responder, la pausa se
+duplica hasta un minuto. La ventana indica aproximadamente cuándo llega el próximo intento; al abrir la ventana o
+restaurarla tras minimizarla, lo vuelve a intentar enseguida. Cuando se apaga la impresora, la ventana se cierra y se
+vuelve a abrir en el mismo lugar cuando la impresora vuelve a estar disponible. Puede desactivarlo en **Configuración →
+Impresoras → Ventana de la cámara** (**Cerrar al apagarse la impresora y volver a abrir al encenderse**). Una ventana
+que cierre usted mismo permanece cerrada.
 
 ## 6. Widgets
 

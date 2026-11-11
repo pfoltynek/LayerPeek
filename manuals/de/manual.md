@@ -222,11 +222,12 @@ Vordergrund**, die Aufnahme, die Dashcam und den Zeitraffer zu erreichen.
 ### 5.4 Wenn die Verbindung abbricht
 
 Das Fenster verbindet sich von selbst neu, wenn die Kamera oder das WLAN ausfällt; in der Zwischenzeit zeigt es
-**Verbindung zur Kamera wird hergestellt…** oder **Kein Signal**. Der nächste Versuch folgt nach 5 Sekunden; solange die Kamera nicht erreichbar ist, verdoppelt
-sich die Pause bis auf eine Minute. Wenn der Drucker ausgeschaltet wird, schließt sich das
-Fenster und öffnet sich an derselben Stelle wieder, sobald der Drucker zurück ist. Das können Sie in
-**Einstellungen → Drucker → Kamerafenster** ausschalten (**Bei ausgeschaltetem Drucker schließen, nach dem Einschalten
-wieder öffnen**). Ein Fenster, das Sie selbst schließen, bleibt geschlossen.
+**Verbindung zur Kamera wird hergestellt…** oder **Kein Signal**. Der nächste Versuch folgt nach 5 Sekunden; solange die
+Kamera nicht erreichbar ist, verdoppelt sich die Pause bis auf eine Minute. Das Fenster zeigt ungefähr, wann der nächste
+Versuch kommt; wenn Sie das Fenster öffnen oder aus dem minimierten Zustand wiederherstellen, versucht es sofort erneut.
+Wenn der Drucker ausgeschaltet wird, schließt sich das Fenster und öffnet sich an derselben Stelle wieder, sobald der
+Drucker zurück ist. Das können Sie in **Einstellungen → Drucker → Kamerafenster** ausschalten (**Bei ausgeschaltetem
+Drucker schließen, nach dem Einschalten wieder öffnen**). Ein Fenster, das Sie selbst schließen, bleibt geschlossen.
 
 ## 6. Widgets
 

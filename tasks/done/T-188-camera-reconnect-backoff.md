@@ -1,7 +1,7 @@
 ---
 id: T-188
 title: Kamera – exponenciální backoff při opětovném připojení
-status: in-progress
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -23,7 +23,8 @@ vlákno pro čtení a TCP spojení ([ReconnectingCameraFeed.cs](../../src/LayerP
 
 ## Akceptační kritéria
 - [x] Prodlevy rostou exponenciálně až po strop a po úspěšném připojení se vrátí na výchozí hodnotu (testy).
-- [ ] Okno kamery ukazuje skutečnou prodlevu do dalšího pokusu.
+- [x] Okno kamery ukazuje skutečnou prodlevu do dalšího pokusu (přibližně, bez časovače; testy, ruční kontrola → přesunuto
+  do T-125 a T-127).
 - [x] Ukončení streamu během čekání proběhne hned (test).
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -54,6 +55,11 @@ Rozhodnuto uživatelem 2026-11-11 (otázky 2 a 3):
   změně stavu z `CameraStatus.NextAttemptAt`; v malém náhledu skrytý. **Bez tlačítka** „Zkusit znovu“.
 - 3: **otevření nebo obnovení okna kamery během pauzy zkrátí čekání**: pokus o připojení hned a vynulovaná pauza.
   Detekce ani nahrávání pauzu samy nezkracují.
+
+Navazující (ui-dev, 2026-11-11, neblokuje tento úkol), čeká na rozhodnutí uživatele:
+4. **„Otestovat kameru“ během pauzy.** Test uložené kamery jde přes hub a čeká na snímek nejvýš 15 s; při „Bez signálu“
+   během minutové pauzy proto skončí „Žádný obraz“, i když by nový pokus mohl uspět (při „Chybě kamery“ skončí hned
+   s jejím důvodem). Rozhodnutí 3 jmenuje jen okno kamery, takže test pauzu nezkracuje. Má ji zkracovat i test?
 ## Poznámky k implementaci
 - **Backoff:** `ReconnectingCameraFeed` počítá pokusy za sebou, které skončily dřív, než začaly streamovat. Prodleva =
   `ReconnectDelay` zdvojnásobená za každý další takový pokus, nejvýš `CameraFeedOptions.MaxReconnectDelay` (nová volba,
@@ -63,13 +69,44 @@ Rozhodnuto uživatelem 2026-11-11 (otázky 2 a 3):
   čeká zase 5 s. Nové spojení (nový běh hubu, jiná adresa) začíná bez čekání a s backoffem od začátku.
 - **Stav nese čas dalšího pokusu:** `CameraStatus.NextAttemptAt` (okamžik podle `TimeProvider.GetUtcNow`, ne délka,
   protože hub pozdějšímu odběrateli předává aktuální stav). Nastaví se u každého `NoSignal` / `Error` z feedu; ostatní
-  odběratelé (okno, detekce, nahrávání, test kamery) čtou jen `State`, takže se jich změna nedotkne. Okno ho zatím
-  nezobrazuje (otázka 2).
+  odběratelé (detekce, nahrávání, test kamery) čtou jen `State`, takže se jich změna nedotkne.
 - **Zdroje:** čekání je dál jediné `Task.Delay(…, TimeProvider, stopToken)`, žádné dotazování; stream, enumerátor a
   spojení každého pokusu se zavřou před čekáním jako dřív. Zastavení během čekání skončí hned (test bez posunu času).
 - **Testy:** `ReconnectingCameraFeedTests` (řada 5/10/20/40/60/60 s, všechny druhy selhání, reset po streamování,
   `ReconnectDelay` nad stropem, zrušení během minutového čekání, `NextAttemptAt`), `ExponentialBackoffTests`,
   `AppServicesTests` (strop 1 min).
+- **Čas do dalšího pokusu v okně (otázka 2):** třetí řádek v překryvu stavu „Další pokus asi za 20 s“ (pod 1 min
+  sekundy zaokrouhlené nahoru, od 1 min celé minuty, u stropu „asi za 1 min“; mezera před jednotkou nezlomitelná).
+  `CameraViewModel` ho spočítá jednou při změně stavu z `NextAttemptAt` a `TimeProvider.GetUtcNow` a dál jen přeformátuje
+  (jazyk, režim): žádný časovač, v klidu žádná práce. Čas, který už uplynul (stav předaný pozdě), řádek neukáže.
+  Skrytý v malém náhledu, prázdný při `Connecting` / `Streaming`. Vlastní opakování okna po vnitřní chybě lease
+  (`_retryDelay`, T-014) ukazuje svou prodlevu stejně. Nové texty `CameraNextAttemptSeconds` / `CameraNextAttemptMinutes`
+  ve všech osmi `Strings.*.resx`. Bez tlačítka „Zkusit znovu“.
+- **Otevření nebo obnovení okna zkrátí čekání (otázka 3):** nový `Core/Cameras/CameraReconnectSignal`. Feed před
+  čekáním vytvoří `CancellationTokenSource` propojený se stop tokenem, zaregistruje ho v signálu a čeká v tom jediném
+  `Task.Delay` s jeho tokenem; `Retry()` ho zruší přes `CancelAsync` (pod zámkem signálu, takže ho feed mezitím
+  nezlikviduje; další pokus běží na thread poolu, nikdy na vlákně volajícího, který může držet zámek hubu). Zrušené
+  čekání = pokus hned a `failedAttempts = 0`. Mimo čekání (připojování, streamování, nic nečte, zastavený feed)
+  `Retry()` vrátí `false` a nic si nepamatuje, takže pozdější selhání čeká normálně. Zastavení během probuzení: filtr
+  stop tokenu vyhrává, smyčka skončí. Hub drží jeden signál na tiskárnu (`PrinterStream.Reconnect`, spojení běží vždy
+  jen jedno) a spustí ho v `Add` jen pro lease s `CameraFrameSubscriptionOptions.ShortensReconnectWait`, a to ještě před
+  předáním stavu: novému oknu pak rovnou pošle `Connecting` místo staré chyby, takže nebliká. Příznak místo
+  `DisplaySize` z T-184, protože okno se přihlásí i před rozvržením (bez velikosti) a velikost se mění i při přepnutí
+  režimu. Okno ho nastaví jen ve `SetActive(true)` (otevření, obnovení z minimalizace, i „Použít“ u minimalizovaného
+  okna); přepnutí režimu viditelného okna lease nemění, vlastní opakování po chybě lease ani změna adresy příznak
+  nemají. Detekce, nahrávání, timelapse a test kamery čekání nezkracují.
+- **Testy (otázky 2 a 3):** `ReconnectingCameraFeedRetryTests` (probuzení během čekání → pokus hned a backoff od 5 s,
+  během připojování / streamování nic a nezapamatuje se, zastavení během probuzení, probuzení po zastavení),
+  `CameraStreamHubReconnectTests` (okno ukončí čekání detekce a ukáže hned `Connecting`; snímky, detekce ani pakety
+  čekání nezkrátí; okno u streamujícího spojení nic nezmění; nové spojení bez čekání; zastavení hubu po probuzení),
+  `CameraViewModelNextAttemptTests` (zaokrouhlení, text z `NextAttemptAt` s falešným `TimeProvider`, neodpočítává se,
+  `Connecting` / `Streaming` ho smaže, malý náhled ho skryje, otevření a obnovení okna při čekání nahrávání zkrátí,
+  přepnutí režimu ne), `CameraViewModelTests` (prodleva vlastního opakování), UiTests `CameraWindowNextAttemptUiTests`
+  (ve všech 8 jazycích se „40 s“ i „1 min“ vejde do okna 960 × 540 až 320 × 180, v malém náhledu chybí; kontrola
+  překryvu stavu sdílená s T-097 v `CameraHarness.StatusProblems`).
 - **Dokumentace:** `docs/architecture.md` (Camera.FFmpeg / znovupřipojení), `manuals/*/manual.md` oddíl 5.4 ve všech
-  jazycích. Žádný nový text UI, žádný nový balíček.
-- **Nesplněno:** kritérium „Okno kamery ukazuje skutečnou prodlevu“ čeká na otázku 2, proto úkol zůstává v `in-progress`.
+  jazycích (backoff; okno ukazuje přibližný čas dalšího pokusu, otevření nebo obnovení okna zkusí připojení hned).
+  Žádný nový balíček.
+- **Ověřeno na macOS (Apple Silicon):** `dotnet build` bez varování, `dotnet test` zelený, aplikace se spustí a běží
+  (`dotnet run`). Okno se skutečně nedostupnou kamerou vizuálně neověřeno (bez obsluhy) → ruční kontrola přesunuta do
+  T-125 (Windows) a T-127 (Mac).
