@@ -75,7 +75,7 @@ The Windows files follow on a Windows machine (docs/release.md, release on two m
 - **Stažení (rozhodnuto 2026-10-24):** ostrý běh na začátku, ještě před kontrolami, spustí `git fetch --no-tags origin` (s `-Repo` remote toho repozitáře). Mění jen sledovací větve `origin/*`; žádná lokální větev ani tag se nevytvoří ani neposune. `develop` musí být dál stejný jako `origin/develop`, jinak skript požádá o `git pull --ff-only`.
 - **`-DryRun`:** nic nezmění v gitu ani na GitHubu a nic nestahuje, jen čte (`git ls-remote`, `gh auth status`, `gh release view`) a vypíše plán. Nestažený `origin/main` / `origin/develop` ohlásí s příkazem `git fetch origin`. Změnu `CHANGELOG.md` ověří na kopii v dočasné složce.
 - **`-Repo owner/název`:** jako u uploadu a publish (zkušební vydání); push `main`, tagu a `develop` pak jde na remote tohoto repozitáře a kontroly se dělají proti němu. **Jen v samostatném dočasném klonu bez `origin`** (viz „Zkušební vydání“): klon, jehož `origin` je jiný repozitář, skript odmítne, aby jeho `main` a `develop` nedostaly sloučení cizího vydání.
-- **Podpis feedu (T-181):** krok 7 spouští `release-build.ps1` bez parametrů, klíč proto bere z proměnné prostředí. Před spuštěním připoj médium s klíčem a nastav `$env:LAYERPEEK_FEED_SIGNING_KEY = '<cesta ke klíči>'` ve stejném terminálu; build se zeptá na heslo (viz „Podpis feedu aktualizací“). Bez proměnné krok 7 skončí chybou a další běh `release.ps1` začne znovu buildem.
+- **Podpis feedu (T-181):** krok 7 spouští `release-build.ps1` bez parametrů, klíč proto bere z proměnné prostředí. Před spuštěním připoj médium s klíčem a nastav `$env:LAYERPEEK_FEED_SIGNING_KEY = '<cesta ke klíči>'` ve stejném terminálu; build se zeptá na heslo dvakrát (před buildem a při podpisu na konci) a médium musí zůstat připojené až do konce buildu (viz „Podpis feedu aktualizací“). Že stačí proměnná prostředí a `release.ps1` vlastní parametr `-FeedSigningKey` nemá, rozhodl uživatel 2026-11-11 (otázka 20 v T-181). Bez proměnné krok 7 skončí chybou a další běh `release.ps1` začne znovu buildem.
 - **Potvrzení** čte `Read-Host`, takže mohou přijít i z roury, jeden řádek na otázku (tak to dělají Pester testy: `'X.Y.Z', 'y', 'y' | pwsh scripts/release.ps1 -Version X.Y.Z`). Neinteraktivní relace znamená „ne“.
 
 ### Co `release.ps1` zkontroluje předem
@@ -165,6 +165,7 @@ Co `-AddToPublished` dělá a hlídá:
 - Platí všechny kontroly uploadu (tag na `HEAD` = `<Version>`, tag na `origin`, `HEAD` v `origin/main`, čistý strom, značka sestavení, součty).
 - Vydání musí existovat a být **zveřejněné** (koncept: nahraj bez přepínače a zveřejni) a nesmí ještě obsahovat `SHA256SUMS-<os>.txt` tohoto OS. Soubory jednoho OS se doplní jen jednou; OS, jehož součty už ve vydání jsou, skript odmítne.
 - **Nikdy nic nepřepíše** (s `-Force` se nekombinuje). Soubory se stejným SHA256 přeskočí (navázání po přerušení: stačí spustit znovu). Nedokončený soubor (GitHub ho hlásí ve stavu `starter`, bez `digest`) nebo soubor s jiným obsahem odmítne s návodem: soubor smaž ručně na stránce vydání (*Edit*) a spusť znovu.
+- Feed tohoto OS musí mít podpis `.sig` (T-181), takže doplnit OS do vydání zveřejněného **před** T-181 nejde; přijato uživatelem 2026-11-11 (otázka 21 v T-181; T-180 má `-AddToPublished` stejně zrušit).
 - Nejdřív nahraje balíčky (`.zip`, `Setup.exe`, `.nupkg`, `.dmg`, `.tar.gz`) a podpisy feedu (`releases.<RID>.json.sig`, T-181) a **až potom** soubory, podle kterých aplikace OS ve vydání pozná: `SHA256SUMS-<os>.txt` a feed Velopacku (`releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`). Během nahrávání tak žádná aplikace nedostane nabídku vydání, jehož balíčky tam ještě nejsou.
 - Na konci zkontroluje celé zveřejněné vydání stejně jako `release-publish.ps1`: součty obou OS, feed každého vydávaného RID, každý soubor ze součtů se stejným SHA256, nic navíc. Při problému skončí s kódem 1 a vypíše ho (soubory už jsou nahrané, oprav ručně).
 - Bez přepínače se chování nemění: nahrání do zveřejněného vydání skript odmítne (`Release vX.Y.Z is already published …`) a nově jen poradí `-AddToPublished`.
@@ -342,9 +343,9 @@ Velopack ověřuje stažený balíček jen proti SHA256 ve feedu `releases.<RID>
 
 ### Jak podepisují skripty
 
-- **`release-build.ps1`** podepíše každý `releases.<RID>.json` do `releases.<RID>.json.sig` v `dist/`. Klíč je **šifrovaný PEM (PKCS#8)** na offline médiu; cestu dostane parametrem `-FeedSigningKey <cesta>` nebo z proměnné prostředí `LAYERPEEK_FEED_SIGNING_KEY` (tu používá `release.ps1`). Heslo se zadává do výzvy (nevypisuje se). Pro volání z jiného skriptu PowerShellu jde předat `-FeedSigningKeyPassword` jako `SecureString`; heslo nikdy nepiš jako text do příkazové řádky (zůstalo by v historii).
-- **Kontroly ještě před dlouhým buildem**, v tomto pořadí: klíč je zadaný → soubor existuje a je šifrovaný (nešifrovaný soukromý klíč skript odmítne) → `UpdateFeedKeys.Production` není prázdný (bez dotazu na heslo) → heslo → dešifrování jen v paměti → veřejný klíč odvozený ze soukromého je v `UpdateFeedKeys.Production`. Pak skript vypíše otisk veřejného klíče (SHA-256) a `The key medium may be disconnected now`: médium s klíčem jde odpojit. Skript si do konce buildu drží jen šifrovaný text klíče a heslo (`SecureString`).
-- **Po zabalení** klíč znovu dešifruje, podepíše feedy, každý zapsaný `.sig` přečte zpět a ověří proti klíčům z `UpdateFeedKeys.Production` stejně jako aplikace, a klíč i heslo hned zahodí (`Dispose`, pomocné pole znaků vynulované). `.sig` patří do `SHA256SUMS-<os>.txt` i `build-info.json` (`FeedSignature`: `Status` `signed` a `PublicKeySha256`, jen otisk veřejného klíče).
+- **`release-build.ps1`** podepíše každý `releases.<RID>.json` do `releases.<RID>.json.sig` v `dist/`. Klíč je **šifrovaný PEM (PKCS#8)** na offline médiu; cestu dostane parametrem `-FeedSigningKey <cesta>` nebo z proměnné prostředí `LAYERPEEK_FEED_SIGNING_KEY` (tu používá `release.ps1`). Heslo se zadává do výzvy (nevypisuje se), **dvakrát**: před buildem a znovu při podpisu na konci. Pro volání z jiného skriptu PowerShellu jde předat `-FeedSigningKeyPassword` jako `SecureString` a použije se pro oba kroky (skript pracuje s kopiemi a každou hned zahodí); heslo nikdy nepiš jako text do příkazové řádky (zůstalo by v historii).
+- **Kontroly ještě před dlouhým buildem**, v tomto pořadí: klíč je zadaný → soubor existuje a je šifrovaný (nešifrovaný soukromý klíč skript odmítne) → `UpdateFeedKeys.Production` není prázdný (bez dotazu na heslo) → heslo → dešifrování jen v paměti → veřejný klíč odvozený ze soukromého je v `UpdateFeedKeys.Production`. Pak skript vypíše otisk veřejného klíče (SHA-256) a `Keep the key medium connected …` a klíč, jeho šifrovaný text i heslo hned zahodí. **Během buildu (asi 20 minut) nemá skript v paměti nic tajného**, jen cestu ke klíči a otisk veřejného klíče (rozhodnuto uživatelem 2026-11-11, otázka 17 v T-181: na macOS není `SecureString` v paměti šifrovaný). **Médium s klíčem proto musí zůstat připojené až do podpisu na konci buildu.**
+- **Po zabalení** skript soubor klíče **přečte znovu ze stejné cesty**. Když tam není (médium odpojené), build neztratí: vypíše `The update feed signing key … is not there (key medium disconnected?). Connect the key medium and press Enter to try again, or type 'abort'` a po Enteru to zkusí znovu. V neinteraktivní relaci (nebo po `abort`) skončí chybou; balíčky v `dist/` pak zůstanou bez podpisu a `build-info.json` nevznikne, takže je upload odmítne a build se musí spustit znovu. Pak se **podruhé zeptá na heslo** (po špatném hesle z výzvy dovolí celkem 3 pokusy, heslo z `-FeedSigningKeyPassword` zkusí jen jednou), dešifruje klíč a odmítne ho, když jeho veřejný klíč není **stejný jako při kontrole na začátku** (jiné médium nebo vyměněný soubor; nic se nepodepíše). Podepíše feedy, každý zapsaný `.sig` přečte zpět a ověří proti klíčům z `UpdateFeedKeys.Production` stejně jako aplikace, a klíč i heslo hned zahodí (`Dispose`, pomocné pole znaků vynulované). `.sig` patří do `SHA256SUMS-<os>.txt` i `build-info.json` (`FeedSignature`: `Status` `signed` a `PublicKeySha256`, jen otisk veřejného klíče).
 - **Seznam důvěryhodných klíčů čte skript přímo ze zdroje aplikace** (`UpdateFeedKeys.cs`, stejně jako jazyky z `AppLanguages.cs`): jediný zdroj pravdy, žádný druhý soubor, který by se mohl rozejít. Seznam, který skript nedokáže celý přečíst (jiný tvar než PEM v raw string literálech, čárky a komentáře `//`), je chyba, nikdy tiché „žádné klíče“.
 - **Soukromý klíč ani heslo** skript nikam nekopíruje, nevypisuje ani nezapisuje (ani do `artifacts/`, ani do logu); hlídají to Pester testy.
 - **Dokud je `UpdateFeedKeys.Production` prázdný**, build bez `-SkipFeedSignature` odmítne (otázka 8 v T-181): nevznikne vydání, jehož aplikace by už žádnou další aktualizaci nepřijala.
@@ -366,6 +367,15 @@ Co `release-build.ps1` odmítne (před buildem, kód 1):
 | špatné heslo nebo poškozený soubor | `The update feed signing key cannot be decrypted: wrong password, or the key file is damaged.` |
 | veřejný klíč není v `UpdateFeedKeys.Production` (jiné médium, klíč nepřidaný) | `The signing key (public key SHA-256 …) is not trusted by …` |
 
+Co odmítne při podpisu na konci (po zabalení, kód 1, balíčky zůstanou bez podpisu a nejdou nahrát):
+
+| Kontrola | Hláška (začátek) |
+|---|---|
+| soubor klíče chybí a relace není interaktivní (nebo skončil vstup) | `The update feed signing key … is not there at the end of the build (key medium disconnected?) and this session is not interactive …` |
+| soubor klíče chybí a uživatel napsal `abort` | `Signing aborted: the update feed signing key … is not there.` |
+| špatné heslo (3× z výzvy, nebo jednou z `-FeedSigningKeyPassword`) | `The update feed signing key cannot be decrypted: wrong password, or the key file is damaged.` |
+| na cestě je jiný klíč než při kontrole na začátku | `The update feed signing key … (public key SHA-256 …) is not the key checked before the build …` |
+
 ### Vytvoření páru klíčů (jednou)
 
 Na stroji vydání, nejlépe bez připojení k síti, s připojeným médiem pro klíč (USB 1). Soukromý klíč se zapisuje rovnou na médium, nikdy na disk počítače ani do cloudu:
@@ -376,7 +386,7 @@ New-UpdateFeedSigningKey -Path /Volumes/LP-KEY/layerpeek-feed-key.pem -PublicKey
 # Windows: New-UpdateFeedSigningKey -Path E:\layerpeek-feed-key.pem -PublicKeyPath E:\layerpeek-feed-key.public.pem
 ```
 
-- Funkce se dvakrát zeptá na heslo (musí se shodovat, aspoň 16 znaků). Silné heslo: dlouhá heslová fráze z náhodných slov, nikde jinde nepoužitá. Ulož ho **odděleně od klíče** (např. ve správci hesel); kdo má médium i heslo, může podepsat aktualizaci.
+- Funkce se dvakrát zeptá na heslo (musí se shodovat, aspoň 16 znaků; přijato uživatelem 2026-11-11, otázka 18 v T-181). Silné heslo: dlouhá heslová fráze z náhodných slov, nikde jinde nepoužitá. Ulož ho **odděleně od klíče** (např. ve správci hesel); kdo má médium i heslo, může podepsat aktualizaci.
 - Vytvoří klíč ECDSA P-256 a zapíše ho jako šifrovaný PEM PKCS#8 (`ENCRYPTED PRIVATE KEY`: PBES2, PBKDF2-SHA256 s 600 000 iteracemi, AES-256-CBC; stejně jako testovací klíč v `tests/Shared/Fixtures/UpdateFeed`). Na macOS a Linuxu nastaví právo jen pro vlastníka (na FAT/exFAT se to nedá; soubor je šifrovaný tak jako tak). Veřejný klíč (PEM `PUBLIC KEY`, není tajný) uloží vedle a vrátí ho i s otiskem SHA-256. Existující soubor nikdy nepřepíše.
 
 ### Uložení a záloha
@@ -401,7 +411,7 @@ New-UpdateFeedSigningKey -Path /Volumes/LP-KEY/layerpeek-feed-key.pem -PublicKey
 ### Podepisování při vydání
 
 - Jen z **čistého checkoutu tagu** na stroji vydání (`git switch --detach vX.Y.Z`); podepisuje se na Windows i na Macu stejným klíčem (rozhodnuto 2026-11-06).
-- Médium připoj těsně před buildem a po hlášce `The key medium may be disconnected now` ho **odpoj** (nejpozději po skončení buildu). Heslo zadávej jen do výzvy skriptu.
+- Médium připoj těsně před buildem a **nech ho připojené až do konce buildu**: na začátku se klíč jen ověří, podepisuje se až po zabalení a skript ho pak čte z média znovu. Odpoj ho hned po skončení buildu. Heslo se zadává **dvakrát** (před buildem a při podpisu), vždy jen do výzvy skriptu. Kdo od buildu odejde, musí se vrátit k druhé výzvě na heslo; bez ní build nedoběhne.
 
 ```powershell
 pwsh scripts/release-build.ps1 -FeedSigningKey /Volumes/LP-KEY/layerpeek-feed-key.pem   # Windows: -FeedSigningKey E:\layerpeek-feed-key.pem
@@ -424,7 +434,7 @@ Aplikace má kvůli rotaci seznam klíčů:
 3. **Verze N+1 a další:** podepisuj **novým** klíčem. Instalace od N ho přijmou.
 4. Starý klíč ze seznamu odeber až v některé pozdější verzi a pak zlikviduj obě jeho kopie.
 
-Instalace starší než N, která N vynechá, aktualizaci N+1 odmítne: aplikace čte jen feed nejnovějšího vydání (otázka 9 v T-181). Mezi N a N+1 proto nech dost času (uživatelé se mají stihnout aktualizovat na N); kdo N vynechá, musí nainstalovat ručně.
+**Instalace, která verzi N přeskočí, potřebuje ruční přeinstalaci.** Aplikace čte jen feed nejnovějšího vydání (otázka 9 v T-181), takže instalace starší než N, která N vynechá (např. byla v době N vypnutá), uvidí rovnou N+1 podepsanou novým klíčem, který nezná, a aktualizaci odmítne; sama se už nikdy neaktualizuje. Uživatel musí novou verzi stáhnout a nainstalovat ručně. Přijato uživatelem 2026-11-11 (otázka 16 v T-181). Mezi N a N+1 proto nech dost času (uživatelé se mají stihnout aktualizovat na N) a v poznámkách k vydání N+1 to uveď.
 
 ### Kompromitace (únik) soukromého klíče
 
@@ -442,6 +452,7 @@ Bezpečná rotace aktualizací **nejde**: útočník se starým klíčem může 
 - Aplikace mimo Velopack (`GitHubReleaseChecker`, T-058) jen otevře stránku vydání, nic neinstaluje.
 - **Už nainstalované verze bez ověření** (vydané před T-181) přijmou jakoukoli aktualizaci, i nepodepsanou; chráněná je instalace až od chvíle, kdy běží verze s ověřením. Od prvního vydání s ověřením musí mít **každé** vydání `.sig` (jinak by ho verze s ověřením odmítly); `release-build.ps1`, `release-upload.ps1` a `release-publish.ps1` to vynucují.
 - **Opětovné nahrání staršího podepsaného feedu (replay)** k instalaci starší verze nevede (Velopack instaluje jen vyšší verzi), jen „zmrazí“ aktualizace. Přijatelné zbytkové riziko. Podpis feedu jednoho RID nejde použít pro jiný RID (RID je součástí podepsaných dat).
+- **Příznak stabilní / předběžné vydání podpis nekryje:** podepsaná data jsou jen prefix, RID a bajty feedu, příznak `--prerelease` vydání na GitHubu ne. Kdo má přístup k vydáním, může pravý podepsaný feed předběžné verze (např. `0.5.0-rc.1`) znovu nahrát jako stabilní vydání. Aplikace ale nabídku filtruje podle přípony verze (semver), ne podle příznaku na GitHubu, takže uživatel bez volby „Nabízet předběžné verze“ ji stejně nedostane; podstrčit jde jen pravý, námi podepsaný build. Přijato jako zbytkové riziko (rozhodnuto uživatelem 2026-11-11, otázka 23 v T-181).
 
 ## Bod rozšíření pro instalátory (T-017, T-019)
 
@@ -599,7 +610,7 @@ Postup (`<owner>` = tvůj účet, název např. `LayerPeek-release-trial`):
 
    Kontrola: na GitHubu je koncept `v0.1.0` označený jako předběžný, s poznámkami z `CHANGELOG.md`, se zipem a `SHA256SUMS-windows.txt`.
 
-   Build pro nahrání musí mít podepsaný feed (T-181): `release-build.ps1 -FeedSigningKey <klíč>` s klíčem, jehož veřejný klíč je v `UpdateFeedKeys.Production` zkoušeného commitu. Zkušební build `-SkipFeedSignature` upload odmítne (to je potřeba ověřit také). Ověření, že nainstalovaná verze s ověřením podepsanou aktualizaci přijme a nepodepsanou odmítne, patří do T-125 / T-127.
+   Build pro nahrání musí mít podepsaný feed (T-181): **i zkušební vydání se podepisuje produkčním klíčem** (rozhodnuto uživatelem 2026-11-11, otázka 19 v T-181), tedy `release-build.ps1 -FeedSigningKey <klíč>` s offline produkčním klíčem, jehož veřejný klíč je v `UpdateFeedKeys.Production` zkoušeného commitu (testovací klíč z `tests/Shared/Fixtures` v `Production` být nesmí). Platí stejný postup jako při vydání: médium připojené až do konce buildu, heslo dvakrát. Zkušební build `-SkipFeedSignature` upload odmítne (to je potřeba ověřit také). Ověření, že nainstalovaná verze s ověřením podepsanou aktualizaci přijme a nepodepsanou odmítne, patří do T-125 / T-127.
 
 4. Opakování: druhé spuštění `release-upload.ps1` musí soubory přeskočit („skip, identical file already uploaded“). Po novém `release-build.ps1` musí nahrání odmítnout jiný obsah a s `-Force` ho přepsat. Přidání souborů druhého OS se ověří během na Macu (T-019) stejným postupem.
 

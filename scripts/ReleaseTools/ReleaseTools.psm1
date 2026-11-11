@@ -787,7 +787,10 @@ function Test-RuntimeFileName {
 # LayerPeek.Core.Updates.UpdateFeedVerifier): every releases.<rid>.json gets releases.<rid>.json.sig, an ECDSA P-256 /
 # SHA-256 signature (IEEE P1363, 64 bytes, one line of base64) over "LayerPeek-feed-v1\n" + RID + "\n" + the feed bytes.
 # The private key is an encrypted PKCS#8 PEM on offline media; it is read from its path, decrypted only in memory with a
-# password given as a SecureString, and never copied, printed or written anywhere. The trusted public keys are read from
+# password given as a SecureString, and never copied, printed or written anywhere. release-build.ps1 reads and decrypts it
+# twice (decision of question 17): once before the build to check it (Confirm-FeedSigningKey, then everything is dropped)
+# and once after packaging to sign (Invoke-FeedSigning), so that neither the key text nor the password stays in memory
+# during the build. The trusted public keys are read from
 # the C# source of the app (UpdateFeedKeys.Production), the single source of truth, so that the script refuses a key that
 # the released app would not trust.
 $script:FeedSignature = [pscustomobject]@{
@@ -939,9 +942,14 @@ function Read-FeedSigningKeyFile {
 }
 
 function Read-FeedSigningKeyPassword {
-    <# .SYNOPSIS Asks for the password of the signing key (SecureString, not echoed); throws in a non-interactive session. #>
-    param([Parameter(Mandatory)] [string] $Path)
-    try { $password = Read-Host -AsSecureString -Prompt "Password of the update feed signing key $Path" }
+    <#
+    .SYNOPSIS
+        Asks for the password of the signing key (SecureString, not echoed); throws in a non-interactive session. Purpose
+        tells which of the two prompts of release-build.ps1 this is (check before the build, signing after it).
+    #>
+    param([Parameter(Mandatory)] [string] $Path, [string] $Purpose)
+    $suffix = if ($Purpose) { " ($Purpose)" } else { '' }
+    try { $password = Read-Host -AsSecureString -Prompt "Password of the update feed signing key $Path$suffix" }
     catch { throw "No password for the update feed signing key: this session is not interactive. Run the build in a terminal, or pass -FeedSigningKeyPassword (a SecureString)." }
     if ($null -eq $password -or $password.Length -eq 0) {
         if ($password) { $password.Dispose() }
@@ -994,6 +1002,111 @@ function Import-FeedSigningKey {
     finally {
         if ($key) { $key.Dispose() }
     }
+}
+
+function Unlock-FeedSigningKey {
+    <#
+    .SYNOPSIS
+        Decrypts the signing key text (Read-FeedSigningKeyFile) with a copy of Password, or with a password asked for, and
+        returns the ECDsa key; the caller disposes it. The password copy is disposed before the function returns, also on
+        failure. A password asked for may be typed again after a wrong one (MaxAttempts in total); a given Password is
+        tried once (a script cannot type it differently).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $EncryptedPem,
+        [Parameter(Mandatory)] [string] $KeyPath,
+        [System.Security.SecureString] $Password,
+        [string] $Purpose,
+        [ValidateRange(1, 10)] [int] $MaxAttempts = 3
+    )
+    for ($attempt = 1; ; $attempt++) {
+        $owned = if ($Password) { $Password.Copy() } else { Read-FeedSigningKeyPassword $KeyPath -Purpose $Purpose }
+        try { return Import-FeedSigningKey -EncryptedPem $EncryptedPem -Password $owned }
+        catch {
+            if ($Password -or $attempt -ge $MaxAttempts) { throw }
+            Write-Host "$_ Try again ($attempt of $MaxAttempts attempts failed)." -ForegroundColor Yellow
+        }
+        finally { $owned.Dispose() }
+    }
+}
+
+function Confirm-FeedSigningKey {
+    <#
+    .SYNOPSIS
+        The key check of release-build.ps1 before the long build (T-181, decision of question 17): the file at KeyPath is
+        an encrypted PKCS#8 PEM, TrustedKeys (UpdateFeedKeys.Production) is not empty (checked before the password is asked
+        for), the password decrypts the key and its public key is trusted. The key, its text and the password copy are
+        dropped right here; returns only KeyPath and PublicKeySha256, which Invoke-FeedSigning needs after the build to
+        read and check the key again.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $KeyPath,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys,
+        [System.Security.SecureString] $Password
+    )
+    $encrypted = Read-FeedSigningKeyFile $KeyPath
+    try {
+        # An empty list is refused before the password is asked for: no key could be accepted.
+        $problems = @(Get-FeedSigningTrustProblems -TrustedKeys $TrustedKeys)
+        if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+        $key = Unlock-FeedSigningKey -EncryptedPem $encrypted -KeyPath $KeyPath -Password $Password -Purpose 'check before the build; asked again for signing at the end'
+        try { $publicKey = $key.ExportSubjectPublicKeyInfo() }
+        finally { $key.Dispose() }
+    }
+    finally { $encrypted = $null }
+    $problems = @(Get-FeedSigningTrustProblems -TrustedKeys $TrustedKeys -PublicKey $publicKey)
+    if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+    [pscustomobject]@{ KeyPath = $KeyPath; PublicKeySha256 = Get-FeedKeyFingerprint $publicKey }
+}
+
+function Wait-FeedSigningKeyFile {
+    <#
+    .SYNOPSIS
+        At the end of the build: returns once the key file at Path exists (key medium connected). While it is missing it
+        asks to connect the medium and press Enter (or type 'abort'), so that a disconnected medium does not throw away the
+        build; throws when the session is not interactive, the input ended, or the answer is 'abort'.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $unsigned = 'The packages are built, but the update feeds are not signed and this build cannot be uploaded.'
+    while (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        $answer = $null
+        try { $answer = Read-Host -Prompt "The update feed signing key $Path is not there (key medium disconnected?). Connect the key medium and press Enter to try again, or type 'abort'" }
+        catch { }
+        if ($null -eq $answer) {
+            throw "The update feed signing key $Path is not there at the end of the build (key medium disconnected?) and this session is not interactive, so the build cannot wait for it. $unsigned Keep the key medium connected until the end and run the build again."
+        }
+        if ($answer.Trim() -ieq 'abort') { throw "Signing aborted: the update feed signing key $Path is not there. $unsigned" }
+    }
+}
+
+function Invoke-FeedSigning {
+    <#
+    .SYNOPSIS
+        The signing step of release-build.ps1 after packaging (T-181, decision of question 17): waits for the key file at
+        KeyPath (Wait-FeedSigningKeyFile), reads it again, asks for the password a second time (or copies Password),
+        refuses a key whose public key is not ExpectedPublicKeySha256 (the key checked before the build), signs and
+        verifies every feed (Add-UpdateFeedSignatures) and disposes the key. Returns the paths of the .sig files.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $KeyPath,
+        [Parameter(Mandatory)] [string] $ExpectedPublicKeySha256,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys,
+        [Parameter(Mandatory)] [string] $DistDirectory,
+        [Parameter(Mandatory)] [string[]] $Runtimes,
+        [System.Security.SecureString] $Password
+    )
+    Wait-FeedSigningKeyFile $KeyPath
+    $encrypted = Read-FeedSigningKeyFile $KeyPath
+    try { $key = Unlock-FeedSigningKey -EncryptedPem $encrypted -KeyPath $KeyPath -Password $Password -Purpose 'second time: sign the update feeds' }
+    finally { $encrypted = $null }
+    try {
+        $fingerprint = Get-FeedKeyFingerprint $key.ExportSubjectPublicKeyInfo()
+        if ($fingerprint -cne $ExpectedPublicKeySha256) {
+            throw "The update feed signing key $KeyPath (public key SHA-256 $fingerprint) is not the key checked before the build (public key SHA-256 $ExpectedPublicKeySha256). Was the key medium or the key file swapped? Nothing was signed."
+        }
+        Add-UpdateFeedSignatures -Key $key -DistDirectory $DistDirectory -Runtimes $Runtimes -TrustedKeys $TrustedKeys
+    }
+    finally { $key.Dispose() }
 }
 
 function New-UpdateFeedSignature {

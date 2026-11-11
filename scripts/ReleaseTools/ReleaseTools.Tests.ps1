@@ -975,13 +975,166 @@ Describe 'Update feed signature (T-181)' {
         @(Get-UploadBatches -Paths @('d/releases.osx-arm64.json')).Count | Should -Be 1
         @(Get-UploadBatches -Paths @()) | Should -BeNullOrEmpty
     }
+    Context 'the key twice: checked before the build, read and decrypted again for signing (decision of question 17)' {
+        BeforeAll {
+            function New-SigningSetup([string] $Name) {
+                # A key folder (the "key medium") with a copy of the encrypted test key, and a dist folder with one feed.
+                $root = Join-Path $script:TempRoot $Name
+                $medium = Join-Path $root 'medium'
+                $dist = Join-Path $root 'dist'
+                $null = New-Item -ItemType Directory -Path $medium, $dist
+                $keyPath = Join-Path $medium 'feed-key.pem'
+                Copy-Item -LiteralPath $script:EncryptedKeyPath -Destination $keyPath
+                [System.IO.File]::WriteAllBytes((Join-Path $dist 'releases.osx-arm64.json'), $script:VectorFeed)
+                [pscustomobject]@{ Root = $root; Medium = $medium; Dist = $dist; KeyPath = $keyPath }
+            }
+            function Assert-Disposed([System.Security.SecureString] $Password) {
+                { $null = $Password.Copy() } | Should -Throw -Because 'every password copy is disposed right after use'
+            }
+        }
+        BeforeEach {
+            # Every password "typed" into a prompt (the test password), kept here to prove that the scripts dispose it.
+            $script:Typed = [System.Collections.Generic.List[System.Security.SecureString]]::new()
+            $script:WrongFirst = $false
+            Mock Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } {
+                $text = if ($script:WrongFirst -and $script:Typed.Count -eq 0) { 'wrong-password-4711' } else { $script:TestPassword }
+                $typed = ConvertTo-SecureString $text -AsPlainText -Force
+                $script:Typed.Add($typed)
+                $typed
+            }
+        }
+
+        It 'checks the key before the build and keeps neither the key, its text nor the password' {
+            $setup = New-SigningSetup 'twice-check'
+            $output = @(& { Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:OtherPublic, $script:TestPublic) } *>&1)
+            $checked = @($output | Where-Object { $_ -is [pscustomobject] })
+            $checked.Count | Should -Be 1
+            @($checked[0].PSObject.Properties.Name) | Should -BeExactly @('KeyPath', 'PublicKeySha256')
+            $checked[0].KeyPath | Should -BeExactly $setup.KeyPath
+            $checked[0].PublicKeySha256 | Should -BeExactly $script:TestPublic.Sha256
+            Assert-NoSecret ($output | Out-String) 'the output of Confirm-FeedSigningKey'
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } -Times 1 -Exactly
+            Assert-Disposed $script:Typed[0]
+        }
+        It 'disposes the decrypted key and the copy of a given password, and leaves the given password to its owner' {
+            $setup = New-SigningSetup 'twice-dispose'
+            $script:Opened = [System.Collections.Generic.List[object]]::new()
+            Mock Import-FeedSigningKey -ModuleName ReleaseTools {
+                $key = [System.Security.Cryptography.ECDsa]::Create()
+                $key.ImportFromEncryptedPem($EncryptedPem, $script:TestPassword)
+                $script:Opened.Add([pscustomobject]@{ Key = $key; Password = $Password })
+                $key
+            }
+            $given = SecurePassword
+            try {
+                $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password $given
+                $null = Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) `
+                    -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password $given
+                $script:Opened.Count | Should -Be 2 -Because 'the key is decrypted once to check it and once to sign'
+                foreach ($opened in $script:Opened) {
+                    { $null = $opened.Key.ExportSubjectPublicKeyInfo() } | Should -Throw -Because 'the key is disposed after each step'
+                    [object]::ReferenceEquals($opened.Password, $given) | Should -BeFalse -Because 'the scripts work on a copy'
+                    Assert-Disposed $opened.Password
+                }
+                $given.Length | Should -Be $script:TestPassword.Length -Because 'the caller disposes its own password'
+                Should -Invoke Read-Host -ModuleName ReleaseTools -Times 0 -Exactly
+            }
+            finally { $given.Dispose() }
+        }
+        It 'reads the key file again and asks for the password a second time to sign' {
+            $setup = New-SigningSetup 'twice-sign'
+            Mock Read-FeedSigningKeyFile -ModuleName ReleaseTools { [System.IO.File]::ReadAllText($Path) }
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic)
+            Should -Invoke Read-FeedSigningKeyFile -ModuleName ReleaseTools -Times 1 -Exactly
+            $output = @(& { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' } *>&1)
+            Should -Invoke Read-FeedSigningKeyFile -ModuleName ReleaseTools -ParameterFilter { $Path -ceq $setup.KeyPath } -Times 2 -Exactly
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString -and $Prompt -match 'second time: sign the update feeds' } -Times 1 -Exactly
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } -Times 2 -Exactly
+            $script:Typed.Count | Should -Be 2
+            foreach ($typed in $script:Typed) { Assert-Disposed $typed }
+            $signature = [System.IO.File]::ReadAllBytes((Join-Path $setup.Dist 'releases.osx-arm64.json.sig'))
+            Verify -Signature $signature | Should -BeTrue
+            Assert-NoSecret ($output | Out-String) 'the output of Invoke-FeedSigning'
+            Assert-NoSecretInFolder $setup.Dist
+        }
+        It 'lets a wrongly typed password be typed again, but tries a given password only once' {
+            $setup = New-SigningSetup 'twice-retype'
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
+            $script:WrongFirst = $true
+            $output = @(& { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' } *>&1)
+            ($output | Out-String) | Should -Match 'cannot be decrypted: wrong password.*Try again \(1 of 3 attempts failed\)'
+            Assert-NoSecret ($output | Out-String) 'the output of Invoke-FeedSigning'
+            $output | Should -Not -Match 'wrong-password-4711'
+            $script:Typed.Count | Should -Be 2
+            foreach ($typed in $script:Typed) { Assert-Disposed $typed }
+            Test-Path -LiteralPath (Join-Path $setup.Dist 'releases.osx-arm64.json.sig') | Should -BeTrue
+            Remove-Item -LiteralPath (Join-Path $setup.Dist 'releases.osx-arm64.json.sig')
+            Assert-ThrowsMatching { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password (SecurePassword 'wrong-password-4711') } 'cannot be decrypted: wrong password'
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } -Times 2 -Exactly
+        }
+        It 'refuses a key file at the end that is not the key checked before the build, and signs nothing' {
+            $setup = New-SigningSetup 'twice-swapped'
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
+            # Another key with the same password at the same path (another medium), even one the app trusts.
+            Remove-Item -LiteralPath $setup.KeyPath
+            $other = New-UpdateFeedSigningKey -Path $setup.KeyPath -PublicKeyPath (Join-Path $setup.Root 'other.public.pem') -Password (SecurePassword)
+            $trustedOther = ConvertFrom-FeedPublicKeyPem $other.PublicKeyPem
+            $message = $null
+            try { $null = Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic, $trustedOther) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password (SecurePassword) }
+            catch { $message = "$_" }
+            $message | Should -Match "\(public key SHA-256 $($other.PublicKeySha256)\) is not the key checked before the build \(public key SHA-256 $($script:TestPublic.Sha256)\).*Nothing was signed"
+            Assert-NoSecret $message 'the error'
+            Test-Path -LiteralPath (Join-Path $setup.Dist 'releases.osx-arm64.json.sig') | Should -BeFalse
+        }
+        It 'waits for a key medium disconnected before signing: asks to connect it and tries again' {
+            $setup = New-SigningSetup 'twice-reconnect'
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
+            Remove-Item -LiteralPath $setup.KeyPath
+            $script:Retries = 0
+            $script:Reconnect = $setup
+            Mock Read-Host -ModuleName ReleaseTools -ParameterFilter { -not $AsSecureString } {
+                # The first Enter comes before the medium is connected again, the second after it.
+                $script:Retries++
+                if ($script:Retries -ge 2) { Copy-Item -LiteralPath $script:EncryptedKeyPath -Destination $script:Reconnect.KeyPath }
+                ''
+            }
+            $output = @(& { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password (SecurePassword) } *>&1)
+            $script:Retries | Should -Be 2
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { -not $AsSecureString -and $Prompt -match 'is not there \(key medium disconnected\?\)\. Connect the key medium and press Enter to try again' } -Times 2 -Exactly
+            Verify -Signature ([System.IO.File]::ReadAllBytes((Join-Path $setup.Dist 'releases.osx-arm64.json.sig'))) | Should -BeTrue
+            Assert-NoSecret ($output | Out-String) 'the output of Invoke-FeedSigning'
+        }
+        It 'stops with a clear message when the key medium is missing at the end and the user aborts (<Case>)' -ForEach @(
+            @{ Case = 'non-interactive session'; Answer = 'throw'; Pattern = 'is not there at the end of the build \(key medium disconnected\?\) and this session is not interactive, so the build cannot wait for it\. The packages are built, but the update feeds are not signed and this build cannot be uploaded\.' }
+            @{ Case = 'end of the input'; Answer = 'null'; Pattern = 'this session is not interactive, so the build cannot wait for it' }
+            @{ Case = 'abort'; Answer = ' Abort '; Pattern = 'Signing aborted: the update feed signing key .* is not there\. The packages are built, but the update feeds are not signed' }
+        ) {
+            $setup = New-SigningSetup "twice-missing-$($Answer.Trim())"
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
+            Remove-Item -LiteralPath $setup.KeyPath
+            $script:Answer = $Answer
+            Mock Read-Host -ModuleName ReleaseTools -ParameterFilter { -not $AsSecureString } {
+                switch ($script:Answer) { 'throw' { throw 'PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.' } 'null' { $null } default { $script:Answer } }
+            }
+            Assert-ThrowsMatching { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password (SecurePassword) } $Pattern
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { -not $AsSecureString } -Times 1 -Exactly
+            Test-Path -LiteralPath (Join-Path $setup.Dist 'releases.osx-arm64.json.sig') | Should -BeFalse
+        }
+    }
+
     It 'marks a build of -SkipFeedSignature in build-info.json and signs the feeds before the checksum file (release-build.ps1)' {
         $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))
         $script | Should -Match "Status = 'skipped'"
         $script | Should -Match 'FeedSignature = \$feedSignature'
-        $script.IndexOf('Add-UpdateFeedSignatures') | Should -BeLessThan $script.IndexOf('Write-Sha256Sums')
-        # The key is checked before the long build.
+        $script.IndexOf('Invoke-FeedSigning ') | Should -BeGreaterThan $script.IndexOf('foreach ($step in @($packagingSteps')
+        $script.IndexOf('Invoke-FeedSigning ') | Should -BeLessThan $script.IndexOf('Write-Sha256Sums')
+        # The key is checked before the long build, and only its path and fingerprint are kept until the signing (question 17).
         $script.IndexOf('$feedSigning = Get-FeedSigning') | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
+        $script.IndexOf('Confirm-FeedSigningKey ') | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
+        $script | Should -Match '\[pscustomobject\]@\{ KeyPath = \$checked\.KeyPath; PublicKeySha256 = \$checked\.PublicKeySha256; TrustedKeys = \$trusted \}'
+        foreach ($kept in 'EncryptedPem', 'Import-FeedSigningKey', 'Read-FeedSigningKeyFile', '.Password', 'Copy()') {
+            $script.Contains($kept) | Should -BeFalse -Because "release-build.ps1 must not hold the key or the password itself ($kept)"
+        }
     }
 
     Context 'release-build.ps1: the signing key before the build (sandbox repository)' -Skip:(-not ($IsWindows -or $IsMacOS)) {
@@ -1086,7 +1239,8 @@ Describe 'Update feed signature (T-181)' {
         }
         It 'accepts a trusted key before the build and prints only the SHA-256 of its public key, never a secret' {
             $result = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath) -Password $script:TestPassword
-            $result.Output | Should -Match "Update feed signing key accepted \(public key SHA-256 $($script:TestPublic.Sha256), trusted by UpdateFeedKeys\.Production\)\. The key medium may be disconnected now\."
+            $result.Output | Should -Match "Update feed signing key accepted \(public key SHA-256 $($script:TestPublic.Sha256), trusted by UpdateFeedKeys\.Production\)\. Keep the key medium connected: the feeds are signed with it at the end of the build, and the password is asked for again then\."
+            $result.Output | Should -Not -Match 'may be disconnected'
             # The sandbox has nothing to build: the run stops right after the key check.
             $result.ExitCode | Should -Be 1 -Because $result.Output
             $result.Output | Should -Match 'Release build FAILED'

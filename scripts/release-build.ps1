@@ -25,10 +25,13 @@
     offline private key, an encrypted PKCS#8 PEM given by -FeedSigningKey or LAYERPEEK_FEED_SIGNING_KEY. Before the long
     build the script checks that the source of the app (src/LayerPeek.App/Installer/UpdateFeedKeys.cs, Production) trusts
     at least one key, asks for the password, decrypts the key in memory and refuses it unless its public key is in that
-    list; then the key is disposed and the key medium may be disconnected. After packaging the key is decrypted once more
-    from the text read at the start, signs the feeds, every signature is verified against the trusted keys, and the key and
-    the password are disposed. The key is never copied, printed or written; build-info.json names only the SHA-256 of the
-    public key. Without a key the build fails, unless -SkipFeedSignature makes a trial build that release-upload.ps1 refuses.
+    list; it prints the SHA-256 of the public key and then drops the key, its text and the password: nothing secret stays in
+    memory during the build. The key medium stays connected until the end: after packaging the script reads the key file
+    again from the same path (when it is missing, it asks to connect the medium and retry instead of failing the build),
+    asks for the password a second time, refuses the key unless it is the same key as checked at the start (same public
+    key), signs the feeds, verifies every signature against the trusted keys and disposes the key and the password. The key
+    is never copied, printed or written; build-info.json names only the SHA-256 of the public key. Without a key the build
+    fails, unless -SkipFeedSignature makes a trial build that release-upload.ps1 refuses.
 
 .PARAMETER Runtime
     RIDs to build. Default: the default RIDs of this OS (Windows: win-x64, macOS: osx-arm64). RIDs of another OS and
@@ -39,12 +42,15 @@
 
 .PARAMETER FeedSigningKey
     Path of the encrypted private key of the update feed (offline media). Default: the environment variable
-    LAYERPEEK_FEED_SIGNING_KEY. The password is asked for (not echoed) unless -FeedSigningKeyPassword is given.
+    LAYERPEEK_FEED_SIGNING_KEY. The file must be there at the start and again at the end of the build (keep the key medium
+    connected). The password is asked for twice (not echoed): before the build and for signing after packaging, unless
+    -FeedSigningKeyPassword is given.
 
 .PARAMETER FeedSigningKeyPassword
     The password of -FeedSigningKey as a SecureString, for a run without a prompt (e.g. from another PowerShell script:
     & scripts/release-build.ps1 -FeedSigningKeyPassword (Read-Host -AsSecureString)). Never pass a password as plain text
-    on a command line: it ends up in the shell history. The script disposes its own copy after signing.
+    on a command line: it ends up in the shell history. Used for both steps (the check before the build and the signing
+    after it); the script works on copies and disposes each right after use, the caller disposes the original.
 
 .PARAMETER SkipFeedSignature
     A trial build without the update feed signature (no key needed). build-info.json marks it, and release-upload.ps1
@@ -210,8 +216,10 @@ function Invoke-Native {
 }
 
 function Get-FeedSigning {
-    # T-181: checks the signing key before the long build. Returns the encrypted key text, the password (a copy owned by
-    # this script) and the trusted keys, or $null for -SkipFeedSignature. The key itself is disposed again right here.
+    # T-181: checks the signing key before the long build (Confirm-FeedSigningKey) and returns only what the signing after
+    # packaging needs to read and check the key again: its full path, the SHA-256 of its public key and the trusted
+    # (public) keys; $null for -SkipFeedSignature. The key, its text and the password copy are already gone when this
+    # returns (decision of question 17).
     if ($SkipFeedSignature) {
         if ($FeedSigningKey -or $FeedSigningKeyPassword) { throw '-SkipFeedSignature builds without the update feed signature; do not pass -FeedSigningKey or -FeedSigningKeyPassword with it.' }
         Write-Host 'Trial build without the update feed signature (-SkipFeedSignature): release-upload.ps1 will refuse it.' -ForegroundColor Yellow
@@ -222,26 +230,12 @@ function Get-FeedSigning {
     if (-not $keyPath) {
         throw "No update feed signing key. Connect the key medium and pass -FeedSigningKey <path> or set $($settings.KeyVariable) (docs/release.md, 'Podpis feedu aktualizací'); for a trial build that cannot be uploaded use -SkipFeedSignature."
     }
-    $encrypted = Read-FeedSigningKeyFile $keyPath
-    # An empty list is refused before the password is asked for: no key could be accepted.
+    # The full path: the signing at the end must read the same file whatever the current folder is then.
+    $keyPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($keyPath)
     $trusted = @(Get-TrustedFeedKeys ([System.IO.File]::ReadAllText((Join-Path $repoRoot $settings.KeysSource))))
-    $trustProblems = @(Get-FeedSigningTrustProblems -TrustedKeys $trusted)
-    if ($trustProblems.Count -gt 0) { throw ($trustProblems -join ' ') }
-    $password = if ($FeedSigningKeyPassword) { $FeedSigningKeyPassword.Copy() } else { Read-FeedSigningKeyPassword $keyPath }
-    try {
-        $key = Import-FeedSigningKey -EncryptedPem $encrypted -Password $password
-        try { $publicKey = $key.ExportSubjectPublicKeyInfo() }
-        finally { $key.Dispose() }
-        $trustProblems = @(Get-FeedSigningTrustProblems -TrustedKeys $trusted -PublicKey $publicKey)
-        if ($trustProblems.Count -gt 0) { throw ($trustProblems -join ' ') }
-    }
-    catch {
-        $password.Dispose()
-        throw
-    }
-    $fingerprint = Get-FeedKeyFingerprint $publicKey
-    Write-Host "Update feed signing key accepted (public key SHA-256 $fingerprint, trusted by UpdateFeedKeys.$($settings.KeysList)). The key medium may be disconnected now."
-    [pscustomobject]@{ EncryptedPem = $encrypted; Password = $password; TrustedKeys = $trusted; PublicKeySha256 = $fingerprint }
+    $checked = Confirm-FeedSigningKey -KeyPath $keyPath -TrustedKeys $trusted -Password $FeedSigningKeyPassword
+    Write-Host "Update feed signing key accepted (public key SHA-256 $($checked.PublicKeySha256), trusted by UpdateFeedKeys.$($settings.KeysList)). Keep the key medium connected: the feeds are signed with it at the end of the build, and the password is asked for again then."
+    [pscustomobject]@{ KeyPath = $checked.KeyPath; PublicKeySha256 = $checked.PublicKeySha256; TrustedKeys = $trusted }
 }
 
 function Get-FolderSnapshot {
@@ -346,15 +340,12 @@ try {
         }
     }
 
-    # T-181: the signature of every update feed, verified against the keys of the app; then the key is gone.
+    # T-181: the signature of every update feed with the key read and decrypted again (the same key as checked before the
+    # build), verified against the keys of the app; then the key is gone.
     if ($feedSigning) {
-        Write-Host '==> Signing the update feeds' -ForegroundColor Cyan
-        $key = Import-FeedSigningKey -EncryptedPem $feedSigning.EncryptedPem -Password $feedSigning.Password
-        try { $null = Add-UpdateFeedSignatures -Key $key -DistDirectory $distDir -Runtimes $runtimes -TrustedKeys $feedSigning.TrustedKeys }
-        finally {
-            $key.Dispose()
-            $feedSigning.Password.Dispose()
-        }
+        Write-Host '==> Signing the update feeds (key medium and password needed again)' -ForegroundColor Cyan
+        $null = Invoke-FeedSigning -KeyPath $feedSigning.KeyPath -ExpectedPublicKeySha256 $feedSigning.PublicKeySha256 -TrustedKeys $feedSigning.TrustedKeys `
+            -DistDirectory $distDir -Runtimes $runtimes -Password $FeedSigningKeyPassword
         foreach ($rid in $runtimes) {
             $name = Get-UpdateFeedSignatureFileName $rid
             $files.Add([pscustomobject]@{ Name = $name; Runtime = $rid; Step = 'feed-signature'; Sha256 = Get-FileSha256 (Join-Path $distDir $name) })
@@ -402,8 +393,4 @@ try {
 catch {
     Write-Host "Release build FAILED: $_" -ForegroundColor Red
     exit 1
-}
-finally {
-    # The password of the signing key never outlives the run (already disposed after signing; again on failure).
-    if ($feedSigning) { $feedSigning.Password.Dispose() }
 }
