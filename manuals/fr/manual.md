@@ -126,6 +126,11 @@ Le mot de passe est stocké dans le **Gestionnaire d'identification** de Windows
 **Trousseau** de macOS (Keychain), jamais dans le fichier de paramètres. Lorsque vous modifiez une imprimante plus tard,
 le champ du mot de passe affiche **Inchangé** ; laissez-le vide pour conserver le mot de passe enregistré.
 
+**Avertissement sous l'adresse :** une adresse `http://` qui peut se trouver hors du réseau local (une adresse IP
+publique, ou un nom d'hôte autre qu'un nom sans point ou se terminant par `.local`, `.lan` ou `.home.arpa`) affiche un
+avertissement à la place de l'aide. PrusaLink se connecte sans chiffrement, le mot de passe pourrait donc être
+intercepté en chemin. L'enregistrement reste possible. Préférez `https://` via un proxy inverse, ou un VPN.
+
 ### 3.3 Ajouter la caméra (facultatif)
 
 1. Dans **Paramètres → Imprimantes**, sélectionnez l'imprimante et ouvrez son sous-onglet **Caméra**.
@@ -134,6 +139,10 @@ le champ du mot de passe affiche **Inchangé** ; laissez-le vide pour conserver
    est 554). Ne mettez ni nom d'utilisateur ni mot de passe dans l'adresse.
 4. Cliquez sur **Tester la caméra**. Une caméra qui fonctionne affiche une image et sa résolution.
 5. Cliquez sur **Enregistrer** et choisissez **Afficher la caméra** dans le sous-menu de l'imprimante.
+
+Comme pour l'adresse de l'imprimante, une adresse de caméra qui peut se trouver hors du réseau local affiche un
+avertissement : RTSP n'est pas chiffré, l'image de la caméra pourrait donc être interceptée en chemin. L'enregistrement
+reste possible ; préférez un VPN.
 
 ### 3.4 Image de l'imprimante
 

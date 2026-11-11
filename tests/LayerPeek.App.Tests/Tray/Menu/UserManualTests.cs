@@ -22,6 +22,27 @@ public sealed class UserManualTests
         Assert.Equal($"https://github.com/pfoltynek/LayerPeek/blob/main/manuals/{language}/manual.md", uri.AbsoluteUri);
     }
 
+    /// <summary>
+    /// T-182: the security chapter (T-183) is a chapter of the manual of the same language, or nothing while that manual has
+    /// none (the link next to the warning is then hidden).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void TheSecurityChapterIsInTheManualOfItsLanguage(string language)
+    {
+        Uri? uri = UserManual.SecurityChapterUriFor(CultureInfo.GetCultureInfo(language));
+
+        if (uri is not null)
+        {
+            Assert.StartsWith($"https://github.com/pfoltynek/LayerPeek/blob/main/manuals/{language}/manual.md#", uri.AbsoluteUri, StringComparison.Ordinal);
+            Assert.True(uri.Fragment.Length > 1);
+        }
+    }
+
+    [Fact]
+    public void TheSecurityChapterOfAnUntranslatedLanguageIsTheEnglishOne() =>
+        Assert.Equal(UserManual.SecurityChapterUriFor(CultureInfo.GetCultureInfo("en")), UserManual.SecurityChapterUriFor(CultureInfo.GetCultureInfo("ja")));
+
     [Theory]
     [InlineData("de-AT", "de")]
     [InlineData("cs-CZ", "cs")]

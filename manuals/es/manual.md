@@ -125,6 +125,11 @@ La contraseña se guarda en el **Administrador de credenciales de Windows** o en
 archivo de configuración. Cuando más adelante edite una impresora, el campo de la contraseña muestra **Sin cambios**;
 déjelo vacío para conservar la contraseña guardada.
 
+**Advertencia bajo la dirección:** una dirección `http://` que puede estar fuera de la red local (una dirección IP
+pública, o un nombre de host que no sea un nombre sin punto ni termine en `.local`, `.lan` o `.home.arpa`) muestra una
+advertencia en lugar de la ayuda. PrusaLink inicia sesión sin cifrar, así que la contraseña podría ser interceptada por
+el camino. Se puede guardar igualmente. Es mejor usar `https://` a través de un proxy inverso, o una VPN.
+
 ### 3.3 Añadir la cámara (opcional)
 
 1. En **Configuración → Impresoras**, seleccione la impresora y abra su subpestaña **Cámara**.
@@ -133,6 +138,10 @@ déjelo vacío para conservar la contraseña guardada.
    puerto predeterminado es el 554). No ponga ningún nombre de usuario ni contraseña en la dirección.
 4. Haga clic en **Probar cámara**. Si la cámara funciona, se muestran una instantánea y su resolución.
 5. Haga clic en **Guardar** y elija **Mostrar cámara** en el submenú de la impresora.
+
+Igual que la dirección de la impresora, una dirección de cámara que puede estar fuera de la red local muestra una
+advertencia: RTSP no está cifrado, así que la imagen de la cámara podría ser interceptada por el camino. Se puede
+guardar igualmente; es mejor usar una VPN.
 
 ### 3.4 Imagen de la impresora
 

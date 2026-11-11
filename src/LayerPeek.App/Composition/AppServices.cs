@@ -1071,6 +1071,8 @@ internal static partial class AppServices
             FeedRejections = services.GetRequiredService<UpdateOffer>(),
             // T-146: the default folder, whether this build can record and "Open recordings folder".
             Recordings = services.GetRequiredService<ICameraRecordings>(),
+            // T-182: "More information" next to the warning about an address outside the local network.
+            UrlLauncher = services.GetRequiredService<IUrlLauncher>(),
             // T-154: the detector kinds of this version and the last frames of the bed region editor.
             DetectorRegistrations = services.GetRequiredService<PrintFailureDetectionService>().Detectors,
             LastFrames = services.GetRequiredService<ILastCameraFrames>(),

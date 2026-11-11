@@ -124,6 +124,11 @@ Hasło jest przechowywane w **Menedżerze poświadczeń systemu Windows** lub w 
 ustawień. Gdy później edytujesz drukarkę, pole hasła pokazuje **Bez zmian**; pozostaw je puste, aby zachować zapisane
 hasło.
 
+**Ostrzeżenie pod adresem:** adres `http://`, który może być poza siecią lokalną (publiczny adres IP albo nazwa hosta
+inna niż nazwa bez kropki lub z końcówką `.local`, `.lan` czy `.home.arpa`), pokazuje ostrzeżenie zamiast podpowiedzi.
+PrusaLink loguje bez szyfrowania, więc hasło może zostać przechwycone po drodze. Zapisać adres i tak można. Lepiej użyj
+`https://` przez odwrotne proxy albo VPN.
+
 ### 3.3 Dodaj kamerę (opcjonalnie)
 
 1. W **Ustawienia → Drukarki** wybierz drukarkę i otwórz jej podkartę **Kamera**.
@@ -132,6 +137,9 @@ hasło.
    Nie wpisuj do adresu nazwy użytkownika ani hasła.
 4. Kliknij **Testuj kamerę**. Działająca kamera pokaże obraz i swoją rozdzielczość.
 5. Kliknij **Zapisz** i wybierz **Pokaż kamerę** w podmenu drukarki.
+
+Tak jak adres drukarki, również adres kamery, który może być poza siecią lokalną, pokazuje ostrzeżenie: RTSP nie jest
+szyfrowany, więc obraz z kamery może zostać przechwycony po drodze. Zapisać adres i tak można; lepiej użyj VPN.
 
 ### 3.4 Obraz drukarki
 

@@ -127,6 +127,11 @@ La password viene salvata in **Gestione credenziali** di Windows o nel **Portach
 impostazioni. Quando in seguito modifichi una stampante, il campo della password mostra **Invariata**; lascialo vuoto
 per mantenere la password salvata.
 
+**Avviso sotto l'indirizzo:** un indirizzo `http://` che può trovarsi fuori dalla rete locale (un indirizzo IP pubblico,
+o un nome host diverso da un nome senza punto o che termina con `.local`, `.lan` o `.home.arpa`) mostra un avviso al
+posto del suggerimento. PrusaLink accede senza cifratura, quindi la password potrebbe essere intercettata lungo il
+percorso. Il salvataggio resta possibile. Meglio usare `https://` tramite un reverse proxy, o una VPN.
+
 ### 3.3 Aggiungere la telecamera (facoltativo)
 
 1. In **Impostazioni → Stampanti** seleziona la stampante e apri la sua sottoscheda **Telecamera**.
@@ -135,6 +140,10 @@ per mantenere la password salvata.
    predefinita è 554). Non inserire nome utente o password nell’indirizzo.
 4. Fai clic su **Verifica telecamera**. Se la telecamera funziona, vengono mostrate un’istantanea e la sua risoluzione.
 5. Fai clic su **Salva** e scegli **Mostra telecamera** nel sottomenu della stampante.
+
+Come per l'indirizzo della stampante, anche un indirizzo della telecamera che può trovarsi fuori dalla rete locale
+mostra un avviso: RTSP non è cifrato, quindi l'immagine della telecamera potrebbe essere intercettata lungo il percorso.
+Il salvataggio resta possibile; meglio usare una VPN.
 
 ### 3.4 Immagine della stampante
 

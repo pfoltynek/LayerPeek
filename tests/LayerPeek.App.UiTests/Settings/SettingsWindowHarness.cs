@@ -48,6 +48,9 @@ internal sealed class SettingsWindowHarness
             LayerPeek.Core.Updates.UpdateCheckOutcome.UpdateAvailable,
             new LayerPeek.Core.Updates.UpdateRelease(LayerPeek.Core.Updates.ReleaseVersion.Parse("0.3.2"), LayerPeek.Core.Updates.UpdateRelease.PageFor(LayerPeek.Core.Updates.ReleaseVersion.Parse("0.3.2")), IsPrerelease: true)));
 
+    /// <summary>The address of the "More information" link next to the warnings (T-182) unless a test gives its own.</summary>
+    public static readonly Uri SecurityHelp = new("https://example.invalid/manual.md#security");
+
     /// <summary>
     /// Opens and loads the window; new printers get the ids "p1", "p2"... in order. The OS shows the notifications
     /// (<see cref="FakeSystemNotificationSettings"/>, T-101: the test button is in the heading of the notifications) unless
@@ -80,7 +83,9 @@ internal sealed class SettingsWindowHarness
         IRecordingFolderPicker? recordingFolderPicker = null,
         IReadOnlyList<LayerPeek.Core.Detection.PrintFailureDetectorRegistration>? detectors = null,
         ILastCameraFrames? lastFrames = null,
-        LayerPeek.App.Updates.IUpdateFeedRejections? feedRejections = null)
+        LayerPeek.App.Updates.IUpdateFeedRejections? feedRejections = null,
+        LayerPeek.App.Tests.Tray.Menu.FakeUrlLauncher? urlLauncher = null,
+        Uri? securityHelp = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
@@ -100,6 +105,10 @@ internal sealed class SettingsWindowHarness
             // T-154: by default the first detector of the app ("bed-change", its texts), so every layout shows one.
             DetectorRegistrations = detectors ?? [LayerPeek.App.Tests.Settings.DetectionFakes.BedChange],
             LastFrames = lastFrames,
+            // T-182: the "More information" link next to the warnings is always shown (a fixed address, not the mapping of
+            // UserManual), so every layout test reserves its room, also before the manual chapter of T-183 exists.
+            UrlLauncher = urlLauncher ?? new LayerPeek.App.Tests.Tray.Menu.FakeUrlLauncher(),
+            SecurityHelpUri = () => securityHelp ?? SecurityHelp,
         };
         // Like SettingsWindowFactory: the folder dialog of the recordings (T-146); by default the user cancels it.
         viewModel.RecordingFolderPicker = recordingFolderPicker ?? new LayerPeek.App.Tests.Cameras.Recording.FakeRecordingFolderPicker();

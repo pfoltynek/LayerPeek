@@ -429,6 +429,18 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       široké a malý náhled: CPU a working set procesu, výsledek zapsat do poznámek T-195. Pokud by na Windows
       vycházel jiný práh, založit nový úkol (práh podle OS), T-195 se znovu neotevírá.
 
+### 2y. Varování u nešifrované adresy mimo místní síť (z T-182, implementováno na Macu 2026-11-11)
+- [ ] **T-182** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
+      `SettingsWindowLayoutTests.EverythingFitsWithoutScrollingInEveryState` se stavy „address warning + …“ a „camera
+      warning + …“ (varování nejvýš na dva řádky vedle odkazu „Více informací“; na macOS s Inter nejmenší rezerva 5 DIP
+      v němčině na podzáložce Kamera, 11 DIP na podzáložce Tiskárna), `EveryButtonIsAtLeast32DipHighInEveryState`
+      a `SettingsWindowUntrustedNetworkUiTests`.
+- [ ] **T-182** (ručně, `dotnet run --project src/LayerPeek.App`): v Nastavení → Tiskárny zadat adresu
+      `http://203.0.113.10` → pod adresou místo nápovědy varování a rámeček pole v barvě varování (`#8A4B00`, v tmavém motivu `#FFC56B`),
+      po `192.168.1.20` zmizí; uložení projde. Na podzáložce Kamera totéž s `rtsp://203.0.113.10/live`. Předčítání
+      (Narrator): pole adresy čte text varování jako nápovědu. Odkaz „Více informací“ se ukáže až po doplnění kotev
+      kapitoly z T-183 (`UserManual.SecurityChapterUriFor`); pak kliknutím otevře kapitolu příručky v jazyce aplikace.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

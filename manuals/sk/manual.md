@@ -123,6 +123,11 @@ Ikona hneď začne ukazovať stav tlačiarne. Ďalšie tlačiarne pridáte rovna
 Heslo sa ukladá do **Správcu poverení Windows** alebo do **Kľúčenky macOS**, nikdy nie do súboru s nastaveniami.
 Keď tlačiareň neskôr upravujete, pole hesla ukazuje **Bez zmeny**; ak ho necháte prázdne, uložené heslo zostane.
 
+**Varovanie pod adresou:** adresa `http://`, ktorá môže byť mimo miestnej siete (verejná IP adresa alebo iný názov
+hostiteľa ako názov bez bodky alebo s koncovkou `.local`, `.lan` či `.home.arpa`), ukáže namiesto nápovedy varovanie.
+PrusaLink prihlasuje bez šifrovania, takže heslo môže niekto cestou zachytiť. Uložiť adresu aj tak možno. Radšej použite
+`https://` cez reverzný proxy alebo VPN.
+
 ### 3.3 Pridanie kamery (voliteľné)
 
 1. V **Nastavenia → Tlačiarne** vyberte tlačiareň a otvorte jej podkartu **Kamera**.
@@ -131,6 +136,9 @@ Keď tlačiareň neskôr upravujete, pole hesla ukazuje **Bez zmeny**; ak ho nec
    Do adresy nedávajte používateľské meno ani heslo.
 4. Kliknite na **Otestovať kameru**. Funkčná kamera ukáže snímku a svoje rozlíšenie.
 5. Kliknite na **Uložiť** a v podponuke tlačiarne vyberte **Zobraziť kameru**.
+
+Rovnako ako pri adrese tlačiarne ukáže varovanie aj adresa kamery, ktorá môže byť mimo miestnej siete: RTSP nie je
+šifrované, takže obraz kamery môže niekto cestou zachytiť. Uložiť adresu aj tak možno; radšej použite VPN.
 
 ### 3.4 Obrázok tlačiarne
 
