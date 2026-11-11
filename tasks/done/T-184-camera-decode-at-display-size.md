@@ -50,6 +50,9 @@ Otázka pro uživatele (navazující, T-184 neblokuje; ui-dev 2026-11-11):
 
 ## Poznámky k implementaci
 
+- Uzavřeno 2026-11-11: zbývající ruční ověření (kvalita obrazu na celé obrazovce, volitelně měření na Windows x64)
+  přesunuto do T-125 (oddíl 2s) a T-127 (oddíl 1e) podle `tasks/README.md`.
+
 ### Část Core + Camera.FFmpeg (core-dev, 2026-11-10)
 
 Nezaškrtnuté zůstávají kritéria, která potřebují okno: dekodér a hub to umí a mají testy, ale okno zatím velikost

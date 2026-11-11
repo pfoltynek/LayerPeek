@@ -273,6 +273,7 @@ a kritérium.
       interaktivně `pwsh tools/macos-verify.ps1 -Only mac.update-check`). Výsledek všech tří scénářů a důkazy
       (`*-watch.jsonl`, `*-before/after.png`, `github-requests.txt`, log aplikace) ze složky běhu zapsat sem; při `FAIL`
       založit úkol na opravu.
+
 ### 1e. Kamera v rozlišení zobrazení (z T-184, implementováno na Macu 2026-11-11)
 - [ ] **T-184** (krit. „Kvalita obrazu na celé obrazovce se viditelně nezhorší“, ruční, simulátor stačí): okno kamery
       na celé obrazovce, v normálním okně a v malém náhledu na Retina i na monitoru se škálováním 1× – obraz je ostrý, bez
