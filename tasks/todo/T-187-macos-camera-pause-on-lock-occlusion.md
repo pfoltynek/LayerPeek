@@ -27,6 +27,8 @@ Protějšek T-186 pro macOS. Na macOS jde navíc spolehlivě zjistit, že je okn
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
+Rozhodnuto uživatelem 2026-11-11 (v T-186): pozastavit ano, i okno na jiném Space a i malý náhled „vždy navrchu“; detekce a nahrávání běží dál.
+
 - Stejné jako v T-186 (odpovědi platí pro obě platformy).
 
 ## Poznámky k implementaci
