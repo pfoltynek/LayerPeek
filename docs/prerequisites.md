@@ -206,9 +206,20 @@ gh auth status       # ověření
 
 Pro `.tar.gz` na macOS stačí systémový `tar`. Na Windows skripty používají systémový `C:\Windows\System32\tar.exe`, ne `tar` z Git for Windows.
 
+### winget (jen Windows, T-059)
+
+Odeslání vydání do winget (`scripts/release-winget.ps1`, volitelný krok `release-publish.ps1` a `release-upload.ps1 -AddToPublished`, postup v [release.md](release.md#publikace-do-winget-t-059)) potřebuje na Windows **wingetcreate** (licence MIT) a **winget** (App Installer, součást Windows 10/11). Na macOS se nespouští, skript to odmítne se zprávou.
+
+```powershell
+winget install --id Microsoft.WingetCreate
+wingetcreate --version
+```
+
+`wingetcreate` dostane token GitHubu od skriptu (`gh auth token`, jen po dobu běhu), vlastní přihlášení (`wingetcreate token --store`) netřeba a nemá se používat (token by zůstal uložený). Token `gh` musí být klasický nebo přihlášení OAuth z `gh auth login`; fine-grained token (`github_pat_…`) `wingetcreate` nepodporuje. Pro ruční ověření manifestu před prvním odesláním: `winget settings --enable LocalManifestFiles` (jednou, jako správce).
+
 ## Pester (testy skriptů)
 
-Testy skriptů pro vydání (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`, `ReleaseOrchestrator.Tests.ps1`) potřebují **PowerShell 7.2+** a **Pester 5 nebo novější** (licence Apache-2.0). Windows PowerShell má předinstalovaný Pester 3.4, ten nestačí. Instalace pro aktuálního uživatele (bez práv správce):
+Testy skriptů pro vydání (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`, `ReleaseOrchestrator.Tests.ps1`, `ReleaseWinget.Tests.ps1`) potřebují **PowerShell 7.2+** a **Pester 5 nebo novější** (licence Apache-2.0). Windows PowerShell má předinstalovaný Pester 3.4, ten nestačí. Instalace pro aktuálního uživatele (bez práv správce):
 
 ```powershell
 pwsh -NoProfile -Command "Install-Module Pester -Scope CurrentUser -MinimumVersion 5.0.0 -Force -SkipPublisherCheck"

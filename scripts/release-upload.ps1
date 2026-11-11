@@ -32,7 +32,8 @@
     are skipped (a re-run after an interrupted upload). The checksum file and the Velopack feed files are uploaded
     last (the order above), so that no app sees the OS in the release before its packages are there. The release
     text and its pre-release flag are never changed. Afterwards the whole release is checked like release-publish.ps1
-    does (every file listed in the checksum files with its SHA256, every feed signed, nothing else).
+    does (every file listed in the checksum files with its SHA256, every feed signed, nothing else). Then it offers the
+    winget submission (T-059, Windows only, asks first; scripts/release-winget.ps1 does the same on its own).
 
 .PARAMETER Repo
     GitHub repository owner/name of the release. Default: the repository of the git remote origin. Another
@@ -183,6 +184,8 @@ try {
             exit 1
         }
         Write-Host "The $($output.BuildInfo.Os) files are added to the published release $tag; the release is complete and every file matches its checksum file: $($after.url)" -ForegroundColor Green
+        # T-059: the optional winget submission, once the release has the Windows installer (never fails the upload).
+        Invoke-WingetReleaseOffer -RepoRoot $repoRoot -Version $version -Repository $preflight.Repository -AssetNames @($after.assets | ForEach-Object name)
         exit 0
     }
     Write-Host "Draft release $tag updated. Upload the build of the other OS, then publish: pwsh scripts/release-publish.ps1 (or publish with -AllowIncomplete and add the other OS later with -AddToPublished, docs/release.md)" -ForegroundColor Green

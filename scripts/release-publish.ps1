@@ -15,6 +15,9 @@
       - no file of a runtime that must not be released (Uploadable = $false in the runtime table) is uploaded.
     The checksum files are downloaded into a temporary folder that is always deleted. Versions 0.x stay marked as
     pre-releases.
+    After publishing it offers the winget submission (T-059): on Windows, for a stable version whose release has the
+    Windows installer, it asks whether to run it now (scripts/release-winget.ps1 does the same on its own); otherwise it
+    says why not or how to submit later on Windows.
 
 .PARAMETER Repo
     GitHub repository owner/name of the release. Default: the repository of the git remote origin. Another
@@ -84,6 +87,8 @@ try {
     & gh release edit $tag --repo $preflight.Repository --draft=false "--prerelease=$($prerelease.ToString().ToLowerInvariant())"
     if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE." }
     Write-Host "Release $tag published." -ForegroundColor Green
+    # T-059: the optional winget submission (Windows only, asks first; never fails the publish).
+    Invoke-WingetReleaseOffer -RepoRoot $repoRoot -Version $preflight.Version -Repository $preflight.Repository -AssetNames @($release.assets | ForEach-Object name)
     exit 0
 }
 catch {

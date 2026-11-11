@@ -1,0 +1,8 @@
+# Created by scripts/release-winget.ps1 from build/winget (LayerPeek, T-059)
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.28.0.schema.json
+
+PackageIdentifier: 3DPrint.LayerPeek
+PackageVersion: @VERSION@
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.28.0

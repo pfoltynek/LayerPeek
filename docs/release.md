@@ -7,8 +7,9 @@ Vydání se dělá lokálně bez CI (GitHub Actions se nepoužívají, T-016 zam
 | `scripts/release.ps1` | **jeden příkaz** pro kroky 1–3 níže: větev `release/X.Y.Z`, sloučení do `main` + tag, sloučení zpět do `develop`, sestavení tagu a nahrání do konceptu; nikdy nezveřejňuje (viz „Vydání jedním příkazem“) | ano, jen push a koncept po potvrzení (kromě `-DryRun`) |
 | `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, na Windows instalátor Velopack (T-017), na macOS `LayerPeek.app` od `vpk` + `.dmg` + `.tar.gz` + balíček a feed Velopacku (T-019, T-058), podpis feedu offline klíčem (T-181, viz „Podpis feedu aktualizací“), `SHA256SUMS-<os>.txt` | ne |
 | `scripts/release-upload.ps1` | kontroly, vytvoření konceptu vydání (první běh) nebo nahrání do existujícího konceptu (druhý OS); s `-AddToPublished` doplnění chybějícího OS do zveřejněného vydání (T-113) | ano (kromě `-DryRun`) |
-| `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění | ano (kromě `-DryRun`) |
-| `scripts/ReleaseTools/ReleaseTools.Tests.ps1` | Pester testy logiky skriptů bez sítě (spouští je i `dotnet test`, viz níže) | ne |
+| `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění; potom nabídne odeslání do winget (T-059) | ano (kromě `-DryRun`) |
+| `scripts/release-winget.ps1` | odeslání zveřejněného vydání do winget (`microsoft/winget-pkgs`), jen Windows, s potvrzením; s `-OutputDirectory` jen zapíše manifest (viz „Publikace do winget“) | ano, PR do `microsoft/winget-pkgs` po potvrzení (kromě `-DryRun` a `-OutputDirectory`) |
+| `scripts/ReleaseTools/ReleaseTools.Tests.ps1` | Pester testy logiky skriptů bez sítě (spouští je i `dotnet test`, viz níže; winget v `ReleaseWinget.Tests.ps1`) | ne |
 
 Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.2`) a běží na Windows i macOS. Režim `-DryRun` u uploadu a publish **čte** stav z GitHubu (`gh auth status`, `gh release view`, u publish i stažení `SHA256SUMS-*.txt` do dočasné složky), ale na GitHubu nic nemění. Prerekvizity (MSVC / Xcode Command Line Tools, `gh` CLI) jsou v [prerequisites.md](prerequisites.md).
 
@@ -21,6 +22,7 @@ Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.
 - Poznámky k vydání jsou sekce verze z `CHANGELOG.md` (formát [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), anglicky podle `CLAUDE.md`).
 - Bez placeného podpisu: Windows soubory jsou nepodepsané, macOS má jen ad-hoc podpis bez notarizace (T-019, viz „Balení pro macOS“).
 - Feed aktualizací `releases.<RID>.json` je od T-181 podepsaný offline klíčem (ECDSA P-256) a aplikace aktualizaci bez platného podpisu odmítne (rozhodnuto 2026-11-06, viz „Podpis feedu aktualizací“).
+- winget (T-059, rozhodnuto 2026-11-11): balíček `3DPrint.LayerPeek`, vydavatel `Petr Foltýnek`, jen stabilní verze od 1.0.0, odeslání jako volitelný krok po zveřejnění (viz „Publikace do winget“).
 
 ## Vydání jedním příkazem (`scripts/release.ps1`, T-055)
 
@@ -168,6 +170,7 @@ Co `-AddToPublished` dělá a hlídá:
 - Feed tohoto OS musí mít podpis `.sig` (T-181), takže doplnit OS do vydání zveřejněného **před** T-181 nejde; přijato uživatelem 2026-11-11 (otázka 21 v T-181; T-180 má `-AddToPublished` stejně zrušit).
 - Nejdřív nahraje balíčky (`.zip`, `Setup.exe`, `.nupkg`, `.dmg`, `.tar.gz`) a podpisy feedu (`releases.<RID>.json.sig`, T-181) a **až potom** soubory, podle kterých aplikace OS ve vydání pozná: `SHA256SUMS-<os>.txt` a feed Velopacku (`releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`). Během nahrávání tak žádná aplikace nedostane nabídku vydání, jehož balíčky tam ještě nejsou.
 - Na konci zkontroluje celé zveřejněné vydání stejně jako `release-publish.ps1`: součty obou OS, feed každého vydávaného RID, každý soubor ze součtů se stejným SHA256, nic navíc. Při problému skončí s kódem 1 a vypíše ho (soubory už jsou nahrané, oprav ručně).
+- Po úspěšné kontrole nabídne odeslání do winget stejně jako `release-publish.ps1` (T-059, viz „Publikace do winget“): typicky právě tady, když Mac zveřejnil vydání s `-AllowIncomplete` a Windows soubory přišly až teď.
 - Bez přepínače se chování nemění: nahrání do zveřejněného vydání skript odmítne (`Release vX.Y.Z is already published …`) a nově jen poradí `-AddToPublished`.
 
 Co mezitím vidí aplikace:
@@ -244,6 +247,8 @@ Vznikne `LayerPeek-X.Y.Z-osx-arm64.dmg`, `LayerPeek-X.Y.Z-osx-arm64.tar.gz`, od 
 pwsh scripts/release-publish.ps1 -DryRun
 pwsh scripts/release-publish.ps1
 ```
+
+Po zveřejnění skript nabídne odeslání do winget (jen Windows, stabilní verze se souborem `Setup.exe`; jinak jen vypíše, proč ne nebo jak to udělat později), viz „Publikace do winget“.
 
 `release-publish.ps1` zveřejní koncept jen tehdy, když obsahuje `SHA256SUMS-windows.txt` i `SHA256SUMS-macos.txt`, všechny soubory z nich jsou nahrané se stejným SHA256 (podle `digest`, který hlásí GitHub), žádný jiný soubor tam není a není tam soubor RID, který se nahrávat nesmí (`Uploadable = $false`, dnes žádný). Přepínač `-AllowIncomplete` dovolí zveřejnit vydání bez souborů některého OS (např. jen macOS); nahrané soubory se kontrolují i tak. Soubory chybějícího OS se pak doplní `release-upload.ps1 -AddToPublished` (viz „Vydání na dvou počítačích“). (Do T-113 `-AllowIncomplete` skončil chybou `Cannot bind argument to parameter 'ExpectedOs' it is null`; opraveno.)
 
@@ -549,10 +554,125 @@ pwsh tools/run-e2e.ps1 -Class '*VelopackInstallerTests'
 
 Test zálohuje vývojového zástupce `LayerPeek.lnk`, obsah složky `%LOCALAPPDATA%\LayerPeek` (logy, kopie v `%LOCALAPPDATA%\LayerPeek.E2E.InstallerBackup`), klíče `Uninstall\LayerPeek`, `CLSID\{EC47413C-984D-447A-866A-5F780E408DE7}` a `Notifications\Settings\LayerPeek`, zástupce ve Startup a položky ikony v `NotifyIconSettings` a po testu je vrátí (i po pádu, viz [troubleshooting.md](troubleshooting.md)). Bez složky s logy si ji test vytvoří, aby ověřil i instalaci po `.zip` verzi. Ověří, že zrušený dialog „přepsat/opravit“ nic nenainstaluje a logy nechá, a že tichá instalace logy smaže a nainstaluje bez UAC. Dále ověří AUMID a `ToastActivatorCLSID` zástupce, registraci COM `LocalServer32` a to, že po odinstalaci nic z toho nezůstane. Přeskočí se, když instalátor chybí, když je LayerPeek opravdu nainstalovaný, když nějaký LayerPeek běží (jeho log by byl otevřený) a když testy běží jako správce. Odinstalace vymaže oznámení LayerPeeku z centra oznámení a ta vrátit nejde, varování skriptu to uvádí (přijato 2026-10-24).
 
+## Publikace do winget (T-059)
+
+Aplikace se dá nainstalovat a aktualizovat příkazem `winget` z komunitního repozitáře manifestů [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs). Manifest odkazuje na `LayerPeek-X.Y.Z-win-x64-Setup.exe` ve zveřejněném vydání na GitHubu; winget ho stáhne odtud a ověří jeho SHA256.
+
+```powershell
+winget install --id 3DPrint.LayerPeek     # nebo: winget install layerpeek
+winget upgrade --id 3DPrint.LayerPeek
+winget uninstall --id 3DPrint.LayerPeek
+```
+
+### Rozhodnutí (uživatel 2026-11-11)
+
+- Začíná se verzí **1.0.0** (první stabilní, s .NET 11 GA). Repozitář je s 1.0.0 veřejný, první odeslání proběhne hned po zveřejnění 1.0.0. Verze `0.x` se do winget neposílají (skripty je odmítnou).
+- Identifikátor balíčku **`3DPrint.LayerPeek`**, vydavatel (`Publisher`) **`Petr Foltýnek`**.
+- Odeslání je **volitelný krok skriptu vydání**: po zveřejnění se skript zeptá, zda spustit odeslání. Token je z `gh auth token` jen za běhu, nikdy se neukládá, nevypisuje ani nepředává na příkazové řádce.
+
+### Pravidla winget-pkgs (ověřeno 2026-11-11)
+
+| Pravidlo | Zdroj | U nás |
+|---|---|---|
+| Identifikátor obvykle `Publisher.Package`, rozlišuje velikost písmen, složka `manifests/<malé první písmeno>/<segmenty>/<verze>` | [Authoring.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/Authoring.md), [schéma version 1.28.0](https://github.com/microsoft/winget-pkgs/blob/master/doc/manifest/schema/1.28.0/version.md) | `3DPrint.LayerPeek` → `manifests/3/3DPrint/LayerPeek/<verze>`; v indexu winget (2026-11-11, 16 333 balíčků) žádný balíček `3DPrint.*` není |
+| `Publisher` má odpovídat hodnotě `Publisher` v klíči Uninstall (Aplikace a funkce), `PackageName` hodnotě `DisplayName`, verze `DisplayVersion`; jinak `AppsAndFeaturesEntries` | [schéma defaultLocale 1.28.0](https://github.com/microsoft/winget-pkgs/blob/master/doc/manifest/schema/1.28.0/defaultLocale.md), [CONTRIBUTING.md](https://github.com/microsoft/winget-pkgs/blob/master/CONTRIBUTING.md) („Testing“) | Velopack 1.2.161 zapisuje `Publisher` = `--packAuthors` (`Petr Foltýnek`), `DisplayName` = `--packTitle` (`LayerPeek`), `DisplayVersion` = verze balíčku, klíč `HKCU\…\Uninstall\LayerPeek` ([registry.rs](https://github.com/velopack/velopack/blob/1.2.161/src/bins/src/windows/registry.rs)). Shoduje se, `AppsAndFeaturesEntries` netřeba; Pester test hlídá shodu s `Get-VelopackSettings` |
+| `Moniker` je volitelný; jen když ho má jediný balíček, `install`/`upgrade` podle něj balíček najdou | [schéma defaultLocale 1.28.0](https://github.com/microsoft/winget-pkgs/blob/master/doc/manifest/schema/1.28.0/defaultLocale.md) | `layerpeek`; v indexu winget (2026-11-11) ho nemá žádný balíček |
+| Instalace bez zásahu uživatele (výchozí režim „silent with progress“), podporovat `silent` i `silentWithProgress` | [Policies.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/Policies.md), [schéma installer 1.28.0](https://github.com/microsoft/winget-pkgs/blob/master/doc/manifest/schema/1.28.0/installer.md) (`InstallModes`, `InstallerSwitches`) | Velopack `Setup.exe`: `-s, --silent` „Hides all dialogs and answers 'yes' to all prompts“, `-l, --log <FILE>` ([setup.rs 1.2.161](https://github.com/velopack/velopack/blob/1.2.161/src/bins/src/setup.rs)) |
+| Jen vícesouborový manifest (version + defaultLocale + installer) se záhlavím `# yaml-language-server: $schema=…`, schéma podle šablony PR (dnes **1.28**) | [FirstContribution.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/FirstContribution.md), [šablona PR](https://github.com/microsoft/winget-pkgs/blob/master/.github/PULL_REQUEST_TEMPLATE.md) | tři soubory v `build/winget`, schéma 1.28.0 |
+| Jeden PR = jedna verze jednoho balíčku, jen soubory manifestu; před odesláním `winget validate --manifest` a `winget install --manifest` | [FirstContribution.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/FirstContribution.md) | skript posílá jednu verzi; ověření první verze ručně (níže) |
+| URL instalátoru z oficiálního místa vydavatele, nejlépe jiná pro každou verzi | [Policies.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/Policies.md) („Manifest URLs“), [Microsoft Learn – zásady 1.1.4](https://learn.microsoft.com/windows/package-manager/package/windows-package-manager-policies) | `https://github.com/pfoltynek/LayerPeek/releases/download/vX.Y.Z/LayerPeek-X.Y.Z-win-x64-Setup.exe` |
+| `LicenseUrl` u open source má odkazovat na licenci dané verze; nejvýš 16 tagů | [schéma defaultLocale 1.28.0](https://github.com/microsoft/winget-pkgs/blob/master/doc/manifest/schema/1.28.0/defaultLocale.md), [zásady 1.1.2](https://learn.microsoft.com/windows/package-manager/package/windows-package-manager-policies) | `…/blob/vX.Y.Z/LICENSE`, 8 tagů |
+| Instalátor projde bezpečnostními kontrolami validace; balíček označený kterýmkoli skenem nejde přijmout | [Policies.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/Policies.md), [Validation.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/Validation.md) | nepodepsaný instalátor (rozhodnuto 2026-10-21): riziko, výsledek první validace zapsat do T-059 |
+| PR do winget-pkgs vyžaduje podepsanou Microsoft CLA | [šablona PR](https://github.com/microsoft/winget-pkgs/blob/master/.github/PULL_REQUEST_TEMPLATE.md) | podepisuje uživatel u prvního PR (bot se ozve v PR) |
+| Předběžné verze | v dokumentaci winget-pkgs ani na Microsoft Learn jsme pravidlo nenašli | neřešíme: posíláme jen stabilní `X.Y.Z` od 1.0.0 |
+
+`wingetcreate` (MIT, [microsoft/winget-create](https://github.com/microsoft/winget-create)): `update` potřebuje už existující balíček a stejný počet URL jako uzlů instalátoru; architekturu bere nejdřív z URL (`…-win-x64-…`), proto ji nepřepisujeme (`|x64`). Token čte nejdřív z proměnné `WINGET_CREATE_GITHUB_TOKEN`, pak ze Správce pověření ([TokenHelper.cs](https://github.com/microsoft/winget-create/blob/main/src/WingetCreateCLI/TokenHelper.cs)); `--token` na příkazové řádce dokumentace sama nedoporučuje („may result in the token being logged“, [doc/token.md](https://github.com/microsoft/winget-create/blob/main/doc/token.md)). **Fine-grained tokeny nepodporuje** (tamtéž), potřebuje klasický token nebo přihlášení OAuth s přístupem k veřejným repozitářům (forkuje `microsoft/winget-pkgs`).
+
+### Manifest (`build/winget`)
+
+Tři revidované šablony (UTF-8 bez BOM), ze kterých skript vytvoří manifest první verze. Zástupné hodnoty `@VERSION@`, `@RELEASE_DATE@` (datum zveřejnění vydání na GitHubu, UTC) a `@INSTALLER_SHA256@` (SHA256 instalátoru, jak ho hlásí GitHub u souboru vydání) doplní `ConvertTo-WingetManifests`.
+
+| Soubor | Obsah |
+|---|---|
+| `3DPrint.LayerPeek.yaml` | `version`: identifikátor, verze, `DefaultLocale: en-US` |
+| `3DPrint.LayerPeek.installer.yaml` | `InstallerType: exe`, `Scope: user`, `InstallModes` interactive/silent/silentWithProgress, `Silent` a `SilentWithProgress`: `--silent`, `Log: --log "<LOGPATH>"`, `UpgradeBehavior: install`, `ProductCode: LayerPeek` (název klíče Uninstall), `ReleaseDate`, jediný instalátor `x64` (ARM64 se nepodporuje, T-130) |
+| `3DPrint.LayerPeek.locale.en-US.yaml` | `Publisher: Petr Foltýnek`, `PackageName: LayerPeek`, `License: GPL-3.0-only`, `LicenseUrl` a `ReleaseNotesUrl` dané verze, `Moniker: layerpeek`, tagy, popis s větou, že nejde o oficiální produkt Prusa Research, odkaz na příručku |
+
+`InstallLocation` (`--installto`) záměrně chybí: instalace jinam než do `%LOCALAPPDATA%\LayerPeek` se neověřovala. Vykreslené soubory 1.0.0 prošly kontrolou proti JSON schématům 1.28.0 z `microsoft/winget-cli` (na Macu, Python `jsonschema`, 2026-11-11); `winget validate` je potřeba na Windows.
+
+Další verze se posílají `wingetcreate update`: vezme manifest předchozí verze z winget-pkgs a změní jen verzi, URL, SHA256, `ReleaseNotesUrl` a `ReleaseDate`. Ostatní pole (i `LicenseUrl` s tagem 1.0.0) zůstanou z předchozí verze; změna šablon se proto do winget dostane jen ručně (PR s celým manifestem nebo `wingetcreate update --interactive`).
+
+### Postup: první verze 1.0.0 (Windows)
+
+Po zveřejnění 1.0.0 včetně souborů Windows (`release-publish.ps1`, nebo `release-upload.ps1 -AddToPublished` po zveřejnění z Macu), v čistém checkoutu tagu:
+
+```powershell
+git switch --detach v1.0.0
+pwsh scripts/release-winget.ps1 -Version 1.0.0 -OutputDirectory $env:TEMP\winget-1.0.0   # jen zapíše manifest (SHA256 z GitHubu)
+winget validate --manifest $env:TEMP\winget-1.0.0
+winget settings --enable LocalManifestFiles                       # jednou, jako správce
+winget install --manifest $env:TEMP\winget-1.0.0                  # tichá instalace bez dotazů a bez UAC
+```
+
+Kontrola po instalaci: Nastavení → Aplikace ukazuje **LayerPeek**, vydavatel **Petr Foltýnek**, verze **1.0.0**; aplikace se po tiché instalaci sama nespustí (Velopack `--silent`), zástupce je ve Start menu a spouštění po přihlášení je zapnuté (hook instalace). Pak odinstalace (`winget uninstall --manifest $env:TEMP\winget-1.0.0`, nebo v Nastavení → Aplikace) a kontrola, že zmizela instalační složka i položka v Aplikacích. Když je vše v pořádku:
+
+```powershell
+pwsh scripts/release-winget.ps1 -Version 1.0.0 -DryRun   # plán: "first version", příkaz wingetcreate bez tokenu
+pwsh scripts/release-winget.ps1 -Version 1.0.0           # winget validate, potvrzení, wingetcreate submit → PR
+git switch develop
+```
+
+Skript vytvoří manifest v dočasné složce (po odeslání ji smaže), spustí `winget validate`, zeptá se `y/N`, teprve pak přečte token (`gh auth token`) a spustí `wingetcreate submit --prtitle "New package: 3DPrint.LayerPeek version 1.0.0" <složka>`. `wingetcreate` otevře PR v prohlížeči. V PR: podepsat Microsoft CLA (bot), sledovat štítky validace ([ValidationFailureGuide.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/ValidationFailureGuide.md)) a výsledek první validace (Defender/SmartScreen u nepodepsaného instalátoru, ruční kontrola) zapsat do T-059.
+
+### Postup: další verze (volitelný krok vydání)
+
+`release-publish.ps1` po zveřejnění a `release-upload.ps1 -AddToPublished` po doplnění souborů vypíšou řádek `winget: …`:
+
+| Situace | Co se stane |
+|---|---|
+| verze `0.x` | `winget: 0.x is a pre-release, it is not submitted` – nic dalšího |
+| vydání jiného repozitáře (`-Repo`, zkušební vydání) | nic se neodesílá |
+| vydání ještě nemá `Setup.exe` (zveřejněno z Macu s `-AllowIncomplete`) | odkaz na `release-upload.ps1 -AddToPublished` na Windows, který odeslání nabídne |
+| běží na macOS | příkaz `pwsh scripts/release-winget.ps1 -Version X.Y.Z` pro Windows |
+| Windows, stabilní verze, `Setup.exe` ve vydání | otázka `Submit LayerPeek X.Y.Z to winget (microsoft/winget-pkgs) now? [y/N]`; po `y` stejný postup jako `release-winget.ps1`: výpis plánu a druhé potvrzení před otevřením PR |
+
+Selhání odeslání vydání nerozbije (zveřejnění i doplnění skončí s kódem 0), skript vypíše chybu a příkaz pro opakování. Samostatně (např. později): `pwsh scripts/release-winget.ps1 -Version X.Y.Z [-DryRun]`. Balíček už ve winget-pkgs je, takže se volá `wingetcreate update 3DPrint.LayerPeek --version X.Y.Z --urls <Setup.exe> --release-notes-url <vydání> --release-date <datum> --prtitle "Update: 3DPrint.LayerPeek to X.Y.Z" --submit`.
+
+### Token
+
+- Až po potvrzení skript zavolá `gh auth token` a výstup si nechá v proměnné. `wingetcreate` ho dostane jen v proměnné prostředí `WINGET_CREATE_GITHUB_TOKEN` tohoto procesu po dobu svého běhu; pak se vrátí předchozí hodnota. Na příkazové řádce (seznam procesů, historie) ani v souboru nikdy není.
+- Výstup `wingetcreate` (stdout i stderr) skript vypisuje řádek po řádku a token v něm nahradí `***`. Pester testy ověřují, že token není ve výstupu, v argumentech ani v prostředí po běhu.
+- Fine-grained token (`github_pat_…`, např. krátkodobý token z `GH_TOKEN` podle T-180) skript odmítne: `wingetcreate` ho nepodporuje a token omezený na repozitář LayerPeek nemůže forkovat `microsoft/winget-pkgs`. Pro odeslání je potřeba přihlášení `gh auth login` (OAuth) nebo klasický token jen v tomto terminálu (otevřená otázka v T-059).
+- `wingetcreate token --store` se nepoužívá (token by zůstal ve Správci pověření). Pozor: když je token z proměnné neplatný, `wingetcreate` smaže svůj případný uložený token ze Správce pověření (`BaseCommand.cs`, `DeleteTokenCache`).
+
+### Co `release-winget.ps1` odmítne
+
+| Kontrola | Hláška (začátek) |
+|---|---|
+| verze `0.x` / ne `X.Y.Z` | `Version … is a pre-release (0.x). winget gets stable versions only` / `… is not a version in the form X.Y.Z` |
+| jiný repozitář než `pfoltynek/LayerPeek` | `winget installs the releases of pfoltynek/LayerPeek only` |
+| ne Windows (kromě `-OutputDirectory`) | `The winget submission runs on Windows only (wingetcreate and winget are Windows tools)` |
+| `gh` chybí / nepřihlášený, `wingetcreate` chybí, u první verze chybí `winget` | `GitHub CLI (gh) is not installed` / `wingetcreate is not installed. Install it: winget install --id Microsoft.WingetCreate` |
+| vydání neexistuje / je koncept / nemá `Setup.exe` / nedokončený soubor / bez SHA256 | `There is no release vX.Y.Z` / `… is still a draft` / `… has no LayerPeek-X.Y.Z-win-x64-Setup.exe yet` / `… is not completely uploaded` / `GitHub reports no SHA256 …` |
+| otevřený PR pro stejnou verzi / první verze ještě nesloučená | `An open pull request for 3DPrint.LayerPeek X.Y.Z already exists` / `The package is not in winget yet and its pull request is still open` |
+| GitHub neodpoví, zda balíček existuje (síť, limit; jen 404 znamená „nový“) | výjimka `gh api repos/microsoft/winget-pkgs/contents/manifests/3/3DPrint/LayerPeek failed` – nikdy druhý PR „New package“ |
+| žádný / fine-grained token | `gh auth token returned no token` / `The token of gh is a fine-grained personal access token` |
+| `winget validate` první verze selže | `winget validate failed (exit code N); nothing was submitted` |
+| `wingetcreate` skončí chybou | `wingetcreate failed with exit code N. Check the pull requests …` |
+
+### Velopack a `winget upgrade`
+
+Ověřeno ve zdroji Velopacku 1.2.161 ([install.rs](https://github.com/velopack/velopack/blob/1.2.161/src/bins/src/commands/install.rs), [registry.rs](https://github.com/velopack/velopack/blob/1.2.161/src/bins/src/windows/registry.rs), [apply_windows_impl.rs](https://github.com/velopack/velopack/blob/1.2.161/src/bins/src/commands/apply_windows_impl.rs)); na Windows ještě neověřeno pokusem:
+
+- **Aktualizace v aplikaci (Velopack)** po instalaci přes winget funguje stejně jako po ručním `Setup.exe` (winget spouští tentýž instalátor). Po aktualizaci Velopack přepíše klíč Uninstall novou `DisplayVersion`, takže `winget list` ukáže novou verzi a `winget upgrade` ji nenabízí znovu.
+- **`winget upgrade`** (`UpgradeBehavior: install`) spustí nový `Setup.exe --silent` přes stávající instalaci. Velopack to bere jako přeinstalaci: **násilně ukončí běžící aplikaci** (bez uložení stavu), celou složku `%LOCALAPPDATA%\LayerPeek` nahradí (**logy se smažou**, stejně jako u instalace přes `.zip` verzi), znovu vytvoří zástupce, spustí hook `--veloapp-install` – ten **znovu zapne spouštění po přihlášení**, i když ho uživatel vypnul – a aplikaci po tiché instalaci **nespustí**. Nastavení (`%APPDATA%\LayerPeek`) a hesla zůstanou. Při chybě Velopack vrátí původní složku.
+- Nové vydání se ve winget objeví až po sloučení PR (validace a kontrola trvají hodiny až dny); aplikace nabídne aktualizaci dřív.
+- `RequireExplicitUpgrade` (vyřazení z `winget upgrade --all` u balíčků, které se aktualizují samy) manifest zatím nemá – otevřená otázka v T-059.
+
 ## Navazující úkoly
 
 - **T-058 (kontrola aktualizací):** vydání `0.x` jsou předběžná (`--prerelease`) a `release-publish.ps1` to při zveřejnění zachová, takže je `GET /releases/latest` nevrátí. Koncepty nejsou bez přihlášení vidět vůbec.
-- **T-059 (winget):** odeslání manifestu (`wingetcreate update …`) navazuje až na zveřejnění (`release-publish.ps1`). Postup sem doplní T-059.
+- **T-059 (winget):** odeslání navazuje na zveřejnění (`release-publish.ps1`, `release-upload.ps1 -AddToPublished`), viz „Publikace do winget“. Ověření na Windows (první odeslání, `winget install`/`uninstall`) zbývá v T-059.
 
 ## Konfigurace RID
 
@@ -572,6 +692,8 @@ Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `Scr
 Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, odmítnutí souborů RID, který se nahrávat nesmí, a odmítnutí `win-arm64`). Balení pro macOS (T-019): `Info.plist` ze šablony (verze, `LSUIElement`, bundle identifikátor shodný s aplikací), sestavení bundlu bez ladicích symbolů, lokalizace `InfoPlist.strings` (T-097: kopie do bundlu, kontroly, parser `.strings`, na macOS `plutil -lint` a podpis s nimi), pořadí a argumenty podpisu, argumenty `hdiutil`, typ procesu z `lsappinfo` a registrace v LaunchServices; na macOS i skutečný ad-hoc podpis s `codesign --verify --deep --strict` (a rozbitá pečeť po změně souboru), `.icns` (16 a 32 px ze zjednodušené varianty beze změny pixelů, 64 px a víc z předlohy; odmítnutí PNG špatné velikosti) a ověřený `.dmg` a `.tar.gz` bez `._*` nad zástupným bundlem (nic se nepřipojuje). Záloha smoke testu: místa bundle identifikátoru a domény `defaults` nad zástupnou složkou se zástupným `defaults`. Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
 
 Podpis feedu (T-181) ověří `ReleaseTools.Tests.ps1`: sdílený testovací vektor `tests/Shared/Fixtures/UpdateFeed` (podpis z vektoru ověří PowerShell, podpis z PowerShellu ověří veřejný klíč vektoru; změněný feed, jiný RID, jiný klíč a poškozený `.sig` odmítnuty stejně jako v C#), čtení seznamu klíčů ze skutečného `UpdateFeedKeys.cs` (testovací klíč Debug = klíč vektoru, v `Production` nikdy), odmítnutí neznámého tvaru seznamu, prázdného seznamu, nedůvěryhodného klíče, nešifrovaného a chybějícího souboru klíče a špatného hesla, podpis a ověření celé složky `dist/`, vytvoření páru klíčů, pořadí nahrání (`.sig` před feedem) a značku `-SkipFeedSignature`. Skutečný `release-build.ps1` běží v dočasném repozitáři (jen skripty, verze a `UpdateFeedKeys.cs` s testovacím seznamem): bez klíče, s chybějícím / nešifrovaným klíčem, s prázdným seznamem (bez dotazu na heslo), s nedůvěryhodným klíčem, se špatným a chybějícím heslem skončí chybou ještě před buildem; s důvěryhodným klíčem ho přijme a vypíše jen otisk veřejného klíče. Ve výpisech ani souborech se nesmí objevit heslo ani žádný řádek soukromého klíče (ani šifrovaného). `ReleaseOrchestrator.Tests.ps1` proti falešnému `gh`: zkušební build odmítnut (i `-DryRun`), nový koncept vznikne prázdný a `.sig` se nahraje s balíčky před feedem, `release-publish.ps1` odmítne feed bez `.sig`. Celý podepsaný build (s `dotnet`) Pester nespouští, ověřuje ho zkušební vydání.
+
+Odeslání do winget (T-059) ověří `ReleaseWinget.Tests.ps1` bez sítě: šablony v `build/winget` (tři soubory, UTF-8 bez BOM, záhlaví schématu 1.28.0, `Publisher`/`PackageName`/`ProductCode` shodné s nastavením Velopacku, tichá instalace `--silent`, `Scope: user`, jen `x64`, URL dané verze, licence, moniker, nejvýš 16 tagů), čisté funkce (kontroly verze, repozitáře a OS, vydání bez `Setup.exe` / koncept / bez SHA256, datum vydání, otevřené PR, argumenty `wingetcreate` bez tokenu, odmítnutí fine-grained tokenu, maskování výstupu, nabídka po zveřejnění) a `Invoke-WingetRelease` proti falešným `gh`, `wingetcreate` a `winget` na `PATH`: aktualizace (`wingetcreate update`), první verze (`winget validate` a `wingetcreate submit` se složkou manifestu, která se pak smaže), bez potvrzení se token nečte, `-DryRun`, `-OutputDirectory` i na macOS, selhání `gh api` (žádný druhý „New package“), selhání `wingetcreate` a `winget validate`. Falešný `wingetcreate` vypíše token, který dostal, na stdout i stderr; testy ověří, že výstup obsahuje jen `***`, že token není v argumentech žádného volání, že ho `wingetcreate` dostal v `WINGET_CREATE_GITHUB_TOKEN` a že se pak vrátila předchozí hodnota proměnné. `ReleaseOrchestrator.Tests.ps1` ověří, že `release-publish.ps1` a `release-upload.ps1 -AddToPublished` u `0.x` vypíšou jen poznámku. Skutečné `wingetcreate`, `winget` ani GitHub testy nevolají.
 
 Doplnění OS do zveřejněného vydání (T-113) ověří `ReleaseTools.Tests.ps1` čistými funkcemi (`Get-AddToPublishedProblems`: chybějící vydání, koncept, součty OS už ve vydání, stejné soubory přeskočit, jiný obsah a stav `starter` odmítnout; `Test-ReleaseMarkerFileName`; `Get-PublishProblems -Published`) a `ReleaseOrchestrator.Tests.ps1` skutečnými skripty `release-upload.ps1` a `release-publish.ps1` proti falešnému `gh` (stav vydání v dočasné složce, i `release download` a `release edit`): první OS → koncept → `-AllowIncomplete`, druhý OS bez přepínače odmítnut, s `-Force` odmítnut, špinavý strom odmítnut, `-DryRun` nic nezmění, doplnění ve dvou voláních `gh release upload` (balíčky, pak součty a feed), text a příznaky beze změny, opakování odmítnuto, navázání po přerušení, jiný obsah a nedokončený soubor odmítnuty.
 
