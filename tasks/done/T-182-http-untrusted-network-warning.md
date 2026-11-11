@@ -1,7 +1,7 @@
 ---
 id: T-182
 title: Varování u adresy http:// mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť)
-status: in-progress
+status: done
 owner: core-dev + ui-dev
 priority: P2
 platform: all
@@ -57,10 +57,11 @@ adresy zobrazí lokalizované varování.
       zástupný text
 - [x] Referenční snímky UI nastavení (Windows) aktualizované, pokud se změnily; macOS snímky → přesunout do T-127
       (nezměnily se: žádný snímek neukazuje adresu mimo místní síť, `SettingsWindowSnapshotTests` na macOS PASS;
-      kontrola na Windows → přesunuto do T-125, oddíl 2y)
-- [x] Pokud `docs/prusalink-security.md` (T-183) už existuje, zmiňuje varování; jinak to T-183 doplní (neexistuje;
-      podle rozhodnutí 2026-11-11 bude dokumentace kapitolou příručky, kterou píše T-183; varování popisuje příručka
-      v oddílech 3.2 a 3.3)
+      kontrola na Windows → přesunuto do T-125, oddíl 2z)
+- [x] Pokud `docs/prusalink-security.md` (T-183) už existuje, zmiňuje varování; jinak to T-183 doplní (podle rozhodnutí
+      2026-11-11 je dokumentace kapitolou 14 „Zabezpečení přístupu k PrusaLinku“ všech příruček z T-183; úvod kapitoly
+      teď varování zmiňuje s odkazem na 3.2, oddíly 3.2 a 3.3 varování popisují a odkazují na kapitolu 14; odkaz
+      „Více informací“ v nastavení otevře kapitolu v jazyce aplikace)
 - [x] `docs/architecture.md`: kde leží klasifikace
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -75,11 +76,10 @@ adresy zobrazí lokalizované varování.
 4. **CGNAT `100.64.0.0/10` dostane varování** (nebere se jako místní).
 5. **Stejné varování i na podzáložce Kamera** u adresy RTSP, v tomto úkolu, stejná klasifikace.
 
-**Zbývá (blokuje uzavření):**
-6. **Kotvy kapitoly T-183.** Odkaz „Více informací“ je hotový (text ve všech jazycích, místo v rozložení rezervované
-   a ověřené layout testy, příkaz, `IUrlLauncher`), ale `UserManual.SecurityChapterAnchors` je prázdné, takže se odkaz
-   zatím nezobrazuje. Doplní se přesné nadpisy / kotvy kapitoly po sloučení T-183 (koordinátor úkol obnoví); pak
-   aktualizovat příručky (zmínka o odkazu) a T-125 oddíl 2y.
+**Vyřešeno 2026-11-11:**
+6. **Kotvy kapitoly T-183.** T-183 sloučený do `develop` (`84027efd`): kapitola 14 ve všech příručkách, kotvy doplněné
+   v `UserManual.SecurityChapterAnchors`, odkaz „Více informací“ se zobrazuje; `UserManualTests` ověřuje, že každá
+   kotva je slug nadpisu `##` příručky svého jazyka podle pravidel GitHubu.
 
 **Nové otázky pro uživatele (implementace se jich nedotýká, platí výchozí „varování“):**
 7. **Další místní přípony?** Podle rozhodnutí 1 jsou místní jen `.local`, `.lan`, `.home.arpa`. Varování dnes dostanou
@@ -92,6 +92,11 @@ adresy zobrazí lokalizované varování.
    (cs: „Nešifrované spojení mimo místní síť: heslo PrusaLink může někdo zachytit. Použijte https:// (reverzní proxy)
    nebo VPN.“). Text musí zůstat nejvýš na dva řádky vedle odkazu (jinak se podzáložka Kamera v němčině nevejde, rezerva
    5 DIP). Schválit, nebo upravit?
+10. **(z T-183, otázka 2; jen zapsáno, nerozhodnuto)** Chybová hláška „Otestovat spojení“ při selhání HTTPS
+    (`SettingsTestSecureConnection`, en: „The secure (https) connection failed. Try the address with http:// or check the
+    printer's certificate.“) radí zkusit `http://`. Za HTTPS reverzní proxy by to šifrování vypnulo (a adresa mimo místní
+    síť pak dostane varování z tohoto úkolu). Má hláška místo toho radit zkontrolovat certifikát proxy / důvěru v CA
+    (kapitola 14 příručky), nebo zůstat?
 
 Původní otázky:
 1. **Jména přeložená přes DNS** (např. `prusa-mk4` bez tečky nebo `printer.home.arpa`, `printer.lan`, `printer.fritz.box`):
@@ -127,8 +132,11 @@ Původní otázky:
 - **Odkaz „Více informací“:** `HyperlinkButton` vpravo od textu varování (12 px, výška 32 DIP podle T-111).
   `SettingsViewModel.Security.cs`: `UrlLauncher` (v `AppServices` produkční `IUrlLauncher`) a `SecurityHelpUri`
   (výchozí `UserManual.SecurityChapterUriFor(jazyk textů)`). Jediné mapování jazyk → kotva je
-  `UserManual.SecurityChapterAnchors`, zatím prázdné (otázka 6) → odkaz skrytý. Harness UI testů odkaz vždy ukazuje
-  (pevná testovací adresa), takže layout testy rezervují jeho místo už teď.
+  `UserManual.SecurityChapterAnchors` (kapitola 14 „Zabezpečení přístupu k PrusaLinku“ z T-183, base adresa jako
+  `UserManual.UriFor`, kotva percent-encoded v UTF-8, např. `#14-zabezpe%C4%8Den%C3%AD-…`; jazyk mimo překlady → en).
+  `UserManualTests.TheSecurityChapterIsAHeadingOfTheManualOfItsLanguage` čte `manuals/<jazyk>/manual.md` a porovná kotvu
+  se slugy nadpisů `##` (malá písmena, mezera → `-`, interpunkce kromě `-` a `_` pryč, písmena mimo ASCII zůstávají),
+  takže přejmenovaný nebo přečíslovaný nadpis test shodí. Harness UI testů má pevnou testovací adresu odkazu.
 - **Rozložení (měřeno layout testy, macOS, Inter):** sloupec formuláře 548 DIP, nápověda adresy 1 řádek, nápověda
   kamery 2 řádky. Nové stavy v `SettingsWindowLayoutTests.States()`: „address warning + all other errors + refused
   test“, „address warning + name error + longest failed connection test“, „camera warning + credentials removed +
@@ -137,15 +145,18 @@ Původní otázky:
   varování proto musí zůstat nejvýš na dva řádky.
 - **Texty:** `SettingsAddressUntrustedNetwork`, `SettingsCameraUrlUntrustedNetwork`, `SettingsSecurityMoreInfo`,
   `SettingsSecurityMoreInfoHint` ve všech 8 `Strings.*.resx` (otázka 9: znění ke schválení).
-- **Příručky:** všech 8 `manuals/<jazyk>/manual.md`, oddíly 3.2 (varování u adresy tiskárny) a 3.3 (kamera).
+- **Příručky:** všech 8 `manuals/<jazyk>/manual.md`, oddíly 3.2 (varování u adresy tiskárny a odkaz na kapitolu 14)
+  a 3.3 (kamera, stejný odkaz). Po T-183 jsou kapitoly přečíslované (14 zabezpečení, 15 řešení problémů,
+  16 odinstalace); úpravy tohoto úkolu odkazují jen na kapitolu 14.
   Snímky v `docs/images/` se nemění (adresy ve scénáři jsou `*.local`, varování se nezobrazí), proto se negenerovaly.
 - **Testy:** `SettingsAddressWarningTests` (App.Tests, view model), `SettingsWindowUntrustedNetworkUiTests` (headless:
   psaní adresy ukáže / skryje varování, rámeček a barva ve světlém i tmavém motivu, nápověda pro čtečku, uložení
   povoleno, odkaz otevře kapitolu, jazyk), `UserManualTests` (kapitola v manuálu svého jazyka).
-- **Ověřeno na macOS** (Darwin 27.2): `dotnet build` 0 varování; celý `dotnet test` 10 422 testů, 1 chyba
-  (`StringsTests.FrenchPunctuationFollowsANonBreakingSpace`: francouzský text potřebuje nezlomitelnou mezeru před „:“),
-  po opravě `LayerPeek.App.Tests` a `SettingsWindowLayoutTests` + `SettingsWindowUntrustedNetworkUiTests` znovu PASS.
-  Aplikace (`dotnet run`, testovací režim s vlastní složkou dat) se spustila a běžela 45 s bez chyby, ale Mac neměl
-  aktivní displej (sezení přes SSH), takže se ikona v liště nespustila; okno nastavení je ověřené jen headless testy.
-  Windows (Segoe UI, Narrator) → T-125 oddíl 2y.
+- **Ověřeno na macOS** (Darwin 27.2) po sloučení `develop` s T-183: `dotnet build` 0 varování, `dotnet test`
+  10 426 testů, 0 chyb (267 přeskočených, běžné volitelné testy). Aplikace (`dotnet run`, testovací režim s vlastní
+  složkou dat) se spustila a běžela 45 s bez chyby, ale Mac neměl aktivní displej (sezení přes SSH), takže se ikona
+  v liště nespustila; okno nastavení je ověřené jen headless testy. Windows (Segoe UI, Narrator) → T-125 oddíl 2z
+  (oddíl 2y patří T-183).
+- Uzavřeno 2026-11-11: otázky 7–10 jsou otázky na znění a rozsah, neblokují; implementováno výchozí chování podle
+  rozhodnutí 1–5 (přípony a rozsahy mimo seznam dostanou varování, text podle návrhu). Případná změna = nový úkol.
 - AOT: žádný nový balíček, žádná reflexe, kompilované bindingy.

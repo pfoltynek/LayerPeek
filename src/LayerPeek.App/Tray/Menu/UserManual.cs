@@ -12,11 +12,22 @@ namespace LayerPeek.App.Tray.Menu;
 internal static class UserManual
 {
     /// <summary>
-    /// The GitHub anchor of the chapter "PrusaLink access security" (T-183) in each manual, linked from the warning about an
-    /// unencrypted address outside the local network (T-182). The one place that maps a language to its chapter. Empty until
-    /// T-183 is merged (open item in T-182): a language without an anchor shows no link.
+    /// The GitHub anchor of the chapter "Securing access to PrusaLink" (T-183, chapter 14) in each manual, linked from the
+    /// warning about an unencrypted address outside the local network (T-182). The one place that maps a language to its
+    /// chapter: the slug GitHub makes of the heading (UserManualTests checks it against the manuals). A language without an
+    /// anchor shows no link.
     /// </summary>
-    private static readonly Dictionary<string, string> SecurityChapterAnchors = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, string> SecurityChapterAnchors = new(StringComparer.Ordinal)
+    {
+        ["en"] = "14-securing-access-to-prusalink",
+        ["cs"] = "14-zabezpečení-přístupu-k-prusalinku",
+        ["sk"] = "14-zabezpečenie-prístupu-k-prusalinku",
+        ["de"] = "14-zugriff-auf-prusalink-absichern",
+        ["es"] = "14-proteger-el-acceso-a-prusalink",
+        ["fr"] = "14-accès-sécurisé-à-prusalink",
+        ["it"] = "14-accesso-sicuro-a-prusalink",
+        ["pl"] = "14-zabezpieczenie-dostępu-do-prusalink",
+    };
 
     /// <summary>
     /// The manual in the language of <paramref name="textCulture"/> (regional variants count as their language:
@@ -40,6 +51,7 @@ internal static class UserManual
         return AppLanguages.TryNormalize(textCulture.TwoLetterISOLanguageName, out string? code) ? code! : "en";
     }
 
+    /// <summary>The anchor is percent-encoded (UTF-8), so the address stays ASCII for the browser.</summary>
     private static Uri ManualUri(string language, string? anchor) =>
-        new($"{AboutViewModel.RepositoryUri.AbsoluteUri.TrimEnd('/')}/blob/main/manuals/{language}/manual.md{(anchor is null ? null : "#" + anchor)}");
+        new($"{AboutViewModel.RepositoryUri.AbsoluteUri.TrimEnd('/')}/blob/main/manuals/{language}/manual.md{(anchor is null ? null : "#" + Uri.EscapeDataString(anchor))}");
 }

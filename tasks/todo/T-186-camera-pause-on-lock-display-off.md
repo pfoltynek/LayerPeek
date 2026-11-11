@@ -32,6 +32,8 @@ displeji nebo okně na jiné virtuální ploše se obraz dál dekóduje, převá
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
+Rozhodnuto uživatelem 2026-11-11: 1 **ano** (odblokováno); 2 **ano**, pozastavit i okno na jiné virtuální ploše (`DWMWA_CLOAKED`); 3 **ano**, platí i pro malý náhled „vždy navrchu“. Detekce a nahrávání běží dál. Odpovědi platí i pro macOS (T-187).
+
 1. **Mění to chování aplikace. Chcete to?** (Blokuje implementaci.)
 2. Pozastavit i okno na jiné virtuální ploše (`DWMWA_CLOAKED`)? Okno zakryté jinými okny Windows spolehlivě nehlásí,
    takže tento případ se řešit nebude.

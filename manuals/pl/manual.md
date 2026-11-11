@@ -24,8 +24,9 @@ systemy; tam, gdzie Windows i macOS się różnią, tekst o tym wspomina albo po
 11. [Przegląd ustawień](#11-przegląd-ustawień)
 12. [Aktualizacje](#12-aktualizacje)
 13. [Gdzie są przechowywane Twoje dane](#13-gdzie-są-przechowywane-twoje-dane)
-14. [Rozwiązywanie problemów](#14-rozwiązywanie-problemów)
-15. [Odinstalowanie](#15-odinstalowanie)
+14. [Zabezpieczenie dostępu do PrusaLink](#14-zabezpieczenie-dostępu-do-prusalink)
+15. [Rozwiązywanie problemów](#15-rozwiązywanie-problemów)
+16. [Odinstalowanie](#16-odinstalowanie)
 
 ## 1. Czego potrzebujesz
 
@@ -118,7 +119,7 @@ Ikona od razu zaczyna pokazywać stan drukarki. Kolejne drukarki dodajesz tak sa
 **Drukarki**.
 
 **macOS 15 i nowszy:** przy pierwszym połączeniu z drukarką lub kamerą system zapyta o dostęp do **sieci lokalnej**.
-Kliknij **Pozwól**. Jeśli odmówiłeś, zajrzyj do rozdziału [Rozwiązywanie problemów](#14-rozwiązywanie-problemów).
+Kliknij **Pozwól**. Jeśli odmówiłeś, zajrzyj do rozdziału [Rozwiązywanie problemów](#15-rozwiązywanie-problemów).
 
 Hasło jest przechowywane w **Menedżerze poświadczeń systemu Windows** lub w **pęku kluczy macOS**, nigdy w pliku
 ustawień. Gdy później edytujesz drukarkę, pole hasła pokazuje **Bez zmian**; pozostaw je puste, aby zachować zapisane
@@ -127,7 +128,8 @@ hasło.
 **Ostrzeżenie pod adresem:** adres `http://`, który może być poza siecią lokalną (publiczny adres IP albo nazwa hosta
 inna niż nazwa bez kropki lub z końcówką `.local`, `.lan` czy `.home.arpa`), pokazuje ostrzeżenie zamiast podpowiedzi.
 PrusaLink loguje bez szyfrowania, więc hasło może zostać przechwycone po drodze. Zapisać adres i tak można. Lepiej użyj
-`https://` przez odwrotne proxy albo VPN.
+`https://` przez odwrotne proxy albo VPN. Link **Więcej informacji** obok ostrzeżenia otwiera rozdział [Zabezpieczenie
+dostępu do PrusaLink](#14-zabezpieczenie-dostępu-do-prusalink).
 
 ### 3.3 Dodaj kamerę (opcjonalnie)
 
@@ -139,7 +141,8 @@ PrusaLink loguje bez szyfrowania, więc hasło może zostać przechwycone po dro
 5. Kliknij **Zapisz** i wybierz **Pokaż kamerę** w podmenu drukarki.
 
 Tak jak adres drukarki, również adres kamery, który może być poza siecią lokalną, pokazuje ostrzeżenie: RTSP nie jest
-szyfrowany, więc obraz z kamery może zostać przechwycony po drodze. Zapisać adres i tak można; lepiej użyj VPN.
+szyfrowany, więc obraz z kamery może zostać przechwycony po drodze. Zapisać adres i tak można; lepiej użyj VPN. Ten sam
+link obok otwiera rozdział [Zabezpieczenie dostępu do PrusaLink](#14-zabezpieczenie-dostępu-do-prusalink).
 
 ### 3.4 Obraz drukarki
 
@@ -525,7 +528,155 @@ Historia temperatur jest przechowywana tylko w pamięci. LayerPeek łączy się 
 drukarkami i kamerami oraz, jeśli nie wyłączysz sprawdzania aktualizacji, z serwisem GitHub (lista wydań, bez żadnego
 konta, oraz pobranie aktualizacji, którą sam uruchomisz). Nie ma żadnej telemetrii.
 
-## 14. Rozwiązywanie problemów
+## 14. Zabezpieczenie dostępu do PrusaLink
+
+PrusaLink w drukarce używa tylko nieszyfrowanego **HTTP**; sama drukarka nie oferuje HTTPS. Prusa projektuje PrusaLink
+do sieci lokalnej i odradza dostęp do niego z internetu przez przekierowanie portu na routerze; zamiast tego zaleca
+szyfrowany VPN. W sieci domowej, z której korzystasz tylko Ty, zwykle to wystarcza. Czytaj dalej, jeśli sieć między
+komputerem a drukarką współdzielą inne osoby lub urządzenia (wspólne Wi-Fi, biuro, warsztat, akademik) albo jeśli chcesz
+mieć dostęp do drukarki z zewnątrz.
+
+Adres drukarki `http://` lub adres kamery, który może być poza siecią lokalną, dostaje w ustawieniach ostrzeżenie (zob.
+[3.2 Dodaj drukarkę](#32-dodaj-drukarkę)); zapisać go i tak można.
+
+### 14.1 Na czym polega ryzyko
+
+- **Każdy, kto widzi ruch** między komputerem a drukarką, może go odczytać: stan drukarki, nazwy plików i G-code
+  wysyłany przez interfejs webowy PrusaLink.
+- **Logowanie:** LayerPeek loguje się przez HTTP Digest, jedyny sposób logowania, jaki drukarka oferuje poza kluczem
+  API. Samo hasło nie jest wysyłane, ale Digest w drukarce to stara odmiana z MD5 (RFC 2069). Z jednego przechwyconego
+  logowania napastnik może próbować odgadnąć hasło offline, a przez maksymalnie 5 minut może powtarzać to samo
+  przechwycone żądanie. Digest nie chroni treści: kto może zmieniać ruch, może zmieniać dane.
+- **Klucz API:** narzędzia logujące się kluczem API (nagłówek `X-Api-Key`) wysyłają samo hasło PrusaLink, czytelne dla
+  każdego, kto podsłuchuje. W PrusaSlicerze wybierz więc **HTTP digest** zamiast klucza API.
+- **Z hasłem** każdy w pełni steruje drukarką przez PrusaLink: uruchamia i zatrzymuje wydruki, wysyła i usuwa pliki.
+
+### 14.2 Hasło
+
+Drukarka sama tworzy hasło; obecny firmware składa je z 15 losowych znaków spośród 57 liter i cyfr (bez łatwych do
+pomylenia 0, O, 1, l i I). Odgadnięcie takiego hasła z przechwyconego logowania jest w praktyce niewykonalne.
+W drukarkach z firmware Buddy nie możesz wpisać własnego hasła, możesz tylko wygenerować nowe.
+
+Wygeneruj nowe hasło zawsze, gdy stare mogło wyciec (udostępnione zdjęcie wyświetlacza lub kodu QR PrusaLink, który
+zawiera hasło, albo klucz API użyty w niezaufanej sieci):
+
+1. W drukarce otwórz **Ustawienia → Sieć → PrusaLink** (*Settings → Network → PrusaLink*) i wybierz **Generuj hasło**
+   (*Generate Password*).
+2. W LayerPeek otwórz **Ustawienia → Drukarki**, wybierz drukarkę, na podkarcie **Drukarka** wpisz nowe hasło w polu
+   **Hasło**, kliknij **Testuj połączenie** i **Zapisz**.
+3. Zmień je też w innych narzędziach korzystających z PrusaLink (PrusaSlicer i inne).
+
+### 14.3 Oddzielna sieć i zapora
+
+- Umieść drukarki i kamery w **oddzielnej sieci** routera (dla urządzeń IoT, VLAN). Pozwól komputerowi z LayerPeek na
+  dostęp do nich: port TCP **80** drukarki (PrusaLink) i port RTSP kamery (domyślnie **554**). Sieci dla gości często
+  blokują połączenia między urządzeniami; sprawdź instrukcję routera.
+- **Nigdy nie przekierowuj portu routera** do drukarki. Aby mieć do niej dostęp z zewnątrz, połącz się z siecią domową
+  przez VPN.
+- Sam LayerPeek niczego w sieci nie udostępnia: **Otwórz PrusaLink** nasłuchuje tylko na `127.0.0.1` Twojego komputera.
+  Zapora komputera nie potrzebuje dla LayerPeek żadnej nowej reguły.
+
+### 14.4 HTTPS przez odwrotne proxy
+
+Na małym komputerze obok drukarki (na przykład Raspberry Pi) działa odwrotne proxy, **Caddy** lub **nginx**. LayerPeek
+komunikuje się z proxy przez HTTPS; tylko proxy rozmawia z drukarką przez nieszyfrowane HTTP. Połącz proxy i drukarkę
+krótkim kablem lub podłącz je do tego samego switcha, a jeśli router na to pozwala, zezwól na dostęp do drukarki tylko
+proxy.
+
+- W LayerPeek wpisz jako adres drukarki adres proxy, np. `https://printer.home.arpa`. Nazwa musi prowadzić do proxy
+  (wpis DNS w routerze lub plik `hosts`).
+- Używaj **jednej nazwy hosta lub jednego portu na drukarkę**, a nie ścieżki typu `https://proxy/mk4/`. Drukarka
+  sprawdza logowanie według ścieżki żądania, więc przy proxy, które usuwa taki prefiks, drukarka odrzuca hasło.
+- Kamera (RTSP) nie przechodzi przez proxy; LayerPeek łączy się z nią bezpośrednio.
+
+**Caddy** (plik `Caddyfile`, `192.168.1.20` to drukarka):
+
+```caddyfile
+printer.home.arpa {
+	tls internal
+	reverse_proxy 192.168.1.20
+}
+```
+
+Dzięki `tls internal` Caddy wystawia certyfikat z własnego urzędu certyfikacji (CA). Zaufaj jego certyfikatowi głównemu
+na swoim komputerze (zobacz [14.5](#145-zaufanie-do-certyfikatu-na-komputerze)); gdy Caddy działa jako usługa systemu
+Linux, jest to plik `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`. Caddy przekazuje ścieżkę
+i nagłówki logowania bez zmian.
+
+**nginx** (blok `server`, np. w `/etc/nginx/conf.d/printer.conf`):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name printer.home.arpa;
+    ssl_certificate     /etc/nginx/tls/printer.crt;
+    ssl_certificate_key /etc/nginx/tls/printer.key;
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://192.168.1.20;
+    }
+}
+```
+
+`proxy_pass` bez ścieżki przekazuje ścieżkę bez zmian. `client_max_body_size 0` znosi limit 1 MB, aby działało wysyłanie
+G-code przez interfejs webowy PrusaLink. nginx potrzebuje certyfikatu z Twojego własnego CA, utworzonego na przykład za
+pomocą OpenSSL:
+
+```sh
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=Printer proxy CA" \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -keyout ca.key -out ca.crt
+openssl req -newkey rsa:3072 -nodes -subj "/CN=printer.home.arpa" -keyout printer.key -out printer.csr
+printf "subjectAltName=DNS:printer.home.arpa\nextendedKeyUsage=serverAuth\n" > printer.ext
+openssl x509 -req -in printer.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 825 \
+  -extfile printer.ext -out printer.crt
+```
+
+Skopiuj `printer.crt` i `printer.key` na proxy, a `ca.crt` na swoje komputery; `ca.key` przechowuj bezpiecznie i poza
+siecią. Certyfikat serwera jest ważny 825 dni, najdłużej, ile akceptuje macOS.
+
+### 14.5 Zaufanie do certyfikatu na komputerze
+
+LayerPeek akceptuje tylko certyfikaty, którym ufa Twój system. Certyfikat samopodpisany albo certyfikat z CA, której
+system nie zna, nie działa: **Testuj połączenie** zgłasza *„Bezpieczne połączenie (https) nie powiodło się. Spróbuj
+adresu z http:// lub sprawdź certyfikat drukarki.”*, drukarka jest **Offline**, a **Diagnostyka** pokazuje *„Bezpieczne
+połączenie (https) z drukarką nie powiodło się.”* LayerPeek nie potrafi sam zaufać pojedynczemu certyfikatowi; dodaj
+certyfikat swojego CA (`ca.crt` lub `root.crt` z Caddy) do systemu:
+
+- **Windows:** naciśnij **Win+R**, uruchom `certmgr.msc`, kliknij prawym przyciskiem **Zaufane główne urzędy
+  certyfikacji → Certyfikaty** (*Trusted Root Certification Authorities → Certificates*), wybierz **Wszystkie zadania →
+  Importuj…** i zaimportuj plik do magazynu **Zaufane główne urzędy certyfikacji**; potwierdź ostrzeżenie
+  o zabezpieczeniach. Albo w terminalu: `certutil -user -addstore Root ca.crt`.
+- **macOS:** otwórz **Dostęp do pęku kluczy** (przez Spotlight), wybierz pęk **logowanie** (*login*) i przeciągnij plik
+  do okna. Kliknij dwukrotnie certyfikat, rozwiń **Zaufanie** i ustaw **Przy używaniu tego certyfikatu** na **Zawsze
+  ufaj** (*Always Trust*); potwierdź hasłem.
+
+Następnie ponownie uruchom **Testuj połączenie**.
+
+Źródła: PrusaLink [w sieci lokalnej](https://help.prusa3d.com/article/prusa-connect-and-prusalink-explained_302608),
+[przekierowanie portu i VPN](https://help.prusa3d.com/article/prusalink-sl1-sl1s_146094), [HTTP digest
+w PrusaSlicerze](https://help.prusa3d.com/article/prusalink-troubleshooting_304411); firmware: [port 80 bez
+TLS](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/http_lifetime.cpp),
+[Digest i klucz
+API](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/nhttp/req_parser.cpp),
+[ważność
+nonce](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/common/http/types.h),
+[tworzenie
+hasła](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/wui.cpp)
+i [długość](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/persistent_stores/store_instances/config_store/constants.hpp),
+[menu
+PrusaLink](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/gui/screen_prusa_link.cpp);
+[RFC 2069](https://www.rfc-editor.org/rfc/rfc2069); [Caddy
+`reverse_proxy`](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy),
+[`tls`](https://caddyserver.com/docs/caddyfile/directives/tls), [katalog danych](https://caddyserver.com/docs/running);
+[nginx `proxy_pass`](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass),
+[`client_max_body_size`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size); [wymagania
+Apple dotyczące certyfikatów](https://support.apple.com/en-us/103769), [Dostęp do pęku
+kluczy](https://support.apple.com/guide/keychain-access/change-the-trust-settings-of-a-certificate-kyca11871/mac);
+[certutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil).
+
+## 15. Rozwiązywanie problemów
 
 **Ikona nie jest widoczna (Windows).** Kliknij strzałkę **`^`** w obszarze powiadomień i przeciągnij ikonę LayerPeek
 na pasek zadań.
@@ -536,6 +687,10 @@ drukarki.
 
 **Nieprawidłowe dane logowania.** Wpisz ponownie nazwę użytkownika i hasło z menu drukarki **Ustawienia → Sieć →
 PrusaLink** i zapisz.
+
+**Bezpieczne połączenie (https) nie powiodło się.** Adres drukarki zaczyna się od `https://`. Albo prowadzi bezpośrednio
+do drukarki, która nie oferuje HTTPS (użyj `http://`), albo Twój system nie ufa certyfikatowi proxy: zobacz
+[14.5](#145-zaufanie-do-certyfikatu-na-komputerze).
 
 **Brak połączenia w macOS.** Dostęp do sieci lokalnej może być wyłączony. LayerPeek wtedy oferuje **Otwórz Ustawienia
 systemowe**; włącz LayerPeek w **Ustawienia systemowe → Prywatność i ochrona → Sieć lokalna**.
@@ -559,7 +714,7 @@ zapisz pakiet i ponownie wyłącz szczegółowe logi.
 Błędy i pomysły zgłaszaj w [issues](https://github.com/pfoltynek/LayerPeek/issues) w serwisie GitHub. Podaj model
 drukarki, wersję firmware i system operacyjny.
 
-## 15. Odinstalowanie
+## 16. Odinstalowanie
 
 - **Windows, wersja zainstalowana:** **Ustawienia → Aplikacje → Zainstalowane aplikacje → LayerPeek → Odinstaluj**.
 - **Windows, wersja ZIP:** zakończ LayerPeek i usuń jego folder.

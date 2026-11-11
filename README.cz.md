@@ -466,7 +466,7 @@ Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web Prus
 ### Prerekvizity
 
 - [.NET SDK 11](https://dotnet.microsoft.com/download/dotnet/11.0). Přesná verze je v [`global.json`](global.json),
-  povolené jsou i preview verze.
+  používají se jen stabilní vydání SDK, žádné preview.
 - Git.
 - Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*,
   na macOS Xcode Command Line Tools.
@@ -559,6 +559,10 @@ v [CONTRIBUTING.md](CONTRIBUTING.md) (anglicky).
 Bezpečnostní chyby prosím nehlas ve veřejných issues. Použij
 [soukromé hlášení zranitelností](https://github.com/pfoltynek/LayerPeek/security/advisories/new) na GitHubu.
 Viz [SECURITY.md](SECURITY.md) (anglicky).
+
+PrusaLink na tiskárně nabízí jen nešifrované HTTP s přihlášením Digest (MD5). Jak ho chránit (heslo tiskárny, oddělená
+síť, HTTPS přes reverzní proxy Caddy nebo nginx), popisuje příručka:
+[Zabezpečení přístupu k PrusaLinku](manuals/cs/manual.md#14-zabezpečení-přístupu-k-prusalinku).
 
 ## Licence
 
