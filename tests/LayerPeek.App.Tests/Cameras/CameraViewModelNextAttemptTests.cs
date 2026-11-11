@@ -141,6 +141,25 @@ public sealed class CameraViewModelNextAttemptTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task LanguageSwitchFormatsTheNextAttemptAgain()
+    {
+        CameraViewModel viewModel = Create();
+        viewModel.SetActive(true);
+        (await _factory.WaitForFeedAsync(1)).Fail(new CameraFeedException("Connection refused."));
+        await UntilAsync(() => viewModel.HasNextAttempt, "next attempt shown");
+        List<string?> changed = [];
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        using (new UiCultureScope("cs"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.Equal($"Další pokus asi za 5{Nbsp}s", viewModel.NextAttemptText);
+            Assert.Contains(nameof(CameraViewModel.NextAttemptText), changed);
+        }
+    }
+
+    [Fact]
     public async Task OpeningTheWindowDuringTheWaitOfAnotherConsumerRetriesAtOnce()
     {
         // Recording keeps the connection, which fails and waits 5 s, then 10 s.

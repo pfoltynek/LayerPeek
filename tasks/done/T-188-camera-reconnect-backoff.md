@@ -110,3 +110,8 @@ Navazující (ui-dev, 2026-11-11, neblokuje tento úkol), čeká na rozhodnutí 
 - **Ověřeno na macOS (Apple Silicon):** `dotnet build` bez varování, `dotnet test` zelený, aplikace se spustí a běží
   (`dotnet run`). Okno se skutečně nedostupnou kamerou vizuálně neověřeno (bez obsluhy) → ruční kontrola přesunuta do
   T-125 (Windows) a T-127 (Mac).
+
+## Review
+- qa-reviewer 2026-11-11 (commit f279449c): bez blokujících nálezů. Opraveno: `BeginWait` signálu je ve feedu uvnitř
+  `try`, takže `EndWait` proběhne vždy a signál si nikdy neponechá už zlikvidovaný `CancellationTokenSource`. Doplněn
+  test přeformátování času dalšího pokusu po změně jazyka (`CameraViewModelNextAttemptTests`).

@@ -208,11 +208,12 @@ public sealed partial class ReconnectingCameraFeed
             // The reconnect signal can end the wait from the moment it is scheduled.
             TimeSpan reconnectDelay = ExponentialBackoff.Delay(_options.ReconnectDelay, _options.MaxReconnectDelay, ++failedAttempts);
             using CancellationTokenSource wait = CancellationTokenSource.CreateLinkedTokenSource(stopToken);
-            reconnect?.BeginWait(wait);
-            Task delay = Task.Delay(reconnectDelay, _timeProvider, wait.Token);
-            status.Report((failure ?? StreamEnded) with { NextAttemptAt = _timeProvider.GetUtcNow() + reconnectDelay });
             try
             {
+                // Inside the try: the signal never keeps a source this loop already disposed.
+                reconnect?.BeginWait(wait);
+                Task delay = Task.Delay(reconnectDelay, _timeProvider, wait.Token);
+                status.Report((failure ?? StreamEnded) with { NextAttemptAt = _timeProvider.GetUtcNow() + reconnectDelay });
                 await delay.ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
