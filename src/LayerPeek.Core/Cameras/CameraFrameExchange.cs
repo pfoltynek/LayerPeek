@@ -13,6 +13,12 @@ public sealed class CameraFrameBuffer
 
     public int Height { get; private set; }
 
+    /// <summary>Width of the camera's image the frame was scaled from (T-184, <see cref="CameraFrame.SourceWidth"/>).</summary>
+    public int SourceWidth { get; private set; }
+
+    /// <summary>Height of the camera's image the frame was scaled from (T-184, <see cref="CameraFrame.SourceHeight"/>).</summary>
+    public int SourceHeight { get; private set; }
+
     /// <summary><see cref="CameraPixelFormat.Bgra32"/> unless the exchange converts to grayscale.</summary>
     public CameraPixelFormat Format { get; private set; }
 
@@ -52,6 +58,8 @@ public sealed class CameraFrameBuffer
         scaler.Scale(frame, size, _pixels);
         Width = size.Width;
         Height = size.Height;
+        SourceWidth = frame.SourceWidth;
+        SourceHeight = frame.SourceHeight;
         Format = CameraPixelFormat.Gray8;
     }
 
@@ -70,7 +78,9 @@ public sealed class CameraFrameBuffer
         int required = checked(rowBytes * frame.Height);
         if (_pixels.Length < required)
         {
-            _pixels = GC.AllocateUninitializedArray<byte>(required);
+            // A display frame grows step by step while its window is resized (T-184): with some headroom that is a few
+            // allocations, not one per size.
+            _pixels = GC.AllocateUninitializedArray<byte>(_pixels.Length == 0 ? required : Math.Max(required, (int)Math.Min(Array.MaxLength, _pixels.Length * 3L / 2)));
         }
 
         ReadOnlySpan<byte> source = frame.Pixels.Span;
@@ -89,6 +99,8 @@ public sealed class CameraFrameBuffer
 
         Width = frame.Width;
         Height = frame.Height;
+        SourceWidth = frame.SourceWidth;
+        SourceHeight = frame.SourceHeight;
         Format = CameraPixelFormat.Bgra32;
     }
 }

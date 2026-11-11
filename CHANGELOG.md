@@ -18,6 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Printer compatibility report:** a GitHub issue form with a short checklist for printer models other than the
   CORE One, linked from the README and the manuals.
 
+### Changed
+
+- **Camera window performance:** the mini preview and camera windows smaller than the camera image convert the image at
+  the size it is shown instead of the camera's full resolution, and each frame is copied once, off the UI thread.
+  Snapshots, recordings, timelapses and print failure detection keep the full resolution.
+
 ### Fixed
 
 - Settings, the printer's **Camera** sub-tab: in Italian, Spanish, French and Polish the **Keep the last minutes

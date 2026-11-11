@@ -370,6 +370,18 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `dotnet build` a `dotnet test` bez chyb a varování, `pwsh scripts/aot-smoke.ps1` PASS (win-x64, runtime 11.0.0),
       `pwsh scripts/release-build.ps1` projde (Velopack `Setup.exe`, zip, feed). Výsledek zapsat do poznámek T-193.
 
+### 2s. Kamera v rozlišení zobrazení (z T-184, implementováno na Macu 2026-11-11)
+- [ ] **T-184** (krit. „Kvalita obrazu na celé obrazovce se viditelně nezhorší“, ruční, simulátor stačí): okno kamery
+      na celé obrazovce, v normálním okně a v malém náhledu při 100 %, 125 % a 150 % DPI – obraz je ostrý, bez zubatých
+      hran a bez posunu barev oproti verzi před T-184 (normální okno menší než 1280 × 720 px a malý náhled se teď
+      převádějí zmenšené, `SWS_BILINEAR`). Tažení okraje okna, přepnutí režimu (malý náhled ↔ okno ↔ celá obrazovka) a
+      přesun okna na monitor s jiným škálováním stream nepřeruší; obraz se asi 0,25 s po uklidnění velikosti zaostří na novou
+      velikost, nic nebliká a nezčerná. `dotnet test` na Windows bez chyb, hlavně `CameraViewModelDisplaySizeTests`,
+      `BgraPixelsTests` a UiTests `CameraWindowDisplaySizeUiTests`.
+- [ ] **T-184** (volitelně, měření x64): převod na Windows má jiné SIMD cesty swscale než Apple Silicon. Simulátor 720p,
+      malý náhled a normální okno 960 × 540 při 100 %: CPU a working set procesu, fps (porovnat s `develop` před T-184),
+      zapsat do poznámek T-184.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

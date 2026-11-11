@@ -44,7 +44,29 @@ public sealed class FFmpegCameraFeedAllocationTests
         // T-143: the camera window's real path, the shared connection with the subscriber's own buffers. The file plays
         // as fast as it decodes, so under load a pass can run out of frames (the stream ends and reconnects); such a pass
         // measures nothing and is repeated.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureHubPassAsync));
+        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(options: null)));
+    }
+
+    [FFmpegFact]
+    public async Task SteadyStateDisplayFramesDoNotAllocate()
+    {
+        // T-184: the window's frames scaled down in the decoder, nothing in full resolution.
+        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false)));
+    }
+
+    [FFmpegFact]
+    public async Task SwitchingBetweenDisplaySizesUsedBeforeDoesNotAllocate()
+    {
+        // T-184: a window switched back and forth (mini preview <-> normal) rebuilds its scaler (native) but reuses its
+        // buffer, which kept the larger size.
+        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: true)));
+    }
+
+    [FFmpegFact]
+    public async Task SteadyStateDisplayFramesThroughTheHubDoNotAllocate()
+    {
+        // T-184: the camera window's path with a display size.
+        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(new CameraFrameSubscriptionOptions { DisplaySize = new CameraFrameSize(640, 640) })));
     }
 
     /// <summary>
@@ -101,11 +123,11 @@ public sealed class FFmpegCameraFeedAllocationTests
     }
 
     /// <returns>The bytes allocated over <see cref="HubMeasuredFrames"/> frames; <see langword="null"/> when the fixture ran out first or the thread pool changed its size meanwhile.</returns>
-    private static async Task<long?> MeasureHubPassAsync()
+    private static async Task<long?> MeasureHubPassAsync(CameraFrameSubscriptionOptions? options)
     {
         ReconnectingCameraFeed camera = new(new FFmpegCameraFeedFactory(), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
         await using CameraStreamHub hub = new(camera, TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
-        using CameraFrameSubscription lease = hub.SubscribeFrames("mk4", TestFixtures.Buddy3D);
+        using CameraFrameSubscription lease = hub.SubscribeFrames("mk4", TestFixtures.Buddy3D, options);
         // The file plays as fast as it decodes; frames the consumer misses are dropped (and counted).
         long Seen(ref int taken)
         {
@@ -143,6 +165,48 @@ public sealed class FFmpegCameraFeedAllocationTests
         long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
         // The end of the file (and the reconnect) inside the measurement is no steady state.
         return lease.Status.State == CameraConnectionState.Streaming && ThreadPool.ThreadCount == threads ? allocated : null;
+    }
+
+    /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> display frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
+    private static async Task<long?> MeasureDisplayPassAsync(bool switchSizes)
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        CameraFrameSize large = new(640, 640);
+        CameraFrameSize small = new(320, 320);
+        CameraStreamDemand demand = new(frames: true, packets: false) { DisplaySize = large };
+        demand.CancelFullResolution();
+        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
+        IAsyncEnumerator<CameraStreamItem> items = feed.ReadAsync(demand, ct).GetAsyncEnumerator(ct);
+        try
+        {
+            // Description, then frames; the warm-up uses both sizes once.
+            for (int i = 0; i < 1 + WarmUpFrames; i++)
+            {
+                demand.DisplaySize = switchSizes && i % 2 == 0 ? small : large;
+                Assert.True(await items.MoveNextAsync());
+            }
+
+            int threads = ThreadPool.ThreadCount;
+            long before = GC.GetTotalAllocatedBytes(precise: true);
+            for (int i = 0; i < MeasuredFrames; i++)
+            {
+                if (switchSizes)
+                {
+                    // Every fifth frame, like a window that changes its mode now and then.
+                    demand.DisplaySize = i / 5 % 2 == 0 ? small : large;
+                }
+
+                Assert.True(await items.MoveNextAsync());
+                Assert.True(items.Current.DisplayFrame.Width > 0);
+            }
+
+            long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            return ThreadPool.ThreadCount == threads ? allocated : null;
+        }
+        finally
+        {
+            await items.DisposeAsync();
+        }
     }
 
     /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>

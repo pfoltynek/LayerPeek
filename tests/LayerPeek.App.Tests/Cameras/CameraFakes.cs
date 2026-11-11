@@ -136,6 +136,56 @@ internal sealed class FakeCameraFeed : ICameraFeed
 
     public void End() => _items.Writer.TryComplete();
 
+    /// <summary>The display size of the demand when the last frame was converted (T-184); <see langword="null"/>: full resolution.</summary>
+    public CameraFrameSize? LastDisplaySize
+    {
+        get
+        {
+            long packed = Interlocked.Read(ref _lastDisplaySize);
+            return packed == 0 ? null : new CameraFrameSize((int)(packed >> 32), (int)(uint)packed);
+        }
+    }
+
+    private long _lastDisplaySize;
+
+    /// <summary>
+    /// T-184: the frames converted like the decoder does: scaled down to the demand's display size (same fill, the
+    /// source size kept), in full resolution when no display size is wanted, a full frame is due, or the frame fits.
+    /// </summary>
+    public async IAsyncEnumerable<CameraStreamItem> ReadAsync(CameraStreamDemand demand, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(demand);
+        byte[] display = [];
+        await foreach (CameraFrame frame in ReadFramesAsync(cancellationToken))
+        {
+            CameraFrame scaled = default;
+            CameraFrameSize? wanted = demand.DisplaySize;
+            Interlocked.Exchange(ref _lastDisplaySize, wanted is { } w ? ((long)w.Width << 32) | (uint)w.Height : 0);
+            if (wanted is { } size && size.Fit(frame.Width, frame.Height) is { } fit && (fit.Width < frame.Width || fit.Height < frame.Height))
+            {
+                // Rows padded to 64 bytes, like the decoder's aligned buffers.
+                int stride = ((fit.Width * CameraFrame.BytesPerPixel) + 63) / 64 * 64;
+                int length = (stride * (fit.Height - 1)) + (fit.Width * CameraFrame.BytesPerPixel);
+                if (display.Length < length)
+                {
+                    display = new byte[length];
+                }
+
+                // One colour, like every frame of this feed.
+                uint pixel = System.Runtime.InteropServices.MemoryMarshal.Read<uint>(frame.Pixels.Span);
+                for (int row = 0; row < fit.Height; row++)
+                {
+                    System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(display.AsSpan(row * stride, fit.Width * CameraFrame.BytesPerPixel)).Fill(pixel);
+                }
+
+                scaled = new CameraFrame(fit.Width, fit.Height, stride, display.AsMemory(0, length), frame.Width, frame.Height);
+            }
+
+            bool full = scaled.Width == 0 || demand.FullResolutionDue;
+            yield return CameraStreamItem.FromFrames(full ? frame : default, scaled);
+        }
+    }
+
     public async IAsyncEnumerable<CameraFrame> ReadFramesAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Like a decoder: one buffer, reused (borrowed by every frame).
@@ -188,17 +238,42 @@ internal sealed class FakeCameraFeed : ICameraFeed
     }
 }
 
-/// <summary>Records what the camera window would draw.</summary>
+/// <summary>
+/// Records what the camera window would draw: <see cref="Write"/> (streaming thread) replaces the "bitmap", <see cref="Show"/>
+/// (UI thread) adds what it holds to <see cref="Frames"/>, like the window putting its bitmap on screen.
+/// </summary>
 internal sealed class RecordingFrameSink : ICameraFrameSink
 {
+    private readonly Lock _gate = new();
+    private (int Width, int Height, byte First)? _written;
+    private int _writes;
+
+    /// <summary>The frames shown, in order.</summary>
     public List<(int Width, int Height, byte First)> Frames { get; } = [];
 
-    /// <summary>The next <see cref="Present"/> calls throw this many times (like a broken bitmap).</summary>
+    /// <summary>The next <see cref="Show"/> calls throw this many times (like a broken bitmap).</summary>
     public int FailNext { get; set; }
 
     public int ClearCount { get; private set; }
 
-    public void Present(CameraFrameBuffer frame)
+    /// <summary>Frames written (copied on the streaming thread).</summary>
+    public int Writes => Volatile.Read(ref _writes);
+
+    /// <summary>Called on the streaming thread after a frame was written (e.g. to block it).</summary>
+    public Action? Written { get; set; }
+
+    public void Write(in CameraFrame frame)
+    {
+        lock (_gate)
+        {
+            _written = (frame.Width, frame.Height, frame.Pixels.Span[0]);
+        }
+
+        Interlocked.Increment(ref _writes);
+        Written?.Invoke();
+    }
+
+    public bool Show()
     {
         if (FailNext > 0)
         {
@@ -206,10 +281,27 @@ internal sealed class RecordingFrameSink : ICameraFrameSink
             throw new InvalidOperationException("The bitmap is broken.");
         }
 
-        Frames.Add((frame.Width, frame.Height, frame.Pixels[0]));
+        lock (_gate)
+        {
+            if (_written is not { } frame)
+            {
+                return false;
+            }
+
+            Frames.Add(frame);
+            return true;
+        }
     }
 
-    public void Clear() => ClearCount++;
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            _written = null;
+        }
+
+        ClearCount++;
+    }
 }
 
 internal static class Waiting

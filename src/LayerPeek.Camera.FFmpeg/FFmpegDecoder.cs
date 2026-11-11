@@ -21,16 +21,14 @@ internal sealed class InterruptFlag
 }
 
 /// <summary>
-/// The native part of one camera connection: demuxer, H.264 decoder and BGRA conversion. Not thread-safe; every
+/// The native part of one camera connection: demuxer, H.264 decoder and BGRA conversion (in the camera's resolution and/or
+/// scaled down for display, T-184, as the <see cref="CameraStreamDemand"/> wants). Not thread-safe; every
 /// member except <see cref="HoldsNativeResources"/> is called on the feed's decoder thread only. Blocking FFmpeg
 /// calls return early once the <see cref="InterruptFlag"/> is set; they then throw <see cref="OperationCanceledException"/>
 /// (the caller translates it). Failures throw <see cref="CameraFeedException"/> with a message free of the address.
 /// </summary>
 internal sealed unsafe class FFmpegDecoder : IDisposable
 {
-    /// <summary>Row and buffer alignment for the converted image (SIMD friendly for swscale).</summary>
-    private const int Alignment = 64;
-
     /// <summary>Name of FFmpeg's native H.264 decoder, the only one allowed (<c>codec_whitelist</c>).</summary>
     private const string H264Decoder = "h264";
 
@@ -51,7 +49,6 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     private AVCodecContext* _codec;
     private AVPacket* _packet;
     private AVFrame* _frame;
-    private SwsContext* _scaler;
     private int _streamIndex = -1;
     private bool _draining;
     private volatile bool _holdsNativeResources;
@@ -73,16 +70,9 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     private bool _needKeyFrame;
     private long _decodedFrames;
 
-    // Current conversion; the scaler and buffer are rebuilt only when one of these changes.
-    private int _width;
-    private int _height;
-    private AVPixelFormat _sourceFormat = AVPixelFormat.AV_PIX_FMT_NONE;
-    private bool _fullRange;
-    private AVColorSpace _colorSpace;
-    private int _stride;
-    private byte[]? _buffer;
-    private byte* _target;
-    private ReadOnlyMemory<byte> _pixels;
+    // T-184: the conversion in the camera's resolution and the one scaled down for display, each with its own buffer.
+    private readonly BgraConverter _full = new();
+    private readonly BgraConverter _display = new();
 
     public FFmpegDecoder(string url, bool isNetwork, TimeSpan ioTimeout, InterruptFlag interrupt)
     {
@@ -270,7 +260,8 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// <summary>
     /// The next item by <paramref name="demand"/> (T-143): first the stream description (when
     /// <paramref name="emitInfo"/>), then every video packet while packets are wanted, before it is decoded, and the
-    /// decoded frames while frames are wanted. Nothing is decoded without frame demand, except a single key frame when
+    /// decoded frames while frames are wanted, converted in the sizes the demand wants (<see cref="CameraStreamItem.Frame"/>,
+    /// <see cref="CameraStreamItem.DisplayFrame"/>). Nothing is decoded without frame demand, except a single key frame when
     /// <see cref="CameraStreamDemand.KeyFrameDue"/> (T-153: decoded on its own, the packets in between are never decoded);
     /// when frames are wanted again after packets were skipped, decoding restarts at the next key frame. Returns
     /// <see langword="false"/> at the end of the stream. Packet data (copied into a reused buffer) and frames are valid
@@ -302,7 +293,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 if (received == 0)
                 {
                     Interlocked.Increment(ref _decodedFrames);
-                    item = CameraStreamItem.FromFrame(Convert());
+                    item = Convert(demand, keyFrame: false);
                     return true;
                 }
 
@@ -332,7 +323,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 if (_keyFramePending)
                 {
                     _keyFramePending = false;
-                    if (TryDecodeKeyFrame(out item))
+                    if (TryDecodeKeyFrame(demand, out item))
                     {
                         return true;
                     }
@@ -402,7 +393,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             }
             else if (keyFrame)
             {
-                if (TryDecodeKeyFrame(out item))
+                if (TryDecodeKeyFrame(demand, out item))
                 {
                     return true;
                 }
@@ -420,7 +411,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// delay), and is flushed again afterwards; full decoding later restarts at a key frame. A damaged key frame gives no
     /// frame (<see langword="false"/>), like in full decoding.
     /// </summary>
-    private bool TryDecodeKeyFrame(out CameraStreamItem item)
+    private bool TryDecodeKeyFrame(CameraStreamDemand demand, out CameraStreamItem item)
     {
         item = default;
         ffmpeg.avcodec_flush_buffers(_codec);
@@ -441,7 +432,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             {
                 Interlocked.Increment(ref _decodedFrames);
                 // Converted into the reused buffer before the flush below releases the decoder's picture.
-                item = CameraStreamItem.FromFrame(Convert());
+                item = Convert(demand, keyFrame: true);
                 return true;
             }
 
@@ -536,11 +527,8 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// <summary>Releases every native object; idempotent, also after a failed <see cref="Open"/>.</summary>
     public void Dispose()
     {
-        if (_scaler is not null)
-        {
-            ffmpeg.sws_freeContext(_scaler);
-            _scaler = null;
-        }
+        _full.Dispose();
+        _display.Dispose();
 
         AVFrame* frame = _frame;
         ffmpeg.av_frame_free(&frame);
@@ -609,8 +597,6 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         _ => null,
     };
 
-    private static int AlignUp(int value) => (value + (Alignment - 1)) & ~(Alignment - 1);
-
     private void ThrowIfInterrupted()
     {
         if (_interrupt.IsSet)
@@ -647,10 +633,21 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         _ => false,
     };
 
-    private CameraFrame Convert()
+    /// <summary>
+    /// Converts the decoded picture in <c>_frame</c> as <paramref name="demand"/> wants it (T-184): scaled down to fit its
+    /// display size, and in full resolution while that is due (always for a <paramref name="keyFrame"/> decoded on its own,
+    /// T-153). An image that already fits the display size is converted once, in full resolution, for both. With neither
+    /// wanted (a lingering connection) nothing is converted and the item carries no pixels.
+    /// </summary>
+    private CameraStreamItem Convert(CameraStreamDemand demand, bool keyFrame)
     {
         int width = _frame->width;
         int height = _frame->height;
+        if (width <= 0 || height <= 0 || width > CameraFrameSize.MaxSide || height > CameraFrameSize.MaxSide)
+        {
+            throw new CameraFeedException("The camera sent an image of an unsupported size.");
+        }
+
         AVPixelFormat format = (AVPixelFormat)_frame->format;
         bool fullRange = _frame->color_range == AVColorRange.AVCOL_RANGE_JPEG;
         // The deprecated "J" formats mean full range; swscale wants the plain format plus the range.
@@ -674,63 +671,24 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 break;
         }
 
-        if (_scaler is null || width != _width || height != _height || format != _sourceFormat
-            || fullRange != _fullRange || _frame->colorspace != _colorSpace)
+        bool full = keyFrame || demand.FullResolutionDue;
+        CameraFrame displayFrame = default;
+        if (demand.DisplaySize is { } displaySize)
         {
-            Configure(width, height, format, fullRange, _frame->colorspace);
+            // From the decoded YUV picture, not from the full BGRA frame: the source is 1.5 instead of 4 bytes per pixel, the
+            // full conversion is skipped whenever nobody needs it, and the colour handling is the same (see BgraConverter).
+            CameraFrameSize fit = displaySize.Fit(width, height);
+            if (fit.Width < width || fit.Height < height)
+            {
+                displayFrame = _display.Convert(_frame, format, fullRange, fit.Width, fit.Height);
+            }
+            else
+            {
+                full = true;
+            }
         }
 
-        // BGRA has one plane; swscale reads up to four entries.
-        byte** target = stackalloc byte*[4] { _target, null, null, null };
-        int* targetStride = stackalloc int[4] { _stride, 0, 0, 0 };
-        // AVFrame.data / linesize are inline arrays of 8 pointers / ints.
-        int rows = NativeMethods.Scale(_scaler, (byte**)&_frame->data, (int*)&_frame->linesize, 0, height, target, targetStride);
-        if (rows != height)
-        {
-            throw new CameraFeedException("Converting the video image failed.");
-        }
-
-        return new CameraFrame(width, height, _stride, _pixels);
-    }
-
-    private void Configure(int width, int height, AVPixelFormat format, bool fullRange, AVColorSpace colorSpace)
-    {
-        if (width <= 0 || height <= 0 || width > 16384 || height > 16384)
-        {
-            throw new CameraFeedException("The camera sent an image of an unsupported size.");
-        }
-
-        _scaler = ffmpeg.sws_getCachedContext(
-            _scaler, width, height, format, width, height, AVPixelFormat.AV_PIX_FMT_BGRA, (int)SwsFlags.SWS_BILINEAR, null, null, null);
-        if (_scaler is null)
-        {
-            throw new CameraFeedException("The video image format is not supported.");
-        }
-
-        // YUV -> RGB coefficients of the stream (BT.601 unless it says BT.709) and its range; RGB output is full range.
-        int coefficients = colorSpace == AVColorSpace.AVCOL_SPC_BT709 ? ffmpeg.SWS_CS_ITU709 : ffmpeg.SWS_CS_DEFAULT;
-        int4 table = *(int4*)ffmpeg.sws_getCoefficients(coefficients);
-        // Returns -1 only for unsupported conversions; the default coefficients are then kept, which is acceptable.
-        _ = ffmpeg.sws_setColorspaceDetails(_scaler, in table, fullRange ? 1 : 0, in table, 1, 0, 1 << 16, 1 << 16);
-
-        int stride = AlignUp(width * CameraFrame.BytesPerPixel);
-        int length = checked(stride * height);
-        if (_buffer is null || _buffer.Length < length + Alignment)
-        {
-            // Pinned (POH): FFmpeg writes through a raw pointer and the address must never move.
-            _buffer = GC.AllocateUninitializedArray<byte>(length + Alignment, pinned: true);
-        }
-
-        byte* start = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(_buffer));
-        int offset = (int)((Alignment - ((nuint)start % Alignment)) % Alignment);
-        _target = start + offset;
-        _pixels = new ReadOnlyMemory<byte>(_buffer, offset, length);
-
-        _width = width;
-        _height = height;
-        _sourceFormat = format;
-        _fullRange = fullRange;
-        _colorSpace = colorSpace;
-        _stride = stride;
+        CameraFrame fullFrame = full ? _full.Convert(_frame, format, fullRange, width, height) : default;
+        return CameraStreamItem.FromFrames(fullFrame, displayFrame);
     }
 }

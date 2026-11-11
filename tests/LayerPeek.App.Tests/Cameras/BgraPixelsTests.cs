@@ -72,4 +72,44 @@ public sealed class BgraPixelsTests
 
         Assert.ThrowsAny<ArgumentException>(() => BgraPixels.CopyRows(source, rowBytes, height, target, targetRowBytes));
     }
+
+    [Fact]
+    public void AlignedSourceRowsAreCopiedWithoutTheirPadding()
+    {
+        // T-184: 2 pixels per row (8 bytes) in rows of 16 bytes (a decoder's aligned rows); the last row has no padding.
+        byte[] source = Source(16, 3)[..((16 * 2) + 8)];
+        byte[] target = new byte[24];
+
+        BgraPixels.CopyRows(source, sourceRowBytes: 16, rowBytes: 8, height: 3, target, targetRowBytes: 8);
+
+        for (int row = 0; row < 3; row++)
+        {
+            Assert.Equal(source.AsSpan(row * 16, 8).ToArray(), target.AsSpan(row * 8, 8).ToArray());
+        }
+    }
+
+    [Fact]
+    public void AlignedSourceIntoPaddedTargetKeepsTheTargetPadding()
+    {
+        byte[] source = Source(16, 2)[..(16 + 8)];
+        byte[] target = new byte[12 + 8];
+        Array.Fill(target, (byte)0xEE);
+
+        BgraPixels.CopyRows(source, sourceRowBytes: 16, rowBytes: 8, height: 2, target, targetRowBytes: 12);
+
+        Assert.Equal(source.AsSpan(0, 8).ToArray(), target.AsSpan(0, 8).ToArray());
+        Assert.All(target.AsSpan(8, 4).ToArray(), static b => Assert.Equal(0xEE, b));
+        Assert.Equal(source.AsSpan(16, 8).ToArray(), target.AsSpan(12, 8).ToArray());
+    }
+
+    [Theory]
+    [InlineData(16, 8, 2, 23)] // the last source row is cut short
+    [InlineData(4, 8, 2, 64)] // source rows narrower than a row
+    public void InvalidSourceLayoutsAreRejected(int sourceRowBytes, int rowBytes, int height, int sourceLength)
+    {
+        byte[] source = new byte[sourceLength];
+        byte[] target = new byte[64];
+
+        Assert.ThrowsAny<ArgumentException>(() => BgraPixels.CopyRows(source, sourceRowBytes, rowBytes, height, target, rowBytes));
+    }
 }
