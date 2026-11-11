@@ -11,11 +11,16 @@ internal static class UpdateFeedKeys
     /// The keys of the GitHub feed (the private keys stay offline, <c>docs/release.md</c>). More than one only while a key is
     /// rotated: the new key is added in a release still signed with the old one, the old key is removed in a later release.
     /// </summary>
-    /// <remarks>
-    /// PLACEHOLDER (T-181): the production key does not exist yet; the user generates it on offline media. Until it is added
-    /// here the list is empty, so every GitHub feed is rejected (fail closed) and a Velopack installation offers no update.
-    /// </remarks>
-    public static readonly IReadOnlyList<string> Production = [];
+    /// <remarks>Production key generated 2026-11-11 (public key SHA-256 4cb047d19a472427db721e607c76c15ba0fad96e59d564114a62a7e5e7b91e26).</remarks>
+    public static readonly IReadOnlyList<string> Production =
+    [
+        """
+        -----BEGIN PUBLIC KEY-----
+        MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPfcPQ7kbae10mvkth5SbOuNaR6BH
+        Q7blH5KVm5CoBORcbPCqN97sFlnYE0wHZmIuvQ9y02THANFtVM3UE5AE1A==
+        -----END PUBLIC KEY-----
+        """,
+    ];
 
 #if DEBUG
     /// <summary>
