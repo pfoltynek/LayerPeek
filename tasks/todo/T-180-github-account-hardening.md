@@ -43,7 +43,8 @@ sloučení zapnuté.
   Proto se ruší tok T-113 „jeden OS zveřejní s `-AllowIncomplete`, druhý později přidá soubory přes `-AddToPublished`“:
   skripty vydání (`release-upload.ps1` / `release-publish.ps1`) musí `-AddToPublished` odmítnout (nebo ho odstranit) a
   zveřejnění neúplného vydání zakázat; upravit `docs/release.md` („Vydání na dvou počítačích“) a Pester testy. Tato
-  část je pro `qa-reviewer`.
+  část je pro `qa-reviewer`, **od 2026-11-11 samostatný úkol T-200** (až po vydání 1.0.0, rozhodnutí uživatele,
+  T-198 otázka 4). Neměnná vydání zapne uživatel ještě **před** 1.0.0; 1.0.0 se zveřejní až s oběma OS v konceptu.
 
 ### Token pro vydání (uživatel + úprava dokumentace)
 - Místo trvalého `gh auth login` jemně omezený (fine-grained) PAT:
@@ -66,8 +67,11 @@ sloučení zapnuté.
 - [ ] Nepoužívané OAuth aplikace, GitHub Apps, SSH klíče a klasické PAT odebrané (potvrdí uživatel)
 - [ ] Rulesety 1–4 (viz Rozsah) zkontrolované ve stavu *Active* (ne *Evaluate*), stav zapsaný do Poznámek
 - [ ] Ruleset PR má výjimku pro admina, přímý push vlastníka do `main` i `develop` funguje (rozhodnuto 2026-11-06, bod 2)
-- [ ] Immutable releases zapnuté; `-AddToPublished` a zveřejnění neúplného vydání skripty odmítnou (Pester test),
-      `docs/release.md` popisuje zveřejnění až s oběma OS v konceptu
+- [ ] Immutable releases zapnuté **před vydáním 1.0.0** (rozhodnutí uživatele 2026-11-11, T-198 otázka 4)
+- [x] `-AddToPublished` a zveřejnění neúplného vydání skripty odmítnou (Pester test)
+      → přesunuto do T-200 (rozhodnutí uživatele 2026-11-11, T-198 otázka 4: změna skriptů až po vydání 1.0.0)
+- [x] `docs/release.md` popisuje zveřejnění až s oběma OS v konceptu
+      → oddíl „Vydání od 1.0.0: oba OS do konceptu, pak zveřejnit“ (T-198, 2026-11-11)
 - [ ] Trvalé přihlášení `gh` odstraněné (`gh auth status` bez `GH_TOKEN` hlásí nepřihlášený stav)
 - [ ] `docs/release.md` popisuje vytvoření fine-grained PAT (repozitář, oprávnění, platnost), předání přes
       `$env:GH_TOKEN` jen během vydání, úklid po vydání a přihlášení pro `git push` podle odpovědi na otázku 3

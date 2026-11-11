@@ -356,8 +356,8 @@ Get the latest build from the [Releases](https://github.com/pfoltynek/LayerPeek/
 - **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: unpack it anywhere and run `LayerPeek.exe`.
 
 > [!IMPORTANT]
-> Versions 0.x are **previews**. Settings may change between versions. Builds are not code-signed, so Windows
-> SmartScreen shows "Windows protected your PC" with an "Unknown publisher". Click **More info → Run anyway**, or
+> Updates within 1.x keep your settings; settings files of older versions always load. Builds are not
+> code-signed, so Windows SmartScreen shows "Windows protected your PC" with an "Unknown publisher". Click **More info → Run anyway**, or
 > [build the app yourself](#building-from-source).
 
 Uninstalling keeps your settings (`%APPDATA%\LayerPeek`) and passwords (Windows Credential Manager), and the installer

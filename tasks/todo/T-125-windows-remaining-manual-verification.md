@@ -452,6 +452,12 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       (Narrator): pole adresy čte text varování jako nápovědu. Odkaz „Více informací“ vedle varování otevře v prohlížeči
       kapitolu 14 příručky v jazyce aplikace (zkontrolovat aspoň en a cs, že GitHub skočí přímo na nadpis kapitoly).
 
+### 2aa. Identita v gitu – adresa noreply (z T-198, rozhodnutí uživatele 2026-11-11, otázka 1)
+- [ ] **T-198** (krit. B8, `user.email` nastavený na obou počítačích): v každém klonu LayerPeek na Windows
+      `git config user.email 12541813+pfoltynek@users.noreply.github.com` (`docs/prerequisites.md`, „Identita v gitu“),
+      kontrola `git config user.email`; po prvním commitu na Windows `git log -1 --format='%an <%ae> | %cn <%ce>'`
+      ukazuje autora i committera s adresou noreply. Výsledek zapsat do T-198 (Poznámky).
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
@@ -479,6 +485,14 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       → ověřeno uživatelem 2026-11-03 (0.3.1 → 0.4.0, viz poznámky).
 - [ ] **T-017** (otevřená otázka SmartScreen): stažení `Setup.exe` z GitHub vydání v Edge – zapsat varování SmartScreen
       při stahování a doplnit ho do `docs/release.md` (spuštění se značkou Mark-of-the-Web ověřil T-056).
+
+- [ ] **T-181** / **T-198** (otázka 3, rozhodnutí uživatele 2026-11-11; uživatel, hned po zveřejnění 1.0.0, až po
+      aktualizaci nainstalované 0.5.0 na 1.0.0): místní Release build **0.9.9** z tagu `v1.0.0` nainstalovaný přes
+      `Setup.exe` se z GitHubu aktualizuje na 1.0.0 – ověří skutečné stažení a ověření `releases.win-x64.json.sig`.
+      Postup `docs/release.md`, „Kontrola aktualizace z GitHubu buildem 0.9.9“ (dočasný worktree, verze jen v pracovním
+      stromu, `release-build.ps1 -SkipFeedSignature`, odinstalace a instalace, kontrola, úklid). Očekáváno: nabídka
+      „Je dostupná nová verze 1.0.0“, ne „Aktualizace odmítnuta…“, po aktualizaci O aplikaci 1.0.0, v logu žádné
+      odmítnutí feedu. Výsledek zapsat do T-198.
 
 ### 5. Závěr (z T-114, oddíl 6)
 - [ ] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; profil vrácený

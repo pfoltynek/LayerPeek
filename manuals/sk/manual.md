@@ -48,8 +48,9 @@ Zatiaľ je otestovaná len CORE One. Máte iný model? Pošlite prosím krátke 
 Najnovšiu verziu si stiahnite zo stránky [Releases](https://github.com/pfoltynek/LayerPeek/releases).
 
 > [!IMPORTANT]
-> Verzie 0.x sú predbežné a ich zostavy nie sú podpísané spoločnosťou Microsoft ani notarizované spoločnosťou Apple.
-> Systém vás preto pri prvom spustení varuje; postup nižšie ukazuje, ako varovanie obísť.
+> Aktualizácie v rámci verzií 1.x zachovajú vaše nastavenia; súbory nastavení starších verzií sa vždy načítajú.
+> Zostavy nie sú podpísané spoločnosťou Microsoft ani notarizované spoločnosťou Apple. Systém vás preto pri prvom
+> spustení varuje; postup nižšie ukazuje, ako varovanie obísť.
 
 ### 2.1 Windows
 
