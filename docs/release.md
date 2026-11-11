@@ -753,6 +753,13 @@ winget uninstall --id 3DPrint.LayerPeek
 - Začíná se verzí **1.0.0** (první stabilní, s .NET 11 GA). Repozitář je s 1.0.0 veřejný, první odeslání proběhne hned po zveřejnění 1.0.0. Verze `0.x` se do winget neposílají (skripty je odmítnou).
 - Identifikátor balíčku **`3DPrint.LayerPeek`**, vydavatel (`Publisher`) **`Petr Foltýnek`**.
 - Odeslání je **volitelný krok skriptu vydání**: po zveřejnění se skript zeptá, zda spustit odeslání. Token je z `gh auth token` jen za běhu, nikdy se neukládá, nevypisuje ani nepředává na příkazové řádce.
+- Doplněno 2026-11-11 (odpovědi na otázky v T-059):
+  - **Token:** pro odeslání **dočasné `gh auth login`** (OAuth v prohlížeči) a po odeslání `gh auth logout`, pak zase obvyklé přihlášení (T-180: `GH_TOKEN`). Postup v části [Token](#token).
+  - **`winget upgrade`** přes běžící instalaci: zapnutí autostartu při přeinstalaci opraví nový úkol **T-201** (hook instalace), zbytek chování je zdokumentovaný v části [Velopack a `winget upgrade`](#velopack-a-winget-upgrade) a v příručkách (doporučená je aktualizace v aplikaci).
+  - Repozitář `pfoltynek/LayerPeek` **už je veřejný** (ověřeno `gh repo view`), nic dalšího se nečeká.
+  - **Microsoft CLA** podepíše uživatel svým účtem u prvního PR.
+  - **Telemetrie `wingetcreate` je vypnutá:** skript ji před každým spuštěním `wingetcreate` vypne v jeho `settings.json` (viz [Telemetrie `wingetcreate`](#telemetrie-wingetcreate)).
+  - Žádná další volitelná pole manifestu (`ElevationRequirement`, `InstallLocation`, `PrivacyUrl`, `RequireExplicitUpgrade`).
 
 ### Pravidla winget-pkgs (ověřeno 2026-11-11)
 
@@ -806,7 +813,9 @@ pwsh scripts/release-winget.ps1 -Version 1.0.0           # winget validate, potv
 git switch develop
 ```
 
-Skript vytvoří manifest v dočasné složce (po odeslání ji smaže), spustí `winget validate`, zeptá se `y/N`, teprve pak přečte token (`gh auth token`) a spustí `wingetcreate submit --prtitle "New package: 3DPrint.LayerPeek version 1.0.0" <složka>`. `wingetcreate` otevře PR v prohlížeči. V PR: podepsat Microsoft CLA (bot), sledovat štítky validace ([ValidationFailureGuide.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/ValidationFailureGuide.md)) a výsledek první validace (Defender/SmartScreen u nepodepsaného instalátoru, ruční kontrola) zapsat do T-059.
+Před oběma příkazy se pro odeslání přihlas podle části [Token](#token) (dočasné `gh auth login`) a po odeslání se odhlas (`gh auth logout`). Skript ověří oprávnění tokenu `gh` hned na začátku, takže s nevhodným tokenem (fine-grained `GH_TOKEN` podle T-180) skončí ještě před plánem a vypíše přesný postup přihlášení.
+
+Skript vytvoří manifest v dočasné složce (po odeslání ji smaže), spustí `winget validate`, zeptá se `y/N`, teprve pak přečte token (`gh auth token`), vypne telemetrii `wingetcreate` a spustí `wingetcreate submit --prtitle "New package: 3DPrint.LayerPeek version 1.0.0" <složka>`. `wingetcreate` otevře PR v prohlížeči. V PR: **podepsat Microsoft CLA** (bot se ozve v PR; podepisuje uživatel svým účtem, souhlas 2026-11-11, jen u prvního PR), sledovat štítky validace ([ValidationFailureGuide.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/ValidationFailureGuide.md)) a výsledek první validace (Defender/SmartScreen u nepodepsaného instalátoru, ruční kontrola) zapsat do T-059.
 
 ### Postup: další verze (volitelný krok vydání)
 
@@ -826,8 +835,33 @@ Selhání odeslání vydání nerozbije (zveřejnění i doplnění skončí s k
 
 - Až po potvrzení skript zavolá `gh auth token` a výstup si nechá v proměnné. `wingetcreate` ho dostane jen v proměnné prostředí `WINGET_CREATE_GITHUB_TOKEN` tohoto procesu po dobu svého běhu; pak se vrátí předchozí hodnota. Na příkazové řádce (seznam procesů, historie) ani v souboru nikdy není.
 - Výstup `wingetcreate` (stdout i stderr) skript vypisuje řádek po řádku a token v něm nahradí `***`. Pester testy ověřují, že token není ve výstupu, v argumentech ani v prostředí po běhu.
-- Fine-grained token (`github_pat_…`, např. krátkodobý token z `GH_TOKEN` podle T-180) skript odmítne: `wingetcreate` ho nepodporuje a token omezený na repozitář LayerPeek nemůže forkovat `microsoft/winget-pkgs`. Pro odeslání je potřeba přihlášení `gh auth login` (OAuth) nebo klasický token jen v tomto terminálu (otevřená otázka v T-059).
+- **Jaký token (rozhodnutí uživatele 2026-11-11): dočasné `gh auth login` (OAuth v prohlížeči) jen pro odeslání, pak `gh auth logout`.** `wingetcreate` potřebuje klasický token nebo přihlášení OAuth se scope **`public_repo`** („to allow access to public repositories“; volitelně `delete_repo` jen pro smazání forku po neúspěšném PR – nepotřebujeme), fine-grained tokeny nepodporuje ([doc/token.md](https://github.com/microsoft/winget-create/blob/main/doc/token.md), [issue #595](https://github.com/microsoft/winget-create/issues/595)); vlastní přihlášení OAuth `wingetcreate` žádá scope `repo` ([GitHubOAuth.cs](https://github.com/microsoft/winget-create/blob/main/src/WingetCreateCLI/GitHubOAuth.cs)). `gh auth login` žádá výchozí scopes `repo`, `read:org`, `gist`; `repo` zahrnuje `public_repo`, nic dalšího se přidávat nemusí.
+- **Kontrola před plánem:** skript zjistí scopes tokenu, který `gh` používá, z hlavičky `X-OAuth-Scopes` odpovědi `gh api --include user` (token sám nečte, posílá ho `gh`). Bez hlavičky (fine-grained token, např. `GH_TOKEN` podle T-180, nebo token aplikace GitHubu), bez `public_repo`/`repo` nebo s odpovědí 401 skript odmítne pokračovat (i v `-DryRun`) a vypíše postup níže; v něm je i `Remove-Item Env:GH_TOKEN`, když je `GH_TOKEN` (nebo `GITHUB_TOKEN`) v terminálu nastavený – `gh` ho upřednostní před přihlášením a `gh auth login` s ním odmítne běžet. Druhá kontrola po potvrzení: `gh auth token` musí vrátit token a nesmí být `github_pat_…`.
+- **Postup (Windows, PowerShell, jen v tomto terminálu):**
+  ```powershell
+  Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue      # jen když se používá GH_TOKEN (T-180); stejně GITHUB_TOKEN
+  gh auth login --hostname github.com --web --git-protocol https
+  # OAuth v prohlížeči (jednorázový kód); na „Authenticate Git with your GitHub credentials?“ odpovědět No
+  pwsh scripts/release-winget.ps1 -Version X.Y.Z               # nebo nabídka v release-publish.ps1 / -AddToPublished
+  gh auth logout --hostname github.com
+  $env:GH_TOKEN = Read-Host -MaskInput 'GH_TOKEN'               # obvyklé přihlášení podle T-180, jen když se dál vydává
+  ```
+  Po skutečném odeslání skript sám připomene `gh auth logout`. `gh auth logout` smaže přihlášení jen z počítače; OAuth token na GitHubu zůstane platný, dokud ho uživatel nezruší (GitHub → Settings → Applications → Authorized OAuth Apps → GitHub CLI → Revoke) – doporučeno, když se `gh` jinak nepoužívá. Klasický token se scope `public_repo` jen v `$env:GH_TOKEN` tohoto terminálu by fungoval také, ale uživatel zvolil OAuth.
 - `wingetcreate token --store` se nepoužívá (token by zůstal ve Správci pověření). Pozor: když je token z proměnné neplatný, `wingetcreate` smaže svůj případný uložený token ze Správce pověření (`BaseCommand.cs`, `DeleteTokenCache`).
+
+### Telemetrie `wingetcreate`
+
+`wingetcreate` má podle své dokumentace telemetrii zapnutou ve výchozím stavu ([doc/settings.md](https://github.com/microsoft/winget-create/blob/main/doc/settings.md), README „Data/Telemetry“). Rozhodnutí uživatele 2026-11-11: **vypnout**. Ověřeno ve zdroji (2026-11-11):
+
+- Nastavení je `"Telemetry": { "disable": true }` v `settings.json` ([UserSettings.cs](https://github.com/microsoft/winget-create/blob/main/src/WingetCreateCLI/UserSettings.cs), model `SettingsModel.cs`; názvy vlastností Newtonsoft porovnává bez ohledu na velikost písmen, chybějící sekce mají výchozí hodnoty).
+- Umístění ([Common.cs](https://github.com/microsoft/winget-create/blob/main/src/WingetCreateCLI/Common.cs), `LocalAppStatePath`): zabalená aplikace MSIX (manifest `Microsoft.WingetCreate` 1.12.13.0 nabízí `msix` i `portable`; který z nich `winget install` vybere, jsem neověřil, proto skript počítá s oběma) → `%LOCALAPPDATA%\Packages\Microsoft.WindowsPackageManagerManifestCreator_8wekyb3d8bbwe\LocalState\settings.json`; nezabalený `wingetcreate.exe` → `%LOCALAPPDATA%\Microsoft\WindowsPackageManagerManifestCreator\settings.json`. Skutečnou cestu ukáže `wingetcreate info`.
+- Telemetrie se čte na začátku **každého** spuštění (`Program.cs`) a první spuštění bez `settings.json` ho zapíše se zapnutou telemetrií. Proto se `wingetcreate` nemá spouštět dřív, než se telemetrie vypne (ani `wingetcreate --version`).
+
+Skript (`Disable-WingetCreateTelemetry` v `ReleaseTools.psm1`) ji vypne po potvrzení a těsně před spuštěním `wingetcreate`, v souboru zabalené aplikace (když existuje složka balíčku) i nezabalené (když `wingetcreate` na `PATH` není alias `…\Microsoft\WindowsApps\wingetcreate.exe` nebo balíček chybí). Opakovaně bezpečné: už vypnutou telemetrii nemění, ostatní nastavení zachová, chybějící soubor i složku vytvoří (UTF-8 bez BOM). Soubor, který není objekt JSON, nepřepíše a odeslání odmítne (`wingetcreate` by takový soubor ignoroval a běžel s telemetrií). Ručně hned po instalaci `wingetcreate`:
+
+```powershell
+pwsh -NoProfile -Command "Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1; Disable-WingetCreateTelemetry"
+```
 
 ### Co `release-winget.ps1` odmítne
 
@@ -840,7 +874,9 @@ Selhání odeslání vydání nerozbije (zveřejnění i doplnění skončí s k
 | vydání neexistuje / je koncept / nemá `Setup.exe` / nedokončený soubor / bez SHA256 | `There is no release vX.Y.Z` / `… is still a draft` / `… has no LayerPeek-X.Y.Z-win-x64-Setup.exe yet` / `… is not completely uploaded` / `GitHub reports no SHA256 …` |
 | otevřený PR pro stejnou verzi / první verze ještě nesloučená | `An open pull request for 3DPrint.LayerPeek X.Y.Z already exists` / `The package is not in winget yet and its pull request is still open` |
 | GitHub neodpoví, zda balíček existuje (síť, limit; jen 404 znamená „nový“) | výjimka `gh api repos/microsoft/winget-pkgs/contents/manifests/3/3DPrint/LayerPeek failed` – nikdy druhý PR „New package“ |
-| žádný / fine-grained token | `gh auth token returned no token` / `The token of gh is a fine-grained personal access token` |
+| token `gh` bez scopes (fine-grained, aplikace GitHubu) / bez `public_repo` / odmítnutý (401); před plánem, i v `-DryRun` | `The token of gh has no OAuth scopes` / `The token of gh lacks the public_repo scope` / `GitHub does not accept the token of gh (HTTP 401` + postup přihlášení |
+| žádný / fine-grained token (po potvrzení) | `gh auth token returned no token` / `The token of gh is a fine-grained personal access token` + postup přihlášení |
+| `settings.json` `wingetcreate` není objekt JSON | `wingetcreate telemetry could not be switched off: … Nothing was submitted.` |
 | `winget validate` první verze selže | `winget validate failed (exit code N); nothing was submitted` |
 | `wingetcreate` skončí chybou | `wingetcreate failed with exit code N. Check the pull requests …` |
 
@@ -849,9 +885,15 @@ Selhání odeslání vydání nerozbije (zveřejnění i doplnění skončí s k
 Ověřeno ve zdroji Velopacku 1.2.161 ([install.rs](https://github.com/velopack/velopack/blob/1.2.161/src/bins/src/commands/install.rs), [registry.rs](https://github.com/velopack/velopack/blob/1.2.161/src/bins/src/windows/registry.rs), [apply_windows_impl.rs](https://github.com/velopack/velopack/blob/1.2.161/src/bins/src/commands/apply_windows_impl.rs)); na Windows ještě neověřeno pokusem:
 
 - **Aktualizace v aplikaci (Velopack)** po instalaci přes winget funguje stejně jako po ručním `Setup.exe` (winget spouští tentýž instalátor). Po aktualizaci Velopack přepíše klíč Uninstall novou `DisplayVersion`, takže `winget list` ukáže novou verzi a `winget upgrade` ji nenabízí znovu.
-- **`winget upgrade`** (`UpgradeBehavior: install`) spustí nový `Setup.exe --silent` přes stávající instalaci. Velopack to bere jako přeinstalaci: **násilně ukončí běžící aplikaci** (bez uložení stavu), celou složku `%LOCALAPPDATA%\LayerPeek` nahradí (**logy se smažou**, stejně jako u instalace přes `.zip` verzi), znovu vytvoří zástupce, spustí hook `--veloapp-install` – ten **znovu zapne spouštění po přihlášení**, i když ho uživatel vypnul – a aplikaci po tiché instalaci **nespustí**. Nastavení (`%APPDATA%\LayerPeek`) a hesla zůstanou. Při chybě Velopack vrátí původní složku.
+- **`winget upgrade`** (`UpgradeBehavior: install`, i v rámci `winget upgrade --all`) spustí nový `Setup.exe --silent` přes stávající instalaci. Velopack to bere jako přeinstalaci:
+  - **násilně ukončí běžící aplikaci** (bez uložení stavu, jako ukončení ve Správci úloh),
+  - celou složku `%LOCALAPPDATA%\LayerPeek` nahradí – **logy v `%LOCALAPPDATA%\LayerPeek\logs` se smažou** (stejně jako u instalace přes `.zip` verzi),
+  - znovu vytvoří zástupce a spustí hook `--veloapp-install`, který dnes **znovu zapne spouštění po přihlášení**, i když ho uživatel vypnul – **opraví úkol T-201** (P1, hook nemá zapnout autostart, když ho uživatel vypnul),
+  - aplikaci po tiché instalaci **nespustí**; uživatel ji spustí ze Start menu (nebo se spustí po dalším přihlášení).
+  - Nastavení (`%APPDATA%\LayerPeek`) a hesla zůstanou. Při chybě Velopack vrátí původní složku.
+- **Doporučení pro uživatele: aktualizovat v aplikaci** (položka „Je dostupná nová verze X.Y.Z“ v menu ikony): aplikace před aktualizací uloží stav, běžně se ukončí, nová verze se sama spustí a logy zůstanou. Popsáno v příručkách (`manuals/*/manual.md`, kapitola 12 Aktualizace, Windows).
 - Nové vydání se ve winget objeví až po sloučení PR (validace a kontrola trvají hodiny až dny); aplikace nabídne aktualizaci dřív.
-- `RequireExplicitUpgrade` (vyřazení z `winget upgrade --all` u balíčků, které se aktualizují samy) manifest zatím nemá – otevřená otázka v T-059.
+- `RequireExplicitUpgrade` (vyřazení z `winget upgrade --all`) manifest nemá: rozhodnutí uživatele 2026-11-11 – žádná další volitelná pole manifestu; místo toho oprava hooku (T-201) a doporučení aktualizovat v aplikaci.
 
 ## Navazující úkoly
 

@@ -535,6 +535,9 @@ dans le menu de l'icône et une seule fois sous forme de notification.
 - **Windows, version installée :** l'élément de menu télécharge la mise à jour, quitte LayerPeek et lance la nouvelle
   version.
 - **Windows, version ZIP :** l'élément de menu ouvre la page de la version ; téléchargez le nouveau ZIP manuellement.
+- **Windows, installée avec winget :** utilisez aussi l'élément de menu. `winget upgrade` (y compris dans
+  `winget upgrade --all`) fonctionne également, mais il ferme brutalement LayerPeek s'il est en cours d'exécution, ne le
+  relance pas (lancez-le depuis le menu Démarrer) et supprime les fichiers journaux de `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS :** l'élément de menu télécharge la mise à jour et redémarre LayerPeek, mais seulement si l'app se trouve
   dans **Applications** (et non sur l'image disque ou dans Téléchargements).
 

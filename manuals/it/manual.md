@@ -522,6 +522,9 @@ come notifica.
 
 - **Windows, versione installata:** la voce di menu scarica l’aggiornamento, chiude LayerPeek e avvia la nuova versione.
 - **Windows, versione ZIP:** la voce di menu apre la pagina della release; scarica a mano il nuovo ZIP.
+- **Windows, installata con winget:** usa anche qui la voce di menu. Anche `winget upgrade` (pure all’interno di
+  `winget upgrade --all`) funziona, ma chiude bruscamente LayerPeek se è in esecuzione, non lo riavvia (avvialo dal menu
+  Start) ed elimina i file di log in `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS:** la voce di menu scarica l’aggiornamento e riavvia LayerPeek, ma solo quando l’app si trova in
   **Applicazioni** (non sull’immagine disco o in Download).
 

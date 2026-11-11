@@ -495,6 +495,9 @@ sa ukáže ako **Je dostupná nová verzia X.Y.Z** v ponuke ikony a raz aj ako u
 
 - **Windows, nainštalovaná verzia:** položka ponuky stiahne aktualizáciu, ukončí LayerPeek a spustí novú verziu.
 - **Windows, verzia ZIP:** položka ponuky otvorí stránku s vydaniami; nový ZIP si stiahnite ručne.
+- **Windows, inštalácia cez winget:** aj tu použite položku ponuky. `winget upgrade` (aj v rámci `winget upgrade --all`)
+  funguje tiež, ale spustený LayerPeek násilne ukončí, znova ho nespustí (spustite ho z ponuky Štart) a zmaže logy
+  v priečinku `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS:** položka ponuky stiahne aktualizáciu a LayerPeek reštartuje, ale iba keď je aplikácia v priečinku
   **Aplikácie** (nie na obraze disku ani v priečinku Stiahnuté súbory).
 

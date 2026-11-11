@@ -492,6 +492,9 @@ this off). A new version shows up as **New version X.Y.Z available** in the icon
 
 - **Windows, installed version:** the menu item downloads the update, quits LayerPeek and starts the new version.
 - **Windows, ZIP version:** the menu item opens the release page; download the new ZIP by hand.
+- **Windows, installed with winget:** use the menu item as well. `winget upgrade` (also as part of `winget upgrade --all`)
+  works too, but it closes a running LayerPeek abruptly, does not start it again (start it from the Start menu) and
+  deletes the log files in `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS:** the menu item downloads the update and restarts LayerPeek, but only when the app is in **Applications**
   (not on the disk image or in Downloads).
 

@@ -519,6 +519,9 @@ als Benachrichtigung.
 - **Windows, installierte Version:** Der Menüeintrag lädt das Update herunter, beendet LayerPeek und startet die neue
   Version.
 - **Windows, ZIP-Version:** Der Menüeintrag öffnet die Release-Seite; laden Sie das neue ZIP von Hand herunter.
+- **Windows, mit winget installiert:** Verwenden Sie auch hier den Menüeintrag. `winget upgrade` (auch im Rahmen von
+  `winget upgrade --all`) funktioniert ebenfalls, beendet ein laufendes LayerPeek aber abrupt, startet es nicht wieder
+  (starten Sie es über das Startmenü) und löscht die Protokolldateien in `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS:** Der Menüeintrag lädt das Update herunter und startet LayerPeek neu, aber nur, wenn die App im Ordner
   **Programme** liegt (nicht im Disk-Image oder in „Downloads“).
 

@@ -229,10 +229,13 @@ Odeslání vydání do winget (`scripts/release-winget.ps1`, volitelný krok `re
 
 ```powershell
 winget install --id Microsoft.WingetCreate
-wingetcreate --version
+winget list --id Microsoft.WingetCreate      # kontrola instalace; wingetcreate samotný zatím nespouštět
+pwsh -NoProfile -Command "Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1; Disable-WingetCreateTelemetry"
 ```
 
-`wingetcreate` dostane token GitHubu od skriptu (`gh auth token`, jen po dobu běhu), vlastní přihlášení (`wingetcreate token --store`) netřeba a nemá se používat (token by zůstal uložený). Token `gh` musí být klasický nebo přihlášení OAuth z `gh auth login`; fine-grained token (`github_pat_…`) `wingetcreate` nepodporuje. Pro ruční ověření manifestu před prvním odesláním: `winget settings --enable LocalManifestFiles` (jednou, jako správce).
+**Telemetrie `wingetcreate` se vypíná** (rozhodnutí uživatele 2026-11-11): `"Telemetry": { "disable": true }` v jeho `settings.json`. První spuštění bez `settings.json` soubor zapíše se zapnutou telemetrií, proto se `wingetcreate` (ani `wingetcreate --version`) nespouští před jejím vypnutím. Skript vydání ji vypne sám před každým spuštěním `wingetcreate`; řádek výše to udělá hned po instalaci. Umístění souboru a podrobnosti: [release.md](release.md#telemetrie-wingetcreate).
+
+`wingetcreate` dostane token GitHubu od skriptu (`gh auth token`, jen po dobu běhu), vlastní přihlášení (`wingetcreate token --store`) netřeba a nemá se používat (token by zůstal uložený). Token `gh` musí mít scope `public_repo` (klasický token nebo přihlášení OAuth); fine-grained token (`github_pat_…`, např. `GH_TOKEN` podle T-180) `wingetcreate` nepodporuje. Pro odeslání se proto použije **dočasné `gh auth login --web`** a po něm `gh auth logout` (rozhodnutí uživatele 2026-11-11, postup v [release.md](release.md#token)); skript nevhodný token odmítne a postup vypíše. Pro ruční ověření manifestu před prvním odesláním: `winget settings --enable LocalManifestFiles` (jednou, jako správce).
 
 ## Pester (testy skriptů)
 
