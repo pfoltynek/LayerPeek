@@ -633,7 +633,7 @@ Postup (`<owner>` = tvůj účet, název např. `LayerPeek-release-trial`):
    gh repo create <owner>/LayerPeek-release-trial --private
    git clone https://github.com/pfoltynek/LayerPeek.git $env:TEMP\layerpeek-trial
    cd $env:TEMP\layerpeek-trial
-   git switch feature/T-055-release-scripts     # nebo commit, který se má vyzkoušet
+   git switch develop                           # nebo commit, který se má vyzkoušet
    git remote add trial https://github.com/<owner>/LayerPeek-release-trial.git
    ```
 

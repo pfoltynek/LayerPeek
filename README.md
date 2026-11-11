@@ -471,7 +471,7 @@ No. It asks for the state every few seconds (configurable), the same way the Pru
 ### Prerequisites
 
 - [.NET SDK 11](https://dotnet.microsoft.com/download/dotnet/11.0). The exact version is pinned in
-  [`global.json`](global.json) and preview versions are allowed.
+  [`global.json`](global.json); only stable SDK releases are used, no previews.
 - Git.
 - For a **Native AOT publish** only: on Windows the Visual Studio Build Tools with the *Desktop development with
   C++* workload, on macOS the Xcode Command Line Tools.
