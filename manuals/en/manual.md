@@ -48,8 +48,9 @@ Only the CORE One has been tested so far. Do you have another model? Please send
 Download the latest version from the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page.
 
 > [!IMPORTANT]
-> Versions 0.x are previews and the builds are not signed by Microsoft or notarized by Apple. Your system therefore
-> warns you on the first start; the steps below show how to get past it.
+> Updates within 1.x keep your settings; settings files of older versions always load. The builds are not signed by
+> Microsoft or notarized by Apple. Your system therefore warns you on the first start; the steps below show how to get
+> past it.
 
 ### 2.1 Windows
 

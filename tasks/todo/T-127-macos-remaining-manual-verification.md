@@ -401,15 +401,18 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       „LayerPeek chce použít důvěrné informace…“ ano / ne, a po „Povolit“ znovu při dalším startu?; zůstalo povolení
       oznámení?; ptá se macOS znovu na Místní síť?
 - [ ] **T-181** (krit. „Zkušební vydání … podepsaný feed nahraný, nainstalovaná verze s ověřením aktualizaci přijme“;
-      přesunuto 2026-11-11, rozhodnutí uživatele): **jen s výslovným souhlasem uživatele** (zapisuje na GitHub) a
-      s připojeným médiem s produkčním klíčem (heslo zadává uživatel, dvakrát). Postup `docs/release.md`, „Zkušební
-      vydání (testovací repozitář)“: `release-build.ps1 -FeedSigningKey <klíč>` z commitu s produkčním klíčem
-      v `UpdateFeedKeys.Production` (otisk `4cb047d1…7b91e26`) vytvoří `releases.osx-arm64.json.sig`; `release-upload.ps1`
-      nahraje `.sig` před feedem a build s `-SkipFeedSignature` odmítne; `release-publish.ps1` odmítne vydání bez `.sig`.
-      Nainstalovaná verze s ověřením (T-181) podepsanou aktualizaci přijme a nainstaluje; nepodepsaný nebo změněný feed
-      odmítne (záložka „Spuštění a aktualizace“, notifikace, v menu „Aktualizace odmítnuta…“, nic se nestáhne). Po
-      obnovení platného feedu se nabídka vrátí a notifikace o nové verzi se ukáže znovu (otázka 27 v T-181). Výsledek
-      zapsat do poznámek T-181 a `docs/release.md`.
+      přesunuto 2026-11-11, rozhodnutí uživatele): **zkušební vydání v testovacím repozitáři se nedělá** (rozhodnutí
+      uživatele 2026-11-11, T-198 otázka 3). Nahrazují ho tři kroky, bod zůstává krokem uživatele:
+      (1) generálka podepsaného buildu bez GitHubu (T-198 B4: `release-build.ps1 -FeedSigningKey <klíč>` s produkčním
+      klíčem, `build-info.json` `signed`, otisk `4cb047d1…7b91e26`); (2) v den vydání `release.ps1 -Version 1.0.0
+      -DryRun` a `release-upload.ps1 -DryRun`, ostrý upload 1.0.0 nahraje `.sig` před feedem a `release-publish.ps1`
+      by vydání bez `.sig` odmítl; (3) **hned po zveřejnění 1.0.0** (po aktualizaci nainstalované 0.5.0 na 1.0.0)
+      místní Release build **0.9.9** z tagu `v1.0.0` v `/Applications` se z GitHubu aktualizuje na 1.0.0: nabídka „Je
+      dostupná nová verze 1.0.0“, ne „Aktualizace odmítnuta…“, po aktualizaci O aplikaci 1.0.0, v logu žádné odmítnutí
+      feedu. Postup `docs/release.md`, „Kontrola aktualizace z GitHubu buildem 0.9.9“. Odmítnutí nepodepsaného nebo
+      změněného feedu a návrat nabídky po obnovení platného feedu (otázka 27 v T-181) se na GitHubu neověřují, pokrývají
+      je E2E `UpdateTests` (na Macu prošly, Windows T-125 2v). Výsledek zapsat do poznámek T-181, T-198 a
+      `docs/release.md`.
 - [ ] **T-019** (krit. „Výsledek pokusu Velopack na macOS … zapsaný v `docs/velopack.md`, bod 10“): výsledky tří
       předchozích bodů zapsané v `docs/velopack.md`, bod 10 (odstavec „Stále neověřeno“ aktualizovaný), doporučení
       platí, nebo je upravené.

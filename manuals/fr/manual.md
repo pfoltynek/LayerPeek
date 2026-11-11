@@ -48,8 +48,9 @@ Pour l'instant, seule la CORE One a été testée. Vous avez un autre modèle ? 
 Téléchargez la dernière version depuis la page [Releases](https://github.com/pfoltynek/LayerPeek/releases).
 
 > [!IMPORTANT]
-> Les versions 0.x sont des préversions et ne sont ni signées par Microsoft ni notariées par Apple. Votre système vous
-> avertit donc au premier démarrage ; les étapes ci-dessous expliquent comment passer outre.
+> Les mises à jour au sein des versions 1.x conservent vos paramètres ; les fichiers de paramètres des versions
+> antérieures se chargent toujours. Les versions ne sont ni signées par Microsoft ni notariées par Apple. Votre système
+> vous avertit donc au premier démarrage ; les étapes ci-dessous expliquent comment passer outre.
 
 ### 2.1 Windows
 
