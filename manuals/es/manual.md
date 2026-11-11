@@ -203,6 +203,10 @@ La vista mini tiene una franja de información debajo de la imagen (progreso, ti
 Dos botones despliegan filas adicionales: el **nombre de la impresión** y el **gráfico de temperaturas**. Lo que muestra
 la franja se configura en la subpestaña **Ventana de la cámara** de la impresora (consulte [11.1](#111-impresoras)).
 
+Para ahorrar CPU, la vista mini muestra por defecto como máximo 10 fotogramas por segundo, más que suficiente para la
+imagen pequeña; la ventana normal y la pantalla completa muestran todos los fotogramas de la cámara. El límite se
+configura en la pestaña **Cámara** de la configuración (consulte [11.6](#116-cámara)).
+
 <p align="center">
   <img src="../../docs/images/es/camera-mini.jpg" alt="Vista mini con la franja de información, la fila del nombre de impresión y la fila del gráfico de temperaturas" width="400">
 </p>
@@ -479,6 +483,18 @@ experimentales llevan la etiqueta **Experimental**.
   solo usted puede volver a permitirlo allí; el botón **Abrir Ajustes del Sistema** le lleva a ese lugar.
 - **Buscar actualizaciones automáticamente**, **Ofrecer versiones preliminares** y **Comprobar ahora** (consulte
   [12](#12-actualizaciones)).
+
+### 11.6 Cámara
+
+Ajustes para todas las cámaras (la cámara de cada impresora se configura en su subpestaña **Cámara**, consulte
+[11.1](#111-impresoras)).
+
+- **Fotogramas de la vista mini:** cuántos fotogramas por segundo muestra la vista mini. **Ahorro** (5 fps),
+  **Equilibrado** (10 fps, el valor predeterminado) o **Fluido** (todos los fotogramas de la cámara); con el control
+  deslizante se fija otro límite de 1 a 30 fps (**Personalizado**). Menos fotogramas suponen menos carga de CPU y menos
+  datos copiados; la cámara se sigue leyendo completa, así que las grabaciones, los timelapses y la detección de errores
+  de impresión no cambian. La ventana normal y la pantalla completa muestran siempre todos los fotogramas. El cambio se
+  aplica a una vista mini abierta después de **Guardar**.
 
 ## 12. Actualizaciones
 

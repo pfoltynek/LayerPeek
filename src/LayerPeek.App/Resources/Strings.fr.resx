@@ -637,7 +637,7 @@
     <value>Activez-la uniquement si on vous le demande lors d'un dépannage. Le journal grossit plus vite.</value>
   </data>
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
-    <value>Démarrage et mises à jour</value>
+    <value>Démarrage, MàJ</value>
   </data>
   <data name="SettingsTabRecording" xml:space="preserve">
     <value>Enregistrement</value>
@@ -923,6 +923,45 @@
   </data>
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Pour toutes les imprimantes. Une fenêtre fermée manuellement reste fermée.</value>
+  </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Pour toutes les caméras. La caméra de chaque imprimante se configure dans l'onglet Imprimantes.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Fréquence d'images du mini-aperçu</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Économe</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Équilibré</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Fluide</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Personnalisé</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 i/s : la charge processeur la plus faible et le moins de données d'image copiées ; les mouvements sont plus saccadés.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 i/s (recommandé) : assez fluide pour la petite image, pour une fraction de la charge processeur et des données copiées.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Toutes les images de la caméra, comme dans la fenêtre normale : la charge processeur la plus élevée et le plus de données copiées.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Valeur personnelle : moins d'images par seconde, c'est moins de charge processeur et moins de données copiées.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} i/s</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Sans limite</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Images par seconde du mini-aperçu</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Ouvrir en</value>

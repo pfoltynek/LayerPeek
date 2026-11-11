@@ -640,7 +640,7 @@
     <value>Avvio e aggiornamenti</value>
   </data>
   <data name="SettingsTabRecording" xml:space="preserve">
-    <value>Registrazione</value>
+    <value>Riprese</value>
   </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Avvia all'accesso a Windows</value>
@@ -923,6 +923,45 @@
   </data>
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Vale per tutte le stampanti. Una finestra chiusa manualmente resta chiusa.</value>
+  </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Vale per tutte le telecamere. La telecamera di ogni stampante si imposta nella scheda Stampanti.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Frequenza fotogrammi dell'anteprima mini</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Risparmio</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Bilanciato</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Fluido</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Personalizzato</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: il carico di CPU più basso e meno dati d'immagine copiati; il movimento è più a scatti.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (consigliato): abbastanza fluido per l'immagine piccola con una frazione del carico di CPU e dei dati copiati.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Tutti i fotogrammi della telecamera, come nella finestra normale: il carico di CPU più alto e più dati copiati.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Valore personale: meno fotogrammi al secondo significano meno carico di CPU e meno dati copiati.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Nessun limite</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Fotogrammi al secondo nell'anteprima mini</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Apri come</value>
@@ -1634,7 +1673,7 @@
     <value>Conserva gli ultimi minuti (dashcam)</value>
   </data>
   <data name="SettingsDashcamPrinterHint" xml:space="preserve">
-    <value>Durante una stampa tiene in memoria gli ultimi minuti della telecamera e li salva se qualcosa va storto (scheda Registrazione). Inattivo mentre si registra l'intera stampa.</value>
+    <value>Durante una stampa tiene in memoria gli ultimi minuti della telecamera e li salva se qualcosa va storto (scheda Riprese). Inattivo mentre si registra l'intera stampa.</value>
   </data>
   <data name="NotificationDashcamFailed" xml:space="preserve">
     <value>Salvataggio degli ultimi minuti non riuscito</value>
@@ -1679,7 +1718,7 @@
     <value>Il rilevamento richiede la telecamera della stampante: attivala nella sottoscheda Telecamera.</value>
   </data>
   <data name="SettingsDetectionGloballyOff" xml:space="preserve">
-    <value>Il rilevamento degli errori di stampa è disattivato per tutte le stampanti: attivalo nella scheda Registrazione.</value>
+    <value>Il rilevamento degli errori di stampa è disattivato per tutte le stampanti: attivalo nella scheda Riprese.</value>
   </data>
   <data name="SettingsDetectionRegion" xml:space="preserve">
     <value>Area del piano</value>
@@ -1841,7 +1880,7 @@
     <value>Crea un timelapse delle stampe</value>
   </data>
   <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
-    <value>Crea un timelapse dall'inizio di una stampa fino a un minuto dopo la sua fine, anche senza la finestra della telecamera aperta. Il tempo tra i fotogrammi è nella scheda Registrazione.</value>
+    <value>Crea un timelapse dall'inizio di una stampa fino a un minuto dopo la sua fine, anche senza la finestra della telecamera aperta. Il tempo tra i fotogrammi è nella scheda Riprese.</value>
   </data>
   <data name="MenuExportTimelapseJpeg" xml:space="preserve">
     <value>_Esporta timelapse in JPEG… (sperimentale)</value>

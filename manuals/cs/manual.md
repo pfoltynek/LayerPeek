@@ -202,6 +202,10 @@ Malý náhled má pod obrazem informační pás (průběh, zbývající čas, č
 **název tisku** a **graf teplot**. Co pás ukazuje, nastavíte na podzáložce **Okno kamery** tiskárny
 (viz [11.1](#111-tiskárny)).
 
+Aby šetřil procesor, ukazuje malý náhled ve výchozím nastavení nejvýš 10 snímků za sekundu, což malému obrazu stačí;
+normální okno a celá obrazovka ukazují každý snímek kamery. Omezení se nastavuje na záložce **Kamera** v nastavení (viz
+[11.6](#116-kamera)).
+
 <p align="center">
   <img src="../../docs/images/cs/camera-mini.jpg" alt="Malý náhled s informačním pásem, řádkem s názvem tisku a řádkem s grafem teplot" width="400">
 </p>
@@ -458,6 +462,17 @@ Složka a limit velikosti nahrávek, dashcam, timelapse a detekce chyb tisku (vi
   a rozšíření** (Login Items & Extensions), můžete ho tam znovu povolit jen vy sami; tlačítko **Otevřít Nastavení
   systému** vás tam přenese.
 - **Automaticky kontrolovat aktualizace**, **Nabízet předběžné verze** a **Zkontrolovat teď** (viz [12](#12-aktualizace)).
+
+### 11.6 Kamera
+
+Nastavení pro všechny kamery (kameru jednotlivé tiskárny nastavíte na její podzáložce **Kamera**, viz
+[11.1](#111-tiskárny)).
+
+- **Snímková frekvence malého náhledu:** kolik snímků za sekundu malý náhled ukazuje. **Úsporný** (5 fps), **Vyvážený**
+  (10 fps, výchozí) nebo **Plynulý** (každý snímek kamery); posuvníkem nastavíte jiné omezení od 1 do 30 fps
+  (**Vlastní**). Méně snímků znamená menší zátěž procesoru a méně kopírovaných dat; kamera se dál čte celá, takže
+  nahrávky, timelapse a detekce chyb tisku se nemění. Normální okno a celá obrazovka ukazují vždy každý snímek. Změna se
+  u otevřeného malého náhledu projeví po **Uložit**.
 
 ## 12. Aktualizace
 

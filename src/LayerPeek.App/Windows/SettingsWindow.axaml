@@ -1609,6 +1609,61 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
+
+      <!--
+        T-185 (user decision 2026-11-11): the settings of every camera, a main tab of its own (the printer's Camera sub-tab
+        has no room left; the French, Italian, Polish and Slovak headers of the other tabs were shortened so that six fit on
+        one row at 780 DIP). The frame rate of the mini preview: the profile, the slider of 1–30 fps with the limit right of
+        it, and the CPU load and copied data of the selected profile below. Applied after saving, like the other settings.
+      -->
+      <TabItem AutomationProperties.AutomationId="SettingsTabCamera" Header="{Binding [SettingsCamera], Source={x:Static loc:LocalizedStrings.Instance}}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+          <StackPanel>
+            <TextBlock AutomationProperties.AutomationId="SettingsCameraTabHint"
+                       Classes="hint"
+                       Margin="0"
+                       Text="{Binding [SettingsCameraTabHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <TextBlock Classes="section"
+                       Text="{Binding [SettingsMiniFrameRate], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <Grid ColumnDefinitions="Auto,16,*,12,Auto">
+              <ComboBox AutomationProperties.AutomationId="MiniFrameRateProfile"
+                        AutomationProperties.Name="{Binding [SettingsMiniFrameRate], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        AutomationProperties.HelpText="{Binding MiniFrameRateDescription}"
+                        ItemsSource="{Binding MiniFrameRateProfiles}"
+                        SelectedItem="{Binding SelectedMiniFrameRateProfile}"
+                        MinWidth="180">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MiniFrameRateProfileOption">
+                    <TextBlock Text="{Binding Text}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Slider Grid.Column="2"
+                      AutomationProperties.AutomationId="MiniFrameRateSlider"
+                      AutomationProperties.Name="{Binding [SettingsMiniFrameRateSlider], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.HelpText="{Binding MiniFrameRateDescription}"
+                      Minimum="{x:Static vm:SettingsViewModel.MinMiniFrameRate}"
+                      Maximum="{x:Static vm:SettingsViewModel.MaxMiniFrameRate}"
+                      SmallChange="1"
+                      LargeChange="5"
+                      TickFrequency="1"
+                      IsSnapToTickEnabled="True"
+                      VerticalAlignment="Center"
+                      Margin="0,-4"
+                      Value="{Binding MiniFrameRateSlider}" />
+              <TextBlock Grid.Column="4"
+                         AutomationProperties.AutomationId="MiniFrameRateValue"
+                         MinWidth="96"
+                         TextAlignment="Right"
+                         VerticalAlignment="Center"
+                         Text="{Binding MiniFrameRateText}" />
+            </Grid>
+            <TextBlock AutomationProperties.AutomationId="MiniFrameRateDescription"
+                       Classes="hint"
+                       Text="{Binding MiniFrameRateDescription}" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
     </TabControl>
 
     <!-- Save / Cancel and the outcome of the last save attempt. -->

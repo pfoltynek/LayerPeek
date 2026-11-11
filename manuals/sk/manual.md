@@ -201,6 +201,10 @@ Malý náhľad má pod obrazom informačný pásik (priebeh, zostávajúci čas,
 riadky: **názov tlače** a **graf teplôt**. Čo pásik ukazuje, nastavíte na podkarte tlačiarne **Okno kamery**
 (pozrite [11.1](#111-tlačiarne)).
 
+Aby šetril procesor, ukazuje malý náhľad v predvolenom nastavení najviac 10 snímok za sekundu, čo malému obrazu stačí;
+normálne okno a celá obrazovka ukazujú každú snímku kamery. Obmedzenie sa nastavuje na karte **Kamera** v nastaveniach
+(pozrite [11.6](#116-kamera)).
+
 <p align="center">
   <img src="../../docs/images/sk/camera-mini.jpg" alt="Malý náhľad s informačným pásikom, riadkom s názvom tlače a riadkom s grafom teplôt" width="400">
 </p>
@@ -450,7 +454,7 @@ označené štítkom **Experimentálne**.
   Polski. Mení iba texty; čísla, dátumy a časy sa riadia miestnymi nastaveniami vášho systému.
 - **Podrobné logovanie (Debug):** zapnite ho iba vtedy, keď vás o to pri riešení problému požiadajú.
 
-### 11.5 Spustenie a aktualizácie
+### 11.5 Štart a aktualizácie
 
 - **Windows:** **Spúšťať po prihlásení do Windows**. Predvolene zapnuté; k dispozícii iba v nainštalovanej verzii,
   nie vo verzii ZIP.
@@ -460,6 +464,17 @@ označené štítkom **Experimentálne**.
   nastavenia** vás tam zavedie.
 - **Automaticky kontrolovať aktualizácie**, **Ponúkať predbežné verzie** a **Skontrolovať teraz** (pozrite
   [12](#12-aktualizácie)).
+
+### 11.6 Kamera
+
+Nastavenia pre všetky kamery (kameru jednotlivej tlačiarne nastavíte na jej podkarte **Kamera**, pozrite
+[11.1](#111-tlačiarne)).
+
+- **Snímková frekvencia malého náhľadu:** koľko snímok za sekundu malý náhľad ukazuje. **Úsporný** (5 fps), **Vyvážený**
+  (10 fps, predvolený) alebo **Plynulý** (každá snímka kamery); posuvníkom nastavíte iné obmedzenie od 1 do 30 fps
+  (**Vlastný**). Menej snímok znamená menšiu záťaž procesora a menej kopírovaných dát; kamera sa ďalej číta celá, takže
+  nahrávky, timelapse a detekcia chýb tlače sa nemenia. Normálne okno a celá obrazovka ukazujú vždy každú snímku. Zmena
+  sa pri otvorenom malom náhľade prejaví po **Uložiť**.
 
 ## 12. Aktualizácie
 

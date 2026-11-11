@@ -23,6 +23,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Camera window performance:** the mini preview and camera windows smaller than the camera image convert the image at
   the size it is shown instead of the camera's full resolution, and each frame is copied once, off the UI thread.
   Snapshots, recordings, timelapses and print failure detection keep the full resolution.
+- **Mini preview frame rate:** the mini preview shows at most 10 frames per second by default (the frames in between are
+  decoded but not converted, copied or drawn), which saves CPU; the normal window and full screen keep the camera's full
+  frame rate. A new **Camera** tab of the settings sets it for all cameras: Economy (5 fps), Balanced (10 fps), Smooth
+  (every frame) or a custom limit of 1–30 fps. Print failure detection, recordings and timelapses are not affected.
+- **Shorter settings tab names** in French ("Démarrage, MàJ"), Italian ("Riprese"), Polish ("Start i aktualizacje") and
+  Slovak ("Štart a aktualizácie"), so that the six tabs fit on one row.
 - **Print failure detection performance:** its samples are scaled straight from the brightness (luma) of the camera
   image instead of being converted to full-resolution colour first: about a tenth of the work per sample and no
   full-size colour buffer while only detection watches the camera. The detection thresholds are unchanged.

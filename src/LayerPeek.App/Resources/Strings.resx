@@ -963,6 +963,45 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>For all printers. A window you close yourself stays closed.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>For all cameras. Each printer's camera is set up on the Printers tab.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Mini preview frame rate</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Economy</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Balanced</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Smooth</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: the lowest CPU load and the least image data copied; movement in the picture is choppier.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (recommended): smooth enough for the small picture with a fraction of the CPU load and copied image data.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Every frame of the camera, as in the normal window: the highest CPU load and the most image data copied.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Your own limit: fewer frames per second mean less CPU load and less image data copied.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>No limit</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Mini preview frames per second</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Open as</value>
   </data>

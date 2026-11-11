@@ -195,7 +195,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-182 | Varování u adresy `http://` mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť) | all | core-dev + ui-dev | P2 | – |
 | T-183 | Dokumentace – zabezpečení přístupu k PrusaLink (silné heslo, oddělená síť, HTTPS přes reverzní proxy) | all | architect + qa-reviewer | P2 | – |
 | T-184 | Kamera – převod obrazu rovnou ve velikosti, ve které se zobrazuje (výkon) (hotovo) | all | core-dev + ui-dev | P2 | – |
-| T-185 | Kamera – omezení snímkové frekvence v malém náhledu (výkon) | all | core-dev + ui-dev | P2 | – |
+| T-185 | Kamera – omezení snímkové frekvence v malém náhledu (výkon) (hotovo) | all | core-dev + ui-dev | P2 | – |
 | T-188 | Kamera – exponenciální backoff při opětovném připojení (výkon) (hotovo) | all | core-dev | P2 | – |
 | T-189 | Detekce chyb tisku – snímek z jasové složky (Y) bez převodu do BGRA (výkon) (hotovo) | all | core-dev | P3 | – |
 | T-193 | Přechod z .NET 11 RC na stabilní .NET 11 (GA) (hotovo, Windows v T-125) | all | qa-reviewer | P1 | – |

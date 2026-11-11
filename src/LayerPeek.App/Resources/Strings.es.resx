@@ -924,6 +924,45 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Para todas las impresoras. Una ventana cerrada manualmente permanece cerrada.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Para todas las cámaras. La cámara de cada impresora se configura en la pestaña Impresoras.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Fotogramas de la vista mini</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Ahorro</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Equilibrado</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Fluido</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Personalizado</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: la menor carga de CPU y la menor cantidad de datos de imagen copiados; el movimiento es más entrecortado.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (recomendado): bastante fluido para la imagen pequeña con una fracción de la carga de CPU y de los datos copiados.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Todos los fotogramas de la cámara, como en la ventana normal: la mayor carga de CPU y la mayor cantidad de datos copiados.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Valor propio: menos fotogramas por segundo suponen menos carga de CPU y menos datos copiados.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Sin límite</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Fotogramas por segundo en la vista mini</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Abrir como</value>
   </data>

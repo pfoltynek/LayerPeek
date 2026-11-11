@@ -924,6 +924,45 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Platí pro všechny tiskárny. Okno, které zavřete sami, zůstane zavřené.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Platí pro všechny kamery. Kameru jednotlivé tiskárny nastavíte na záložce Tiskárny.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Snímková frekvence malého náhledu</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Úsporný</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Vyvážený</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Plynulý</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Vlastní</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: nejnižší zátěž procesoru a nejméně kopírovaných obrazových dat, pohyb v obraze je trhanější.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (doporučeno): pro malý obraz dost plynulé při zlomku zátěže procesoru a kopírovaných dat.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Každý snímek kamery jako v normálním okně: nejvyšší zátěž procesoru a nejvíc kopírovaných dat.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Vlastní hodnota: méně snímků za sekundu znamená menší zátěž procesoru a méně kopírovaných dat.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Bez omezení</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Snímky za sekundu v malém náhledu</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otevřít jako</value>
   </data>

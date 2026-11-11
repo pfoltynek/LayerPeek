@@ -53,6 +53,14 @@ internal sealed class SettingsDocument
     public bool? CameraWindowAutoClose { get; set; }
 
     /// <summary>
+    /// The frame rate limit of the mini preview (T-185): whole frames per second 1–30, 0 = no limit; missing (older files,
+    /// the default) = 10 and not written while it is the default. Read as a number so that fractions and out-of-range values
+    /// fall back to the default with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? MiniPreviewFrameRate { get; set; }
+
+    /// <summary>
     /// Folder and size limit of the camera recordings (T-145): a <see cref="RecordingDocument"/> object; missing in older
     /// files and not written while both are the defaults. Kept as raw JSON and read leniently by <see cref="SettingsMapper"/>
     /// (a value of the wrong type is a warning and its default, not a corrupted file).
