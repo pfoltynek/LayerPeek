@@ -843,6 +843,12 @@
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licencie tretích strán…</value>
   </data>
+  <data name="AboutFFmpegNotice" xml:space="preserve">
+    <value>Tento softvér používa knižnice projektu FFmpeg pod licenciou LGPLv3 alebo novšou.</value>
+  </data>
+  <data name="AboutFFmpegSource" xml:space="preserve">
+    <value>Zdrojový kód FFmpeg tejto verzie</value>
+  </data>
   <data name="LicensesTitle" xml:space="preserve">
     <value>Licencie tretích strán</value>
   </data>

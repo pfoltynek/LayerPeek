@@ -255,5 +255,27 @@ internal static class ThirdPartyLicenses
             string repository = Windows.AboutViewModel.RepositoryUri.AbsoluteUri.TrimEnd('/');
             return new Uri($"{repository}/blob/v{Uri.EscapeDataString(productVersion)}/{MacOSBuildScriptPath}");
         }
+
+        /// <summary>
+        /// The FFmpeg source attached to the release of <paramref name="productVersion"/> (T-199, LGPL: the exact source of the
+        /// libraries of the platform with how they were built); the name is that of <c>Get-FFmpegSourceFileName</c> in
+        /// <c>scripts/ReleaseTools/ReleaseTools.psm1</c> (checked by a test).
+        /// </summary>
+        internal static string SourceArchiveFileName(string productVersion, bool macOS)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(productVersion);
+            return $"ffmpeg-source-{productVersion}-{(macOS ? "macos" : "windows")}.tar.xz";
+        }
+
+        /// <summary>
+        /// Download address of <see cref="SourceArchiveFileName"/> in the GitHub release <c>v&lt;version&gt;</c> (the tag
+        /// format of <c>scripts/release.ps1</c>, like <see cref="MacOSBuildScriptUri"/>).
+        /// </summary>
+        internal static Uri SourceArchiveUri(string productVersion, bool macOS)
+        {
+            string name = SourceArchiveFileName(productVersion, macOS);
+            string repository = Windows.AboutViewModel.RepositoryUri.AbsoluteUri.TrimEnd('/');
+            return new Uri($"{repository}/releases/download/v{Uri.EscapeDataString(productVersion)}/{Uri.EscapeDataString(name)}");
+        }
     }
 }

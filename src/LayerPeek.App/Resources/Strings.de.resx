@@ -843,6 +843,12 @@
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Lizenzen von Drittanbietern…</value>
   </data>
+  <data name="AboutFFmpegNotice" xml:space="preserve">
+    <value>Diese Software verwendet Bibliotheken des FFmpeg-Projekts unter der LGPLv3 oder neuer.</value>
+  </data>
+  <data name="AboutFFmpegSource" xml:space="preserve">
+    <value>Quellcode von FFmpeg dieser Version</value>
+  </data>
   <data name="LicensesTitle" xml:space="preserve">
     <value>Lizenzen von Drittanbietern</value>
   </data>

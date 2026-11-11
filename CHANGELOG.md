@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   certificate authority on Windows and macOS.
 - **Camera reconnect status:** the camera window shows roughly when the next connection attempt is due ("Next attempt
   in about 20 s"); the time stays current while the window is visible.
+- **FFmpeg source code with every release** (LGPL): each release attaches `ffmpeg-source-<version>-windows.tar.xz` and
+  `ffmpeg-source-<version>-macos.tar.xz` with the exact FFmpeg source the camera libraries were built from, the build
+  scripts and the configure line. The About window says "This software uses libraries from the FFmpeg project under the
+  LGPLv3 or later." (in all eight languages) and links to the source of its version.
 
 ### Changed
 

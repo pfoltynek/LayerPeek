@@ -207,6 +207,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-191 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) (hotovo, build beze změny) | all | qa-reviewer | P3 | – |
 | T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) | all | architect | P3 | T-184, T-185 |
 | T-198 | Připravenost vydání 1.0.0 (blokery, první podepsané vydání, zveřejnění repozitáře, plán dne vydání) | all | architect | P1 | – |
+| T-199 | Vydání – zdrojový kód FFmpeg přiložený k vydání a věta o FFmpeg v okně O aplikaci (LGPL) | all | qa-reviewer | P1 | T-198 |
 
 ### Windows (`windows`)
 

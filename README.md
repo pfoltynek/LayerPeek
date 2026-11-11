@@ -586,7 +586,9 @@ implied warranty of merchantability or fitness for a particular purpose.
 
 The app bundles the native **FFmpeg** libraries, which are licensed under the LGPL. They are dynamically linked and
 can be replaced. The FFmpeg license text ships with the app as `FFmpeg-LICENSE.txt`. All third-party components,
-their versions and full license texts are listed in the app under **About → Third-party licences…**.
+their versions and full license texts are listed in the app under **About → Third-party licences…**. Every release
+attaches the exact FFmpeg source the libraries were built from, with the build scripts and the configure line
+(`ffmpeg-source-<version>-windows.tar.xz`, `ffmpeg-source-<version>-macos.tar.xz`).
 
 ---
 

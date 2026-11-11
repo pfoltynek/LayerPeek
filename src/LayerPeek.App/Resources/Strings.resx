@@ -882,6 +882,14 @@
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Third-party licences…</value>
   </data>
+  <data name="AboutFFmpegNotice" xml:space="preserve">
+    <value>This software uses libraries from the FFmpeg project under the LGPLv3 or later.</value>
+    <comment>About window (T-199): point 10 of the LGPL checklist of https://ffmpeg.org/legal.html with the licence version of the shipped FFmpeg build (LGPL 3 or later). Keep "FFmpeg" and "LGPLv3" as they are.</comment>
+  </data>
+  <data name="AboutFFmpegSource" xml:space="preserve">
+    <value>FFmpeg source code of this version</value>
+    <comment>About window (T-199): link to the FFmpeg source archive attached to the GitHub release of this version.</comment>
+  </data>
   <data name="LicensesTitle" xml:space="preserve">
     <value>Third-party licences</value>
   </data>

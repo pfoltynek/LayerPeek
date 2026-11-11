@@ -33,6 +33,25 @@
     <LayerPeekFFmpegArchiveFolder>ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0</LayerPeekFFmpegArchiveFolder>
 
     <!--
+      Not used by the build: the corresponding source of the BtbN build above, which scripts/release-build.ps1 attaches
+      to every release (T-199, ffmpeg-source-<version>-windows.tar.xz). The FFmpeg commit is the one named in the archive
+      folder (n9.0.2-39-g7adfbe40dc, unmodified: BtbN clones the release/9.0 branch and patches only dependencies); the
+      build scripts are BtbN's FFmpeg-Builds at the commit of the release tag in LayerPeekFFmpegUrl. Both are taken with
+      git (shallow fetch of the commit, the tree id checked) and packed with git archive (prefix <name>/, no line ending
+      conversion); the SHA-256 is that of the uncompressed tar. A test keeps commit and tag equal to the zip above, so a
+      new BtbN build needs new values here (docs/prerequisites.md, "Nová verze FFmpeg").
+    -->
+    <LayerPeekFFmpegWindowsSourceRepository>https://github.com/FFmpeg/FFmpeg.git</LayerPeekFFmpegWindowsSourceRepository>
+    <LayerPeekFFmpegWindowsSourceCommit>7adfbe40dcde598f93a6963d2f7b22cd75202ccc</LayerPeekFFmpegWindowsSourceCommit>
+    <LayerPeekFFmpegWindowsSourceTree>effafc94f72c1e2e8d677c5f1f41a100b8859474</LayerPeekFFmpegWindowsSourceTree>
+    <LayerPeekFFmpegWindowsSourceSha256>bb3aaf579741c4da97f8d6738c51ac778075b0a75df642f3e01193509445ae28</LayerPeekFFmpegWindowsSourceSha256>
+    <LayerPeekFFmpegWindowsScriptsRepository>https://github.com/BtbN/FFmpeg-Builds.git</LayerPeekFFmpegWindowsScriptsRepository>
+    <LayerPeekFFmpegWindowsScriptsTag>autobuild-2026-10-31-12-59</LayerPeekFFmpegWindowsScriptsTag>
+    <LayerPeekFFmpegWindowsScriptsCommit>5031c6f1082414e53688d39e521849905071070d</LayerPeekFFmpegWindowsScriptsCommit>
+    <LayerPeekFFmpegWindowsScriptsTree>322b4b725d2e1a6bd52719e751ff3766de406b2c</LayerPeekFFmpegWindowsScriptsTree>
+    <LayerPeekFFmpegWindowsScriptsSha256>61c8b7b256c546e5466b9046235ecbd637c4b1de612e0dc0affee83585377c23</LayerPeekFFmpegWindowsScriptsSha256>
+
+    <!--
       macOS (T-026): the official source tarball of the same release as the BtbN build above (n9.0.2 plus fixes of the
       release/9.0 branch), the libraries avformat-63, avcodec-63, avutil-61 and swscale-10. The configure line is in
       build/macos/build-ffmpeg.sh. FFmpeg publishes no checksums (only GPG signatures); the hash was taken on 2026-10-29

@@ -12,7 +12,8 @@
         artifacts/release/<version>/dist/            files to upload: archives, the Velopack installer and update feed (Windows),
                                                      the .dmg and the .tar.gz of LayerPeek.app and the Velopack package and
                                                      update feed (macOS, T-058), the signature of every update feed
-                                                     releases.<rid>.json.sig (T-181) + SHA256SUMS-<os>.txt
+                                                     releases.<rid>.json.sig (T-181), the FFmpeg source
+                                                     ffmpeg-source-<version>-<os>.tar.xz (T-199) + SHA256SUMS-<os>.txt
         artifacts/release/<version>/app/<rid>/       the signed LayerPeek.app of vpk (macOS, T-019, T-058: portable/)
         artifacts/release/<version>/build-info.json  build marker (version, commit, clean tree, files) that
                                                      release-upload.ps1 checks so that no older build is uploaded
@@ -32,6 +33,12 @@
     key), signs the feeds, verifies every signature against the trusted keys and disposes the key and the password. The key
     is never copied, printed or written; build-info.json names only the SHA-256 of the public key. Without a key the build
     fails, unless -SkipFeedSignature makes a trial build that release-upload.ps1 refuses.
+
+    FFmpeg source (T-199, docs/release.md "Zdrojový kód FFmpeg"): before the long build the script fetches the pinned
+    FFmpeg source of this OS (build/FFmpeg.targets) into the cache LayerPeek.Build/ffmpeg-source (macOS
+    ~/Library/Caches, Windows %LOCALAPPDATA%; downloaded and verified once, never deleted) and fails early when it cannot.
+    The packaging step 'ffmpeg-source' packs it with the build script and a README after checking that the published
+    FFmpeg libraries are built from it.
 
     Build record before signing (T-197): after packaging, before the key is read again, the script writes build-info.json
     with FeedSignature.Status 'pending': the version, commit, clean tree, OS, RIDs, every packaged file with its SHA-256
@@ -223,6 +230,20 @@ $packagingSteps = @(
             $diskImage
             $archive
             $feed
+        }
+    },
+    # T-199 (LGPL, https://ffmpeg.org/legal.html): the exact source of the FFmpeg libraries of this OS with how they were
+    # built, verified before the build (Get-FFmpegSourceInputs below). One file per OS: there is one RID per OS, and the
+    # FFmpeg build of build/FFmpeg.targets is that of the OS (a second RID of an OS would return the same name twice).
+    [pscustomobject]@{
+        Name   = 'ffmpeg-source'
+        Os     = @('windows', 'macos')
+        Invoke = {
+            param($Context)
+            $work = Join-Path (Split-Path -Parent $Context.OutputDirectory) "ffmpeg-source-$($Context.Runtime)"
+            if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
+            New-FFmpegSourceArchive -Source $ffmpegSource -PublishDirectory $Context.PublishDirectory -AppVersion $Context.Version -RepoRoot $repoRoot `
+                -Destination (Join-Path $Context.OutputDirectory (Get-FFmpegSourceFileName -Version $Context.Version -Os $Context.Os)) -WorkDirectory $work
         }
     }
 )
@@ -421,6 +442,9 @@ try {
 
     # T-181: the signing key is checked (and its password asked for) before the long build, not after it.
     $feedSigning = Get-FeedSigning
+
+    # T-199: the pinned FFmpeg source of this OS (cached, verified) before the long build, for the 'ffmpeg-source' step.
+    $ffmpegSource = if ($hostOs -in 'windows', 'macos') { Get-FFmpegSourceInputs -RepoRoot $repoRoot -Os $hostOs } else { $null }
 
     # Fails before the long build when the AOT toolchain of a requested RID is missing (shared with scripts/release.ps1).
     $toolchainProblems = @(Get-NativeToolchainProblems -Runtimes $runtimes -HostOs $hostOs)

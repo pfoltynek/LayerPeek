@@ -27,6 +27,7 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
 
     private readonly IUrlLauncher _launcher;
     private readonly string _version;
+    private readonly bool _macOS;
     private readonly SupportActions? _support;
     private readonly TimeProvider _time;
 
@@ -46,13 +47,15 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
     }
 
     /// <param name="time">Clock of the "Copied" feedback (tests); the system clock by default.</param>
-    internal AboutViewModel(IUrlLauncher launcher, Assembly assembly, SupportActions? support = null, TimeProvider? time = null)
+    /// <param name="macOS">Link the FFmpeg source of the macOS release; <see langword="null"/> = the running platform.</param>
+    internal AboutViewModel(IUrlLauncher launcher, Assembly assembly, SupportActions? support = null, TimeProvider? time = null, bool? macOS = null)
     {
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(assembly);
         _launcher = launcher;
         _support = support;
         _time = time ?? TimeProvider.System;
+        _macOS = macOS ?? OperatingSystem.IsMacOS();
         _version = ProductVersion(assembly);
         Copyright = ProductCopyright(assembly);
         FormatTexts();
@@ -77,6 +80,15 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
     public string Copyright { get; }
 
     public string RepositoryText { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// "This software uses libraries from the FFmpeg project under the LGPLv3 or later." (T-199: point 10 of the LGPL
+    /// checklist of https://ffmpeg.org/legal.html, with the licence version of the shipped build).
+    /// </summary>
+    public string FFmpegNotice { get; private set; } = string.Empty;
+
+    /// <summary>The link to the FFmpeg source attached to the release of this version (<see cref="OpenFFmpegSourceCommand"/>).</summary>
+    public string FFmpegSourceText { get; private set; } = string.Empty;
 
     public string CloseText { get; private set; } = string.Empty;
 
@@ -170,6 +182,8 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
         Disclaimer = Strings.AboutDisclaimer;
         LicenseText = Format(Strings.AboutLicense, LicenseName);
         RepositoryText = Strings.AboutRepository;
+        FFmpegNotice = Strings.AboutFFmpegNotice;
+        FFmpegSourceText = Strings.AboutFFmpegSource;
         CloseText = Strings.AboutClose;
         ThirdPartyLicensesText = Strings.AboutThirdPartyLicenses;
         SupportHeading = Strings.SupportHeading;
@@ -306,4 +320,11 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
     /// <summary>Opens the project page in the browser (the launcher validates the address and logs failures).</summary>
     [RelayCommand]
     private void OpenRepository() => _ = _launcher.OpenAsync(RepositoryUri);
+
+    /// <summary>
+    /// Opens the FFmpeg source of this version and platform, attached to its GitHub release (T-199); a build of a version
+    /// that was never released has no such file.
+    /// </summary>
+    [RelayCommand]
+    private void OpenFFmpegSource() => _ = _launcher.OpenAsync(ThirdPartyLicenses.FFmpeg.SourceArchiveUri(_version, _macOS));
 }

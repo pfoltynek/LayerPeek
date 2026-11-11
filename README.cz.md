@@ -579,7 +579,9 @@ prodejnosti nebo vhodnosti pro určitý účel.
 
 Aplikace obsahuje nativní knihovny **FFmpeg** pod licencí LGPL. Jsou linkované dynamicky a dají se vyměnit. Text
 licence FFmpeg je přibalený jako `FFmpeg-LICENSE.txt`. Všechny komponenty třetích stran, jejich verze a plná znění
-licencí najdeš v aplikaci v okně **O aplikaci → Licence třetích stran…**.
+licencí najdeš v aplikaci v okně **O aplikaci → Licence třetích stran…**. Každé vydání obsahuje přesně ten zdrojový
+kód FFmpeg, ze kterého jsou knihovny sestavené, se skripty buildu a řádkem configure
+(`ffmpeg-source-<verze>-windows.tar.xz`, `ffmpeg-source-<verze>-macos.tar.xz`).
 
 ---
 
