@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   texts (English for any other language).
 - **Printer compatibility report:** a GitHub issue form with a short checklist for printer models other than the
   CORE One, linked from the README and the manuals.
+- **Securing access to PrusaLink:** a new manual chapter (all eight languages) on the risks of PrusaLink's plain HTTP,
+  separate networks and VPNs, HTTPS through a reverse proxy (Caddy and nginx examples) and trusting your own
+  certificate authority on Windows and macOS.
+- **Camera reconnect status:** the camera window shows roughly when the next connection attempt is due ("Next attempt
+  in about 20 s"); the time stays current while the window is visible.
 
 ### Changed
 
@@ -33,6 +38,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Print failure detection performance:** its samples are scaled straight from the brightness (luma) of the camera
   image instead of being converted to full-resolution colour first: about a tenth of the work per sample and no
   full-size colour buffer while only detection watches the camera. The detection thresholds are unchanged.
+- **Camera reconnects back off:** a camera that keeps failing is retried after 5 s, then 10, 20, 40 s and at most every
+  minute, instead of every 5 s; a successful stream starts over at 5 s. Opening or restoring the camera window, and
+  **Test camera** in the settings, try again at once.
+- **Built with the stable .NET 11** release instead of a release candidate.
 
 ### Fixed
 
@@ -46,6 +55,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   an update whose feed is unsigned, changed or signed with another key, so that a taken-over GitHub account cannot ship
   a malicious update. Versions before this one still accept any update, including this one; the protection starts once
   this version runs. The first download of an installer is not covered: check it against `SHA256SUMS-*.txt`.
+- **Warning for unencrypted connections outside the local network:** the printer and camera settings show an
+  informative warning when a PrusaLink `http://` address or an RTSP camera address is not in a local network (private
+  or link-local ranges, `.local`, `.lan`, `.home.arpa` or a name without a dot), with a link to the new manual chapter.
+  Saving is not blocked.
 
 ## [0.5.0] - 2026-11-05
 
