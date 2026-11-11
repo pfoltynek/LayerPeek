@@ -14,7 +14,7 @@ přestože drobnému obrázku v rohu obrazovky stačí 5–10 fps. Omezení uše
 a vykreslení na UI vlákně.
 
 ## Rozsah
-- V režimu malého náhledu dostane okno nejvýš N snímků za sekundu. H.264 se dál dekóduje celé (P-snímky závisí
+- V režimu malého náhledu dostane okno nejvýš N snímků za sekundu (N z nastavení, viz rozhodnutí 3–5). H.264 se dál dekóduje celé (P-snímky závisí
   na předchozích). Vynechává se až převod, kopie a předání na UI vlákno.
 - Omezení platí jen pro proud snímků pro okno. Detekce, nahrávání a timelapse se nemění.
 - Po přepnutí zpět do normálního okna nebo na celou obrazovku se hned vrátí plná frekvence.
@@ -24,6 +24,9 @@ a vykreslení na UI vlákně.
 - [ ] V malém náhledu dostává okno nejvýš N snímků za sekundu (test s falešným `TimeProvider`).
 - [ ] Normální okno a celá obrazovka mají plnou frekvenci a přepnutí režimu se projeví okamžitě.
 - [ ] Nahrávání, detekce a timelapse nejsou ovlivněné (testy hubu).
+- [ ] Nastavení > Kamera má profily Úsporný / Vyvážený / Plynulý / Vlastní a posuvník 1–30 fps (výchozí Vyvážený,
+      10 fps); hodnota se ukládá do nastavení a změna platí hned i pro otevřený malý náhled.
+- [ ] Texty ve všech `Strings.*.resx`, popis ve všech `manuals/<lang>/manual.md`, rozvržení s dlouhými překlady.
 - [ ] Naměřené hodnoty jsou v `## Poznámky k implementaci`.
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -33,7 +36,14 @@ Rozhodnuto uživatelem 2026-11-10:
    před implementací (zatím pevná hodnota, nastavení případně samostatně).
 2. Normální okno bez fokusu: **beze změny** (plná frekvence).
 
-Zbývá: před implementací s uživatelem probrat, jestli má být frekvence malého náhledu nastavitelná (blokuje).
+Rozhodnuto uživatelem 2026-11-11 (nastavitelnost, odblokováno):
+3. Frekvence malého náhledu **je nastavitelná** posuvníkem, jen pro malý náhled (normální okno a celá obrazovka mají
+   dál plnou frekvenci zdroje).
+4. **Doporučené profily** Úsporný / Vyvážený / Plynulý = 5 / 10 fps / plná frekvence zdroje; výchozí **Vyvážený (10 fps)**.
+   Ke každému profilu krátký popis dopadu na CPU a paměť. Posuvník 1–30 fps; ruční posun mimo hodnotu profilu přepne
+   výběr na „Vlastní“. „Plynulý“ = bez omezení.
+5. Umístění: **Nastavení > Kamera**, jedno globální nastavení pro všechny kamery. Změna se projeví hned (i u otevřeného
+   malého náhledu), nové texty do všech `Strings.*.resx` a do všech manuálů.
 
 
 ## Poznámky k implementaci

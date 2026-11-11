@@ -60,6 +60,9 @@ Navazující (ui-dev, 2026-11-11, neblokuje tento úkol), čeká na rozhodnutí 
 4. **„Otestovat kameru“ během pauzy.** Test uložené kamery jde přes hub a čeká na snímek nejvýš 15 s; při „Bez signálu“
    během minutové pauzy proto skončí „Žádný obraz“, i když by nový pokus mohl uspět (při „Chybě kamery“ skončí hned
    s jejím důvodem). Rozhodnutí 3 jmenuje jen okno kamery, takže test pauzu nezkracuje. Má ji zkracovat i test?
+
+Rozhodnuto uživatelem 2026-11-11: 4 **ano**; zastarání zobrazeného času (po malém náhledu apod.) má být nulové nebo
+co nejmenší a robustní. Obojí řeší navazující **T-194**.
 ## Poznámky k implementaci
 - **Backoff:** `ReconnectingCameraFeed` počítá pokusy za sebou, které skončily dřív, než začaly streamovat. Prodleva =
   `ReconnectDelay` zdvojnásobená za každý další takový pokus, nejvýš `CameraFeedOptions.MaxReconnectDelay` (nová volba,

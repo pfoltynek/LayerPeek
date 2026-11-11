@@ -47,6 +47,8 @@ Otázka pro uživatele (navazující, T-184 neblokuje; ui-dev 2026-11-11):
    i tak nižší. Má se zavést práh (např. při zmenšení na víc než ~75 % strany zůstat u plného rozlišení a nechat zmenšit
    renderer), nebo ponechat zmenšení vždy? Je to volba mezi CPU a pamětí; bez rozhodnutí zůstává zmenšení vždy.
 
+   Rozhodnuto uživatelem 2026-11-11: **zmenšovat jen tehdy, když to dává smysl** (práh určený měřením). Řeší navazující **T-195**.
+
 
 ## Poznámky k implementaci
 
