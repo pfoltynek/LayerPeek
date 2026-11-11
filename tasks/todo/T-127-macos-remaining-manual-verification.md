@@ -282,13 +282,15 @@ a kritérium.
       obrazovka, i zeleným tlačítkem) a přesun okna mezi Retina a monitorem 1× stream nepřeruší; obraz se asi 0,25 s po
       uklidnění velikosti zaostří na novou velikost, nic nebliká a nezčerná.
 
-### 1f. Čas do dalšího pokusu kamery (z T-188, implementováno na Macu 2026-11-11)
+### 1f. Čas do dalšího pokusu kamery (z T-188 a T-194, implementováno na Macu 2026-11-11)
 - [ ] **T-188** (ruční, simulátor stačí; automaticky pokryto `CameraViewModelNextAttemptTests` a UiTests
       `CameraWindowNextAttemptUiTests`): simulátor s kamerou, otevřené okno kamery a v konzoli simulátoru
       `camera offline`: pod „Chyba kamery“ / „Bez signálu“ a důvodem je řádek „Další pokus asi za 5 s“, po dalších
-      pokusech 10, 20, 40 s a „asi za 1 min“; text se neodpočítává. V malém náhledu řádek chybí, po návratu do okna je
-      zpět. Minimalizovat okno do Docku a během minutové pauzy ho obnovit: hned „Připojuji se ke kameře…“ (nový pokus);
-      přepnutí režimu (okno ↔ malý náhled ↔ celá obrazovka) pauzu nezkrátí. Po `camera online` a dalším pokusu obraz
+      pokusech 10, 20, 40 s a „asi za 1 min“; od T-194 se text odpočítává (pod minutou po sekundách). V malém náhledu
+      řádek chybí, po návratu do okna je zpět s aktuální hodnotou. Minimalizovat okno do Docku a během minutové pauzy ho
+      obnovit: hned „Připojuji se ke kameře…“ (nový pokus); přepnutí režimu (okno ↔ malý náhled ↔ celá obrazovka) pauzu
+      nezkrátí. **T-194:** okno zavřít, během minutové pauzy (drží ji detekce nebo nahrávání) kliknout v nastavení na
+      „Otestovat kameru“: test hned zkusí nové připojení (s `camera online` uspěje bez čekání na pauzu). Po `camera online` a dalším pokusu obraz
       běží a řádek zmizí. Aspoň v češtině a v nejdelším jazyce (es / fr) se text vejde.
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)

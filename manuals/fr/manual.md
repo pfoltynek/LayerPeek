@@ -230,11 +230,12 @@ Faites un clic droit sur l'image (sur macOS, également Contrôle-clic) pour acc
 
 La fenêtre se reconnecte d'elle-même quand la caméra ou le Wi-Fi décroche ; entre-temps, elle affiche **Connexion à la
 caméra…** ou **Pas de signal**. Elle réessaie au bout de 5 secondes ; tant que la caméra reste injoignable, la pause
-double jusqu'à une minute. La fenêtre indique à peu près quand a lieu la prochaine tentative ; ouvrir la fenêtre ou la
-restaurer après l'avoir réduite relance aussitôt la connexion. Quand l'imprimante est éteinte, la fenêtre se ferme, puis
-se rouvre au même endroit quand l'imprimante est de retour. Vous pouvez désactiver ce comportement dans **Paramètres →
-Imprimantes → Fenêtre de la caméra** (**Fermer quand l'imprimante s'éteint, rouvrir quand elle est rallumée**). Une
-fenêtre que vous fermez vous-même reste fermée.
+double jusqu'à une minute. La fenêtre indique à peu près quand a lieu la prochaine tentative et tient ce délai à jour ;
+ouvrir la fenêtre, la restaurer après l'avoir réduite ou cliquer sur **Tester la caméra** dans les paramètres relance
+aussitôt la connexion. Quand l'imprimante est éteinte, la fenêtre se ferme, puis se rouvre au même endroit quand
+l'imprimante est de retour. Vous pouvez désactiver ce comportement dans **Paramètres → Imprimantes → Fenêtre de la
+caméra** (**Fermer quand l'imprimante s'éteint, rouvrir quand elle est rallumée**). Une fenêtre que vous fermez
+vous-même reste fermée.
 
 ## 6. Widgets
 

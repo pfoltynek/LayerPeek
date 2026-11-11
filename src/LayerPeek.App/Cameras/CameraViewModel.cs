@@ -208,6 +208,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _timeProvider = timeProvider;
         _retryDelay = options.ReconnectDelay;
         _retry = Retry;
+        _refreshNextAttempt = RefreshNextAttempt;
         _logger = logger;
         _monitorPaths = monitorPaths;
         _presentFrame = PresentFrame;
@@ -303,7 +304,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(ImageHint));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusDetail));
-        OnNextAttemptTextChanged();
+        RefreshNextAttempt();
         OnPropertyChanged(nameof(LayoutToolTip));
         OnPropertyChanged(nameof(TopmostToolTip));
         RefreshRecordingTexts();
@@ -338,8 +339,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(IsFullScreen));
             OnPropertyChanged(nameof(IsMini));
             OnPropertyChanged(nameof(StatusDetail));
-            // T-188: the time to the next attempt is not shown in the mini preview.
-            OnNextAttemptTextChanged();
+            // T-188: the time to the next attempt is not shown in the mini preview; T-194: leaving it shows it as of now.
+            RefreshNextAttempt();
             OnPropertyChanged(nameof(NormalToolTip));
             OnPropertyChanged(nameof(IsTopmost));
             OnTopmostModeChanged();
@@ -508,6 +509,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         {
             StopStream();
         }
+
+        // T-194: the time to the next attempt only while shown (no timer while minimized or closed).
+        RefreshNextAttempt();
     }
 
     /// <summary>
@@ -642,6 +646,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         Overlay.Dispose();
         MiniStrip.Dispose();
         StopStream();
+        CancelNextAttemptRefresh();
         DisposeDisplaySize();
         AttachFrameSink(null);
         if (_stateStore.GetRemoveCount(PrinterId) != _stateRemoveCount)
@@ -934,7 +939,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(HasStatusDetail));
         }
 
-        UpdateNextAttempt();
+        RefreshNextAttempt();
     }
 
     private void OnSnapshotUpdated(object? sender, PrinterSnapshot snapshot)

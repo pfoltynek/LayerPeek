@@ -223,10 +223,11 @@ Kliknij obraz prawym przyciskiem myszy (w macOS także z klawiszem Control), aby
 
 Okno samo łączy się ponownie, gdy kamera lub Wi-Fi na chwilę zniknie; w tym czasie pokazuje **Łączenie z kamerą…** lub
 **Brak sygnału**. Kolejna próba następuje po 5 sekundach; dopóki kamera jest nieosiągalna, przerwa podwaja się aż do
-jednej minuty. Okno pokazuje, mniej więcej za ile nastąpi kolejna próba; otwarcie okna lub przywrócenie go po
-zminimalizowaniu od razu ponawia połączenie. Gdy drukarka zostanie wyłączona, okno się zamyka i otwiera ponownie w tym
-samym miejscu, gdy drukarka wróci. Możesz to wyłączyć w **Ustawienia → Drukarki → Okno kamery** (**Zamknij, gdy drukarka
-się wyłączy, i otwórz ponownie po jej włączeniu**). Okno zamknięte ręcznie pozostaje zamknięte.
+jednej minuty. Okno na bieżąco pokazuje, mniej więcej za ile nastąpi kolejna próba; otwarcie okna, przywrócenie go po
+zminimalizowaniu lub kliknięcie **Testuj kamerę** w ustawieniach od razu ponawia połączenie. Gdy drukarka zostanie
+wyłączona, okno się zamyka i otwiera ponownie w tym samym miejscu, gdy drukarka wróci. Możesz to wyłączyć
+w **Ustawienia → Drukarki → Okno kamery** (**Zamknij, gdy drukarka się wyłączy, i otwórz ponownie po jej włączeniu**).
+Okno zamknięte ręcznie pozostaje zamknięte.
 
 ## 6. Widżety
 

@@ -32,9 +32,9 @@ namespace LayerPeek.Core.Cameras;
 /// get the frame the decoder scaled straight from the picture's luma, only the one they are due for; no BGRA frame is
 /// converted for them. A feed that yields only BGRA frames (or a subscriber of a second grayscale size) gets its samples
 /// converted from the full frame while copying.</item>
-/// <item>T-188: a lease of the camera window (<see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>) taken
-/// while the connection waits between reconnect attempts ends the wait (<see cref="CameraReconnectSignal"/>); the other
-/// consumers join the connection as it is.</item>
+/// <item>T-188, T-194: a lease of the camera window or the camera test
+/// (<see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>) taken while the connection waits between reconnect
+/// attempts ends the wait (<see cref="CameraReconnectSignal"/>); the other consumers join the connection as it is.</item>
 /// <item>All subscribers of a printer get the connection status; <see cref="Configure"/> restarts the connection when
 /// the camera address changed and ends all leases when the camera was switched off or the printer removed.</item>
 /// <item>A lease may name the address it expects: when it differs from the current one (a camera window opened right
