@@ -637,7 +637,7 @@
     <value>Zapnite len na požiadanie pri riešení chyby. Log porastie rýchlejšie.</value>
   </data>
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
-    <value>Spustenie a aktualizácie</value>
+    <value>Štart a aktualizácie</value>
   </data>
   <data name="SettingsTabRecording" xml:space="preserve">
     <value>Nahrávanie</value>
@@ -924,8 +924,11 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Platí pre všetky tlačiarne. Okno, ktoré zatvoríte sami, zostane zatvorené.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Platí pre všetky kamery. Kameru jednotlivej tlačiarne nastavíte na karte Tlačiarne.</value>
+  </data>
   <data name="SettingsMiniFrameRate" xml:space="preserve">
-    <value>Snímková frekvencia malého náhľadu (všetky kamery)</value>
+    <value>Snímková frekvencia malého náhľadu</value>
   </data>
   <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
     <value>Úsporný</value>

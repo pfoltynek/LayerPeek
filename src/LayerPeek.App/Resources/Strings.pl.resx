@@ -637,7 +637,7 @@
     <value>Włącz tylko na prośbę przy rozwiązywaniu problemu. Plik logu będzie rósł szybciej.</value>
   </data>
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
-    <value>Uruchamianie i aktualizacje</value>
+    <value>Start i aktualizacje</value>
   </data>
   <data name="SettingsTabRecording" xml:space="preserve">
     <value>Nagrywanie</value>
@@ -924,8 +924,11 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Dotyczy wszystkich drukarek. Okno zamknięte ręcznie pozostaje zamknięte.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Dotyczy wszystkich kamer. Kamerę każdej drukarki ustawisz na karcie Drukarki.</value>
+  </data>
   <data name="SettingsMiniFrameRate" xml:space="preserve">
-    <value>Liczba klatek małego podglądu (wszystkie kamery)</value>
+    <value>Liczba klatek małego podglądu</value>
   </data>
   <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
     <value>Oszczędny</value>

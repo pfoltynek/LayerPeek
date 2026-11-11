@@ -924,8 +924,11 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Gilt für alle Drucker. Ein selbst geschlossenes Fenster bleibt geschlossen.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Gilt für alle Kameras. Die Kamera eines Druckers richten Sie im Reiter Drucker ein.</value>
+  </data>
   <data name="SettingsMiniFrameRate" xml:space="preserve">
-    <value>Bildrate der Mini-Vorschau (alle Kameras)</value>
+    <value>Bildrate der Mini-Vorschau</value>
   </data>
   <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
     <value>Sparsam</value>

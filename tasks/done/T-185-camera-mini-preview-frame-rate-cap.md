@@ -1,7 +1,7 @@
 ---
 id: T-185
 title: Kamera – omezení snímkové frekvence v malém náhledu
-status: in-progress
+status: done
 owner: core-dev + ui-dev
 priority: P2
 platform: all
@@ -24,13 +24,11 @@ a vykreslení na UI vlákně.
 - [x] V malém náhledu dostává okno nejvýš N snímků za sekundu (test s falešným `TimeProvider`).
 - [x] Normální okno a celá obrazovka mají plnou frekvenci a přepnutí režimu se projeví okamžitě.
 - [x] Nahrávání, detekce a timelapse nejsou ovlivněné (testy hubu).
-- [ ] Nastavení > Kamera má profily Úsporný / Vyvážený / Plynulý / Vlastní a posuvník 1–30 fps (výchozí Vyvážený,
-      10 fps); hodnota se ukládá do nastavení a změna platí hned i pro otevřený malý náhled.
-      (Uložení, profily, posuvník ve view modelu a okamžité použití jsou hotové a otestované; ovládací prvky v okně chybí,
-      na podzáložku Kamera se nevejdou, nová záložka Kamera se nevejde do řádku záhlaví – viz otázky 6 a 10.)
-- [ ] Texty ve všech `Strings.*.resx`, popis ve všech `manuals/<lang>/manual.md`, rozvržení s dlouhými překlady.
-      (Texty ve všech jazycích a popis chování v manuálech jsou hotové; popis nastavení v manuálech, rozvržení a snímek
-      `settings-camera.png` / nový snímek záložky čekají na otázku 10.)
+- [x] Nastavení > Kamera má profily Úsporný / Vyvážený / Plynulý / Vlastní a posuvník 1–30 fps (výchozí Vyvážený,
+      10 fps); hodnota se ukládá do nastavení a změna platí hned i pro otevřený malý náhled. (Nová hlavní záložka
+      **Kamera**, rozhodnutí 6 a 10; „hned“ = po Uložit, rozhodnutí 9.)
+- [x] Texty ve všech `Strings.*.resx`, popis ve všech `manuals/<lang>/manual.md`, rozvržení s dlouhými překlady.
+      (Snímky UI sady Windows a kontrola se Segoe UI → přesunuto do T-125.)
 - [x] Naměřené hodnoty jsou v `## Poznámky k implementaci`.
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -124,12 +122,52 @@ Otázka z implementace (ui-dev, 2026-11-11, blokuje dokončení):
     Bez rozhodnutí je záložka odstraněná (větev je zelená): view model, texty a chování jsou hotové, v okně ovládací prvky
     zatím nejsou.
 
+    Rozhodnuto uživatelem 2026-11-11: **a) kratší záhlaví hlavních záložek** ve francouzštině a italštině (a podle potřeby
+    i v ostatních jazycích, přirozeně a správně), aby se šest záložek včetně nové „Kamera“ vešlo do jednoho řádku při
+    výchozí šířce 780 ve všech 8 jazycích, s rezervou i se značkou „!“ chyby; minimální šířka 640 zůstává jako dnes
+    (vejít se nemusí).
+
 ## Poznámky k implementaci
 
+- Uzavřeno 2026-11-11: zbývající ověření na Windows (snímky UI sady Windows, testy se Segoe UI, volitelně měření)
+  přesunuto do T-125 (oddíl 2v) podle `tasks/README.md`.
+
 ### Stav (ui-dev + core-dev, 2026-11-11)
-Hotové jádro, nastavení (uložení, profily, view model), chování okna kamery, texty, popis chování v manuálech a měření.
-Ovládací prvky v okně nastavení **chybí**: na podzáložku Kamera se nevejdou (otázka 6) a nová hlavní záložka Kamera se nevejde do řádku záhlaví ve fr a it (otázka 10). Do rozhodnutí platí uložená
-hodnota, bez úprav souboru tedy výchozí Vyvážený (10 fps) – tak, jak uživatel rozhodl.
+Hotovo: jádro, nastavení, okno kamery, nová hlavní záložka **Kamera** v nastavení, texty, manuály, snímky a měření.
+
+### Záložka Kamera a kratší záhlaví (ui-dev, 2026-11-11, rozhodnutí 6 a 10)
+- Nová hlavní záložka **Kamera** (`SettingsTabCamera`, `SettingsViewModel.CameraTab = 5`, poslední za Nahráváním, aby se
+  neměnily indexy ostatních; počet hlavních záložek 6). Obsah: nápověda „Platí pro všechny kamery…“, nadpis
+  **Snímková frekvence malého náhledu**, řádek profil (ComboBox) – posuvník 1–30 – hodnota („10 fps“ / „Bez omezení“)
+  a pod ním popis vybraného profilu (CPU a množství kopírovaných dat, rozhodnutí 8). Kompilované bindingy na
+  `SettingsViewModel.MiniFrameRate.cs`. Nadpis bez „(všechny kamery)“, protože celá záložka je globální.
+- **Změněná záhlaví** (jen tyto čtyři; ostatní jazyky beze změny):
+
+  | Jazyk | Klíč | Dřív | Nyní |
+  |---|---|---|---|
+  | fr | `SettingsTabStartupUpdates` | Démarrage et mises à jour | Démarrage, MàJ |
+  | it | `SettingsTabRecording` | Registrazione | Riprese |
+  | pl | `SettingsTabStartupUpdates` | Uruchamianie i aktualizacje | Start i aktualizacje |
+  | sk | `SettingsTabStartupUpdates` | Spustenie a aktualizácie | Štart a aktualizácie |
+
+  V italštině se k tomu upravily odkazy na záložku („scheda Riprese“) ve třech textech aplikace a v manuálu; nadpisy
+  oddílů 11.5 (fr, pl, sk) a 11.3 (it) manuálů odpovídají novým názvům.
+- Změřeno se značkou „!“ na záložce Widgety (jediná hlavní záložka se značkou), šířka pro záhlaví 748 DIP při 780:
+  en 678, cs 699, sk 716, de 713, es 729, fr 726, it 723, pl 673 → rezerva 19–75 DIP. Hlídá nový test
+  `SettingsWindowLayoutTests.SixMainTabHeadersFitOnOneRowWithTheErrorMarker` (8 jazyků, jeden řádek, rezerva ≥ 12 DIP,
+  žádný useknutý text); záložka Kamera je i v pohledech `EverythingFitsWithoutScrollingInEveryState` a
+  `AuxiliaryWindowSizeUiTests`. Při 640 se záhlaví zalomí (jako dosud u 5 záložek ve většině jazyků, rozhodnutí 10).
+- Referenční snímky UI (macOS sada `tests/LayerPeek.App.UiTests/Snapshots/macOS/`, 40 souborů nastavení) přegenerované
+  (`LAYERPEEK_UPDATE_SNAPSHOTS=1`), změna jen v řádku záložek. Sada Windows a běh testů se Segoe UI → přesunuto do
+  T-125 (oddíl 2v).
+- Oprava během práce: `SettingsViewModel` omezoval `SelectedTabIndex` na 5 záložek (`TabCount`), teď 6.
+- UI testy `SettingsWindowCameraTabUiTests` (výchozí stav s texty a přístupnými názvy, Plynulý = posuvník na konci
+  a „Bez omezení“, posun posuvníku = Vlastní, uložení).
+- Manuály (8 jazyků): nový oddíl **11.6 Kamera** a v oddílu 5.1 odkaz na nastavení; README.md a README.cz.md (přehled
+  nastavení), CHANGELOG.
+- Snímky přegenerované podle `docs/readme-screenshots.md` (macOS): změnily se jen snímky nastavení (`settings-camera.png`,
+  `settings-detection.jpg`, `settings-printers.png`, `settings-recording.png`, `settings-widgets.png` ve všech 8
+  jazycích – nová záložka a kratší záhlaví v řádku záložek); zkontrolováno (fr: jeden řádek, nic useknuté).
 
 ### Core + dekodér
 - `CameraFrameSubscriptionOptions.MaxFrameRate` / `CameraFrameSubscription.SetMaxFrameRate(int?)` (`null` = každý snímek,
@@ -163,12 +201,11 @@ hodnota, bez úprav souboru tedy výchozí Vyvážený (10 fps) – tak, jak už
 `CameraViewModel.FrameRate.cs`: lease okna má `MaxFrameRate` jen v režimu malého náhledu (hodnota z nastavení), jinak
 `null`. Přepnutí režimu (`Mode`, i celá obrazovka z malého náhledu a zpět) a uložené nastavení (`ApplyPrinters`) volají
 `SetMaxFrameRate` na běžícím lease – bez nového spojení, hned od dalšího snímku. Nový běh (obnovení z minimalizace) začíná
-s limitem aktuálního režimu. Do `CameraViewModel.cs` jen čtyři řádky (konstruktor, `Mode`, `StartStream`, `ApplyPrinters`).
+s limitem aktuálního režimu. Do `CameraViewModel.cs` jen čtyři řádky (po sloučení develop s T-194 bez konfliktu) (konstruktor, `Mode`, `StartStream`, `ApplyPrinters`).
 
 ### Dokumentace
 `docs/architecture.md` (odstavec T-185), `CHANGELOG.md`, všech 8 `manuals/<lang>/manual.md` (oddíl 5.1: malý náhled
-ukazuje nejvýš 10 snímků za sekundu, normální okno a celá obrazovka každý snímek). Popis nastavení v manuálech (oddíl
-11.1) a snímek `settings-camera.png` doplnit po rozhodnutí otázky 6.
+ukazuje nejvýš 10 snímků za sekundu, normální okno a celá obrazovka každý snímek; nastavení v oddílu 11.6).
 
 ### Měření (macOS 27.2 / Apple M2 Pro, 10 jader, Debug JIT, 2026-11-11)
 Simulátor (`tools/PrusaSimulator`, scénář `idle`, kamera 1280 × 720 při 25 fps, porty 18080 / 18554), aplikace
@@ -190,7 +227,7 @@ proto jako ukazatel nepoužívám). Displej byl probuzený přes `caffeinate -d 
 za sekundu (nutné, P-snímky závisí na předchozích), příjem RTSP a monitorování; hardwarové dekódování řeší T-192.
 Obsazená paměť se nemění (buffery jsou stejné), klesá paměťový provoz: u 640 × 384 px ~0,98 MB na snímek × 2 (převod
 + kopie do bitmapy) ≈ 49 MB/s při 25 fps → ≈ 20 MB/s při 10 fps → ≈ 10 MB/s při 5 fps, plus nahrání textury v rendereru.
-Na Windows (x64) neměřeno → po dokončení UI do T-125.
+Na Windows (x64) neměřeno (kritérium je splněné měřením na macOS).
 
 ### Testy
 - Core: `CameraFrameRateLimitTests` (tempo na falešných hodinách: průměr N a nejvýš N + 1 za libovolnou sekundu pro
@@ -205,6 +242,7 @@ Na Windows (x64) neměřeno → po dokončení UI do T-125.
   zobrazí každý snímek), `MiniFrameRateSettingsTests` (profily, posuvník ↔ profil, Vlastní, zaokrouhlení, NaN, změny,
   uložení, jazyk). Falešné feedy v testech Core i App převádějí snímek pro zobrazení podle `DisplayDue` jako dekodér.
 - Bez nových balíčků; AOT: žádná reflexe, JSON přes zdrojově generovaný kontext, žádný nový XAML (bindingy až s UI).
-- `dotnet build` 0 varování, `dotnet test` 10 192 testů: 9 925 prošlo, 267 přeskočeno, 0 chyb (macOS 27.2 / Apple M2 Pro).
+- `dotnet build` 0 varování, `dotnet test` (po záložce Kamera a sloučení develop) 10 227 testů: 9 960 prošlo, 267 přeskočeno,
+  0 chyb (macOS 27.2 / Apple M2 Pro).
   Aplikace (Debug) při měření pokaždé nastartovala, otevřela malý náhled se streamem simulátoru a běžela až do `quit`.
 - Texty s číslem a jednotkou mají nezlomitelnou mezeru („10 fps“, `StringsTests`), francouzština i před dvojtečkou.

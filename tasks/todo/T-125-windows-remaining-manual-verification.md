@@ -17,7 +17,7 @@ jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrt
    Windows (testovací body 2c–2q: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165,
    T-159, T-163, T-167).
 2. **Snímky UI sady Windows (blokuje build vydání; bez nich selžou snímkové testy nastavení):** jeden běh
-   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · detekce experimentální, 2o · T-159, 2p · T-163 a kontrola souborů
+   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · detekce experimentální, 2o · T-159, 2p · T-163, 2v · T-185 a kontrola souborů
    vyjmenovaných u těchto bodů.
 3. **Native AOT `win-x64`:** jeden `dotnet publish src/LayerPeek.App -c Release -r win-x64` uzavře body AOT v 2b–2q.
 4. **E2E:** 2b · **T-151** (`CameraWindowAutoCloseTests`, `*Camera*`), 2e · **T-146** (`*CameraRecording*`,
@@ -399,6 +399,18 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       obsahuje `%LOCALAPPDATA%\LayerPeek\cache` (3 složky). Volitelně `pwsh scripts/aot-smoke.ps1`: PASSED, potom
       `%LOCALAPPDATA%\LayerPeek\cache` a `%LOCALAPPDATA%\LayerPeek.Build` stejné jako před během (cache buildu FFmpeg se
       nepřesouvá ani nemaže).
+
+### 2v. Záložka Kamera a snímková frekvence malého náhledu (z T-185, implementováno na Macu 2026-11-11)
+- [ ] **T-185** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
+      a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) šestou hlavní záložku „Kamera“
+      a kratší záhlaví (fr „Démarrage, MàJ“, it „Riprese“, pl „Start i aktualizacje“, sk „Štart a aktualizácie“) v řádku
+      záložek: `settings-camera-notice.png`, `settings-camera-preview-4x3-de.png`, `settings-camera-preview.png`, `settings-camera-window-error-normal-size.png`, `settings-camera-window-errors-fr.png`, `settings-camera-window-off-cs.png`, `settings-camera-window.png`, `settings-camera.png`, `settings-detection-camera-off-fr.png`, `settings-detection.png`, `settings-errors-dark.png`, `settings-errors-fr.png`, `settings-general-errors-dark.png`, `settings-general-errors-focused.png`, `settings-general-errors.png`, `settings-general-test-sent-dark.png`, `settings-general-test-sent-fr.png`, `settings-general-turned-off-de.png`, `settings-general.png`, `settings-invalid-address-focused.png`, `settings-maximized.png`, `settings-printer-images.png`, `settings-prusalink.png`, `settings-recording.png`, `settings-startup-updates-not-installed.png`, `settings-startup-updates.png`, `settings-validation-cs.png`, `settings-validation.png`, `settings-widgets-camera-off-it.png`, `settings-widgets-cooldown-de.png`, `settings-widgets-cooldown-error-fr.png`, `settings-widgets-cooldown-error-nozzle.png`, `settings-widgets-dark.png`, `settings-widgets-mini-strip-camera-off-it.png`, `settings-widgets-mini-strip-dark.png`, `settings-widgets-mini-strip-de.png`, `settings-widgets-mini-strip-fr.png`, `settings-widgets-mini-strip.png`, `settings-widgets-no-printers.png`, `settings-widgets.png`.
+- [ ] **T-185** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
+      `SettingsWindowLayoutTests.SixMainTabHeadersFitOnOneRowWithTheErrorMarker` (šest záhlaví v jednom řádku při 780 DIP
+      s rezervou ≥ 12 DIP i se značkou „!“; na macOS s Inter nejmenší rezerva 19 DIP ve španělštině), `SettingsWindowCameraTabUiTests`,
+      `CameraFrameRateLimitTests`, `CameraStreamHubFrameRateTests`, `CameraViewModelFrameRateTests`.
+- [ ] **T-185** (volitelně, měření): malý náhled se simulátorem (1280 × 720, 25 fps) před / po – CPU procesu při
+      Vyvážený (10 fps) a Úsporný (5 fps) proti Plynulý; na Macu −31 % / −42 % (poznámky T-185).
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

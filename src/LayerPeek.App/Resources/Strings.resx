@@ -963,8 +963,11 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>For all printers. A window you close yourself stays closed.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>For all cameras. Each printer's camera is set up on the Printers tab.</value>
+  </data>
   <data name="SettingsMiniFrameRate" xml:space="preserve">
-    <value>Mini preview frame rate (all cameras)</value>
+    <value>Mini preview frame rate</value>
   </data>
   <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
     <value>Economy</value>

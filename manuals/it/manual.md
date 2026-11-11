@@ -207,8 +207,9 @@ L’anteprima mini ha una barra informativa sotto l’immagine (avanzamento, tem
 aprono altre righe: il **nome della stampa** e il **grafico delle temperature**. Cosa mostra la barra si imposta nella
 sottoscheda **Finestra della telecamera** della stampante (vedi [11.1](#111-stampanti)).
 
-Per risparmiare CPU, l’anteprima mini mostra al massimo 10 fotogrammi al secondo, più che sufficienti per l’immagine
-piccola; la finestra normale e lo schermo intero mostrano ogni fotogramma della telecamera.
+Per risparmiare CPU, l’anteprima mini mostra per impostazione predefinita al massimo 10 fotogrammi al secondo, più che
+sufficienti per l’immagine piccola; la finestra normale e lo schermo intero mostrano ogni fotogramma della telecamera. Il
+limite si imposta nella scheda **Telecamera** delle impostazioni (vedi [11.6](#116-telecamera)).
 
 <p align="center">
   <img src="../../docs/images/it/camera-mini.jpg" alt="Anteprima mini con la barra informativa, la riga del nome della stampa e la riga del grafico delle temperature" width="400">
@@ -304,7 +305,7 @@ notifica di prova** mostra un esempio, così puoi verificare che le notifiche ti
   Controlla anche **Full immersion** (Focus).
 
 Un clic su una notifica della stampante apre l’interfaccia web PrusaLink della stampante. Un allarme di errore di stampa
-apre la finestra della telecamera, una registrazione non riuscita apre la scheda **Registrazione** delle impostazioni e
+apre la finestra della telecamera, una registrazione non riuscita apre la scheda **Riprese** delle impostazioni e
 una conversione timelapse completata apre la cartella delle registrazioni.
 
 ## 8. Registrazione, dashcam e timelapse
@@ -344,11 +345,11 @@ salvati:
 
 - automaticamente in caso di errore di stampa, quando la stampante richiede attenzione, quando la stampa viene
   interrotta e quando il rilevamento degli errori di stampa lancia un allarme (ognuno si può disattivare nella scheda
-  **Registrazione**),
+  **Riprese**),
 - a mano con **Salva gli ultimi 2 min** nel sottomenu della stampante o nel menu contestuale della finestra della
   telecamera.
 
-La durata (1–10 minuti) si imposta nella scheda **Registrazione**.
+La durata (1–10 minuti) si imposta nella scheda **Riprese**.
 
 ### 8.4 Timelapse (sperimentale)
 
@@ -360,7 +361,7 @@ registrazioni.
   oppure il pulsante con il cronometro nella finestra della telecamera. **Riproduci ultimo timelapse** si trova nel
   sottomenu.
 - **Ogni stampa:** **Crea un timelapse delle stampe** nella sottoscheda **Telecamera** della stampante.
-- **Intervallo:** nella scheda **Registrazione**, da 5 a 600 secondi, oppure passa a **Ogni N strati (stima)**: un
+- **Intervallo:** nella scheda **Riprese**, da 5 a 600 secondi, oppure passa a **Ogni N strati (stima)**: un
   fotogramma quando inizia un nuovo strato. PrusaLink non riporta gli strati, quindi LayerPeek li stima dall’altezza
   dell’asse Z.
 - **Crea timelapse da una registrazione… (sperimentale)** crea un timelapse da una registrazione di LayerPeek già
@@ -373,13 +374,13 @@ quando sono terminate.
 
 ### 8.5 Cartella e limite di dimensione
 
-Nella scheda **Registrazione** puoi cambiare la **Cartella delle registrazioni** e il **Limite di dimensione di tutte le
+Nella scheda **Riprese** puoi cambiare la **Cartella delle registrazioni** e il **Limite di dimensione di tutte le
 registrazioni (GB)** (50 GB per impostazione predefinita). Oltre il limite vengono eliminate le registrazioni più
 vecchie; con meno di 5 GB di spazio libero sull’unità la registrazione si interrompe. Una registrazione non riuscita
 mostra una notifica.
 
 <p align="center">
-  <img src="../../docs/images/it/settings-recording.png" alt="Impostazioni, scheda Registrazione" width="620">
+  <img src="../../docs/images/it/settings-recording.png" alt="Impostazioni, scheda Riprese" width="620">
 </p>
 
 ## 9. Rilevamento degli errori di stampa (sperimentale)
@@ -395,7 +396,7 @@ solo sul tuo computer; l’immagine della telecamera non lo lascia mai.
 
 È disattivato per impostazione predefinita e va attivato in due punti:
 
-1. **Cerca errori di stampa nell’immagine della telecamera** nella scheda **Registrazione** (per tutte le stampanti),
+1. **Cerca errori di stampa nell’immagine della telecamera** nella scheda **Riprese** (per tutte le stampanti),
 2. **Sorveglia le stampe di questa stampante con la telecamera** nella sottoscheda **Rilevamento** della stampante.
 
 La stampante deve avere la telecamera attivata. Il rilevamento funziona solo durante la stampa e con la luce della
@@ -423,7 +424,7 @@ significa meno allarmi, ma un errore potrebbe sfuggire.
 
 L’allarme è una notifica **Possibile errore di stampa – …** con un’istantanea della telecamera. Un clic sulla notifica
 apre la finestra della telecamera. Il pulsante **Falso allarme** conserva una registrazione locale per la messa a punto;
-nulla lascia il tuo computer. Nella scheda **Registrazione** imposti ogni quanto si ripete l’allarme, se salvare
+nulla lascia il tuo computer. Nella scheda **Riprese** imposti ogni quanto si ripete l’allarme, se salvare
 un’istantanea di ogni allarme e ogni quanto viene controllata la telecamera (da 2 a 5 secondi).
 
 > [!WARNING]
@@ -463,7 +464,7 @@ L’elenco delle stampanti con **Aggiungi stampante** e **Rimuovi**. Ogni stampa
 
 I widget di ogni stampante, le loro impostazioni e l’opacità delle schede (vedi [6](#6-widget)).
 
-### 11.3 Registrazione
+### 11.3 Riprese
 
 La cartella e il limite di dimensione delle registrazioni, la dashcam, il timelapse e il rilevamento degli errori di
 stampa (vedi [8](#8-registrazione-dashcam-e-timelapse) e [9](#9-rilevamento-degli-errori-di-stampa-sperimentale)). Le
@@ -487,6 +488,18 @@ funzioni sperimentali hanno l’etichetta **Sperimentale**.
   ti ci porta.
 - **Controlla automaticamente gli aggiornamenti**, **Offri versioni preliminari** e **Controlla ora** (vedi
   [12](#12-aggiornamenti)).
+
+### 11.6 Telecamera
+
+Impostazioni di tutte le telecamere (la telecamera di ogni stampante si imposta nella sua sottoscheda **Telecamera**,
+vedi [11.1](#111-stampanti)).
+
+- **Frequenza fotogrammi dell’anteprima mini:** quanti fotogrammi al secondo mostra l’anteprima mini. **Risparmio**
+  (5 fps), **Bilanciato** (10 fps, predefinito) o **Fluido** (ogni fotogramma della telecamera); con il cursore imposti un
+  altro limite da 1 a 30 fps (**Personalizzato**). Meno fotogrammi significano meno carico di CPU e meno dati copiati; la
+  telecamera viene comunque letta per intero, quindi registrazioni, timelapse e rilevamento degli errori di stampa non
+  cambiano. La finestra normale e lo schermo intero mostrano sempre ogni fotogramma. La modifica vale per un’anteprima
+  mini aperta dopo **Salva**.
 
 ## 12. Aggiornamenti
 

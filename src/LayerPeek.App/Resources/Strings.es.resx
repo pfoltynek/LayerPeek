@@ -924,8 +924,11 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Para todas las impresoras. Una ventana cerrada manualmente permanece cerrada.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Para todas las cámaras. La cámara de cada impresora se configura en la pestaña Impresoras.</value>
+  </data>
   <data name="SettingsMiniFrameRate" xml:space="preserve">
-    <value>Fotogramas de la vista mini (todas las cámaras)</value>
+    <value>Fotogramas de la vista mini</value>
   </data>
   <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
     <value>Ahorro</value>

@@ -61,6 +61,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// </summary>
     public const int RecordingTab = 4;
 
+    /// <summary>
+    /// Main tab of the settings of every camera (T-185, user decision 2026-11-11: a tab of its own, as the printer's Camera
+    /// sub-tab has no room left), with the frame rate of the mini preview.
+    /// </summary>
+    public const int CameraTab = 5;
+
     /// <summary>Sub-tabs of the selected printer (<see cref="SelectedPrinterTabIndex"/>, T-033): connection fields.</summary>
     public const int ConnectionPrinterTab = 0;
 
@@ -76,7 +82,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>How many sub-tabs a printer has (the Overlay sub-tab of T-036 gave way to the Widgets tab, T-092).</summary>
     public const int PrinterTabCount = 4;
 
-    private const int TabCount = 5;
+    private const int TabCount = 6;
 
     private const int MaxIdAttempts = 100;
 
@@ -372,7 +378,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         private set => SetProperty(ref _statusIsError, value);
     }
 
-    /// <summary>One of the main tabs (<see cref="PrintersTab"/> … <see cref="RecordingTab"/>); switched by a failed save to the part with the error.</summary>
+    /// <summary>One of the main tabs (<see cref="PrintersTab"/> … <see cref="CameraTab"/>); switched by a failed save to the part with the error.</summary>
     public int SelectedTabIndex
     {
         get => _selectedTabIndex;

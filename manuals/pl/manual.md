@@ -202,8 +202,9 @@ Mały podgląd ma pod obrazem pasek informacji (postęp, pozostały czas, godzin
 kolejne wiersze: **nazwę wydruku** i **wykres temperatur**. To, co pokazuje pasek, ustawisz w podkarcie
 **Okno kamery** drukarki (zob. [11.1](#111-drukarki)).
 
-Aby oszczędzać procesor, mały podgląd pokazuje najwyżej 10 klatek na sekundę, co małemu obrazowi wystarcza; zwykłe
-okno i pełny ekran pokazują każdą klatkę kamery.
+Aby oszczędzać procesor, mały podgląd domyślnie pokazuje najwyżej 10 klatek na sekundę, co małemu obrazowi wystarcza;
+zwykłe okno i pełny ekran pokazują każdą klatkę kamery. Limit ustawisz na karcie **Kamera** w ustawieniach (zob.
+[11.6](#116-kamera)).
 
 <p align="center">
   <img src="../../docs/images/pl/camera-mini.jpg" alt="Mały podgląd z paskiem informacji, wierszem nazwy wydruku i wierszem wykresu temperatur" width="400">
@@ -464,7 +465,7 @@ mają oznaczenie **Eksperymentalne**.
   Zmienia tylko teksty; liczby, daty i godziny są zgodne z ustawieniami regionalnymi Twojego systemu.
 - **Szczegółowe logi (Debug):** włączaj tylko wtedy, gdy ktoś Cię o to poprosi przy rozwiązywaniu problemu.
 
-### 11.5 Uruchamianie i aktualizacje
+### 11.5 Start i aktualizacje
 
 - **Windows:** **Uruchamiaj po zalogowaniu się do systemu Windows**. Domyślnie włączone; dostępne tylko w wersji
   zainstalowanej, nie w wersji ZIP.
@@ -473,6 +474,16 @@ mają oznaczenie **Eksperymentalne**.
   logowania**, tylko Ty możesz go tam ponownie włączyć; przycisk **Otwórz Ustawienia systemowe** zaprowadzi Cię we
   właściwe miejsce.
 - **Automatycznie sprawdzaj aktualizacje**, **Oferuj wersje wstępne** i **Sprawdź teraz** (zob. [12](#12-aktualizacje)).
+
+### 11.6 Kamera
+
+Ustawienia wszystkich kamer (kamerę każdej drukarki ustawisz w jej podkarcie **Kamera**, zob. [11.1](#111-drukarki)).
+
+- **Liczba klatek małego podglądu:** ile klatek na sekundę pokazuje mały podgląd. **Oszczędny** (5 kl./s),
+  **Zrównoważony** (10 kl./s, domyślnie) lub **Płynny** (każda klatka kamery); suwakiem ustawisz inny limit od 1 do
+  30 kl./s (**Własny**). Mniej klatek to mniejsze obciążenie procesora i mniej kopiowanych danych; kamera jest nadal
+  odczytywana w całości, więc nagrania, timelapse i wykrywanie błędów druku się nie zmieniają. Zwykłe okno i pełny ekran
+  zawsze pokazują każdą klatkę. Zmiana obowiązuje dla otwartego małego podglądu po **Zapisz**.
 
 ## 12. Aktualizacje
 

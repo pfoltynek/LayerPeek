@@ -208,8 +208,9 @@ Le mini-aperçu comporte un bandeau d'informations sous l'image (progression, te
 déplient des lignes supplémentaires : le **nom de l'impression** et le **graphique des températures**. Le contenu du
 bandeau se règle dans le sous-onglet **Fenêtre de la caméra** de l'imprimante (voir [11.1](#111-imprimantes)).
 
-Pour économiser le processeur, le mini-aperçu affiche au plus 10 images par seconde, ce qui suffit largement à la
-petite image ; la fenêtre normale et le plein écran affichent chaque image de la caméra.
+Pour économiser le processeur, le mini-aperçu affiche par défaut au plus 10 images par seconde, ce qui suffit largement à
+la petite image ; la fenêtre normale et le plein écran affichent chaque image de la caméra. La limite se règle dans
+l'onglet **Caméra** des paramètres (voir [11.6](#116-caméra)).
 
 <p align="center">
   <img src="../../docs/images/fr/camera-mini.jpg" alt="Mini-aperçu avec le bandeau d'informations, la ligne du nom de l'impression et la ligne du graphique des températures" width="400">
@@ -489,7 +490,7 @@ fonctions expérimentales portent un badge **Expérimental**.
   paramètres régionaux de votre système.
 - **Journalisation détaillée (Debug) :** ne l'activez que si on vous le demande lors d'un dépannage.
 
-### 11.5 Démarrage et mises à jour
+### 11.5 Démarrage, MàJ
 
 - **Windows :** **Démarrer à l'ouverture de session Windows**. Activé par défaut ; disponible uniquement dans la version
   installée, pas dans la version ZIP.
@@ -499,6 +500,18 @@ fonctions expérimentales portent un badge **Expérimental**.
   emmène.
 - **Rechercher automatiquement les mises à jour**, **Proposer les versions préliminaires** et **Vérifier maintenant**
   (voir [12](#12-mises-à-jour)).
+
+### 11.6 Caméra
+
+Paramètres de toutes les caméras (la caméra de chaque imprimante se configure dans son sous-onglet **Caméra**, voir
+[11.1](#111-imprimantes)).
+
+- **Fréquence d'images du mini-aperçu :** combien d'images par seconde le mini-aperçu affiche. **Économe** (5 i/s),
+  **Équilibré** (10 i/s, par défaut) ou **Fluide** (chaque image de la caméra) ; le curseur règle une autre limite de 1 à
+  30 i/s (**Personnalisé**). Moins d'images, c'est moins de charge processeur et moins de données copiées ; la caméra
+  reste lue en entier, les enregistrements, les timelapses et la détection des défauts d'impression ne changent pas. La
+  fenêtre normale et le plein écran affichent toujours chaque image. Le changement s'applique à un mini-aperçu ouvert
+  après **Enregistrer**.
 
 ## 12. Mises à jour
 

@@ -924,8 +924,11 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Platí pro všechny tiskárny. Okno, které zavřete sami, zůstane zavřené.</value>
   </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Platí pro všechny kamery. Kameru jednotlivé tiskárny nastavíte na záložce Tiskárny.</value>
+  </data>
   <data name="SettingsMiniFrameRate" xml:space="preserve">
-    <value>Snímková frekvence malého náhledu (všechny kamery)</value>
+    <value>Snímková frekvence malého náhledu</value>
   </data>
   <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
     <value>Úsporný</value>

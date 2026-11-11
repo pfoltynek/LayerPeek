@@ -53,6 +53,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
         ("Startup and updates", SettingsViewModel.StartupUpdatesTab, SettingsViewModel.ConnectionPrinterTab),
         ("Recording", SettingsViewModel.RecordingTab, SettingsViewModel.ConnectionPrinterTab),
+        ("Camera settings", SettingsViewModel.CameraTab, SettingsViewModel.ConnectionPrinterTab),
     ];
 
     // ---- Size ----
@@ -1075,6 +1076,38 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(4, SettingsViewModel.PrinterTabCount);
             List<string> problems = [.. HeadersNotOnOneRow(ui.Window, language), .. CutTexts(ui.Window, language)];
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>The space the main tab headers keep free at the designed width, also with the "!" of the Widgets tab (T-185).</summary>
+    private const double MainHeaderMargin = 12;
+
+    /// <summary>
+    /// T-185 (user decision 2026-11-11): the six main tabs (Printers, Widgets, General, Startup and updates, Recording,
+    /// Camera) fit on one row at the designed width in every language, with <see cref="MainHeaderMargin"/> to spare also
+    /// while the Widgets tab shows its error marker (the only main tab with one). The French, Italian, Polish and Slovak
+    /// headers were shortened for it. The minimum width (640) is not required to fit.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task SixMainTabHeadersFitOnOneRowWithTheErrorMarker(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }, LinkPrinter("b", "Beta", "192.168.1.21")));
+            Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
+            ui.ViewModel.Printers[0].CooldownBedThresholdCelsius = 120;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+            Assert.True(ui.Window.IsShown<TextBlock>("SettingsTabWidgetsMarker"));
+
+            TabControl tabs = ui.Find<TabControl>("SettingsTabs");
+            TabItem[] headers = [.. tabs.Items.OfType<TabItem>()];
+            Assert.Equal(6, headers.Length);
+            Assert.Equal("SettingsTabCamera", AutomationProperties.GetAutomationId(headers[SettingsViewModel.CameraTab]));
+            double used = headers.Sum(static header => header.Bounds.Width);
+            Assert.Single(headers.Select(static header => header.Bounds.Y).Distinct());
+            Assert.True(tabs.Bounds.Width - used >= MainHeaderMargin, $"{language}: the headers take {used:F0} of {tabs.Bounds.Width:F0} DIP.");
+            Assert.Empty(CutTexts(ui.Window, language));
         });
 
     [Theory]
