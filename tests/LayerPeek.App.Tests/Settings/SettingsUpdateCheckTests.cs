@@ -1,5 +1,7 @@
+using LayerPeek.App.Resources;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Tests.Tray;
+using LayerPeek.App.Tests.Updates;
 using LayerPeek.Core.Settings;
 using LayerPeek.Core.Updates;
 
@@ -9,7 +11,8 @@ namespace LayerPeek.App.Tests.Settings;
 
 /// <summary>
 /// The update check on the Startup and updates tab (T-058): "Check for updates automatically" (Q2 a, on by default, saved
-/// with the settings), "Check now" with its result next to it (Q4 a) and the macOS hint to move the app first (Q8 a).
+/// with the settings), "Check now" with its result next to it (Q4 a) and the macOS hint to move the app first (Q8 a). T-181:
+/// the error of a refused update feed while the refusal is active (decisions 5 and 7), followed on the UI thread.
 /// </summary>
 public sealed class SettingsUpdateCheckTests : IDisposable
 {
@@ -17,6 +20,8 @@ public sealed class SettingsUpdateCheckTests : IDisposable
 
     private readonly CultureScope _culture = new("en-US");
     private readonly FakeEditorStore _store = new();
+    private readonly FakeFeedRejections _rejections = new();
+    private readonly ManualDispatcher _dispatcher = new();
     private SettingsViewModel? _viewModel;
 
     public void Dispose()
@@ -129,11 +134,137 @@ public sealed class SettingsUpdateCheckTests : IDisposable
         Assert.True(_viewModel.ShowsMoveToApplications);
     }
 
+    [Fact]
+    public async Task ARefusalActiveWhenTheWindowOpensIsShown()
+    {
+        _rejections.Current = Refused("0.5.0");
+        SettingsViewModel vm = await LoadAsync(new AppSettings());
+
+        Assert.True(vm.ShowsUpdateRejected);
+        // The tab shows it; no check of this window found it.
+        Assert.False(vm.ShowsUpdateCheckResult);
+    }
+
+    [Fact]
+    public async Task ARefusalFollowsTheServiceOnTheUiThread()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings());
+        Assert.False(vm.ShowsUpdateRejected);
+
+        // Raised on the thread of the check: nothing changes until the UI thread runs.
+        await Task.Run(() => _rejections.Set(Refused(null)), TestContext.Current.CancellationToken);
+        Assert.False(vm.ShowsUpdateRejected);
+        _dispatcher.RunAll();
+        Assert.True(vm.ShowsUpdateRejected);
+
+        // A later good check clears it.
+        _rejections.Set(null);
+        _dispatcher.RunAll();
+        Assert.False(vm.ShowsUpdateRejected);
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task CheckNowShowsARefusalAsAnError()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), _ =>
+        {
+            // The service reports the refusal before the check returns, like UpdateCheckService.
+            _rejections.Set(Refused("0.5.0"));
+            return Task.FromResult(new UpdateCheckResult(UpdateCheckOutcome.FeedRejected, null, Refused("0.5.0")));
+        });
+
+        await vm.CheckForUpdatesNowCommand.ExecuteAsync(null);
+        _dispatcher.RunAll();
+
+        Assert.Equal("The update was refused.", vm.UpdateCheckResultText);
+        Assert.True(vm.UpdateCheckResultIsError);
+        Assert.True(vm.ShowsUpdateRejected);
+    }
+
+    [Fact]
+    public async Task AResultThatTheRefusalContradictsIsCleared()
+    {
+        UpdateCheckOutcome outcome = UpdateCheckOutcome.UpToDate;
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), _ => Task.FromResult(new UpdateCheckResult(outcome, null)));
+        await vm.CheckForUpdatesNowCommand.ExecuteAsync(null);
+        Assert.Equal("LayerPeek 0.3.1 is up to date.", vm.UpdateCheckResultText);
+
+        // An automatic check refuses the feed afterwards: "up to date" next to the error would contradict it.
+        _rejections.Set(Refused("0.5.0"));
+        _dispatcher.RunAll();
+        Assert.False(vm.ShowsUpdateCheckResult);
+        Assert.True(vm.ShowsUpdateRejected);
+
+        // "Refused" next to no error any more neither; a plain failure says nothing about the feed and stays.
+        outcome = UpdateCheckOutcome.FeedRejected;
+        await vm.CheckForUpdatesNowCommand.ExecuteAsync(null);
+        _rejections.Set(null);
+        _dispatcher.RunAll();
+        Assert.False(vm.ShowsUpdateCheckResult);
+        outcome = UpdateCheckOutcome.Failed;
+        await vm.CheckForUpdatesNowCommand.ExecuteAsync(null);
+        _rejections.Set(Refused(null));
+        _dispatcher.RunAll();
+        Assert.Equal("The check failed. Try again later.", vm.UpdateCheckResultText);
+    }
+
+    [Fact]
+    public void TheRefusalNamesNoVersionAndAdvisesNoManualInstall()
+    {
+        // User decision 2026-11-11 (open question 22 of T-181): the release itself may be malicious.
+        using (new CultureScope("en-US"))
+        {
+            Assert.Equal(
+                "LayerPeek refused the update because its signature could not be verified, so nothing was installed. Do not install this version by hand: wait for the next release or follow the project's announcements.",
+                Strings.SettingsUpdateRejected);
+        }
+
+        using (new CultureScope("cs-CZ"))
+        {
+            Assert.Equal(
+                "LayerPeek aktualizaci odmítl, protože nešlo ověřit její podpis, a nic nenainstaloval. Tuto verzi neinstalujte ručně: počkejte na další vydání nebo sledujte oznámení projektu.",
+                Strings.SettingsUpdateRejected);
+        }
+
+        Assert.Null(Strings.ResourceManager.GetString("SettingsUpdateRejectedVersion", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public async Task AClosedWindowNoLongerFollowsTheService()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings());
+        Assert.Equal(1, _rejections.Subscribers);
+
+        vm.Dispose();
+        _rejections.Set(Refused("0.5.0"));
+        _dispatcher.RunAll();
+
+        Assert.Equal(0, _rejections.Subscribers);
+        Assert.False(vm.ShowsUpdateRejected);
+    }
+
+    [Fact]
+    public async Task TheNotificationOfARefusalOpensTheStartupAndUpdatesTab()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings());
+
+        vm.ShowPage(SettingsPage.StartupUpdates);
+
+        Assert.Equal(SettingsViewModel.StartupUpdatesTab, vm.SelectedTabIndex);
+    }
+
+    private static RejectedUpdateFeed Refused(string? version) => FakeFeedRejections.Refused(version);
+
     private async Task<SettingsViewModel> LoadAsync(AppSettings settings, Func<CancellationToken, Task<UpdateCheckResult>>? check = null)
     {
         _store.Data = new SettingsEditorData(settings, SettingsLoadStatus.Loaded, [], Ids());
         _viewModel?.Dispose();
-        _viewModel = new SettingsViewModel(_store, new FakeConnectionTester(), Supported, productVersion: "0.3.1") { CheckForUpdatesNow = check };
+        _viewModel = new SettingsViewModel(_store, new FakeConnectionTester(), Supported, productVersion: "0.3.1", uiDispatcher: _dispatcher)
+        {
+            CheckForUpdatesNow = check,
+            FeedRejections = _rejections,
+        };
         await _viewModel.LoadAsync();
         return _viewModel;
     }

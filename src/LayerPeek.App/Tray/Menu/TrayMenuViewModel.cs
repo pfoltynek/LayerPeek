@@ -435,7 +435,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// <summary>The offered update changed (any thread): the item is formatted again on the UI thread.</summary>
     private void OnUpdateChanged(object? sender, EventArgs e) => _dispatcher.Post(RefreshUpdateEntry);
 
-    /// <summary>UI thread (T-058): shows, hides or updates the update item.</summary>
+    /// <summary>UI thread (T-058): shows, hides or updates the update item (T-181: or swaps it for "Update refused…").</summary>
     private void RefreshUpdateEntry()
     {
         lock (_gate)
@@ -456,7 +456,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _updateEntry = entry;
         if (sameLayout && entry is not null)
         {
-            // The download started or ended: the same item with another text, in place (an open menu stays open).
+            // The download started or ended, or the feed was refused or accepted again: the same slot with another text and
+            // click target, in place (an open menu stays open).
             int index = UpdateIndex;
             TrayMenuEntry[] items = [.. FixedItems];
             items[index] = entry;
@@ -471,11 +472,23 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     /// <summary>
     /// UI thread. "A new version X.Y.Z is available" while one is offered (disabled with "Downloading…" while a Velopack update
-    /// downloads); its tooltip says what a click does. Plain text: the version is no menu text with an access key.
+    /// downloads); its tooltip says what a click does. Plain text: the version is no menu text with an access key. T-181 (user
+    /// decision 2026-11-11): while the update feed is refused "Update refused…" instead, which opens the Startup and updates tab
+    /// (no version: the one a refused feed claims is untrusted).
     /// </summary>
     private TrayMenuEntry? UpdateEntry()
     {
-        if (_updates?.Available is not { } release)
+        if (_updates is null)
+        {
+            return null;
+        }
+
+        if (_updates.FeedRejection is not null)
+        {
+            return new TrayMenuEntry(TrayMenuCommand.UpdateRejected, Strings.MenuUpdateRejected, IsEnabled: true);
+        }
+
+        if (_updates.Available is not { } release)
         {
             return null;
         }
@@ -565,7 +578,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private const int DiagnosticsIndex = 0;
 
     /// <summary>
-    /// UI thread. The update item (T-058) above "User manual" (T-172, right above "About…") while a new version is offered.
+    /// UI thread. The update item (T-058) above "User manual" (T-172, right above "About…") while a new version is offered or the
+    /// update feed is refused (T-181).
     /// </summary>
     private TrayMenuEntry[] CreateFixedItems()
     {

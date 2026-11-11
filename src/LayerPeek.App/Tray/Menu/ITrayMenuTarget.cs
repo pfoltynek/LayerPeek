@@ -107,6 +107,12 @@ internal interface ITrayAppCommands
     /// </summary>
     void InstallUpdate();
 
+    /// <summary>
+    /// "Update refused…" (T-181): opens the settings window (or activates it) on the Startup and updates tab, like a click on
+    /// the notification about the refused update (<see cref="Notifications.ToastLaunchArgument.UpdateSettings"/>).
+    /// </summary>
+    void ShowUpdateSettings();
+
     /// <summary>"User manual" (T-172): the manual on GitHub in the current language of the texts, in the browser.</summary>
     void OpenManual();
 

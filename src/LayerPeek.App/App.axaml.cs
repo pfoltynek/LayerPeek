@@ -387,6 +387,9 @@ public partial class App : Application, ITrayAppCommands
         _ = host.UpdateOffer.RunAsync();
     }
 
+    /// <summary>"Update refused…" (T-181): the same tab as a click on the notification about the refused update.</summary>
+    void ITrayAppCommands.ShowUpdateSettings() => ShowSettings(addPrinter: false, SettingsPage.StartupUpdates);
+
     void ITrayAppCommands.OpenManual()
     {
         if (_host is not { } host || _quit is { IsQuitting: true })

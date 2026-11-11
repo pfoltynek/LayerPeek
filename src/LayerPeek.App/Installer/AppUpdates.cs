@@ -40,6 +40,9 @@ internal interface IUpdateEngine
 /// <item>An update is applied only after the app quit normally, so that it saved its state: Velopack ends every process of
 /// the installation when it applies an update. The app runs only in the primary instance (a second start passes its
 /// command on and exits before the app starts, T-043), so only the primary instance ever applies an update.</item>
+/// <item>T-181 (user decision 2026-11-11): while the feed is refused (<see cref="UpdateFeedRejectedException"/> from the last
+/// check that reached it, also the check of <see cref="ApplyAsync"/>) nothing is installed, not even what an earlier good check
+/// found; the next good check ends it.</item>
 /// </list>
 /// </summary>
 internal sealed partial class AppUpdates : IUpdateChecker
@@ -51,8 +54,10 @@ internal sealed partial class AppUpdates : IUpdateChecker
     private readonly ILogger<AppUpdates> _logger;
     private readonly Lock _gate = new();
 
-    // Guarded by _gate: what the last check found, kept for the download.
+    // Guarded by _gate: what the last check found, kept for the download, and whether the last check that reached the feed
+    // refused it.
     private AvailableUpdate? _found;
+    private bool _feedRejected;
 
     public AppUpdates(IUpdateEngine engine, ILogger<AppUpdates> logger)
     {
@@ -62,17 +67,25 @@ internal sealed partial class AppUpdates : IUpdateChecker
         _logger = logger;
     }
 
+    /// <summary>The feed was refused by the last check that reached it (T-181): <see cref="ApplyAsync"/> installs nothing.</summary>
+    public bool IsFeedRejected
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _feedRejected;
+            }
+        }
+    }
+
     /// <summary>The newest version above the running one in the feed of the installation, or <see langword="null"/>.</summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
+    /// <exception cref="UpdateFeedRejectedException">The feed failed its signature check (T-181).</exception>
     /// <exception cref="Exception">The check failed, or the feed named a version that is no semantic version.</exception>
     public async Task<UpdateRelease?> CheckAsync(bool includePrereleases, CancellationToken cancellationToken)
     {
-        AvailableUpdate? update = await _engine.CheckAsync(includePrereleases, cancellationToken).ConfigureAwait(false);
-        lock (_gate)
-        {
-            _found = update;
-        }
-
+        AvailableUpdate? update = await CheckEngineAsync(includePrereleases, cancellationToken).ConfigureAwait(false);
         if (update is null)
         {
             return null;
@@ -89,7 +102,8 @@ internal sealed partial class AppUpdates : IUpdateChecker
     /// Downloads <paramref name="release"/> (found by the last check, or by a new one when the app started with it remembered),
     /// starts the updater that waits for this process to exit, and quits the app through <paramref name="quit"/> (its normal
     /// quit, which saves the state); the updater then applies the update and starts the app again. Never throws; nothing
-    /// happens when the release is no longer in the feed, the download or the updater fails, or it is cancelled.
+    /// happens when the release is no longer in the feed, the feed is refused (<see cref="IsFeedRejected"/>, before and after
+    /// the download), the download or the updater fails, or it is cancelled.
     /// </summary>
     /// <param name="includePrereleases">For a new check: whether pre-releases are on offer.</param>
     /// <param name="quit">The app's normal quit (the tray menu's Quit).</param>
@@ -104,13 +118,19 @@ internal sealed partial class AppUpdates : IUpdateChecker
             AvailableUpdate? update;
             lock (_gate)
             {
+                if (_feedRejected)
+                {
+                    LogRefusedWhileRejected(version);
+                    return false;
+                }
+
                 update = _found;
             }
 
             if (update is null || !Same(update, release))
             {
                 // Remembered from an earlier run: the engine needs its own check first.
-                update = await _engine.CheckAsync(includePrereleases, cancellationToken).ConfigureAwait(true);
+                update = await CheckEngineAsync(includePrereleases, cancellationToken).ConfigureAwait(true);
                 if (update is null || !Same(update, release))
                 {
                     LogNoLongerOffered(version, update?.Version);
@@ -119,7 +139,20 @@ internal sealed partial class AppUpdates : IUpdateChecker
             }
 
             await _engine.DownloadAsync(update, cancellationToken).ConfigureAwait(true);
+            // A check during the download may have refused the feed since; the package itself was pinned by a verified feed.
+            if (IsFeedRejected)
+            {
+                LogRefusedWhileRejected(version);
+                return false;
+            }
+
             _engine.ApplyOnExit(update);
+        }
+        catch (UpdateFeedRejectedException)
+        {
+            // The check of a remembered release refused the feed (logged with the reason by the update check).
+            LogRefusedWhileRejected(version);
+            return false;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -138,11 +171,42 @@ internal sealed partial class AppUpdates : IUpdateChecker
         return true;
     }
 
+    /// <summary>The check of the engine; remembers what it found, or that it refused the feed (then nothing found is kept).</summary>
+    private async Task<AvailableUpdate?> CheckEngineAsync(bool includePrereleases, CancellationToken cancellationToken)
+    {
+        AvailableUpdate? update;
+        try
+        {
+            update = await _engine.CheckAsync(includePrereleases, cancellationToken).ConfigureAwait(false);
+        }
+        catch (UpdateFeedRejectedException)
+        {
+            lock (_gate)
+            {
+                _found = null;
+                _feedRejected = true;
+            }
+
+            throw;
+        }
+
+        lock (_gate)
+        {
+            _found = update;
+            _feedRejected = false;
+        }
+
+        return update;
+    }
+
     private static bool Same(AvailableUpdate update, UpdateRelease release) =>
         ReleaseVersion.TryParse(update.Version, out ReleaseVersion? version) && version == release.Version;
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Update {Version} is no longer in the feed (it offers {Offered}); nothing was downloaded.")]
     private partial void LogNoLongerOffered(string version, string? offered);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Update {Version} is not installed: the update feed is refused.")]
+    private partial void LogRefusedWhileRejected(string version);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Update {Version} could not be downloaded or scheduled; the app keeps running.")]
     private partial void LogApplyFailed(Exception exception, string version);

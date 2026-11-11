@@ -471,6 +471,13 @@ verze se objeví jako **Je dostupná nová verze X.Y.Z** v nabídce ikony a jedn
 
 Vaše nastavení a hesla zůstanou zachována.
 
+**Aktualizace odmítnuta:** nainstalovaná verze přijme aktualizaci, jen když jde ověřit její podpis. Když to nejde,
+LayerPeek nic nenainstaluje: zobrazí upozornění (jednou pro každou nabízenou verzi; kliknutím se otevře nastavení) a
+chybu na záložce **Spuštění a aktualizace** a v nabídce ikony místo nové verze ukáže **Aktualizace odmítnuta…**
+(upozornění na novou verzi zmizí). Tak to zůstane, dokud některá další kontrola neuspěje: pak se nová verze nabídne
+znovu a upozornění na ni se ukáže ještě jednou. Tuto verzi neinstalujte ručně, samotné vydání mohl někdo podvrhnout:
+počkejte na další vydání nebo sledujte oznámení projektu.
+
 ## 13. Kde jsou uložena vaše data
 
 | Co | Windows | macOS |

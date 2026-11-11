@@ -912,8 +912,14 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
         $info = [ordered]@{
             Version = '0.2.0'; Commit = $tagCommit; Dirty = $false; Os = 'windows'; Runtimes = @('win-x64'); ChecksumFile = 'SHA256SUMS-windows.txt'
             Files = @([ordered]@{ Name = 'LayerPeek-0.2.0-win-x64.zip'; Runtime = 'win-x64'; Step = 'archive'; Sha256 = Get-FileSha256 (Join-Path $dist 'LayerPeek-0.2.0-win-x64.zip') })
+            FeedSignature = [ordered]@{ Status = 'skipped'; PublicKeySha256 = $null }
         }
-        $info | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $script:Work 'artifacts' 'release' '0.2.0' 'build-info.json') -Encoding utf8NoBOM
+        $infoPath = Join-Path $script:Work 'artifacts' 'release' '0.2.0' 'build-info.json'
+        # T-181: a trial build without the feed signature is no current build; the build step stays to do.
+        $info | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $infoPath -Encoding utf8NoBOM
+        (Facts).BuildCurrent | Should -BeFalse
+        $info.FeedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = '0' * 64 }
+        $info | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $infoPath -Encoding utf8NoBOM
         $facts = Facts
         $facts.BuildCurrent | Should -BeTrue
         $plan = Get-ReleaseFlowPlan -Facts $facts
@@ -1197,7 +1203,8 @@ $name = Get-ArchiveFileName -Version $version -Runtime $rid
 $sums = Get-ChecksumFileName $os
 $null = Write-Sha256Sums -Directory $dist -FileName $sums -Files $name
 [ordered]@{ Version = $version; Commit = (Get-GitHead $root); Dirty = $false; Os = $os; Runtimes = @($rid); ChecksumFile = $sums
-    Files = @([ordered]@{ Name = $name; Runtime = $rid; Step = 'archive'; Sha256 = (Get-FileSha256 (Join-Path $dist $name)) }) } |
+    Files = @([ordered]@{ Name = $name; Runtime = $rid; Step = 'archive'; Sha256 = (Get-FileSha256 (Join-Path $dist $name)) })
+    FeedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = ('0' * 64) } } |
     ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
 Write-Host 'stand-in build done'
 exit 0
@@ -1266,9 +1273,10 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $null = G $script:T.Work switch --quiet --detach v0.1.0
         $script:TwoRelease = Join-Path $script:TwoState 'test-owner_two_v0.1.0.json'
 
-        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in') {
+        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in', [switch] $SkipFeedSignature) {
             # The output release-build.ps1 would write for HEAD on that OS (the other OS too: the marker names its OS),
-            # with the archive, the Velopack files and the checksum file.
+            # with the archive, the Velopack files, the feed signature (T-181; not with -SkipFeedSignature, like a trial
+            # build) and the checksum file.
             $root = $script:T.Work
             $rid = if ($Os -eq 'windows') { 'win-x64' } else { 'osx-arm64' }
             $releaseDir = Join-Path $root 'artifacts' 'release' '0.1.0'
@@ -1277,12 +1285,14 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
             $null = New-Item -ItemType Directory -Path $dist
             $names = @(Get-ArchiveFileName -Version '0.1.0' -Runtime $rid) + @((Get-VelopackOutputMap -Version '0.1.0' -Runtime $rid).Values)
             if ($Os -eq 'macos') { $names += (Get-MacReleaseFileNames -Version '0.1.0' -Runtime $rid).DiskImage }
+            if (-not $SkipFeedSignature) { $names += Get-UpdateFeedSignatureFileName $rid }
             $names = @($names | Sort-Object -Unique)
             foreach ($name in $names) { [System.IO.File]::WriteAllText((Join-Path $dist $name), "$Content $name") }
             $sums = Get-ChecksumFileName $Os
             $null = Write-Sha256Sums -Directory $dist -FileName $sums -Files $names
             [ordered]@{ Version = '0.1.0'; Commit = (Get-GitHead $root); Dirty = $false; Os = $Os; Runtimes = @($rid); ChecksumFile = $sums
-                Files = @($names | ForEach-Object { [ordered]@{ Name = $_; Runtime = $rid; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $dist $_)) } }) } |
+                Files = @($names | ForEach-Object { [ordered]@{ Name = $_; Runtime = $rid; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $dist $_)) } })
+                FeedSignature = [ordered]@{ Status = ($SkipFeedSignature ? 'skipped' : 'signed'); PublicKeySha256 = ($SkipFeedSignature ? $null : ('0' * 64)) } } |
                 ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
             $names + $sums
         }
@@ -1307,11 +1317,43 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $result.Output | Should -Match 'There is no release for v0\.1\.0\. -AddToPublished only adds files to a published release'
         Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
     }
+    It 'refuses a trial build of release-build.ps1 -SkipFeedSignature before anything is uploaded (T-181)' {
+        $null = Write-StandInBuild 'macos' -SkipFeedSignature
+        $calls = @(Get-GhCall).Count
+        foreach ($arguments in @(), @('-DryRun')) {
+            $result = Invoke-T 'release-upload.ps1' $arguments
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'Build output was made with -SkipFeedSignature \(a trial build\)'
+            $result.Output | Should -Match 'releases\.osx-arm64\.json without its signature releases\.osx-arm64\.json\.sig'
+        }
+        Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload)' }) | Should -BeNullOrEmpty
+    }
     It 'first machine: uploads its OS into a new draft, refuses -AddToPublished into the draft and publishes with -AllowIncomplete' {
         $macFiles = Write-StandInBuild 'macos'
+        $calls = @(Get-GhCall).Count
         $upload = Invoke-T 'release-upload.ps1'
         $upload.ExitCode | Should -Be 0 -Because $upload.Output
         $upload.Output | Should -Match 'add the other OS later with -AddToPublished'
+        # T-181: an empty draft, then the packages with the feed signature, then the checksum file and the feed.
+        $new = @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload)' })
+        $new.Count | Should -Be 3 -Because ($new -join ' / ')
+        $new[0] | Should -Match '^release create v0\.1\.0 --repo test-owner/two --draft --verify-tag '
+        $new[0] | Should -Not -Match '\.nupkg|\.dmg|\.json|\.sig|SHA256SUMS'
+        $new[1] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two .*releases\.osx-arm64\.json\.sig'
+        $new[1] | Should -Match 'LayerPeek-0\.1\.0-osx-arm64-full\.nupkg'
+        $new[1] | Should -Not -Match 'releases\.osx-arm64\.json(?!\.sig)|SHA256SUMS'
+        $new[2] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two .*releases\.osx-arm64\.json'
+        $new[2] | Should -Not -Match '\.sig|\.nupkg|\.dmg'
+
+        # T-181: publishing refuses a feed without its signature, also with -AllowIncomplete.
+        $uploaded = [System.IO.File]::ReadAllText($script:TwoRelease)
+        Set-TwoRelease { param($r) $r.assets = @($r.assets | Where-Object { $_.name -cne 'releases.osx-arm64.json.sig' }) }
+        $unsigned = Invoke-T 'release-publish.ps1' @('-AllowIncomplete')
+        $unsigned.ExitCode | Should -Be 1 -Because $unsigned.Output
+        $unsigned.Output | Should -Match 'has releases\.osx-arm64\.json but no releases\.osx-arm64\.json\.sig'
+        (Get-TwoRelease).isDraft | Should -BeTrue
+        [System.IO.File]::WriteAllText($script:TwoRelease, $uploaded)
 
         $draft = Invoke-T 'release-upload.ps1' @('-AddToPublished')
         $draft.ExitCode | Should -Be 1 -Because $draft.Output
@@ -1390,10 +1432,12 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $new[0] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
         $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64\.zip'
         $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64-full\.nupkg'
-        $new[0] | Should -Not -Match 'SHA256SUMS|releases\.win-x64\.json|assets\.win-x64\.json|RELEASES-win-x64'
+        # T-181: the feed signature goes with the packages, before the feed.
+        $new[0] | Should -Match 'releases\.win-x64\.json\.sig'
+        $new[0] | Should -Not -Match 'SHA256SUMS|releases\.win-x64\.json(?!\.sig)|assets\.win-x64\.json|RELEASES-win-x64'
         $new[1] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
         foreach ($marker in 'SHA256SUMS-windows.txt', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64') { $new[1] | Should -Match ([regex]::Escape($marker)) }
-        $new[1] | Should -Not -Match 'win-x64\.zip|full\.nupkg|Setup\.exe'
+        $new[1] | Should -Not -Match 'win-x64\.zip|full\.nupkg|Setup\.exe|\.sig'
         @(Get-GhCall | Where-Object { $_ -match '--clobber' }) | Should -BeNullOrEmpty
     }
     It 'refuses the OS whose checksum file is already in the release and changes nothing' {

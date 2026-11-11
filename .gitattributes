@@ -6,3 +6,5 @@
 *.wav binary
 *.jpg binary
 *.gray binary
+# Signed update feed test vector (T-181): exact bytes, never normalized.
+tests/Shared/Fixtures/UpdateFeed/** -text

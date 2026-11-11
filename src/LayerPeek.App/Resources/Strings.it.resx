@@ -1420,6 +1420,9 @@
   <data name="MenuUpdateDownloading" xml:space="preserve">
     <value>Download della versione {0}…</value>
   </data>
+  <data name="MenuUpdateRejected" xml:space="preserve">
+    <value>Aggiornamento rifiutato…</value>
+  </data>
   <data name="MenuUpdateInstallHint" xml:space="preserve">
     <value>Scarica l’aggiornamento, chiude LayerPeek e avvia la nuova versione.</value>
   </data>
@@ -1458,6 +1461,18 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Sposta LayerPeek nella cartella Applicazioni; poi potrà aggiornarsi da solo.</value>
+  </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>Aggiornamento di LayerPeek rifiutato</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Un aggiornamento non è stato installato perché non è stato possibile verificarne la firma. Fai clic per i dettagli.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>L’aggiornamento è stato rifiutato.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek ha rifiutato l’aggiornamento perché non è stato possibile verificarne la firma, quindi non è stato installato nulla. Non installare questa versione manualmente: attendi la prossima versione o segui gli annunci del progetto.</value>
   </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Registra</value>

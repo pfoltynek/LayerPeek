@@ -11,7 +11,8 @@ namespace LayerPeek.App.Tests.Updates;
 
 /// <summary>
 /// The offered update of T-058 between the check and the UI: the preferences from the settings (Q2 a, Q3 a), and what a click
-/// does: the release page, or in a Velopack installation download, quit and restart (Q5 a, Q6 a).
+/// does: the release page, or in a Velopack installation download, quit and restart (Q5 a, Q6 a). T-181 (user decision
+/// 2026-11-11): while the feed is refused nothing is offered or installed and no release page opens; a good check ends it.
 /// </summary>
 public sealed class UpdateOfferTests : IDisposable
 {
@@ -122,12 +123,85 @@ public sealed class UpdateOfferTests : IDisposable
     }
 
     [Fact]
+    public async Task WhileTheFeedIsRefusedTheEarlierOfferIsNeitherInstalledNorOpenedUntilAGoodCheck()
+    {
+        FakeEngine engine = new() { Next = new AvailableUpdate("0.3.2", null) };
+        AppUpdates installer = new(engine, new ListLogger<AppUpdates>());
+        using UpdateCheckService service = new(installer, ReleaseVersion.Parse("0.3.1"), new MemoryUpdateStateStore(), NullNotificationService.Instance, TimeProvider.System, new ListLogger<UpdateCheckService>());
+        using UpdateOffer offer = new(service, installer, needsMoveToApplications: false, _urls, new ListLogger<UpdateOffer>());
+        int quits = 0;
+        offer.AttachQuit(() =>
+        {
+            quits++;
+            return Task.CompletedTask;
+        });
+        ((IMonitoringObserver)offer).ApplySettings(new AppSettings { CheckForUpdates = false });
+        await offer.CheckNowAsync(TestContext.Current.CancellationToken);
+        UpdateRelease earlier = offer.Available!;
+        int changes = 0;
+        offer.Changed += (_, _) => Interlocked.Increment(ref changes);
+        engine.CheckFailure = Refused();
+
+        await offer.CheckNowAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(offer.FeedRejection);
+        Assert.Null(offer.Available);
+        // The refusal and the withdrawn offer.
+        Assert.Equal(2, changes);
+        Assert.False(await offer.RunAsync());
+        // Also the release of the earlier good check, asked for directly: the installer refuses it.
+        Assert.False(await installer.ApplyAsync(earlier, false, () => throw new InvalidOperationException("must not quit"), TestContext.Current.CancellationToken));
+        Assert.Empty(engine.Steps);
+        Assert.Empty(_urls.Opened);
+
+        engine.CheckFailure = null;
+        await offer.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Null(offer.FeedRejection);
+        Assert.True(await offer.RunAsync());
+        Assert.Equal(1, quits);
+    }
+
+    [Fact]
+    public async Task ARememberedOfferWhoseFeedTheClickFindsRefusedOpensNoPageAndShowsTheRefusal()
+    {
+        FakeEngine engine = new() { CheckFailure = Refused() };
+        AppUpdates installer = new(engine, new ListLogger<AppUpdates>());
+        MemoryUpdateStateStore store = new();
+        await store.SaveAsync(UpdateState.Empty with { Latest = Release("0.3.2"), NotifiedVersion = ReleaseVersion.Parse("0.3.2") }, TestContext.Current.CancellationToken);
+        using UpdateCheckService service = new(installer, ReleaseVersion.Parse("0.3.1"), store, NullNotificationService.Instance, TimeProvider.System, new ListLogger<UpdateCheckService>());
+        using UpdateOffer offer = new(service, installer, needsMoveToApplications: false, _urls, new ListLogger<UpdateOffer>());
+        offer.AttachQuit(() => throw new InvalidOperationException("must not quit"));
+        ((IMonitoringObserver)offer).ApplySettings(new AppSettings { CheckForUpdates = false });
+        await WaitUntilAsync(() => offer.Available is not null);
+
+        Assert.False(await offer.RunAsync());
+
+        // The check of the service it starts withdraws the offer and shows the refusal.
+        await WaitUntilAsync(() => offer.FeedRejection is not null);
+        Assert.Null(offer.Available);
+        Assert.Empty(engine.Steps);
+        Assert.Empty(_urls.Opened);
+    }
+
+    [Fact]
     public void AMacAppThatCannotUpdateWhereItRunsIsToldToMove()
     {
         using UpdateOffer offer = new(_service, installer: null, needsMoveToApplications: true, _urls, new ListLogger<UpdateOffer>());
 
         Assert.True(offer.NeedsMoveToApplications);
         Assert.Equal(UpdateAction.OpenReleasePage, offer.Action);
+    }
+
+    private static UpdateFeedRejectedException Refused() =>
+        new(new RejectedUpdateFeed("releases.win-x64.json", UpdateFeedRejection.SignatureUntrusted, ReleaseVersion.Parse("9.9.9"), new string('A', 64)));
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using CancellationTokenSource timeout = new(TestTimeouts.Wait);
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
     }
 
     private static UpdateRelease Release(string version) =>
@@ -146,9 +220,12 @@ public sealed class UpdateOfferTests : IDisposable
 
         public Exception? DownloadFailure { get; set; }
 
+        public Exception? CheckFailure { get; set; }
+
         public List<string> Steps { get; } = [];
 
-        public Task<AvailableUpdate?> CheckAsync(bool prereleases, CancellationToken cancellationToken) => Task.FromResult(Next);
+        public Task<AvailableUpdate?> CheckAsync(bool prereleases, CancellationToken cancellationToken) =>
+            CheckFailure is not null ? Task.FromException<AvailableUpdate?>(CheckFailure) : Task.FromResult(Next);
 
         public Task DownloadAsync(AvailableUpdate update, CancellationToken cancellationToken)
         {

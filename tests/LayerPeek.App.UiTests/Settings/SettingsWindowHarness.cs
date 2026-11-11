@@ -79,7 +79,8 @@ internal sealed class SettingsWindowHarness
         LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings? recordings = null,
         IRecordingFolderPicker? recordingFolderPicker = null,
         IReadOnlyList<LayerPeek.Core.Detection.PrintFailureDetectorRegistration>? detectors = null,
-        ILastCameraFrames? lastFrames = null)
+        ILastCameraFrames? lastFrames = null,
+        LayerPeek.App.Updates.IUpdateFeedRejections? feedRejections = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
@@ -92,6 +93,8 @@ internal sealed class SettingsWindowHarness
             ShowsPrereleaseOption = true,
             CheckForUpdatesNow = checkForUpdatesNow ?? UpToDate,
             ShowsMoveToApplications = showsMoveToApplications,
+            // T-181: by default no refused update feed.
+            FeedRejections = feedRejections,
             // T-146: the recordings with a fixed default folder (snapshots never show the user name of the machine).
             Recordings = recordings ?? new LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings(),
             // T-154: by default the first detector of the app ("bed-change", its texts), so every layout shows one.

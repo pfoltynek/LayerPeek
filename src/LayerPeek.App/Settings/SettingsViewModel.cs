@@ -880,6 +880,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         ForgetLastFramesOfUnsavedPrinters();
         DisposeWidgets();
         DisposeTopmost();
+        DisposeUpdates();
         foreach (PrinterEditorViewModel printer in Printers)
         {
             printer.Detach();
@@ -962,14 +963,19 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     /// <summary>
     /// A click on a notification: the General tab for the test notification, where the test came from (T-101), the Recording
-    /// tab for a failed recording, where its folder and limit are (T-146); edits and the selection of the other tabs are
-    /// kept. UI thread.
+    /// tab for a failed recording, where its folder and limit are (T-146), the Startup and updates tab for a refused update,
+    /// where its error is (T-181); edits and the selection of the other tabs are kept. UI thread.
     /// </summary>
     internal void ShowPage(SettingsPage page)
     {
         if (!_disposed)
         {
-            SelectedTabIndex = page == SettingsPage.Recording ? RecordingTab : GeneralTab;
+            SelectedTabIndex = page switch
+            {
+                SettingsPage.Recording => RecordingTab,
+                SettingsPage.StartupUpdates => StartupUpdatesTab,
+                _ => GeneralTab,
+            };
         }
     }
 

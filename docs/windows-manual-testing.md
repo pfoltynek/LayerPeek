@@ -23,7 +23,7 @@ interaktivní běh skriptu, zkušební upozornění, skutečná tiskárna, vydá
 
 - Windows 11 x64, přihlášený uživatel **bez** spuštění jako správce. .NET SDK z `global.json`, `pwsh` (i jako dotnet global
   tool), Pester 5 a pro AOT publish a instalátor C++ build tools (viz [prerequisites.md](prerequisites.md)).
-- Instalátor pro `win.e2e-installer`, `win.install`: nejdřív `pwsh scripts/release-build.ps1`
+- Instalátor pro `win.e2e-installer`, `win.install`: nejdřív `pwsh scripts/release-build.ps1 -SkipFeedSignature` (místní build bez klíče feedu, T-181)
   (`artifacts/release/<verze>/dist/LayerPeek-<verze>-win-x64-Setup.exe`). Bez něj jsou tyto kontroly `SKIP`.
 - LayerPeek nesmí běžet a nesmí být nainstalovaný (kontroly se skutečnou instalací se jinak odmítnou spustit).
 - Hesla ani API klíče nikdy nevkládejte do chatu ani do úkolů. Heslo simulátoru (`simulator`) tajné není.

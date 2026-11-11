@@ -7,6 +7,7 @@ internal sealed class FakeUserNotificationCenter(string bundleIdentifier = "io.g
 {
     private readonly Lock _lock = new();
     private readonly List<UserNotificationRequest> _posted = [];
+    private readonly List<string> _removed = [];
     private int _authorizationRequests;
     private int _removals;
 
@@ -77,6 +78,26 @@ internal sealed class FakeUserNotificationCenter(string bundleIdentifier = "io.g
         {
             _posted.Add(request);
             Delivered++;
+        }
+    }
+
+    /// <summary>The identifiers passed to <see cref="Remove"/>, in order.</summary>
+    public IReadOnlyList<string> Removed
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _removed];
+            }
+        }
+    }
+
+    public void Remove(string identifier)
+    {
+        lock (_lock)
+        {
+            _removed.Add(identifier);
         }
     }
 

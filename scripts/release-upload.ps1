@@ -14,10 +14,15 @@
       - CHANGELOG.md has no dated, non-empty section for the version,
       - the build output is missing, from another commit or version, from a dirty tree, contains a runtime that must
         not be uploaded (Uploadable = $false in the runtime table), or does not match its checksum file,
+      - the update feed is not signed (T-181): a trial build of release-build.ps1 -SkipFeedSignature, a build without the
+        signature status, or a releases.<rid>.json without its releases.<rid>.json.sig,
       - gh is missing or not logged in,
       - the release is already published, or a file with the same name but different content is already uploaded
         (replace it only with -Force).
     Files already uploaded with identical content are skipped, so a re-run after a failed upload is safe.
+    Upload order (Get-UploadBatches), one gh call each: the packages and the feed signatures (releases.<rid>.json.sig)
+    first, then the checksum file and the Velopack feed files, so a feed is never there before its signature (T-181).
+    A new draft is created empty first.
     Reads the remote with git ls-remote only: nothing is fetched or pushed.
 
     With -AddToPublished (T-113) the files of the OS of this build are added to the PUBLISHED release instead, when
@@ -25,9 +30,9 @@
     refuses when the release is missing or still a draft, already contains the checksum file of this OS, or contains
     a file of this build with other content or unfinished (state 'starter'). Nothing is ever replaced; identical files
     are skipped (a re-run after an interrupted upload). The checksum file and the Velopack feed files are uploaded
-    last, so that no app sees the OS in the release before its packages are there. The release text and its
-    pre-release flag are never changed. Afterwards the whole release is checked like release-publish.ps1 does
-    (every file listed in the checksum files with its SHA256, nothing else).
+    last (the order above), so that no app sees the OS in the release before its packages are there. The release
+    text and its pre-release flag are never changed. Afterwards the whole release is checked like release-publish.ps1
+    does (every file listed in the checksum files with its SHA256, every feed signed, nothing else).
 
 .PARAMETER Repo
     GitHub repository owner/name of the release. Default: the repository of the git remote origin. Another
@@ -140,33 +145,28 @@ try {
     }
 
     if (-not $release) {
+        # An empty draft first; its files follow in the order of Get-UploadBatches like in an existing release.
         $notesFile = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-release-notes-$([guid]::NewGuid().ToString('N')).md"
         [System.IO.File]::WriteAllText($notesFile, $notes + "`n", [System.Text.UTF8Encoding]::new($false))
         $arguments = @('release', 'create', $tag, '--repo', $preflight.Repository, '--draft', '--verify-tag',
             '--title', "LayerPeek $version", '--notes-file', $notesFile)
         if ($prerelease) { $arguments += '--prerelease' }
-        & gh @arguments @toUpload
+        & gh @arguments
         if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE. Re-run the script: files already uploaded are skipped." }
     }
-    elseif ($AddToPublished) {
-        # The packages first, the files that make the OS visible (checksum file, Velopack feed) in a second call.
-        $packages = @($toUpload | Where-Object { -not (Test-ReleaseMarkerFileName (Split-Path -Leaf $_)) })
-        $markers = @($toUpload | Where-Object { Test-ReleaseMarkerFileName (Split-Path -Leaf $_) })
-        foreach ($group in @{ Files = $packages }, @{ Files = $markers }) {
-            if ($group.Files.Count -eq 0) { continue }
-            $files = $group.Files
-            & gh release upload $tag --repo $preflight.Repository @files
-            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE. Re-run the script with -AddToPublished: files already uploaded are skipped." }
-        }
+    elseif ($toUpload.Count -eq 0) {
+        Write-Host 'Nothing to upload: the release already contains all files.'
     }
-    elseif ($toUpload.Count -gt 0) {
+    # The packages and the feed signatures first, the files that make the OS visible (checksum file, Velopack feed) in a
+    # second call: a feed is never uploaded before its signature (T-181), nor before its packages (T-113).
+    $replaced = @($plan | Where-Object Action -EQ 'Replace' | ForEach-Object Name)
+    $rerun = if ($AddToPublished) { 'Re-run the script with -AddToPublished' } else { 'Re-run the script' }
+    foreach ($batch in @(Get-UploadBatches -Paths $toUpload)) {
         $arguments = @('release', 'upload', $tag, '--repo', $preflight.Repository)
-        if (@($plan | Where-Object Action -EQ 'Replace').Count -gt 0) { $arguments += '--clobber' }
-        & gh @arguments @toUpload
-        if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE. Re-run the script: files already uploaded are skipped." }
-    }
-    else {
-        Write-Host 'Nothing to upload: the draft already contains all files.'
+        if (@($batch.Files | Where-Object { $replaced -ccontains (Split-Path -Leaf $_) }).Count -gt 0) { $arguments += '--clobber' }
+        $files = $batch.Files
+        & gh @arguments @files
+        if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE. $($rerun): files already uploaded are skipped." }
     }
 
     if ($AddToPublished) {
