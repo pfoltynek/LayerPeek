@@ -205,7 +205,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-197 | Vydání – jen podepsat hotový `dist/` (opakování podpisu feedu bez nového buildu; jen `dist/` z čistého tagu beze změny od buildu) (hotovo; `release-build.ps1 -SignOnly`) | all | qa-reviewer | P3 | T-181 |
 | T-190 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) (zamítnuto 2026-11-11) | all | ui-dev | P3 | – |
 | T-191 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) (hotovo, build beze změny) | all | qa-reviewer | P3 | – |
-| T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) | all | architect | P3 | T-184, T-185 |
+| T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) (hotovo; implementace čeká na rozhodnutí) | all | architect | P3 | T-184, T-185 |
 | T-198 | Připravenost vydání 1.0.0 (blokery, první podepsané vydání, kontrola veřejného repozitáře, plán dne vydání) | all | architect | P1 | – |
 | T-200 | Skripty vydání pro neměnná vydání – odmítnout `-AddToPublished` a `-AllowIncomplete` (až po vydání 1.0.0) | all | qa-reviewer | P2 | T-180 |
 
