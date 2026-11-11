@@ -219,10 +219,10 @@ nahrávanie, dashcam a timelapse.
 
 Keď vypadne kamera alebo Wi-Fi, okno sa samo znova pripojí; medzitým ukazuje **Pripája sa ku kamere…** alebo **Bez
 signálu**. Ďalší pokus príde o 5 sekúnd; kým je kamera nedostupná, prestávka sa zdvojnásobuje až na jednu minútu. Okno
-ukazuje, približne o koľko príde ďalší pokus; keď okno otvoríte alebo obnovíte z minimalizácie, skúsi sa pripojiť hneď.
-Keď tlačiareň vypnete, okno sa zatvorí a po jej návrate sa znova otvorí na rovnakom mieste. Toto správanie vypnete
-v **Nastavenia → Tlačiarne → Okno kamery** (**Zatvoriť, keď sa tlačiareň vypne, a znova otvoriť po jej zapnutí**). Okno,
-ktoré zatvoríte sami, zostane zatvorené.
+priebežne ukazuje, približne o koľko príde ďalší pokus; keď okno otvoríte, obnovíte z minimalizácie alebo v nastaveniach
+kliknete na **Otestovať kameru**, skúsi sa pripojiť hneď. Keď tlačiareň vypnete, okno sa zatvorí a po jej návrate sa
+znova otvorí na rovnakom mieste. Toto správanie vypnete v **Nastavenia → Tlačiarne → Okno kamery** (**Zatvoriť, keď sa
+tlačiareň vypne, a znova otvoriť po jej zapnutí**). Okno, ktoré zatvoríte sami, zostane zatvorené.
 
 ## 6. Widgety
 

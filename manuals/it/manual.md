@@ -225,11 +225,11 @@ registrazione, la dashcam e il timelapse.
 
 La finestra si riconnette da sola quando la telecamera o il Wi-Fi si interrompono; nel frattempo mostra **Connessione
 alla telecamera…** o **Nessun segnale**. Riprova dopo 5 secondi; finché la telecamera resta irraggiungibile, la pausa
-raddoppia fino a un minuto. La finestra indica all'incirca quando arriva il prossimo tentativo; aprire la finestra o
-ripristinarla dopo averla ridotta a icona riprova subito. Quando la stampante viene spenta, la finestra si chiude e si
-riapre nello stesso punto quando la stampante torna disponibile. Puoi disattivarlo in **Impostazioni → Stampanti →
-Finestra della telecamera** (**Chiudi quando la stampante si spegne, riapri quando si riaccende**). Una finestra che
-chiudi tu resta chiusa.
+raddoppia fino a un minuto. La finestra indica all'incirca quando arriva il prossimo tentativo e lo tiene aggiornato;
+aprire la finestra, ripristinarla dopo averla ridotta a icona o fare clic su **Verifica telecamera** nelle impostazioni
+riprova subito. Quando la stampante viene spenta, la finestra si chiude e si riapre nello stesso punto quando la
+stampante torna disponibile. Puoi disattivarlo in **Impostazioni → Stampanti → Finestra della telecamera** (**Chiudi
+quando la stampante si spegne, riapri quando si riaccende**). Una finestra che chiudi tu resta chiusa.
 
 ## 6. Widget
 
