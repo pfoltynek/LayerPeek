@@ -214,8 +214,11 @@ public sealed class CameraFrameSubscriptionOptions
     public bool KeyFramesOnly { get; init; }
 
     /// <summary>
-    /// 8-bit grayscale copies of this size instead of BGRA copies (T-153), converted while copying (see
-    /// <see cref="CameraGrayscaleSize"/>); <see langword="null"/> (the default): BGRA as decoded.
+    /// 8-bit grayscale copies of this size instead of BGRA copies (T-153, see <see cref="CameraGrayscaleSize"/>); the feed
+    /// scales them straight from the picture's luma (T-189, <see cref="CameraStreamItem.GrayscaleFrame"/>), so no BGRA frame
+    /// in full resolution is converted for this subscriber. <see langword="null"/> (the default): BGRA as decoded. While
+    /// subscribers of several sizes watch one camera, the feed converts one of them; the others are converted from full
+    /// frames while copying, as for a feed that does not convert to grayscale.
     /// </summary>
     public CameraGrayscaleSize? Grayscale
     {
@@ -235,7 +238,8 @@ public sealed class CameraFrameSubscriptionOptions
     /// T-184: frames for display only, scaled down to fit this size in device pixels (aspect ratio kept, never scaled up;
     /// see <see cref="CameraFrameSize.Fit"/>); changed later with <see cref="CameraFrameSubscription.SetDisplaySize"/>.
     /// <see langword="null"/> (the default): frames in the camera's resolution. Snapshots, exports, recordings and print
-    /// failure detection always use full resolution (user decision 2026-11-10); a display reader that needs one full
+    /// failure detection always use full resolution (user decision 2026-11-10; detection's grayscale samples are scaled
+    /// from the full picture, never from a display frame, T-189); a display reader that needs one full
     /// frame takes a short lease of its own without this size. While several display readers watch one camera, each gets
     /// the frame of the largest size any of them wants (it may be larger than its own).
     /// </summary>
@@ -252,9 +256,10 @@ public sealed class CameraFrameSubscriptionOptions
     public CameraFrameHandler? FrameReceived { get; init; }
 
     /// <summary>
-    /// T-188 (user decision 2026-11-11): the camera window opened or was restored. When this lease is taken while the
-    /// connection waits between reconnect attempts, the next attempt starts at once and its backoff starts over. Off for
-    /// print failure detection, recording and every other consumer: they never shorten the wait.
+    /// T-188 (user decision 2026-11-11): the camera window opened or was restored, or (T-194) the camera test in the
+    /// settings started. When this lease is taken while the connection waits between reconnect attempts, the next attempt
+    /// starts at once and its backoff starts over. Off for print failure detection, recording and every other consumer:
+    /// they never shorten the wait.
     /// </summary>
     public bool ShortensReconnectWait { get; init; }
 }
@@ -295,6 +300,7 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
         KeyFramesOnly = options.KeyFramesOnly;
         ShortensReconnectWait = options.ShortensReconnectWait;
         _displaySize = CameraFrameSize.Pack(options.DisplaySize);
+        Grayscale = options.Grayscale;
         _frameReceived = options.FrameReceived;
         if (_frameReceived is not null && options.Grayscale is not null)
         {
@@ -343,6 +349,9 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
     /// <summary>See <see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>.</summary>
     internal bool ShortensReconnectWait { get; }
 
+    /// <summary>See <see cref="CameraFrameSubscriptionOptions.Grayscale"/>.</summary>
+    internal CameraGrayscaleSize? Grayscale { get; }
+
     /// <summary>When this subscriber wants its next frame (a timestamp of the hub's clock); <see cref="long.MinValue"/>: now.</summary>
     internal long NextFrameDue
     {
@@ -382,6 +391,46 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
     /// <returns>Whether the frame was taken (not skipped).</returns>
     internal bool Publish(in CameraFrame frame, long timestamp)
     {
+        if (!TryTake(timestamp))
+        {
+            return false;
+        }
+
+        bool notify;
+        if (_exchange is null)
+        {
+            _frameReceived!(frame);
+            notify = false;
+        }
+        else
+        {
+            notify = _exchange.Publish(frame);
+        }
+
+        Published(notify);
+        return true;
+    }
+
+    /// <summary>
+    /// Streaming thread: copies the grayscale <paramref name="frame"/> of this subscriber's <see cref="Grayscale"/> size
+    /// (T-189, borrowed, valid only now) unless it is skipped.
+    /// </summary>
+    /// <returns>Whether the frame was taken (not skipped).</returns>
+    internal bool PublishGrayscale(in CameraGrayscaleFrame frame, long timestamp)
+    {
+        if (!TryTake(timestamp))
+        {
+            return false;
+        }
+
+        // A grayscale subscriber always has its exchange (it cannot have a frame receiver).
+        Published(_exchange!.PublishGrayscale(frame));
+        return true;
+    }
+
+    /// <summary>Streaming thread: whether a frame at <paramref name="timestamp"/> is taken; then it counts as the last one.</summary>
+    private bool TryTake(long timestamp)
+    {
         if (IsEnded)
         {
             // Removed meanwhile; the stream still had it in its list.
@@ -395,18 +444,12 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
         }
 
         Interlocked.Exchange(ref _lastPublished, timestamp);
+        return true;
+    }
 
-        bool notify;
-        if (_exchange is null)
-        {
-            _frameReceived!(frame);
-            notify = false;
-        }
-        else
-        {
-            notify = _exchange.Publish(frame);
-        }
-
+    /// <summary>Streaming thread: a frame was taken; reports the first one and notifies the consumer when it must be.</summary>
+    private void Published(bool notify)
+    {
         if (!_hasFrame)
         {
             bool streaming;
@@ -426,8 +469,6 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
         {
             _frameAvailable?.Invoke();
         }
-
-        return true;
     }
 }
 

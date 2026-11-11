@@ -3355,17 +3355,18 @@ function Get-SmokeProfile {
     <#
     .SYNOPSIS
         The places of the user profile that the Release exe writes (it has no test mode, T-095) and the journal of their
-        backup during the AOT smoke check, never anything else (on Windows only the logs below %LOCALAPPDATA%\LayerPeek,
-        which may also hold the installed app).
+        backup during the AOT smoke check, never anything else (on Windows only the logs and the cache below
+        %LOCALAPPDATA%\LayerPeek, which may also hold the installed app).
     .DESCRIPTION
-        Folders: data and logs of the app; on macOS also what AppKit and the system keep under the bundle identifier
+        Folders: data, logs and cache of the app (AppDataPaths.GetDefaultCacheDirectory, T-196; never the FFmpeg build
+        cache LayerPeek.Build next to it); on macOS also what AppKit and the system keep under the bundle identifier
         (T-019): ~/Library/Saved Application State/<id>.savedState, ~/Library/Caches/<id> and ~/Library/HTTPStorages/<id>.
         Preferences (macOS): the defaults domains of the app, the bundle identifier (LayerPeek.app) and LayerPeek (the
         executable outside a bundle). They belong to cfprefsd, so they are never moved as files: the backup exports the
         domain and deletes it, the restore deletes what the exe wrote and imports the backup (Defaults, /usr/bin/defaults).
     .PARAMETER ProfileRoot
         A stand-in profile for the tests: <root>/data/LayerPeek, <root>/logs/LayerPeek, <root>/state/<id>.savedState,
-        <root>/caches/<id>, <root>/http/<id> and the domains as files <root>/prefs/<domain>.plist, which a file-based
+        <root>/caches/<id>, <root>/http/<id>, <root>/caches/LayerPeek and the domains as files <root>/prefs/<domain>.plist, which a file-based
         stand-in of defaults changes (on every OS).
     .PARAMETER BundleIdentifier
         The bundle identifier; default: CFBundleIdentifier of build/macos/Info.plist.
@@ -3379,7 +3380,8 @@ function Get-SmokeProfile {
             (Join-Path $ProfileRoot 'logs' 'LayerPeek'),
             (Join-Path $ProfileRoot 'state' "$BundleIdentifier.savedState"),
             (Join-Path $ProfileRoot 'caches' $BundleIdentifier),
-            (Join-Path $ProfileRoot 'http' $BundleIdentifier))
+            (Join-Path $ProfileRoot 'http' $BundleIdentifier),
+            (Join-Path $ProfileRoot 'caches' 'LayerPeek'))
         $preferences = Join-Path $ProfileRoot 'prefs'
         $defaults = { param($Verb, $Domain, $File) Invoke-StandInDefaults -Folder $preferences -Verb $Verb -Domain $Domain -File $File }.GetNewClosure()
     }
@@ -3390,14 +3392,16 @@ function Get-SmokeProfile {
             (Join-Path $library 'Logs' 'LayerPeek'),
             (Join-Path $library 'Saved Application State' "$BundleIdentifier.savedState"),
             (Join-Path $library 'Caches' $BundleIdentifier),
-            (Join-Path $library 'HTTPStorages' $BundleIdentifier))
+            (Join-Path $library 'HTTPStorages' $BundleIdentifier),
+            (Join-Path $library 'Caches' 'LayerPeek'))
         $preferences = Join-Path $library 'Preferences'
         $defaults = { param($Verb, $Domain, $File) $arguments = @($Verb, $Domain) + @($File | Where-Object { $_ }); $null = & /usr/bin/defaults @arguments 2>&1; $LASTEXITCODE }
     }
     elseif ($IsWindows) {
         $folders = @(
             (Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek'),
-            (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs'))
+            (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs'),
+            (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'cache'))
         $preferences = $null
         $defaults = $null
     }

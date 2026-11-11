@@ -15,6 +15,11 @@ namespace LayerPeek.App.Settings;
 /// with) is tested through the <see cref="CameraStreamHub"/>, sharing an open camera window's connection; its first image
 /// after subscribing is the result and the first error status a failure. An unsaved address always gets a connection of its own.
 /// </para>
+/// <para>
+/// T-194 (user decision 2026-11-11): like opening the camera window, the test of a saved camera ends a reconnect wait of
+/// the shared connection (<see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>): the attempt starts at once
+/// with the backoff reset, so the test sees a fresh attempt instead of the waiting connection's old failure.
+/// </para>
 /// </summary>
 internal sealed partial class CameraSnapshotTester : ICameraTester
 {
@@ -103,7 +108,8 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
 
     /// <summary>
     /// The first image of the saved camera's shared connection after subscribing; the first error status fails like a
-    /// failed connection of its own. The lease is released at the end (the hub keeps the connection for its linger time).
+    /// failed connection of its own. Taken during a reconnect wait, the lease starts the next attempt at once (T-194). The
+    /// lease is released at the end (the hub keeps the connection for its linger time).
     /// </summary>
     internal static async Task<CameraImage> CaptureSharedAsync(CameraStreamHub hub, string printerId, Uri streamUri, CancellationToken cancellationToken)
     {
@@ -115,6 +121,7 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
             FrameAvailable = () => Signal(frameReady),
             Status = new FailureObserver(failed),
             Ended = _ => failed.TrySetResult(new CameraFeedException("The camera stream ended before sending an image.")),
+            ShortensReconnectWait = true,
         });
         using (lease)
         {

@@ -9,7 +9,10 @@ public enum CameraPixelFormat
     /// <summary>32-bit BGRA, as decoded (<see cref="CameraFrame"/>).</summary>
     Bgra32,
 
-    /// <summary>8-bit luma (BT.601 weights), one byte per pixel (T-153: samples for print failure detection).</summary>
+    /// <summary>
+    /// 8-bit full-range luma, one byte per pixel (T-153: samples for print failure detection): the camera's Y plane
+    /// (T-189), or from a BGRA frame with BT.601 weights.
+    /// </summary>
     Gray8,
 }
 
@@ -44,6 +47,62 @@ public readonly record struct CameraGrayscaleSize
     public int Length => Width * Height;
 
     internal bool IsValid => Width >= MinSide;
+
+    /// <summary>Both sides in one value for atomic reads and writes; 0 is no size.</summary>
+    internal static long Pack(CameraGrayscaleSize? size) => size is { } value ? ((long)value.Width << 32) | (uint)value.Height : 0;
+
+    internal static CameraGrayscaleSize? Unpack(long packed) => packed == 0 ? null : new CameraGrayscaleSize((int)(packed >> 32), (int)(uint)packed);
+}
+
+/// <summary>
+/// A decoded frame as 8-bit full-range luma (0–255), rows top-down, scaled by the feed to the size a grayscale subscriber
+/// wants (T-189, <see cref="CameraStreamItem.GrayscaleFrame"/>): straight from the picture's Y plane, without a BGRA frame
+/// in between. Borrows the feed's buffer like <see cref="CameraFrame"/>: valid only until the enumerator advances.
+/// </summary>
+public readonly struct CameraGrayscaleFrame
+{
+    /// <param name="width">Width in pixels.</param>
+    /// <param name="height">Height in pixels.</param>
+    /// <param name="stride">Bytes from the start of one row to the start of the next; at least <paramref name="width"/>.</param>
+    /// <param name="pixels">At least <c>stride * (height - 1) + width</c> bytes.</param>
+    /// <param name="sourceWidth">Width of the camera's image the frame was scaled from.</param>
+    /// <param name="sourceHeight">Height of the camera's image the frame was scaled from.</param>
+    public CameraGrayscaleFrame(int width, int height, int stride, ReadOnlyMemory<byte> pixels, int sourceWidth, int sourceHeight)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceHeight);
+        ArgumentOutOfRangeException.ThrowIfLessThan(stride, width);
+        long required = ((long)stride * (height - 1)) + width;
+        if (pixels.Length < required)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pixels), pixels.Length, $"The frame needs at least {required} bytes.");
+        }
+
+        Width = width;
+        Height = height;
+        Stride = stride;
+        Pixels = pixels;
+        SourceWidth = sourceWidth;
+        SourceHeight = sourceHeight;
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+
+    public int Stride { get; }
+
+    public int SourceWidth { get; }
+
+    public int SourceHeight { get; }
+
+    /// <summary>Luma pixels; borrowed, see the type remarks.</summary>
+    public ReadOnlyMemory<byte> Pixels { get; }
+
+    /// <summary>Whether this frame is of <paramref name="size"/> (an empty frame never is).</summary>
+    internal bool Is(CameraGrayscaleSize size) => Width == size.Width && Height == size.Height;
 }
 
 /// <summary>
@@ -51,6 +110,10 @@ public readonly record struct CameraGrayscaleSize
 /// the source block of every target pixel). One pass over the source, integer arithmetic only; the block bounds are
 /// computed once per size and reused, so the steady state allocates nothing. A target larger than the source repeats
 /// source pixels (nearest). Not thread-safe: one instance per producer.
+/// <para>
+/// T-189: the FFmpeg feed scales the luma plane itself (<see cref="CameraGrayscaleFrame"/>); this is the fallback for a
+/// feed that yields only BGRA frames, and for a grayscale subscriber of another size than the one the stream converts.
+/// </para>
 /// </summary>
 internal sealed class GrayscaleScaler
 {

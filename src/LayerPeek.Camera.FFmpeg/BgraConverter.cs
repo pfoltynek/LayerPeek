@@ -1,6 +1,3 @@
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-
 using FFmpeg.AutoGen.Abstractions;
 
 using LayerPeek.Core.Cameras;
@@ -22,9 +19,6 @@ namespace LayerPeek.Camera.FFmpeg;
 /// </remarks>
 internal sealed unsafe class BgraConverter : IDisposable
 {
-    /// <summary>Row and buffer alignment for the converted image (SIMD friendly for swscale).</summary>
-    private const int Alignment = 64;
-
     // YUV -> BGRA in the target size, and for a scaled conversion the YUV scaler before it.
     private SwsContext* _converter;
     private SwsContext* _scaler;
@@ -105,26 +99,6 @@ internal sealed unsafe class BgraConverter : IDisposable
         _scaler = null;
     }
 
-    private static int AlignUp(int value) => (value + (Alignment - 1)) & ~(Alignment - 1);
-
-    /// <summary>
-    /// A pinned buffer of at least <paramref name="length"/> bytes plus alignment and its aligned start: <paramref name="buffer"/>
-    /// is kept when it is large enough; the first one is exact, a growing one gets half again as much room.
-    /// </summary>
-    private static byte* EnsureBuffer(ref byte[]? buffer, int length, out int offset)
-    {
-        if (buffer is null || buffer.Length < length + Alignment)
-        {
-            // Pinned (POH): FFmpeg writes through a raw pointer and the address must never move.
-            long size = buffer is null ? length + Alignment : Math.Max(length + Alignment, buffer.Length * 3L / 2);
-            buffer = GC.AllocateUninitializedArray<byte>((int)Math.Min(size, Array.MaxLength), pinned: true);
-        }
-
-        byte* start = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(buffer));
-        offset = (int)((Alignment - ((nuint)start % Alignment)) % Alignment);
-        return start + offset;
-    }
-
     /// <summary>YUV -> RGB coefficients of the stream (BT.601 unless it says BT.709) and its range; RGB output is full range.</summary>
     private static void SetColorspace(SwsContext* context, AVColorSpace colorSpace, bool fullRange, bool rgbTarget)
     {
@@ -154,13 +128,13 @@ internal sealed unsafe class BgraConverter : IDisposable
             // extra row in one spare row; neither is part of the frame.
             _blockWidth = (width + 15) & ~15;
             _blockHeight = (height + 1) & ~1;
-            _lumaStride = AlignUp(_blockWidth);
-            _chromaStride = AlignUp(_blockWidth / 2);
+            _lumaStride = AlignedBuffer.AlignUp(_blockWidth);
+            _chromaStride = AlignedBuffer.AlignUp(_blockWidth / 2);
             int lumaLength = checked(_lumaStride * _blockHeight);
             int chromaLength = checked(_chromaStride * (_blockHeight / 2));
-            _lumaPlane = EnsureBuffer(ref _planesBuffer, checked(lumaLength + (2 * AlignUp(chromaLength))), out _);
+            _lumaPlane = AlignedBuffer.Ensure(ref _planesBuffer, checked(lumaLength + (2 * AlignedBuffer.AlignUp(chromaLength))), out _);
             _bluePlane = _lumaPlane + lumaLength;
-            _redPlane = _bluePlane + AlignUp(chromaLength);
+            _redPlane = _bluePlane + AlignedBuffer.AlignUp(chromaLength);
         }
         else
         {
@@ -181,9 +155,9 @@ internal sealed unsafe class BgraConverter : IDisposable
 
         SetColorspace(_converter, colorSpace, fullRange, rgbTarget: true);
 
-        int stride = AlignUp(width * CameraFrame.BytesPerPixel);
+        int stride = AlignedBuffer.AlignUp(width * CameraFrame.BytesPerPixel);
         int length = checked(stride * height);
-        _target = EnsureBuffer(ref _buffer, checked(stride * convertedHeight), out int offset);
+        _target = AlignedBuffer.Ensure(ref _buffer, checked(stride * convertedHeight), out int offset);
         _pixels = new ReadOnlyMemory<byte>(_buffer, offset, length);
 
         _sourceWidth = sourceWidth;

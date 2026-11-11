@@ -165,13 +165,19 @@ public sealed class FFmpegCameraFeedDisplayTests
         Assert.Equal(TestFixtures.Buddy3DFrameCount, feed.DecodedFrames);
     }
 
-    [FFmpegFact]
-    public async Task AKeyFrameDecodedAloneIsAlwaysFullResolution()
+    [FFmpegTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AKeyFrameDecodedAloneIsConvertedOnlyInTheSizesThatAreDue(bool fullResolution)
     {
-        // T-153: the sample of print failure detection, also while a display size is set.
+        // T-189 (before: always in full resolution, T-153): a key frame lease for display, and the alarm snapshot.
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
         CameraStreamDemand demand = new(frames: false, packets: false) { DisplaySize = new CameraFrameSize(320, 320) };
-        demand.CancelFullResolution();
+        if (!fullResolution)
+        {
+            demand.CancelFullResolution();
+        }
+
         demand.RequestKeyFrame(long.MinValue);
         int frames = 0;
 
@@ -180,7 +186,9 @@ public sealed class FFmpegCameraFeedDisplayTests
             if (item.Kind == CameraStreamItemKind.Frame)
             {
                 frames++;
-                Assert.Equal((TestFixtures.Buddy3DWidth, TestFixtures.Buddy3DHeight), (item.Frame.Width, item.Frame.Height));
+                Assert.Equal((320, 180), (item.DisplayFrame.Width, item.DisplayFrame.Height));
+                Assert.Equal(fullResolution ? (TestFixtures.Buddy3DWidth, TestFixtures.Buddy3DHeight) : (0, 0), (item.Frame.Width, item.Frame.Height));
+                Assert.Equal(0, item.GrayscaleFrame.Width);
             }
         }
 

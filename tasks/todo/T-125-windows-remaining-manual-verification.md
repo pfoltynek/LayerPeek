@@ -382,16 +382,25 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       malý náhled a normální okno 960 × 540 při 100 %: CPU a working set procesu, fps (porovnat s `develop` před T-184),
       zapsat do poznámek T-184.
 
-### 2t. Čas do dalšího pokusu kamery (z T-188, implementováno na Macu 2026-11-11)
+### 2t. Čas do dalšího pokusu kamery (z T-188 a T-194, implementováno na Macu 2026-11-11)
 - [ ] **T-188** (ruční, simulátor stačí; automaticky pokryto `CameraViewModelNextAttemptTests` a UiTests
       `CameraWindowNextAttemptUiTests`, `dotnet test` na Windows bez chyb): simulátor s kamerou, otevřené
       okno kamery a v konzoli simulátoru `camera offline`: pod „Chyba kamery“ / „Bez signálu“ a důvodem je řádek „Další
-      pokus asi za 5 s“, po dalších pokusech 10, 20, 40 s a „asi za 1 min“; text se neodpočítává. V malém náhledu řádek
-      chybí, po návratu do okna je zpět. Minimalizovat okno a během minutové pauzy ho obnovit: hned „Připojuji se ke
-      kameře…“ (nový pokus); přepnutí režimu (okno ↔ malý náhled ↔ celá obrazovka) pauzu nezkrátí. Po `camera online`
+      pokus asi za 5 s“, po dalších pokusech 10, 20, 40 s a „asi za 1 min“; od T-194 se text odpočítává (pod minutou po
+      sekundách). V malém náhledu řádek chybí, po návratu do okna je zpět s aktuální hodnotou. Minimalizovat okno a během
+      minutové pauzy ho obnovit: hned „Připojuji se ke kameře…“ (nový pokus); přepnutí režimu (okno ↔ malý náhled ↔ celá
+      obrazovka) pauzu nezkrátí. **T-194:** okno zavřít, během minutové pauzy (drží ji detekce nebo nahrávání) kliknout
+      v nastavení na „Otestovat kameru“: test hned zkusí nové připojení (s `camera online` uspěje bez čekání na pauzu). Po `camera online`
       a dalším pokusu obraz běží a řádek zmizí. Aspoň v češtině a v nejdelším jazyce (es / fr) se text vejde.
 
-### 2u. Podepsaný feed aktualizací (z T-181, implementováno na Macu 2026-11-10)
+### 2u. Smoke profil – mezipaměť aplikace (z T-196, implementováno na Macu 2026-11-11)
+- [ ] **T-196** (automaticky): `dotnet test` na Windows bez chyb; Pester test „names the data and log folders of the app,
+      never the installation folder“ (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`) ověří, že smoke profil na Windows
+      obsahuje `%LOCALAPPDATA%\LayerPeek\cache` (3 složky). Volitelně `pwsh scripts/aot-smoke.ps1`: PASSED, potom
+      `%LOCALAPPDATA%\LayerPeek\cache` a `%LOCALAPPDATA%\LayerPeek.Build` stejné jako před během (cache buildu FFmpeg se
+      nepřesouvá ani nemaže).
+
+### 2v. Podepsaný feed aktualizací (z T-181, implementováno na Macu 2026-11-10)
 - [ ] **T-181** (krit. „E2E test aktualizace … s feedem podepsaným testovacím klíčem“, část Windows): `pwsh tools/run-e2e.ps1
       -Class '*UpdateTests*'` PASS (feed podepsaný testovacím klíčem přijat, nepodepsaný odmítnut); notifikace o odmítnutí
       (toast) a kliknutí otevře záložku „Spuštění a aktualizace“.
