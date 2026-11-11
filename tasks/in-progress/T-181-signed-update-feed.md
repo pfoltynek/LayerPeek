@@ -182,6 +182,24 @@ Otevřené (qa-reviewer, bezpečnostní revize 2026-11-10):
     feedem (velikost + SHA-256). Bezpečnostně v pořádku, jen tvrzení „instalace z ní stejně nejdřív feed ověří znovu“ platí jen
     pro nabídku z `update-state.json`. Má instalace po aktivním odmítnutí raději vůbec neproběhnout?
 
+
+Rozhodnuto uživatelem 2026-11-11 (otázky 8–24):
+- 8: **fail closed** ponechat; produkční klíč vytvoří uživatel na offline USB a veřejný klíč přidá do
+  `UpdateFeedKeys.Production`; teprve potom se T-181 sloučí do `develop`.
+- 9: číst **jen feed nejnovějšího vydání** s daným RID (jak je implementováno).
+- 10, 14, 15: **jak je implementováno** (klíč tvrzená verze → hash feedu → jednou za běh; zvuk jen s volbou „všechny
+  notifikace“; při vypnutých notifikacích se verze počítá jako oznámená).
+- 11, 12, 24: při aktivním odmítnutí **nabídku skrýt a stáhnout**: položku „Je dostupná nová verze …“ v menu ikony nahradit
+  „Aktualizace odmítnuta…“ (otevře záložku „Spuštění a aktualizace“), starší notifikaci o dostupné aktualizaci stáhnout
+  a instalaci z dřívější nabídky nedovolit.
+- 13: **bez tlačítka** v rámečku chyby.
+- 16, 18, 20, 21: **přijato** podle návrhu.
+- 17: **heslo znovu při podpisu**: na začátku buildu se klíč jen ověří (heslo, veřejný klíč v seznamu) a hned zahodí;
+  po zabalení se heslo zadá podruhé (USB musí být připojené i na konci), klíč je v paměti jen po dobu podpisu.
+- 19: **i zkušební vydání se podepisuje** produkčním klíčem (jak je implementováno).
+- 22: text odmítnutí (záložka, notifikace, příručky): **neinstalovat ručně, počkat** na další vydání nebo sledovat
+  oznámení projektu; **bez řádku s odmítnutou verzí** (verzi volí autor feedu).
+- 23: kanál stabilní / předběžné vydání v podpisu **ne** – přijato jako zbytkové riziko, zapsat do `docs/release.md`.
 ## Poznámky k implementaci
 Koncept (core-dev, 2026-11-10; skripty vydání, UI, notifikace, `docs/release.md` a CHANGELOG zbývají):
 - Průzkum Velopacku 1.2.161 v `docs/velopack.md`, bod 13: Velopack podpis feedu nemá, updater nic znovu nestahuje, přesné
