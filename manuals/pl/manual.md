@@ -48,8 +48,9 @@ Na razie przetestowano tylko CORE One. Masz inny model? Wyślij krótki [raport 
 Pobierz najnowszą wersję ze strony [Releases](https://github.com/pfoltynek/LayerPeek/releases).
 
 > [!IMPORTANT]
-> Wersje 0.x to wersje zapoznawcze, a ich kompilacje nie są podpisane przez Microsoft ani notaryzowane przez Apple.
-> Dlatego system ostrzeże Cię przy pierwszym uruchomieniu; poniższe kroki pokazują, jak to obejść.
+> Aktualizacje w ramach wersji 1.x zachowują Twoje ustawienia; pliki ustawień starszych wersji zawsze się wczytują.
+> Kompilacje nie są podpisane przez Microsoft ani notaryzowane przez Apple. Dlatego system ostrzeże Cię przy pierwszym
+> uruchomieniu; poniższe kroki pokazują, jak to obejść.
 
 ### 2.1 Windows
 

@@ -3,10 +3,18 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Until 1.0.0, minor versions may contain breaking changes
-(settings format, behaviour).
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Updates within 1.x keep your settings; settings files of
+older versions always load.
 
 ## [Unreleased]
+
+The first stable release. The [user manual](https://github.com/pfoltynek/LayerPeek/blob/main/manuals/en/manual.md)
+(also in the other seven languages of the app, in
+[`manuals/`](https://github.com/pfoltynek/LayerPeek/tree/main/manuals)) explains the installation and every feature.
+The installers are not code-signed: on Windows, SmartScreen shows "Windows protected your PC" (**More info → Run
+anyway**); on macOS, Gatekeeper blocks the first start (**System Settings → Privacy & Security → Open Anyway**). Check
+your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this release
+(`Get-FileHash <file> -Algorithm SHA256` on Windows, `shasum -a 256 -c SHA256SUMS-macos.txt` on macOS).
 
 ### Added
 
