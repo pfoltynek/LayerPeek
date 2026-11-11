@@ -940,16 +940,16 @@
     <value>Własny</value>
   </data>
   <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
-    <value>5 kl./s: najmniejsze obciążenie procesora i pamięci, ruch w obrazie jest mniej płynny.</value>
+    <value>5 kl./s: najmniejsze obciążenie procesora i najmniej kopiowanych danych obrazu, ruch jest mniej płynny.</value>
   </data>
   <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
-    <value>10 kl./s (zalecane): wystarczająco płynnie dla małego obrazu przy ułamku obciążenia procesora i pamięci.</value>
+    <value>10 kl./s (zalecane): wystarczająco płynnie dla małego obrazu przy ułamku obciążenia procesora i kopiowanych danych.</value>
   </data>
   <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
-    <value>Pełna liczba klatek kamery jak w zwykłym oknie: największe obciążenie procesora i pamięci.</value>
+    <value>Każda klatka kamery jak w zwykłym oknie: największe obciążenie procesora i najwięcej kopiowanych danych.</value>
   </data>
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
-    <value>Własna wartość: mniej klatek na sekundę to mniejsze obciążenie procesora i pamięci.</value>
+    <value>Własna wartość: mniej klatek na sekundę to mniejsze obciążenie procesora i mniej kopiowanych danych.</value>
   </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} kl./s</value>

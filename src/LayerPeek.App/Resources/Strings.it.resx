@@ -940,16 +940,16 @@
     <value>Personalizzato</value>
   </data>
   <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
-    <value>5 fps: il carico di CPU e memoria più basso; il movimento nell'immagine è più a scatti.</value>
+    <value>5 fps: il carico di CPU più basso e meno dati d'immagine copiati; il movimento è più a scatti.</value>
   </data>
   <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
-    <value>10 fps (consigliato): abbastanza fluido per l'immagine piccola con una frazione del carico di CPU e memoria.</value>
+    <value>10 fps (consigliato): abbastanza fluido per l'immagine piccola con una frazione del carico di CPU e dei dati copiati.</value>
   </data>
   <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
-    <value>Tutti i fotogrammi della telecamera, come nella finestra normale: il carico di CPU e memoria più alto.</value>
+    <value>Tutti i fotogrammi della telecamera, come nella finestra normale: il carico di CPU più alto e più dati copiati.</value>
   </data>
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
-    <value>Valore personale: meno fotogrammi al secondo significano meno carico di CPU e memoria.</value>
+    <value>Valore personale: meno fotogrammi al secondo significano meno carico di CPU e meno dati copiati.</value>
   </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} fps</value>

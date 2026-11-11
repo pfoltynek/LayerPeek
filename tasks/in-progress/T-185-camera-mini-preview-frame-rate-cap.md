@@ -27,10 +27,10 @@ a vykreslení na UI vlákně.
 - [ ] Nastavení > Kamera má profily Úsporný / Vyvážený / Plynulý / Vlastní a posuvník 1–30 fps (výchozí Vyvážený,
       10 fps); hodnota se ukládá do nastavení a změna platí hned i pro otevřený malý náhled.
       (Uložení, profily, posuvník ve view modelu a okamžité použití jsou hotové a otestované; ovládací prvky v okně chybí,
-      na podzáložku Kamera se nevejdou – viz otázka 6.)
+      na podzáložku Kamera se nevejdou, nová záložka Kamera se nevejde do řádku záhlaví – viz otázky 6 a 10.)
 - [ ] Texty ve všech `Strings.*.resx`, popis ve všech `manuals/<lang>/manual.md`, rozvržení s dlouhými překlady.
       (Texty ve všech jazycích a popis chování v manuálech jsou hotové; popis nastavení v manuálech, rozvržení a snímek
-      `settings-camera.png` čekají na otázku 6.)
+      `settings-camera.png` / nový snímek záložky čekají na otázku 10.)
 - [x] Naměřené hodnoty jsou v `## Poznámky k implementaci`.
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -84,11 +84,51 @@ Otázky z implementace (ui-dev, 2026-11-11), úkol zůstává `in-progress`:
    jiných voleb). Stačí to?
 
 
+Rozhodnuto uživatelem 2026-11-11 (k otázkám 6–9):
+6. **a) nová hlavní záložka „Kamera“** pro globální nastavení kamer – s podmínkou, že se šest záložek vejde do jednoho
+   řádku ve všech 8 jazycích při minimální šířce okna (bez rolování, dlouhé překlady); když ne, zastavit a předložit
+   možnosti. → **Nevejde se, viz otázka 10.**
+7. Ponechat: pravý konec posuvníku = 30, u „Plynulý“ se ukazuje „Bez omezení“; ruční posun vybere „Vlastní“, až 30 fps
+   včetně.
+8. Popisy: ano, zmínit CPU a **množství kopírovaných dat** (ne obsazenou paměť). → Texty ve všech 8 jazycích upraveny.
+9. Platí po **Uložit** jako ostatní nastavení (současné chování).
+
+Otázka z implementace (ui-dev, 2026-11-11, blokuje dokončení):
+10. **Šest hlavních záložek se nevejde do jednoho řádku.** Změřeno headless (Inter, stejné jako `SettingsWindowLayoutTests`)
+    se šestou záložkou „Kamera / Caméra / Telecamera“ na konci; šířka pro záhlaví je 748 DIP při výchozí šířce okna 780
+    a 608 DIP při minimální šířce 640:
+
+    | Jazyk | 5 záložek dnes | 6 záložek | při 780 | při 640 |
+    |---|---|---|---|---|
+    | en | 578 | 668 | vejde se | 2 řádky |
+    | cs | 601 | 689 | vejde se | 2 řádky |
+    | de | 615 | 703 | vejde se | 2 řádky |
+    | es | 630 | 719 | vejde se | 2 řádky |
+    | pl | 649 | 737 | vejde se (11 DIP rezerva) | 2 řádky |
+    | sk | 660 | 748 | přesně 748, se značkou „!“ chyby na záložce 2 řádky | 2 řádky |
+    | it | 643 | 765 | **2 řádky (+17)** | 2 řádky |
+    | fr | 708 | 798 | **2 řádky (+50)** | 2 řádky |
+
+    Pozor: už dnešních 5 záložek se při minimální šířce 640 vejde jen v en a cs; dosavadní pravidlo a testy hlídají
+    jeden řádek při výchozí velikosti 780 × 532. Nejširší záhlaví jsou „Démarrage et mises à jour“ (245 DIP),
+    „Uruchamianie i aktualizacje“ (253), „Enregistrement“ (152), „Registrazione“ (139). Možnosti:
+    a) kratší záhlaví ve fr/it (např. fr „Démarrage, MàJ“ / „Mises à jour“, „Enregistrer“; it „Avvio e aggiornamenti“ →
+       „Aggiornamenti“) – vejde se při 780, při 640 ne; pravidlo „při 780“ by zůstalo;
+    b) menší vodorovné odsazení záhlaví hlavních záložek (dnes ~45 DIP na záložku z šablony Fluent; −8 DIP na záložku
+       ušetří 48 DIP – fr by bylo na hraně);
+    c) nastavení kamery jako oddíl na existující globální záložce, např. **Nahrávání** přejmenovaná na „Kamera“ /
+       „Kamera a nahrávání“ (žádná nová záložka; místo na záložce ověřit);
+    d) sloučit „Spuštění a aktualizace“ zpět s Obecné není možné (Obecné je plné, T-017), ale lze přesunout aktualizace
+       jinam a uvolnit šířku;
+    e) povolit záhlaví na dvou řádcích jen v úzkém okně (pod výchozí šířkou) a ve výchozí velikosti řešit a)/b).
+    Bez rozhodnutí je záložka odstraněná (větev je zelená): view model, texty a chování jsou hotové, v okně ovládací prvky
+    zatím nejsou.
+
 ## Poznámky k implementaci
 
 ### Stav (ui-dev + core-dev, 2026-11-11)
 Hotové jádro, nastavení (uložení, profily, view model), chování okna kamery, texty, popis chování v manuálech a měření.
-Ovládací prvky v okně nastavení **chybí**: na podzáložku Kamera se nevejdou (otázka 6). Do rozhodnutí platí uložená
+Ovládací prvky v okně nastavení **chybí**: na podzáložku Kamera se nevejdou (otázka 6) a nová hlavní záložka Kamera se nevejde do řádku záhlaví ve fr a it (otázka 10). Do rozhodnutí platí uložená
 hodnota, bez úprav souboru tedy výchozí Vyvážený (10 fps) – tak, jak uživatel rozhodl.
 
 ### Core + dekodér

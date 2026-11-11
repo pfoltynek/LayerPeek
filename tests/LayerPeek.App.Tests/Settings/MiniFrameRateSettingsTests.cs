@@ -78,7 +78,7 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
 
     [Theory]
     [InlineData(MiniPreviewFrameRateProfile.Economy, 5, 5.0, "5\u00A0fps", "5\u00A0fps: the lowest CPU")]
-    [InlineData(MiniPreviewFrameRateProfile.Smooth, null, 30.0, "No limit", "The camera's full frame rate")]
+    [InlineData(MiniPreviewFrameRateProfile.Smooth, null, 30.0, "No limit", "Every frame of the camera")]
     public async Task AProfileMovesTheSliderToItsLimitAndIsSaved(MiniPreviewFrameRateProfile profile, int? rate, double slider, string text, string description)
     {
         SettingsViewModel vm = await LoadAsync();
@@ -193,7 +193,7 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
 
             Assert.Equal("Plynulý", vm.SelectedMiniFrameRateProfile!.Text);
             Assert.Equal("Bez omezení", vm.MiniFrameRateText);
-            Assert.StartsWith("Plná snímková frekvence", vm.MiniFrameRateDescription, StringComparison.Ordinal);
+            Assert.StartsWith("Každý snímek kamery", vm.MiniFrameRateDescription, StringComparison.Ordinal);
         }
 
         Assert.Contains(nameof(SettingsViewModel.MiniFrameRateText), changed);

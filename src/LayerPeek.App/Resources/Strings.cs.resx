@@ -940,16 +940,16 @@
     <value>Vlastní</value>
   </data>
   <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
-    <value>5 fps: nejnižší zátěž procesoru a paměti, pohyb v obraze je trhanější.</value>
+    <value>5 fps: nejnižší zátěž procesoru a nejméně kopírovaných obrazových dat, pohyb v obraze je trhanější.</value>
   </data>
   <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
-    <value>10 fps (doporučeno): pro malý obraz dost plynulé při zlomku zátěže procesoru a paměti.</value>
+    <value>10 fps (doporučeno): pro malý obraz dost plynulé při zlomku zátěže procesoru a kopírovaných dat.</value>
   </data>
   <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
-    <value>Plná snímková frekvence kamery jako v normálním okně: nejvyšší zátěž procesoru a paměti.</value>
+    <value>Každý snímek kamery jako v normálním okně: nejvyšší zátěž procesoru a nejvíc kopírovaných dat.</value>
   </data>
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
-    <value>Vlastní hodnota: méně snímků za sekundu znamená menší zátěž procesoru a paměti.</value>
+    <value>Vlastní hodnota: méně snímků za sekundu znamená menší zátěž procesoru a méně kopírovaných dat.</value>
   </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} fps</value>

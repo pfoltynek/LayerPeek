@@ -940,16 +940,16 @@
     <value>Personnalisé</value>
   </data>
   <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
-    <value>5 i/s : la charge processeur et mémoire la plus faible ; les mouvements de l'image sont plus saccadés.</value>
+    <value>5 i/s : la charge processeur la plus faible et le moins de données d'image copiées ; les mouvements sont plus saccadés.</value>
   </data>
   <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
-    <value>10 i/s (recommandé) : assez fluide pour la petite image, pour une fraction de la charge processeur et mémoire.</value>
+    <value>10 i/s (recommandé) : assez fluide pour la petite image, pour une fraction de la charge processeur et des données copiées.</value>
   </data>
   <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
-    <value>Toutes les images de la caméra, comme dans la fenêtre normale : la charge processeur et mémoire la plus élevée.</value>
+    <value>Toutes les images de la caméra, comme dans la fenêtre normale : la charge processeur la plus élevée et le plus de données copiées.</value>
   </data>
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
-    <value>Valeur personnelle : moins d'images par seconde, c'est moins de charge processeur et mémoire.</value>
+    <value>Valeur personnelle : moins d'images par seconde, c'est moins de charge processeur et moins de données copiées.</value>
   </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} i/s</value>
