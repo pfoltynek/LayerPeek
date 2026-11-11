@@ -201,7 +201,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-193 | Přechod z .NET 11 RC na stabilní .NET 11 (GA) (hotovo, Windows v T-125) | all | qa-reviewer | P1 | – |
 | T-194 | Kamera – „Otestovat kameru“ zkrátí pauzu znovupřipojení a čas dalšího pokusu bez zastarání (hotovo) | all | ui-dev + core-dev | P2 | T-188 |
 | T-195 | Kamera – zmenšovat dekódovaný obraz jen tehdy, když to ušetří | all | core-dev + ui-dev | P3 | T-184 |
-| T-196 | Smoke test – zálohovat a obnovovat i mezipaměť `~/Library/Caches/LayerPeek` | all | qa-reviewer | P3 | – |
+| T-196 | Smoke test – zálohovat a obnovovat i mezipaměť `~/Library/Caches/LayerPeek` (hotovo; Windows v T-125) | all | qa-reviewer | P3 | – |
 | T-190 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) (zamítnuto 2026-11-11) | all | ui-dev | P3 | – |
 | T-191 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) (hotovo, build beze změny) | all | qa-reviewer | P3 | – |
 | T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) | all | architect | P3 | T-184, T-185 |
