@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -233,6 +234,52 @@ internal sealed class CameraHarness : IAsyncDisposable
         window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "MiniOutline").Transitions = null;
     }
 
+    /// <summary>
+    /// The status over the image (connecting, no signal, error) outside the image area, a text of it cut, collapsed or
+    /// sticking out, or one of <paramref name="shown"/> not shown (T-097, T-188).
+    /// </summary>
+    public static IEnumerable<string> StatusProblems(CameraWindow window, string context, params string[] shown)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(shown);
+        Border status = window.GetVisualDescendants().OfType<Border>().Single(static b => b.Classes.Contains("overlay") && b.IsEffectivelyVisible);
+        Control surface = window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "Surface");
+        Rect area = BoundsIn(surface, window);
+        Rect bounds = BoundsIn(status, window);
+        if (!area.Contains(bounds))
+        {
+            yield return $"{context}: the status {bounds} is outside the image area {area}.";
+        }
+
+        TextBlock[] texts = [.. status.GetVisualDescendants().OfType<TextBlock>().Where(static t => t.IsEffectivelyVisible)];
+        foreach (string expected in shown)
+        {
+            if (!texts.Any(t => t.Text == expected))
+            {
+                yield return $"{context}: '{expected}' is not shown.";
+            }
+        }
+
+        foreach (TextBlock text in texts)
+        {
+            if (text.TextLayout.TextLines.Any(static line => line.HasCollapsed))
+            {
+                yield return $"{context}: '{text.Text}' is cut.";
+            }
+
+            if (text.TextLayout.Height > text.Bounds.Height + 0.5 || text.TextLayout.Width > text.Bounds.Width + 0.5)
+            {
+                yield return $"{context}: '{text.Text}' needs {text.TextLayout.Width:0.#} × {text.TextLayout.Height:0.#} DIP but has {text.Bounds.Width:0.#} × {text.Bounds.Height:0.#}.";
+            }
+
+            Rect textBounds = BoundsIn(text, window);
+            if (!bounds.Contains(textBounds))
+            {
+                yield return $"{context}: '{text.Text}' {textBounds} sticks out of the status {bounds}.";
+            }
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         Windows.Shutdown();
@@ -244,6 +291,9 @@ internal sealed class CameraHarness : IAsyncDisposable
 
         Cooldown.Dispose();
     }
+
+    private static Rect BoundsIn(Control control, Visual root) =>
+        new(control.TranslatePoint(default, root) ?? throw new InvalidOperationException("Not in the window."), control.Bounds.Size);
 
     private CameraViewModel? Create(string printerId, PrinterDefinition? saved)
     {

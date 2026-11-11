@@ -28,8 +28,13 @@ a vykreslení na UI vlákně.
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-1. Kolik snímků za sekundu v malém náhledu: 5, 10, nebo nastavitelná hodnota v nastavení kamery?
-2. Omezit frekvenci i u normálního okna bez fokusu (např. na 10–15 fps), nebo jen v malém náhledu?
+Rozhodnuto uživatelem 2026-11-10:
+1. Malý náhled: **10 fps**. Uživatel zvažuje, že by hodnota mohla být nastavitelná v aplikaci; to chce probrat
+   před implementací (zatím pevná hodnota, nastavení případně samostatně).
+2. Normální okno bez fokusu: **beze změny** (plná frekvence).
+
+Zbývá: před implementací s uživatelem probrat, jestli má být frekvence malého náhledu nastavitelná (blokuje).
+
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

@@ -27,12 +27,26 @@ public sealed record CameraFeedOptions
         init => field = Validate(value);
     } = TimeSpan.FromSeconds(10);
 
-    /// <summary>Pause between a failed or ended attempt and the next one.</summary>
+    /// <summary>
+    /// Pause between a failed or ended attempt and the next one; doubled for every further attempt that fails without
+    /// streaming, up to <see cref="MaxReconnectDelay"/> (T-188).
+    /// </summary>
     public TimeSpan ReconnectDelay
     {
         get;
         init => field = Validate(value);
     } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Upper bound of the reconnect backoff, like <see cref="Monitoring.PrinterMonitorOptions.MaxBackoff"/> of the
+    /// printers. <see cref="ReconnectDelay"/> is used instead when it is longer, so a value at most as long switches the
+    /// backoff off.
+    /// </summary>
+    public TimeSpan MaxReconnectDelay
+    {
+        get;
+        init => field = Validate(value);
+    } = TimeSpan.FromMinutes(1);
 
     private static TimeSpan Validate(TimeSpan value)
     {

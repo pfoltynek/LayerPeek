@@ -20,8 +20,9 @@ namespace LayerPeek.App.Windows;
 /// view model is disposed by <see cref="AuxiliaryWindowSlot"/> when it closes, which stops the stream.
 /// </summary>
 /// <remarks>
-/// Frames are drawn into one <see cref="WriteableBitmap"/> (recreated only when the resolution changes) on the UI thread;
-/// the <see cref="Image"/> scales it with the aspect ratio kept. The window applies the view model's mode: normal window,
+/// Frames are written into one <see cref="WriteableBitmap"/> on the streaming thread (T-184, <see cref="FrameSink"/>; a new
+/// one only when the frame size changes) and decoded at the size of the image area, which the window reports to the view
+/// model; the <see cref="Image"/> scales the frame with the aspect ratio kept. The window applies the view model's mode: normal window,
 /// full screen, or the mini preview (no frame, always on top, moved by dragging the image, resized by its edges). It
 /// reports where the normal window and the mini preview were, so that they come back there next time. Without a
 /// remembered placement (or with "remember" off in the settings) it opens with the printer's defaults (T-035: mode,
@@ -58,6 +59,9 @@ public sealed partial class CameraWindow : Window
     {
         InitializeComponent();
         _sink = new FrameSink(this);
+        // T-184: the frames are decoded at the size of the image area.
+        Surface.PropertyChanged += OnSurfacePropertyChanged;
+        ScalingChanged += OnScalingChanged;
         // DataContext (CameraViewModel) is set by the creator.
         // macOS (T-100): ⌘W closes the window like its close button, ⌘. is Esc, ⌃⌘F is F11 (the KeyBindings).
         MacShortcuts.HandleCloseKeys(this, UsesMacShortcuts, Close, CancelFromKeyboard);
@@ -103,6 +107,7 @@ public sealed partial class CameraWindow : Window
             _viewModel.CloseRequested += OnCloseRequested;
             _viewModel.PlacementResetRequested += OnPlacementResetRequested;
             _viewModel.AttachFrameSink(_sink);
+            ReportVideoArea();
             AttachLayoutMode(_viewModel);
             AttachMini(_viewModel);
             if (!_opened)
@@ -123,6 +128,8 @@ public sealed partial class CameraWindow : Window
         if (_viewModel is { } viewModel)
         {
             ApplyMode(viewModel.Mode);
+            // The stream starts with the size of the laid out image area (T-184).
+            ReportVideoArea();
             viewModel.SetActive(WindowState != WindowState.Minimized);
         }
 
@@ -727,41 +734,114 @@ public sealed partial class CameraWindow : Window
         }
     }
 
+    private void OnSurfacePropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == BoundsProperty)
+        {
+            ReportVideoArea();
+        }
+    }
+
+    private void OnScalingChanged(object? sender, EventArgs e) => ReportVideoArea();
+
     /// <summary>
-    /// Copies a frame into the bitmap (one block copy when the row layouts match, which is the usual case) and asks the
-    /// image to redraw. Allocates only when the resolution changes.
+    /// The area the image is drawn in (the image fills it with the aspect ratio kept) with the scaling of the monitor: the
+    /// view model asks for frames of that size (T-184). Resizing, a mode switch and the layout mode change the bounds;
+    /// moving to a monitor with another scaling changes the scaling.
     /// </summary>
-    private void Present(CameraFrameBuffer frame)
+    private void ReportVideoArea()
     {
-        // The image owns the bitmap (no field: the window would have to be disposable); it is disposed when the window closes.
-        WriteableBitmap? bitmap = Video.Source as WriteableBitmap;
-        if (bitmap is null || bitmap.PixelSize.Width != frame.Width || bitmap.PixelSize.Height != frame.Height)
+        if (!_closed && _viewModel is { } viewModel)
         {
-            WriteableBitmap? old = bitmap;
-            bitmap = new WriteableBitmap(new PixelSize(frame.Width, frame.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
-            Video.Source = bitmap;
-            old?.Dispose();
+            Size area = Surface.Bounds.Size;
+            viewModel.SetVideoArea(area.Width, area.Height, RenderScaling);
         }
-
-        using (ILockedFramebuffer target = bitmap.Lock())
-        {
-            BgraPixels.CopyTo(frame.Pixels, frame.Stride, frame.Height, target);
-        }
-
-        Video.InvalidateVisual();
     }
 
-    private void ClearImage()
-    {
-        WriteableBitmap? shown = Video.Source as WriteableBitmap;
-        Video.Source = null;
-        shown?.Dispose();
-    }
+    private void ClearImage() => _sink.Clear();
 
+    /// <summary>
+    /// The window's bitmaps (T-184). The streaming thread copies each frame straight into the bitmap on screen (one copy
+    /// per frame, nothing on the UI thread); the UI thread only redraws it. Safe because Avalonia's Skia bitmap
+    /// (<c>WriteableBitmapImpl</c>, 12.1.4) guards <c>Lock</c>, drawing on the render thread and disposal with one monitor,
+    /// and the render thread is never the UI thread anyway: the UI thread had the same race with the renderer before. A
+    /// frame of another size goes into a new bitmap, created on the streaming thread (Avalonia's bitmaps have no thread
+    /// affinity) and put on screen by <see cref="Show"/>, which disposes the old one only after the swap (the renderer
+    /// keeps its own reference while it draws). <see cref="_gate"/> keeps the bitmaps alive while a frame is written; the
+    /// view model never writes after it stopped the run or detached the sink.
+    /// </summary>
     private sealed class FrameSink(CameraWindow owner) : ICameraFrameSink
     {
-        public void Present(CameraFrameBuffer frame) => owner.Present(frame);
+        private readonly Lock _gate = new();
 
-        public void Clear() => owner.ClearImage();
+        // Guarded by _gate. _shown is the image's Source; _next is a bitmap of a new size not shown yet.
+        private WriteableBitmap? _shown;
+        private WriteableBitmap? _next;
+
+        public void Write(in CameraFrame frame)
+        {
+            lock (_gate)
+            {
+                WriteableBitmap? target = _next ?? _shown;
+                if (target is null || target.PixelSize.Width != frame.Width || target.PixelSize.Height != frame.Height)
+                {
+                    // A bitmap of a size never shown can go at once.
+                    _next?.Dispose();
+                    _next = null;
+                    target = new WriteableBitmap(new PixelSize(frame.Width, frame.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+                    _next = target;
+                }
+
+                using ILockedFramebuffer locked = target.Lock();
+                BgraPixels.CopyTo(frame.Pixels.Span, frame.Stride, frame.Width * CameraFrame.BytesPerPixel, frame.Height, locked);
+            }
+        }
+
+        public bool Show()
+        {
+            WriteableBitmap? next;
+            WriteableBitmap? old = null;
+            lock (_gate)
+            {
+                next = _next;
+                if (next is not null)
+                {
+                    old = _shown;
+                    _shown = next;
+                    _next = null;
+                }
+                else if (_shown is null)
+                {
+                    return false;
+                }
+            }
+
+            if (next is not null)
+            {
+                owner.Video.Source = next;
+                // Not written any more (the streaming thread writes _shown now).
+                old?.Dispose();
+            }
+
+            owner.Video.InvalidateVisual();
+            return true;
+        }
+
+        public void Clear()
+        {
+            WriteableBitmap? shown;
+            WriteableBitmap? next;
+            lock (_gate)
+            {
+                shown = _shown;
+                next = _next;
+                _shown = null;
+                _next = null;
+            }
+
+            owner.Video.Source = null;
+            shown?.Dispose();
+            next?.Dispose();
+        }
     }
 }

@@ -52,6 +52,9 @@ public abstract class CameraStreamSubscription : IDisposable, IAsyncDisposable
 
     public string PrinterId { get; }
 
+    /// <summary>The hub of the lease; <see langword="null"/> for one that never belonged to a hub.</summary>
+    private protected CameraStreamHub? Hub => _hub;
+
     /// <summary>The last status reported to this subscriber; <see cref="CameraStatus.Connecting"/> before the first.</summary>
     public CameraStatus Status => Volatile.Read(ref _reported) ?? CameraStatus.Connecting;
 
@@ -163,6 +166,9 @@ public abstract class CameraStreamSubscription : IDisposable, IAsyncDisposable
     }
 }
 
+/// <summary>Receives a borrowed frame on the streaming thread (see <see cref="CameraFrameSubscriptionOptions.FrameReceived"/>).</summary>
+public delegate void CameraFrameHandler(in CameraFrame frame);
+
 /// <summary>Options of <see cref="CameraStreamHub.SubscribeFrames"/>.</summary>
 public sealed class CameraFrameSubscriptionOptions
 {
@@ -224,6 +230,33 @@ public sealed class CameraFrameSubscriptionOptions
             field = value;
         }
     }
+
+    /// <summary>
+    /// T-184: frames for display only, scaled down to fit this size in device pixels (aspect ratio kept, never scaled up;
+    /// see <see cref="CameraFrameSize.Fit"/>); changed later with <see cref="CameraFrameSubscription.SetDisplaySize"/>.
+    /// <see langword="null"/> (the default): frames in the camera's resolution. Snapshots, exports, recordings and print
+    /// failure detection always use full resolution (user decision 2026-11-10); a display reader that needs one full
+    /// frame takes a short lease of its own without this size. While several display readers watch one camera, each gets
+    /// the frame of the largest size any of them wants (it may be larger than its own).
+    /// </summary>
+    public CameraFrameSize? DisplaySize { get; init; }
+
+    /// <summary>
+    /// T-184: hands every frame this subscriber takes directly to this callback, on the streaming thread, instead of
+    /// copying it into the subscription's own buffers: the frame is borrowed and valid only during the call, so the
+    /// callback copies it where it is needed (e.g. straight into the bitmap that is shown) and returns quickly.
+    /// <see cref="CameraFrameSubscription.TakeLatest"/> then returns nothing and <see cref="FrameAvailable"/> is not called.
+    /// Cannot be combined with <see cref="Grayscale"/>. If it throws, the subscription ends with
+    /// <see cref="CameraStreamEndReason.Failed"/>.
+    /// </summary>
+    public CameraFrameHandler? FrameReceived { get; init; }
+
+    /// <summary>
+    /// T-188 (user decision 2026-11-11): the camera window opened or was restored. When this lease is taken while the
+    /// connection waits between reconnect attempts, the next attempt starts at once and its backoff starts over. Off for
+    /// print failure detection, recording and every other consumer: they never shorten the wait.
+    /// </summary>
+    public bool ShortensReconnectWait { get; init; }
 }
 
 /// <summary>
@@ -236,10 +269,14 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
     /// <summary><see cref="_lastPublished"/> before the first frame.</summary>
     private const long NeverPublished = long.MinValue;
 
-    private readonly CameraFrameExchange _exchange;
+    private readonly CameraFrameExchange? _exchange;
+    private readonly CameraFrameHandler? _frameReceived;
     private readonly Action? _frameAvailable;
     private readonly long _minInterval;
     private readonly Lock _gate = new();
+
+    // CameraFrameSize.Pack of the display size; 0: full resolution. Read without a lock by the streaming thread.
+    private long _displaySize;
 
     // Written by the streaming thread; read by the hub under its lock (NextKeyFrameDue).
     private long _lastPublished = NeverPublished;
@@ -256,14 +293,55 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
             ? 0
             : (long)(options.MinFrameInterval.TotalSeconds * timeProvider.TimestampFrequency);
         KeyFramesOnly = options.KeyFramesOnly;
-        _exchange = options.Grayscale is { } grayscale ? new CameraFrameExchange(grayscale) : new CameraFrameExchange();
+        ShortensReconnectWait = options.ShortensReconnectWait;
+        _displaySize = CameraFrameSize.Pack(options.DisplaySize);
+        _frameReceived = options.FrameReceived;
+        if (_frameReceived is not null && options.Grayscale is not null)
+        {
+            throw new ArgumentException("Frames handed to a callback cannot be converted to grayscale.", nameof(options));
+        }
+
+        // A frame receiver copies the frames itself: no buffers of the subscription.
+        _exchange = _frameReceived is not null ? null
+            : options.Grayscale is { } grayscale ? new CameraFrameExchange(grayscale)
+            : new CameraFrameExchange();
     }
 
     /// <summary>Frames replaced before the consumer took them.</summary>
-    public long DroppedFrames => _exchange.DroppedFrames;
+    public long DroppedFrames => _exchange?.DroppedFrames ?? 0;
+
+    /// <summary>
+    /// The size display frames are scaled to fit (T-184, see <see cref="CameraFrameSubscriptionOptions.DisplaySize"/>);
+    /// <see langword="null"/>: full resolution.
+    /// </summary>
+    public CameraFrameSize? DisplaySize => CameraFrameSize.Unpack(Interlocked.Read(ref _displaySize));
+
+    /// <summary>
+    /// Any thread: a new display size (the window was resized, switched to the mini preview or full screen, or moved to a
+    /// monitor with another scaling); <see langword="null"/> switches to full resolution. The running stream reconfigures
+    /// its conversion from the next frame on, without reconnecting; a frame converted before may still arrive in the old
+    /// size. Cheap when the size did not change.
+    /// </summary>
+    public void SetDisplaySize(CameraFrameSize? size)
+    {
+        long packed = CameraFrameSize.Pack(size);
+        if (Interlocked.Exchange(ref _displaySize, packed) != packed && !IsEnded)
+        {
+            Hub?.OnDisplaySizeChanged(this);
+        }
+    }
+
+    /// <summary>Takes the frames for display (<see cref="CameraStreamItem.DisplayFrame"/>), not the full resolution ones.</summary>
+    internal bool IsDisplay => Interlocked.Read(ref _displaySize) != 0;
+
+    /// <summary>Takes at most one frame per <see cref="CameraFrameSubscriptionOptions.MinFrameInterval"/>.</summary>
+    internal bool IsThrottled => _minInterval > 0;
 
     /// <summary>See <see cref="CameraFrameSubscriptionOptions.KeyFramesOnly"/>.</summary>
     internal bool KeyFramesOnly { get; }
+
+    /// <summary>See <see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>.</summary>
+    internal bool ShortensReconnectWait { get; }
 
     /// <summary>When this subscriber wants its next frame (a timestamp of the hub's clock); <see cref="long.MinValue"/>: now.</summary>
     internal long NextFrameDue
@@ -276,10 +354,11 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
     }
 
     /// <summary>
-    /// Consumer thread: the newest frame since the last call, or <see langword="null"/>. The buffer is owned by the
-    /// subscription and stays valid until the next call.
+    /// Consumer thread: the newest frame since the last call, or <see langword="null"/> (always with
+    /// <see cref="CameraFrameSubscriptionOptions.FrameReceived"/>). The buffer is owned by the subscription and stays valid
+    /// until the next call.
     /// </summary>
-    public CameraFrameBuffer? TakeLatest() => IsEnded ? null : _exchange.TakeLatest();
+    public CameraFrameBuffer? TakeLatest() => IsEnded ? null : _exchange?.TakeLatest();
 
     internal override void OnConnectionStatus(CameraStatus status)
     {
@@ -317,7 +396,17 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
 
         Interlocked.Exchange(ref _lastPublished, timestamp);
 
-        bool notify = _exchange.Publish(frame);
+        bool notify;
+        if (_exchange is null)
+        {
+            _frameReceived!(frame);
+            notify = false;
+        }
+        else
+        {
+            notify = _exchange.Publish(frame);
+        }
+
         if (!_hasFrame)
         {
             bool streaming;

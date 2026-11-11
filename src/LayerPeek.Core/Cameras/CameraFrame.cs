@@ -11,6 +11,10 @@ namespace LayerPeek.Core.Cameras;
 /// Code that handles a frame may run on the decoder's thread (see <see cref="ICameraFeed.ReadFramesAsync"/>): copy or
 /// draw quickly and never block synchronously on the feed (e.g. on its <c>DisposeAsync</c>) from there.
 /// </para>
+/// <para>
+/// A frame for display may be scaled down from the camera's resolution (T-184, <see cref="CameraStreamItem.DisplayFrame"/>);
+/// <see cref="SourceWidth"/> and <see cref="SourceHeight"/> keep the camera's size (its exact aspect ratio).
+/// </para>
 /// </summary>
 public readonly struct CameraFrame
 {
@@ -21,9 +25,18 @@ public readonly struct CameraFrame
     /// <param name="stride">Bytes from the start of one row to the start of the next; at least <c>width * 4</c>.</param>
     /// <param name="pixels">At least <c>stride * (height - 1) + width * 4</c> bytes (the last row needs no padding).</param>
     public CameraFrame(int width, int height, int stride, ReadOnlyMemory<byte> pixels)
+        : this(width, height, stride, pixels, width, height)
+    {
+    }
+
+    /// <summary>A frame scaled from a source of <paramref name="sourceWidth"/> × <paramref name="sourceHeight"/> pixels.</summary>
+    /// <inheritdoc cref="CameraFrame(int, int, int, ReadOnlyMemory{byte})"/>
+    public CameraFrame(int width, int height, int stride, ReadOnlyMemory<byte> pixels, int sourceWidth, int sourceHeight)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceHeight);
         long rowBytes = (long)width * BytesPerPixel;
         if (stride < rowBytes)
         {
@@ -40,6 +53,8 @@ public readonly struct CameraFrame
         Height = height;
         Stride = stride;
         Pixels = pixels;
+        SourceWidth = sourceWidth;
+        SourceHeight = sourceHeight;
     }
 
     public int Width { get; }
@@ -47,6 +62,12 @@ public readonly struct CameraFrame
     public int Height { get; }
 
     public int Stride { get; }
+
+    /// <summary>Width of the camera's image this frame was scaled from; <see cref="Width"/> when it was not scaled.</summary>
+    public int SourceWidth { get; }
+
+    /// <summary>Height of the camera's image this frame was scaled from; <see cref="Height"/> when it was not scaled.</summary>
+    public int SourceHeight { get; }
 
     /// <summary>BGRA pixels; borrowed, see the type remarks.</summary>
     public ReadOnlyMemory<byte> Pixels { get; }

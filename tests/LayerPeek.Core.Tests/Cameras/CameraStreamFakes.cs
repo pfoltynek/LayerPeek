@@ -10,8 +10,10 @@ namespace LayerPeek.Core.Tests.Cameras;
 /// <summary>
 /// Scriptable feed with packets (T-143): yields a stream description first, then what the test pushes, filtered by the
 /// demand like a real decoder (packets only while wanted, frames only while wanted, a key frame also while one is due,
-/// T-153; a skipped frame counts as not decoded). Packet and frame buffers are reused, so they are only valid until the
-/// next read.
+/// T-153; a skipped frame counts as not decoded). Frames are converted like the decoder does (T-184): in full resolution
+/// while that is due (always for a key frame decoded alone) and scaled down to the demand's display size; the scaled
+/// frame is filled with <see cref="DisplayFill"/>(fill), so a test can tell which one a subscriber got. Packet and frame
+/// buffers are reused, so they are only valid until the next read.
 /// </summary>
 internal sealed class FakeItemFeed : ICameraFeed
 {
@@ -21,9 +23,12 @@ internal sealed class FakeItemFeed : ICameraFeed
     private readonly TaskCompletionSource _disposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<CameraStreamDemand> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly byte[] _frameBuffer = new byte[64 * 64 * CameraFrame.BytesPerPixel];
+    private readonly byte[] _displayBuffer = new byte[64 * 64 * CameraFrame.BytesPerPixel];
     private readonly byte[] _packetBuffer = new byte[256];
     private int _decoded;
     private int _consumed;
+    private int _fullConversions;
+    private int _displayConversions;
 
     public Uri? Uri { get; init; }
 
@@ -39,6 +44,15 @@ internal sealed class FakeItemFeed : ICameraFeed
 
     /// <summary>Items the consumer finished with (it asked for the next one).</summary>
     public int Consumed => Volatile.Read(ref _consumed);
+
+    /// <summary>Decoded frames converted in full resolution (T-184).</summary>
+    public int FullConversions => Volatile.Read(ref _fullConversions);
+
+    /// <summary>Decoded frames converted scaled down for display (T-184).</summary>
+    public int DisplayConversions => Volatile.Read(ref _displayConversions);
+
+    /// <summary>The fill of the scaled display frame of a frame pushed with <paramref name="fill"/>.</summary>
+    public static byte DisplayFill(byte fill) => (byte)(fill + 100);
 
     public void PushFrame(byte fill, int width = 4, int height = 2, bool keyFrame = false) => _steps.Writer.TryWrite(new Step(StepKind.Frame, fill, width, height, keyFrame, null));
 
@@ -84,7 +98,7 @@ internal sealed class FakeItemFeed : ICameraFeed
                     }
 
                     Interlocked.Increment(ref _decoded);
-                    yield return CameraStreamItem.FromFrame(new CameraFrame(step.A, step.B, stride, pixels));
+                    yield return Convert(demand, new CameraFrame(step.A, step.B, stride, pixels), step.Fill);
                     Interlocked.Increment(ref _consumed);
                     break;
                 default:
@@ -99,7 +113,38 @@ internal sealed class FakeItemFeed : ICameraFeed
     public void OverwriteBuffers(byte fill)
     {
         _frameBuffer.AsSpan().Fill(fill);
+        _displayBuffer.AsSpan().Fill(fill);
         _packetBuffer.AsSpan().Fill(fill);
+    }
+
+    /// <summary>The conversions of <c>FFmpegDecoder.Convert</c> (T-184), without the pixel work.</summary>
+    private CameraStreamItem Convert(CameraStreamDemand demand, CameraFrame decoded, byte fill)
+    {
+        bool full = !demand.Frames || demand.FullResolutionDue;
+        CameraFrame display = default;
+        if (demand.DisplaySize is { } size)
+        {
+            CameraFrameSize fit = size.Fit(decoded.Width, decoded.Height);
+            if (fit.Width < decoded.Width || fit.Height < decoded.Height)
+            {
+                int stride = fit.Width * CameraFrame.BytesPerPixel;
+                Memory<byte> pixels = _displayBuffer.AsMemory(0, stride * fit.Height);
+                pixels.Span.Fill(DisplayFill(fill));
+                display = new CameraFrame(fit.Width, fit.Height, stride, pixels, decoded.Width, decoded.Height);
+                Interlocked.Increment(ref _displayConversions);
+            }
+            else
+            {
+                full = true;
+            }
+        }
+
+        if (full)
+        {
+            Interlocked.Increment(ref _fullConversions);
+        }
+
+        return CameraStreamItem.FromFrames(full ? decoded : default, display);
     }
 
     public ValueTask DisposeAsync()
@@ -191,12 +236,14 @@ internal sealed class FrameProbe
 
     public int Notified => Volatile.Read(ref _notified);
 
-    public CameraFrameSubscriptionOptions Options(TimeSpan minInterval = default) => new()
+    /// <param name="shortensReconnectWait">A camera window's lease (T-188).</param>
+    public CameraFrameSubscriptionOptions Options(TimeSpan minInterval = default, bool shortensReconnectWait = false) => new()
     {
         FrameAvailable = () => Interlocked.Increment(ref _notified),
         Status = new Recorder(Statuses),
         Ended = Ended.Enqueue,
         MinFrameInterval = minInterval,
+        ShortensReconnectWait = shortensReconnectWait,
     };
 
     private sealed class Recorder(ConcurrentQueue<CameraStatus> statuses) : IProgress<CameraStatus>

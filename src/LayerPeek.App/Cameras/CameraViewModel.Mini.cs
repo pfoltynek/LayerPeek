@@ -12,7 +12,7 @@ namespace LayerPeek.App.Cameras;
 /// </summary>
 public sealed partial class CameraViewModel
 {
-    // UI thread: the size of the last frame shown (compared per frame without any floating point work).
+    // UI thread: the camera's size of the last frame shown (compared per frame without any floating point work).
     private int _frameWidth;
     private int _frameHeight;
     private double? _videoAspectRatio;
@@ -58,7 +58,10 @@ public sealed partial class CameraViewModel
         _stateStore.Set(PrinterId, stored with { MiniRows = MiniStrip.Rows });
     }
 
-    /// <summary>UI thread: a frame of <paramref name="width"/> × <paramref name="height"/> pixels was shown.</summary>
+    /// <summary>
+    /// UI thread: a frame of a camera of <paramref name="width"/> × <paramref name="height"/> pixels was shown (T-184: the
+    /// source size, also when the frame was scaled down for display).
+    /// </summary>
     private void OnFrameShown(int width, int height)
     {
         if (width == _frameWidth && height == _frameHeight)

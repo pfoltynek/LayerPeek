@@ -370,7 +370,28 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `dotnet build` a `dotnet test` bez chyb a varování, `pwsh scripts/aot-smoke.ps1` PASS (win-x64, runtime 11.0.0),
       `pwsh scripts/release-build.ps1` projde (Velopack `Setup.exe`, zip, feed). Výsledek zapsat do poznámek T-193.
 
-### 2s. Podepsaný feed aktualizací (z T-181, implementováno na Macu 2026-11-10)
+### 2s. Kamera v rozlišení zobrazení (z T-184, implementováno na Macu 2026-11-11)
+- [ ] **T-184** (krit. „Kvalita obrazu na celé obrazovce se viditelně nezhorší“, ruční, simulátor stačí): okno kamery
+      na celé obrazovce, v normálním okně a v malém náhledu při 100 %, 125 % a 150 % DPI – obraz je ostrý, bez zubatých
+      hran a bez posunu barev oproti verzi před T-184 (normální okno menší než 1280 × 720 px a malý náhled se teď
+      převádějí zmenšené, `SWS_BILINEAR`). Tažení okraje okna, přepnutí režimu (malý náhled ↔ okno ↔ celá obrazovka) a
+      přesun okna na monitor s jiným škálováním stream nepřeruší; obraz se asi 0,25 s po uklidnění velikosti zaostří na novou
+      velikost, nic nebliká a nezčerná. `dotnet test` na Windows bez chyb, hlavně `CameraViewModelDisplaySizeTests`,
+      `BgraPixelsTests` a UiTests `CameraWindowDisplaySizeUiTests`.
+- [ ] **T-184** (volitelně, měření x64): převod na Windows má jiné SIMD cesty swscale než Apple Silicon. Simulátor 720p,
+      malý náhled a normální okno 960 × 540 při 100 %: CPU a working set procesu, fps (porovnat s `develop` před T-184),
+      zapsat do poznámek T-184.
+
+### 2t. Čas do dalšího pokusu kamery (z T-188, implementováno na Macu 2026-11-11)
+- [ ] **T-188** (ruční, simulátor stačí; automaticky pokryto `CameraViewModelNextAttemptTests` a UiTests
+      `CameraWindowNextAttemptUiTests`, `dotnet test` na Windows bez chyb): simulátor s kamerou, otevřené
+      okno kamery a v konzoli simulátoru `camera offline`: pod „Chyba kamery“ / „Bez signálu“ a důvodem je řádek „Další
+      pokus asi za 5 s“, po dalších pokusech 10, 20, 40 s a „asi za 1 min“; text se neodpočítává. V malém náhledu řádek
+      chybí, po návratu do okna je zpět. Minimalizovat okno a během minutové pauzy ho obnovit: hned „Připojuji se ke
+      kameře…“ (nový pokus); přepnutí režimu (okno ↔ malý náhled ↔ celá obrazovka) pauzu nezkrátí. Po `camera online`
+      a dalším pokusu obraz běží a řádek zmizí. Aspoň v češtině a v nejdelším jazyce (es / fr) se text vejde.
+
+### 2u. Podepsaný feed aktualizací (z T-181, implementováno na Macu 2026-11-10)
 - [ ] **T-181** (krit. „E2E test aktualizace … s feedem podepsaným testovacím klíčem“, část Windows): `pwsh tools/run-e2e.ps1
       -Class '*UpdateTests*'` PASS (feed podepsaný testovacím klíčem přijat, nepodepsaný odmítnut); notifikace o odmítnutí
       (toast) a kliknutí otevře záložku „Spuštění a aktualizace“.
