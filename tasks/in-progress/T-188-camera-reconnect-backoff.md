@@ -48,6 +48,12 @@ Nové (core-dev, 2026-11-10), čekají na rozhodnutí uživatele:
    „probudí“ spojení a backoff vynuluje), nebo to nechat tak?
 
 
+
+Rozhodnuto uživatelem 2026-11-11 (otázky 2 a 3):
+- 2: okno kamery ukáže **přibližný čas do dalšího pokusu bez časovače** („Další pokus asi za 1 min“), nastavený jen při
+  změně stavu z `CameraStatus.NextAttemptAt`; v malém náhledu skrytý. **Bez tlačítka** „Zkusit znovu“.
+- 3: **otevření nebo obnovení okna kamery během pauzy zkrátí čekání**: pokus o připojení hned a vynulovaná pauza.
+  Detekce ani nahrávání pauzu samy nezkracují.
 ## Poznámky k implementaci
 - **Backoff:** `ReconnectingCameraFeed` počítá pokusy za sebou, které skončily dřív, než začaly streamovat. Prodleva =
   `ReconnectDelay` zdvojnásobená za každý další takový pokus, nejvýš `CameraFeedOptions.MaxReconnectDelay` (nová volba,
