@@ -293,6 +293,17 @@ a kritérium.
       „Otestovat kameru“: test hned zkusí nové připojení (s `camera online` uspěje bez čekání na pauzu). Po `camera online` a dalším pokusu obraz
       běží a řádek zmizí. Aspoň v češtině a v nejdelším jazyce (es / fr) se text vejde.
 
+### 1g. HTTPS přes reverzní proxy s CA v Klíčence (z T-183, připraveno na Macu 2026-11-11)
+- [ ] **T-183** (krit. „Ověřeno … s `https://` a certifikátem soukromé CA v úložišti OS“, část macOS; mění Klíčenku,
+      po bodu vrátit): simulátor (`--port 18080 --no-camera`) a Caddy nebo nginx jen na `127.0.0.1` (bez instalace,
+      nastavení jako v `docs/api/prusalink.md`, oddíl „HTTPS přes reverzní proxy (T-183)“), certifikát pro `localhost`
+      podle receptu v kapitole 14.4 příručky. CA přidat do klíčenky Přihlášení postupem z kapitoly 14.5 (Klíčenka, Důvěra
+      → Vždy důvěřovat; zkontrolovat názvy položek v příručce pro jazyk systému). V aplikaci (bundle z
+      `release-build.ps1`) tiskárna `https://localhost:<port>/`: **Otestovat spojení** projde, monitoring ukazuje stav,
+      **Otevřít PrusaLink** načte web, widget Název tisku ukáže náhled G-code. Pak certifikát z Klíčenky smazat a ověřit,
+      že test spojení hlásí „Zabezpečené spojení (https) selhalo…“. Výsledek zapsat do poznámek T-183
+      a `docs/api/prusalink.md`.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

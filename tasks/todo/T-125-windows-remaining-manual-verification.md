@@ -429,6 +429,17 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       široké a malý náhled: CPU a working set procesu, výsledek zapsat do poznámek T-195. Pokud by na Windows
       vycházel jiný práh, založit nový úkol (práh podle OS), T-195 se znovu neotevírá.
 
+### 2y. HTTPS přes reverzní proxy s CA v úložišti Windows (z T-183, připraveno na Macu 2026-11-11)
+- [ ] **T-183** (krit. „Ověřeno … s `https://` a certifikátem soukromé CA v úložišti OS“, část Windows; mění úložiště
+      certifikátů uživatele, po bodu vrátit): simulátor (`--port 18080 --no-camera`) a Caddy nebo nginx jen na
+      `127.0.0.1` (bez instalace, nastavení jako v `docs/api/prusalink.md`, oddíl „HTTPS přes reverzní proxy (T-183)“),
+      certifikát pro `localhost` podle receptu v kapitole 14.4 příručky. CA přidat postupem z kapitoly 14.5 (`certmgr.msc`
+      podle popisu, nebo `certutil -user -addstore Root ca.crt`; u českých / jiných Windows zkontrolovat názvy položek
+      z příručky). V aplikaci tiskárna `https://localhost:<port>/`: **Otestovat spojení** projde, monitoring ukazuje stav,
+      **Otevřít PrusaLink** načte web, widget Název tisku ukáže náhled G-code. Pak CA odebrat (`certutil -user -delstore
+      Root "Printer proxy CA"`) a ověřit, že test spojení hlásí „Zabezpečené spojení (https) selhalo…“. Výsledek zapsat do
+      poznámek T-183 a `docs/api/prusalink.md`.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

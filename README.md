@@ -568,6 +568,10 @@ Please don't report security issues in public issues. Use GitHub's
 [private vulnerability reporting](https://github.com/pfoltynek/LayerPeek/security/advisories/new) instead.
 See [SECURITY.md](SECURITY.md).
 
+PrusaLink on the printer offers only plain HTTP with an MD5 Digest login. How to protect it (the printer's password,
+a separate network, HTTPS through a Caddy or nginx reverse proxy) is described in the user manual:
+[Securing access to PrusaLink](manuals/en/manual.md#14-securing-access-to-prusalink).
+
 ## License
 
 Copyright © Petr Foltýnek
