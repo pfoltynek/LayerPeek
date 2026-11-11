@@ -33,6 +33,23 @@
     is never copied, printed or written; build-info.json names only the SHA-256 of the public key. Without a key the build
     fails, unless -SkipFeedSignature makes a trial build that release-upload.ps1 refuses.
 
+    Build record before signing (T-197): after packaging, before the key is read again, the script writes build-info.json
+    with FeedSignature.Status 'pending': the version, commit, clean tree, OS, RIDs, every packaged file with its SHA-256
+    and the SHA-256 of the public key checked before the build. A successful signing replaces it with the final marker
+    (Status 'signed'). When the signing fails (key medium disconnected and 'abort', a non-interactive session, three wrong
+    passwords, another key at the path), the record stays and -SignOnly signs that dist/ later without a new build.
+
+.PARAMETER SignOnly
+    Signs the finished dist/ of a build whose signing did not finish (T-197), without building anything: only in a clean
+    checkout of the tagged release commit (vX.Y.Z of <Version>) that dist/ was built from, and only when every file of
+    dist/ is exactly the file of the pending build record (same names, same SHA-256; nothing missing or added). Then the
+    same key checks as the signing of the build (encrypted PEM, UpdateFeedKeys.Production not empty and trusting the key
+    the build checked, password with three attempts at the prompt, the same public key as checked before the build, every
+    signature verified) and the same output: releases.<rid>.json.sig, SHA256SUMS-<os>.txt and build-info.json with
+    Status 'signed', which release-upload.ps1 accepts. Refuses anything else (another commit, a dirty tree, a changed,
+    missing or added file, no record, an already signed or trial build) and signs nothing; then build again. Takes
+    -FeedSigningKey / LAYERPEEK_FEED_SIGNING_KEY and -FeedSigningKeyPassword; the password is asked for once.
+
 .PARAMETER Runtime
     RIDs to build. Default: the default RIDs of this OS (Windows: win-x64, macOS: osx-arm64). RIDs of another OS and
     unknown RIDs are refused; Windows ARM64 (win-arm64) is not supported (T-130).
@@ -60,6 +77,7 @@
     pwsh scripts/release-build.ps1 -FeedSigningKey /Volumes/LP-KEY/layerpeek-feed-key.pem
     pwsh scripts/release-build.ps1 -Runtime win-x64 -FeedSigningKey E:\layerpeek-feed-key.pem
     pwsh scripts/release-build.ps1 -SkipFeedSignature
+    pwsh scripts/release-build.ps1 -SignOnly -FeedSigningKey /Volumes/LP-KEY/layerpeek-feed-key.pem
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
@@ -68,7 +86,8 @@ param(
     [ValidateRange(1, 600)] [int] $SmokeSeconds = 10,
     [string] $FeedSigningKey,
     [System.Security.SecureString] $FeedSigningKeyPassword,
-    [switch] $SkipFeedSignature
+    [switch] $SkipFeedSignature,
+    [switch] $SignOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -225,17 +244,144 @@ function Get-FeedSigning {
         Write-Host 'Trial build without the update feed signature (-SkipFeedSignature): release-upload.ps1 will refuse it.' -ForegroundColor Yellow
         return $null
     }
-    $settings = Get-FeedSignatureSettings
-    $keyPath = if ($FeedSigningKey) { $FeedSigningKey } else { [Environment]::GetEnvironmentVariable($settings.KeyVariable) }
-    if (-not $keyPath) {
-        throw "No update feed signing key. Connect the key medium and pass -FeedSigningKey <path> or set $($settings.KeyVariable) (docs/release.md, 'Podpis feedu aktualizací'); for a trial build that cannot be uploaded use -SkipFeedSignature."
-    }
-    # The full path: the signing at the end must read the same file whatever the current folder is then.
-    $keyPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($keyPath)
-    $trusted = @(Get-TrustedFeedKeys ([System.IO.File]::ReadAllText((Join-Path $repoRoot $settings.KeysSource))))
+    $keyPath = Resolve-FeedSigningKeyPath -Alternative 'for a trial build that cannot be uploaded use -SkipFeedSignature'
+    $trusted = @(Get-ProductionFeedKeys)
     $checked = Confirm-FeedSigningKey -KeyPath $keyPath -TrustedKeys $trusted -Password $FeedSigningKeyPassword
-    Write-Host "Update feed signing key accepted (public key SHA-256 $($checked.PublicKeySha256), trusted by UpdateFeedKeys.$($settings.KeysList)). Keep the key medium connected: the feeds are signed with it at the end of the build, and the password is asked for again then."
+    Write-Host "Update feed signing key accepted (public key SHA-256 $($checked.PublicKeySha256), trusted by UpdateFeedKeys.$((Get-FeedSignatureSettings).KeysList)). Keep the key medium connected: the feeds are signed with it at the end of the build, and the password is asked for again then."
     [pscustomobject]@{ KeyPath = $checked.KeyPath; PublicKeySha256 = $checked.PublicKeySha256; TrustedKeys = $trusted }
+}
+
+function Resolve-FeedSigningKeyPath {
+    # The full path of the signing key from -FeedSigningKey or LAYERPEEK_FEED_SIGNING_KEY: the signing must read the same
+    # file whatever the current folder is then. Alternative completes the error message without a key.
+    param([Parameter(Mandatory)] [string] $Alternative)
+    $variable = (Get-FeedSignatureSettings).KeyVariable
+    $keyPath = if ($FeedSigningKey) { $FeedSigningKey } else { [Environment]::GetEnvironmentVariable($variable) }
+    if (-not $keyPath) {
+        throw "No update feed signing key. Connect the key medium and pass -FeedSigningKey <path> or set $variable (docs/release.md, 'Podpis feedu aktualizací'); $Alternative."
+    }
+    $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($keyPath)
+}
+
+function Get-ProductionFeedKeys {
+    # The public keys the app of this checkout trusts (UpdateFeedKeys.Production, read from its source).
+    Get-TrustedFeedKeys ([System.IO.File]::ReadAllText((Join-Path $repoRoot (Get-FeedSignatureSettings).KeysSource)))
+}
+
+function Write-BuildInfo {
+    param([Parameter(Mandatory)] [System.Collections.IDictionary] $BuildInfo, [Parameter(Mandatory)] [string] $ReleaseDirectory)
+    $BuildInfo | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $ReleaseDirectory) -Encoding utf8NoBOM
+}
+
+function Add-FeedSignatureFiles {
+    # T-181: signs the update feed of every RID of the build with the key read and decrypted again (the same key as checked
+    # before the build, Signing.PublicKeySha256), verified against the keys of the app; then the key is gone. Adds the .sig
+    # files to the build record and marks it signed. A .sig written before a failure is deleted again, so that the pending
+    # record still matches dist/ and -SignOnly can sign it (T-197).
+    param(
+        [Parameter(Mandatory)] [System.Collections.IDictionary] $BuildInfo,
+        [Parameter(Mandatory)] [string] $DistDirectory,
+        [Parameter(Mandatory)] $Signing,
+        [Parameter(Mandatory)] [string] $Purpose
+    )
+    $signatures = @($BuildInfo.Runtimes | ForEach-Object { Join-Path $DistDirectory (Get-UpdateFeedSignatureFileName $_) })
+    $new = @($signatures | Where-Object { -not (Test-Path -LiteralPath $_) })
+    try {
+        $null = Invoke-FeedSigning -KeyPath $Signing.KeyPath -ExpectedPublicKeySha256 $Signing.PublicKeySha256 -TrustedKeys $Signing.TrustedKeys `
+            -DistDirectory $DistDirectory -Runtimes $BuildInfo.Runtimes -Password $FeedSigningKeyPassword -Purpose $Purpose
+    }
+    catch {
+        foreach ($path in $new) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
+        throw
+    }
+    $BuildInfo.Files = @($BuildInfo.Files) + @(foreach ($rid in $BuildInfo.Runtimes) {
+            $name = Get-UpdateFeedSignatureFileName $rid
+            Write-Host "$name verified with the keys of UpdateFeedKeys.$((Get-FeedSignatureSettings).KeysList)"
+            [pscustomobject]@{ Name = $name; Runtime = $rid; Step = 'feed-signature'; Sha256 = Get-FileSha256 (Join-Path $DistDirectory $name) }
+        })
+    $BuildInfo.FeedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = $Signing.PublicKeySha256 }
+}
+
+function Complete-BuildOutput {
+    # The checksum file over every file of the build (the .sig files too), verified, and the final build-info.json (it
+    # replaces the pending record of T-197); then the summary.
+    param([Parameter(Mandatory)] [System.Collections.IDictionary] $BuildInfo, [Parameter(Mandatory)] [string] $ReleaseDirectory)
+    $distDir = Join-Path $ReleaseDirectory 'dist'
+    $null = Write-Sha256Sums -Directory $distDir -FileName $BuildInfo.ChecksumFile -Files @($BuildInfo.Files | ForEach-Object Name)
+    $sumsProblems = @(Get-Sha256SumsProblems (Join-Path $distDir $BuildInfo.ChecksumFile))
+    if ($sumsProblems.Count -gt 0) { throw "Checksum verification failed: $($sumsProblems -join ' ')" }
+
+    # Re-checked at the end: a change during the build also makes it unreleasable.
+    $BuildInfo.Dirty = $BuildInfo.Dirty -or @(Get-GitStatusLines $repoRoot).Count -gt 0 -or (Get-GitHead $repoRoot) -ne $BuildInfo.Commit
+    Write-BuildInfo $BuildInfo $ReleaseDirectory
+
+    Write-Host ''
+    Write-Host "Release files in $($distDir):" -ForegroundColor Green
+    foreach ($name in @($BuildInfo.Files | ForEach-Object Name) + $BuildInfo.ChecksumFile) {
+        $length = (Get-Item -LiteralPath (Join-Path $distDir $name)).Length
+        Write-Host ("  {0,-48} {1,10:N1} MB" -f $name, ($length / 1MB))
+    }
+    foreach ($entry in @($BuildInfo.Smoke.GetEnumerator())) { Write-Host "  AOT smoke test $($entry.Key): $($entry.Value)" }
+    if ($BuildInfo.Dirty) { Write-Host 'Built from a dirty working tree: release-upload.ps1 will refuse this output.' -ForegroundColor Yellow }
+    if ($BuildInfo.FeedSignature.Status -ceq 'skipped') { Write-Host 'Built with -SkipFeedSignature: the update feed is not signed and release-upload.ps1 will refuse this output.' -ForegroundColor Yellow }
+    Write-Host 'Next step: pwsh scripts/release-upload.ps1 -DryRun' -ForegroundColor Green
+}
+
+function Invoke-SignOnly {
+    # T-197: signs the dist/ of a build whose signing did not finish. Nothing is signed unless the checkout is the clean,
+    # tagged commit of the build and dist/ is exactly the packaged files of the pending record (Get-SignOnlyProblems); the
+    # key checks are those of the signing at the end of the build (Invoke-FeedSigning), with the key the build checked.
+    $hostOs = Get-HostOs
+    $version = Get-SourceVersion (Join-Path $repoRoot 'Directory.Build.props')
+    $releaseDir = Join-Path $repoRoot 'artifacts' 'release' $version
+    $distDir = Join-Path $releaseDir 'dist'
+    Write-Host "Signing the finished build $version ($hostOs) in $distDir without building it again (-SignOnly)"
+
+    $state = Get-ReleaseGitState -RepoRoot $repoRoot -Tag (ConvertTo-ReleaseTag $version) -LocalOnly
+    $buildInfoPath = Get-BuildInfoPath $releaseDir
+    $record = $null
+    if (Test-Path -LiteralPath $buildInfoPath -PathType Leaf) {
+        try { $record = Get-Content -LiteralPath $buildInfoPath -Raw | ConvertFrom-Json }
+        catch { throw "$buildInfoPath is no build record (not JSON). Nothing was signed; build again with the signing key (docs/release.md)." }
+    }
+    # @(): 'if' as an expression would turn an empty list into $null.
+    $distFiles = @(if (Test-Path -LiteralPath $distDir -PathType Container) {
+            Get-ChildItem -LiteralPath $distDir -File -Force | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Sha256 = Get-FileSha256 $_.FullName } }
+        })
+    $problems = @(Get-ReleaseGitProblems -State $state -Version $version) +
+        @(Get-SignOnlyProblems -BuildInfo $record -Version $version -Head $state.Head -Os $hostOs -DistFiles $distFiles)
+    if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+    Write-Host "dist/ matches the build record of commit $($state.Head) (tag $(ConvertTo-ReleaseTag $version), clean tree): $(@($record.Files).Count) files, SHA-256 unchanged."
+
+    # The key checks before the password, as before the build: the list is not empty and trusts the key the build checked.
+    $keyPath = Resolve-FeedSigningKeyPath -Alternative 'without a key nothing can be signed'
+    $trusted = @(Get-ProductionFeedKeys)
+    $publicKeySha256 = $record.FeedSignature.PublicKeySha256
+    $trustProblems = @(Get-FeedSigningTrustProblems -TrustedKeys $trusted -PublicKeySha256 $publicKeySha256)
+    if ($trustProblems.Count -gt 0) { throw ($trustProblems -join ' ') }
+
+    # The rest of the record as the build wrote it (ConvertFrom-Json reads the time as a DateTime, the smoke results as an object).
+    $created = if ($record.PSObject.Properties['CreatedUtc'] -and $record.CreatedUtc -is [datetime]) { $record.CreatedUtc.ToUniversalTime().ToString('o') }
+    elseif ($record.PSObject.Properties['CreatedUtc']) { "$($record.CreatedUtc)" }
+    else { $null }
+    $smoke = [ordered]@{}
+    if ($record.PSObject.Properties['Smoke'] -and $record.Smoke) { foreach ($property in $record.Smoke.PSObject.Properties) { $smoke[$property.Name] = $property.Value } }
+    $buildInfo = [ordered]@{
+        Version       = $record.Version
+        Commit        = $record.Commit
+        Dirty         = $false
+        Os            = $record.Os
+        Runtimes      = @($record.Runtimes)
+        ChecksumFile  = $record.ChecksumFile
+        Files         = @($record.Files | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Runtime = $_.Runtime; Step = $_.Step; Sha256 = $_.Sha256 } })
+        FeedSignature = [ordered]@{ Status = 'pending'; PublicKeySha256 = $publicKeySha256 }
+        Smoke         = $smoke
+        CreatedUtc    = $created
+    }
+    Write-Host "==> Signing the update feeds with the key checked before the build (public key SHA-256 $publicKeySha256)" -ForegroundColor Cyan
+    Add-FeedSignatureFiles -BuildInfo $buildInfo -DistDirectory $distDir -Purpose 'sign the update feeds of the finished build' `
+        -Signing ([pscustomobject]@{ KeyPath = $keyPath; PublicKeySha256 = $publicKeySha256; TrustedKeys = $trusted })
+    Complete-BuildOutput -BuildInfo $buildInfo -ReleaseDirectory $releaseDir
 }
 
 function Get-FolderSnapshot {
@@ -248,6 +394,13 @@ function Get-FolderSnapshot {
 
 $feedSigning = $null
 try {
+    if ($SignOnly) {
+        $conflicts = @('Runtime', 'SmokeSeconds', 'SkipFeedSignature' | Where-Object { $PSBoundParameters.ContainsKey($_) })
+        if ($conflicts.Count -gt 0) { throw "-SignOnly signs the finished build as it is; do not pass $(($conflicts | ForEach-Object { "-$_" }) -join ', ') with it." }
+        Invoke-SignOnly
+        exit 0
+    }
+
     $hostOs = Get-HostOs
     $hostArchitecture = Get-HostArchitecture
     $config = Get-ReleaseRuntimeConfig
@@ -340,54 +493,26 @@ try {
         }
     }
 
-    # T-181: the signature of every update feed with the key read and decrypted again (the same key as checked before the
-    # build), verified against the keys of the app; then the key is gone.
-    if ($feedSigning) {
-        Write-Host '==> Signing the update feeds (key medium and password needed again)' -ForegroundColor Cyan
-        $null = Invoke-FeedSigning -KeyPath $feedSigning.KeyPath -ExpectedPublicKeySha256 $feedSigning.PublicKeySha256 -TrustedKeys $feedSigning.TrustedKeys `
-            -DistDirectory $distDir -Runtimes $runtimes -Password $FeedSigningKeyPassword
-        foreach ($rid in $runtimes) {
-            $name = Get-UpdateFeedSignatureFileName $rid
-            $files.Add([pscustomobject]@{ Name = $name; Runtime = $rid; Step = 'feed-signature'; Sha256 = Get-FileSha256 (Join-Path $distDir $name) })
-            Write-Host "$name verified with the keys of UpdateFeedKeys.$((Get-FeedSignatureSettings).KeysList)"
-        }
-        $feedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = $feedSigning.PublicKeySha256 }
-    }
-    else {
-        $feedSignature = [ordered]@{ Status = 'skipped'; PublicKeySha256 = $null }
-    }
-
-    $checksumFile = Get-ChecksumFileName $hostOs
-    $null = Write-Sha256Sums -Directory $distDir -FileName $checksumFile -Files @($files | ForEach-Object Name)
-    $sumsProblems = @(Get-Sha256SumsProblems (Join-Path $distDir $checksumFile))
-    if ($sumsProblems.Count -gt 0) { throw "Checksum verification failed: $($sumsProblems -join ' ')" }
-
-    # Re-checked at the end: a change during the build also makes it unreleasable.
-    $dirty = $dirty -or @(Get-GitStatusLines $repoRoot).Count -gt 0 -or (Get-GitHead $repoRoot) -ne $head
     $buildInfo = [ordered]@{
         Version       = $version
         Commit        = $head
-        Dirty         = $dirty
+        Dirty         = $dirty -or @(Get-GitStatusLines $repoRoot).Count -gt 0 -or (Get-GitHead $repoRoot) -ne $head
         Os            = $hostOs
         Runtimes      = $runtimes
-        ChecksumFile  = $checksumFile
+        ChecksumFile  = Get-ChecksumFileName $hostOs
         Files         = $files.ToArray()
-        FeedSignature = $feedSignature
+        FeedSignature = $feedSigning ? [ordered]@{ Status = 'pending'; PublicKeySha256 = $feedSigning.PublicKeySha256 } : [ordered]@{ Status = 'skipped'; PublicKeySha256 = $null }
         Smoke         = $smoke
         CreatedUtc    = [DateTime]::UtcNow.ToString('o')
     }
-    $buildInfo | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
-
-    Write-Host ''
-    Write-Host "Release files in $($distDir):" -ForegroundColor Green
-    foreach ($file in @($files) + [pscustomobject]@{ Name = $checksumFile }) {
-        $length = (Get-Item -LiteralPath (Join-Path $distDir $file.Name)).Length
-        Write-Host ("  {0,-48} {1,10:N1} MB" -f $file.Name, ($length / 1MB))
+    if ($feedSigning) {
+        # T-197: the record of the packaged files before the key is needed again; release-upload.ps1 refuses it (pending),
+        # and when the signing below fails, release-build.ps1 -SignOnly signs exactly these files later.
+        Write-BuildInfo $buildInfo $releaseDir
+        Write-Host '==> Signing the update feeds (key medium and password needed again)' -ForegroundColor Cyan
+        Add-FeedSignatureFiles -BuildInfo $buildInfo -DistDirectory $distDir -Signing $feedSigning -Purpose 'second time: sign the update feeds'
     }
-    foreach ($rid in $smoke.Keys) { Write-Host "  AOT smoke test ${rid}: $($smoke[$rid])" }
-    if ($dirty) { Write-Host 'Built from a dirty working tree: release-upload.ps1 will refuse this output.' -ForegroundColor Yellow }
-    if (-not $feedSigning) { Write-Host 'Built with -SkipFeedSignature: the update feed is not signed and release-upload.ps1 will refuse this output.' -ForegroundColor Yellow }
-    Write-Host 'Next step: pwsh scripts/release-upload.ps1 -DryRun' -ForegroundColor Green
+    Complete-BuildOutput -BuildInfo $buildInfo -ReleaseDirectory $releaseDir
     exit 0
 }
 catch {

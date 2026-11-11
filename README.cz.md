@@ -466,7 +466,7 @@ Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web Prus
 ### Prerekvizity
 
 - [.NET SDK 11](https://dotnet.microsoft.com/download/dotnet/11.0). Přesná verze je v [`global.json`](global.json),
-  povolené jsou i preview verze.
+  používají se jen stabilní vydání SDK, žádné preview.
 - Git.
 - Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*,
   na macOS Xcode Command Line Tools.
