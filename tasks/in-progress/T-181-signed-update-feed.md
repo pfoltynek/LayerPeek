@@ -278,7 +278,7 @@ UI – rozhodnutí 2026-11-11 (ui-dev):
   obnovení), `AppUpdatesTests` (odmítnutí blokuje dřívější nabídku, zapamatovanou nabídku i odmítnutí během stahování),
   `UpdateOfferTests`, `TrayMenuUpdateTests` (nahrazení na místě, položka bez nabídky, kliknutí), `UpdateRejectedNotificationTests`
   (stažení toastu / notifikace macOS podle identifikátoru a v pořadí fronty, selhání jen v logu). UI test záložky ve všech
-  jazycích prošel. Neověřeno: skutečné stažení toastu na Windows (přidáno do T-125, oddíl 2s) a skutečné stažení notifikace
+  jazycích prošel. Neověřeno: skutečné stažení toastu na Windows (přidáno do T-125, oddíl 2u) a skutečné stažení notifikace
   v Centru oznámení macOS (jen fake).
 
 Stav 2026-11-10: zbývá produkční klíč (vytvoří uživatel na offline médiu, veřejný klíč do `UpdateFeedKeys.Production`),
