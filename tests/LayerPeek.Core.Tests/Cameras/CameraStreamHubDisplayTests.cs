@@ -7,8 +7,9 @@ namespace LayerPeek.Core.Tests.Cameras;
 
 /// <summary>
 /// T-184: display subscribers (the camera window) get frames scaled down to the size they draw; every other consumer
-/// (print failure detection, its alarm snapshot, a one-off full frame, recording and timelapse) keeps the camera's
-/// resolution, and a frame is converted in full resolution only when such a consumer takes it. The fake feed scales like
+/// (the alarm snapshot, a one-off full frame, recording and timelapse) keeps the camera's resolution, and a frame is
+/// converted in full resolution only when such a consumer takes it; print failure detection gets grayscale scaled from
+/// the camera's resolution by the feed (T-189). The fake feed scales like
 /// the decoder and fills a scaled frame with <see cref="FakeItemFeed.DisplayFill"/>.
 /// </summary>
 public sealed class CameraStreamHubDisplayTests : IAsyncDisposable
@@ -118,10 +119,10 @@ public sealed class CameraStreamHubDisplayTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task DetectionBesideTheWindowGetsFullResolutionFramesAndOnlyThoseAreConvertedInFull()
+    public async Task DetectionBesideTheWindowGetsGrayscaleFramesAndNothingIsConvertedInFull()
     {
         using CameraFrameSubscription window = _hub.SubscribeFrames("mk4", StreamUri, Display());
-        // Print failure detection (T-153): grayscale samples, one per interval.
+        // Print failure detection (T-153): grayscale samples, one per interval, scaled by the feed (T-189).
         using CameraFrameSubscription samples = _hub.SubscribeFrames("mk4", StreamUri, new CameraFrameSubscriptionOptions
         {
             KeyFramesOnly = true,
@@ -130,14 +131,18 @@ public sealed class CameraStreamHubDisplayTests : IAsyncDisposable
         });
         FakeItemFeed feed = await _factory.FeedAsync(1);
         CameraStreamDemand demand = await feed.Started;
+        Assert.False(demand.FullResolutionDue);
+        Assert.Equal(new CameraGrayscaleSize(16, 16), demand.GrayscaleSize);
 
         Push(feed, fill: 10);
         // Handled: the hub scheduled the next sample before it read on.
         await HandledAsync(feed, 1);
-        // A gray BGRA pixel keeps its value as luma: the sample was made from the full frame, not the scaled one.
-        Assert.Equal(10, (await NextFrameAsync(samples)).Pixels[0]);
+        // A gray BGRA pixel keeps its value as luma: the sample was made from the camera's frame, not the scaled one.
+        CameraFrameBuffer sample = await NextFrameAsync(samples);
+        Assert.Equal((CameraPixelFormat.Gray8, 16, 16, (byte)10), (sample.Format, sample.Width, sample.Height, sample.Pixels[0]));
+        Assert.Equal((SourceWidth, SourceHeight), (sample.SourceWidth, sample.SourceHeight));
         Assert.Equal(FakeItemFeed.DisplayFill(10), (await NextFrameAsync(window)).Pixels[0]);
-        Assert.False(demand.FullResolutionDue);
+        Assert.False(demand.GrayscaleDue);
 
         // Until the next sample is due, the window's frames are the only conversions.
         Push(feed, fill: 20);
@@ -145,16 +150,17 @@ public sealed class CameraStreamHubDisplayTests : IAsyncDisposable
         await HandledAsync(feed, 3);
         Assert.Equal(FakeItemFeed.DisplayFill(30), (await NextFrameAsync(window)).Pixels[0]);
         Assert.Null(samples.TakeLatest());
-        Assert.Equal((1, 3), (feed.FullConversions, feed.DisplayConversions));
+        Assert.Equal((0, 1, 3), (feed.FullConversions, feed.GrayscaleConversions, feed.DisplayConversions));
 
         _time.Advance(Interval);
-        Assert.True(demand.FullResolutionDue);
+        Assert.True(demand.GrayscaleDue);
         Push(feed, fill: 40);
         await HandledAsync(feed, 4);
         Assert.Equal(40, (await NextFrameAsync(samples)).Pixels[0]);
         Assert.Equal(FakeItemFeed.DisplayFill(40), (await NextFrameAsync(window)).Pixels[0]);
-        Assert.Equal((2, 4), (feed.FullConversions, feed.DisplayConversions));
-        Assert.False(demand.FullResolutionDue);
+        // Never a BGRA frame in full resolution for detection.
+        Assert.Equal((0, 2, 4), (feed.FullConversions, feed.GrayscaleConversions, feed.DisplayConversions));
+        Assert.False(demand.GrayscaleDue);
     }
 
     [Fact]

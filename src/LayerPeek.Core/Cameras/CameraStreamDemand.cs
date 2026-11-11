@@ -14,8 +14,14 @@ namespace LayerPeek.Core.Cameras;
 /// <para>
 /// T-184: each decoded frame is converted to BGRA only in the sizes that are wanted: in the camera's resolution while
 /// <see cref="FullResolutionDue"/> (by default always; the hub limits it to the times a full-resolution reader takes a
-/// frame), and scaled down to fit <see cref="DisplaySize"/> when one is set. A single key frame decoded on its own is
-/// always converted in full resolution.
+/// frame), and scaled down to fit <see cref="DisplaySize"/> when one is set.
+/// </para>
+/// <para>
+/// T-189: while <see cref="GrayscaleDue"/> (never by default) the frame is also scaled into 8-bit luma of
+/// <see cref="GrayscaleSize"/> straight from its Y plane (<see cref="CameraStreamItem.GrayscaleFrame"/>), for print failure
+/// detection, without a BGRA conversion. A single key frame decoded on its own is converted only in the forms that are due
+/// then. A feed that limits its full-resolution conversion to <see cref="FullResolutionDue"/> must yield the grayscale
+/// frame as well; a feed that ignores the demand yields full frames, which the hub scales to grayscale itself.
 /// </para>
 /// </summary>
 public sealed class CameraStreamDemand
@@ -29,6 +35,8 @@ public sealed class CameraStreamDemand
     private long _keyFrameDue = Never;
     private long _fullResolutionDue = long.MinValue;
     private long _displaySize;
+    private long _grayscaleDue = Never;
+    private long _grayscaleSize;
 
     public CameraStreamDemand(bool frames, bool packets)
         : this(frames, packets, TimeProvider.System)
@@ -112,4 +120,47 @@ public sealed class CameraStreamDemand
 
     /// <summary>No frame is wanted in full resolution (only for display, if a <see cref="DisplaySize"/> is set).</summary>
     public void CancelFullResolution() => Interlocked.Exchange(ref _fullResolutionDue, Never);
+
+    /// <summary>
+    /// The size of the grayscale frame (T-189) while <see cref="GrayscaleDue"/>; <see langword="null"/> (the default): none.
+    /// Read by the reader for a frame only when the grayscale frame is due.
+    /// </summary>
+    public CameraGrayscaleSize? GrayscaleSize => CameraGrayscaleSize.Unpack(Interlocked.Read(ref _grayscaleSize));
+
+    /// <summary>
+    /// Whether the decoded frame is wanted as grayscale of <see cref="GrayscaleSize"/> now: only after
+    /// <see cref="RequestGrayscale"/>, from its time on. Checked by the reader for every frame; costs one clock read only while
+    /// requested.
+    /// </summary>
+    public bool GrayscaleDue
+    {
+        get
+        {
+            long due = Interlocked.Read(ref _grayscaleDue);
+            return due != Never && (due == long.MinValue || _timeProvider.GetTimestamp() >= due);
+        }
+    }
+
+    /// <summary>
+    /// Wants frames as grayscale of <paramref name="size"/> from <paramref name="timestamp"/> on (of the clock given to the
+    /// constructor); <see cref="long.MinValue"/>: every frame. The size is written first, so a reader that sees the new
+    /// time also sees its size.
+    /// </summary>
+    public void RequestGrayscale(CameraGrayscaleSize size, long timestamp)
+    {
+        if (!size.IsValid)
+        {
+            throw new ArgumentException("The grayscale size is empty.", nameof(size));
+        }
+
+        Interlocked.Exchange(ref _grayscaleSize, CameraGrayscaleSize.Pack(size));
+        Interlocked.Exchange(ref _grayscaleDue, Math.Min(timestamp, Never - 1));
+    }
+
+    /// <summary>No frame is wanted as grayscale.</summary>
+    public void CancelGrayscale()
+    {
+        Interlocked.Exchange(ref _grayscaleDue, Never);
+        Interlocked.Exchange(ref _grayscaleSize, 0);
+    }
 }

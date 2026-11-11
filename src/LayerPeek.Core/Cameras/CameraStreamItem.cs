@@ -10,8 +10,9 @@ public enum CameraStreamItemKind
     Packet,
 
     /// <summary>
-    /// A decoded frame: <see cref="CameraStreamItem.Frame"/> in the camera's resolution and/or
-    /// <see cref="CameraStreamItem.DisplayFrame"/> scaled for display, as the <see cref="CameraStreamDemand"/> wanted (T-184).
+    /// A decoded frame: <see cref="CameraStreamItem.Frame"/> in the camera's resolution, <see cref="CameraStreamItem.DisplayFrame"/>
+    /// scaled for display (T-184) and/or <see cref="CameraStreamItem.GrayscaleFrame"/> (T-189), as the
+    /// <see cref="CameraStreamDemand"/> wanted.
     /// </summary>
     Frame,
 }
@@ -23,13 +24,14 @@ public enum CameraStreamItemKind
 /// </summary>
 public readonly struct CameraStreamItem
 {
-    private CameraStreamItem(CameraStreamItemKind kind, CameraStreamInfo? info, CameraPacket packet, CameraFrame frame, CameraFrame displayFrame = default)
+    private CameraStreamItem(CameraStreamItemKind kind, CameraStreamInfo? info, CameraPacket packet, CameraFrame frame, CameraFrame displayFrame = default, CameraGrayscaleFrame grayscaleFrame = default)
     {
         Kind = kind;
         Info = info;
         Packet = packet;
         Frame = frame;
         DisplayFrame = displayFrame;
+        GrayscaleFrame = grayscaleFrame;
     }
 
     public CameraStreamItemKind Kind { get; }
@@ -49,10 +51,17 @@ public readonly struct CameraStreamItem
     /// <summary>
     /// For <see cref="CameraStreamItemKind.Frame"/>: the frame scaled down to fit <see cref="CameraStreamDemand.DisplaySize"/>
     /// (T-184); borrowed. Empty (width 0) when no display size was wanted or the camera's image already fits it: display
-    /// readers then take <see cref="Frame"/>. Both are empty when the frame was decoded but nobody wanted its pixels (the
-    /// connection lingers after its last reader).
+    /// readers then take <see cref="Frame"/>. All frames are empty when the frame was decoded but nobody wanted its pixels
+    /// (the connection lingers after its last reader).
     /// </summary>
     public CameraFrame DisplayFrame { get; }
+
+    /// <summary>
+    /// For <see cref="CameraStreamItemKind.Frame"/>: the frame as 8-bit luma of <see cref="CameraStreamDemand.GrayscaleSize"/>
+    /// (T-189); borrowed. Empty (width 0) when it was not due (<see cref="CameraStreamDemand.GrayscaleDue"/>) or the feed
+    /// does not convert to grayscale.
+    /// </summary>
+    public CameraGrayscaleFrame GrayscaleFrame { get; }
 
     public static CameraStreamItem Started(CameraStreamInfo info)
     {
@@ -67,6 +76,10 @@ public readonly struct CameraStreamItem
     /// <summary>A decoded frame in full resolution and/or scaled for display; either may be empty (see the properties).</summary>
     public static CameraStreamItem FromFrames(in CameraFrame frame, in CameraFrame displayFrame) =>
         new(CameraStreamItemKind.Frame, null, default, frame, displayFrame);
+
+    /// <summary>A decoded frame in full resolution, scaled for display and/or as grayscale; any may be empty (see the properties).</summary>
+    public static CameraStreamItem FromFrames(in CameraFrame frame, in CameraFrame displayFrame, in CameraGrayscaleFrame grayscaleFrame) =>
+        new(CameraStreamItemKind.Frame, null, default, frame, displayFrame, grayscaleFrame);
 }
 
 /// <summary>Time base of packet timestamps: one tick is <see cref="Numerator"/> / <see cref="Denominator"/> seconds.</summary>
