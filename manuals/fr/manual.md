@@ -208,6 +208,9 @@ Le mini-aperçu comporte un bandeau d'informations sous l'image (progression, te
 déplient des lignes supplémentaires : le **nom de l'impression** et le **graphique des températures**. Le contenu du
 bandeau se règle dans le sous-onglet **Fenêtre de la caméra** de l'imprimante (voir [11.1](#111-imprimantes)).
 
+Pour économiser le processeur, le mini-aperçu affiche au plus 10 images par seconde, ce qui suffit largement à la
+petite image ; la fenêtre normale et le plein écran affichent chaque image de la caméra.
+
 <p align="center">
   <img src="../../docs/images/fr/camera-mini.jpg" alt="Mini-aperçu avec le bandeau d'informations, la ligne du nom de l'impression et la ligne du graphique des températures" width="400">
 </p>

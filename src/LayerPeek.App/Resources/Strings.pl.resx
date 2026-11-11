@@ -924,6 +924,42 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Dotyczy wszystkich drukarek. Okno zamknięte ręcznie pozostaje zamknięte.</value>
   </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Liczba klatek małego podglądu (wszystkie kamery)</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Oszczędny</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Zrównoważony</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Płynny</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Własny</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 kl./s: najmniejsze obciążenie procesora i pamięci, ruch w obrazie jest mniej płynny.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 kl./s (zalecane): wystarczająco płynnie dla małego obrazu przy ułamku obciążenia procesora i pamięci.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Pełna liczba klatek kamery jak w zwykłym oknie: największe obciążenie procesora i pamięci.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Własna wartość: mniej klatek na sekundę to mniejsze obciążenie procesora i pamięci.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} kl./s</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Bez limitu</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Klatki na sekundę w małym podglądzie</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otwórz jako</value>
   </data>

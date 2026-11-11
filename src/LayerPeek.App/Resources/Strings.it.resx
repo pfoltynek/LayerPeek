@@ -924,6 +924,42 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Vale per tutte le stampanti. Una finestra chiusa manualmente resta chiusa.</value>
   </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Frequenza fotogrammi dell'anteprima mini (tutte le telecamere)</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Risparmio</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Bilanciato</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Fluido</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Personalizzato</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: il carico di CPU e memoria più basso; il movimento nell'immagine è più a scatti.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (consigliato): abbastanza fluido per l'immagine piccola con una frazione del carico di CPU e memoria.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Tutti i fotogrammi della telecamera, come nella finestra normale: il carico di CPU e memoria più alto.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Valore personale: meno fotogrammi al secondo significano meno carico di CPU e memoria.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Nessun limite</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Fotogrammi al secondo nell'anteprima mini</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Apri come</value>
   </data>

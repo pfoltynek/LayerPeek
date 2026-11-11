@@ -17,6 +17,9 @@ internal static class SettingsMapper
 {
     private const int MaxEchoedValueLength = 32;
 
+    /// <summary>T-185: <see cref="SettingsDocument.MiniPreviewFrameRate"/> of "no limit".</summary>
+    private const int NoMiniPreviewFrameRateLimit = 0;
+
     public static SettingsDocument ToDocument(AppSettings settings)
     {
         NotificationSettings notifications = settings.Notifications;
@@ -47,6 +50,7 @@ internal static class SettingsMapper
                 ? null
                 : new CameraOverlaySettingsDocument { BackgroundOpacityPercent = settings.CameraOverlayOpacityPercent },
             CameraWindowAutoClose = settings.CameraWindowAutoClose ? null : false,
+            MiniPreviewFrameRate = ToDocument(settings.MiniPreviewFrameRate),
             Recording = ToDocument(settings.Recording),
             Detection = DetectionSettingsMapper.ToDocument(settings.Detection),
             Printers = [.. settings.Printers.Select(static printer => new PrinterDocument
@@ -97,6 +101,7 @@ internal static class SettingsMapper
             CheckForUpdates = document.CheckForUpdates ?? true,
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
             CameraWindowAutoClose = document.CameraWindowAutoClose ?? true,
+            MiniPreviewFrameRate = ToMiniPreviewFrameRate(document.MiniPreviewFrameRate, warnings),
             Recording = ToRecording(document.Recording, warnings),
             Detection = DetectionSettingsMapper.ToSettings(document.Detection, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
@@ -406,6 +411,40 @@ internal static class SettingsMapper
         warnings.Add(
             $"Camera overlay card opacity is invalid (whole number {CameraOverlayOpacity.MinPercent}–{CameraOverlayOpacity.MaxPercent} %); {CameraOverlayOpacity.DefaultPercent} % is used.");
         return CameraOverlayOpacity.DefaultPercent;
+    }
+
+    /// <summary>T-185: the default is not written; no limit is 0.</summary>
+    private static double? ToDocument(int? miniPreviewFrameRate) => miniPreviewFrameRate switch
+    {
+        MiniPreviewFrameRate.Default => null,
+        null => NoMiniPreviewFrameRateLimit,
+        { } rate => rate,
+    };
+
+    /// <summary>Missing = the default; 0 = no limit; a fraction or a value out of range falls back to the default with a warning.</summary>
+    private static int? ToMiniPreviewFrameRate(double? value, List<string> warnings)
+    {
+        if (value is null)
+        {
+            return MiniPreviewFrameRate.Default;
+        }
+
+        if (TryGetWholeNumber(value, out int rate))
+        {
+            if (rate == NoMiniPreviewFrameRateLimit)
+            {
+                return null;
+            }
+
+            if (MiniPreviewFrameRate.IsValid(rate))
+            {
+                return rate;
+            }
+        }
+
+        warnings.Add(
+            $"Mini preview frame rate is invalid (whole number {MiniPreviewFrameRate.Min}–{MiniPreviewFrameRate.Max} fps, {NoMiniPreviewFrameRateLimit} = no limit); {MiniPreviewFrameRate.Default} fps is used.");
+        return MiniPreviewFrameRate.Default;
     }
 
     private static TimeSpan ToPollingInterval(double? seconds, List<string> warnings)

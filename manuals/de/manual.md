@@ -205,6 +205,9 @@ Die Mini-Vorschau hat unter dem Bild eine Infoleiste (Fortschritt, Restzeit, Fer
 klappen weitere Zeilen aus: den **Drucknamen** und das **Temperaturdiagramm**. Was die Leiste zeigt, stellen Sie im
 Unterreiter **Kamerafenster** des Druckers ein (siehe [11.1](#111-drucker)).
 
+Um die CPU zu schonen, zeigt die Mini-Vorschau höchstens 10 Bilder pro Sekunde, was für das kleine Bild reicht; das
+normale Fenster und das Vollbild zeigen jedes Bild der Kamera.
+
 <p align="center">
   <img src="../../docs/images/de/camera-mini.jpg" alt="Mini-Vorschau mit der Infoleiste, der Zeile mit dem Drucknamen und der Zeile mit dem Temperaturdiagramm" width="400">
 </p>

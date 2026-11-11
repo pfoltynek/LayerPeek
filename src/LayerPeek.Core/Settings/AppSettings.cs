@@ -91,6 +91,22 @@ public sealed record AppSettings
     /// </summary>
     public bool CameraWindowAutoClose { get; init; } = true;
 
+    /// <summary>
+    /// The frame rate limit of the mini preview of every camera window (T-185, user decision 2026-11-11): whole frames per
+    /// second within <see cref="Cameras.MiniPreviewFrameRate.Min"/>–<see cref="Cameras.MiniPreviewFrameRate.Max"/>, or
+    /// <see langword="null"/> for no limit ("Smooth"); <see cref="Cameras.MiniPreviewFrameRate.Default"/> ("Balanced") by
+    /// default. The normal window and full screen are never limited.
+    /// </summary>
+    public int? MiniPreviewFrameRate
+    {
+        get;
+        init
+        {
+            Cameras.MiniPreviewFrameRate.Validate(value, nameof(value));
+            field = value;
+        }
+    } = Cameras.MiniPreviewFrameRate.Default;
+
     /// <summary>Folder and size limit of the camera recordings (T-145); whether a printer records is per printer.</summary>
     public Cameras.Recording.CameraRecordingSettings Recording
     {
@@ -286,6 +302,7 @@ public sealed record AppSettings
         && CheckForUpdates == other.CheckForUpdates
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && CameraWindowAutoClose == other.CameraWindowAutoClose
+        && MiniPreviewFrameRate == other.MiniPreviewFrameRate
         && Recording == other.Recording
         && Detection == other.Detection
         && Notifications == other.Notifications
@@ -301,6 +318,7 @@ public sealed record AppSettings
         hash.Add(CheckForUpdates);
         hash.Add(CameraOverlayOpacityPercent);
         hash.Add(CameraWindowAutoClose);
+        hash.Add(MiniPreviewFrameRate);
         hash.Add(Recording);
         hash.Add(Detection);
         hash.Add(Notifications);

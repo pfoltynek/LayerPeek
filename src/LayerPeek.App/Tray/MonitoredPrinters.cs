@@ -11,6 +11,9 @@ internal sealed record MonitoredPrintersState(IReadOnlyList<PrinterDefinition>? 
     /// <summary>The global opacity of the camera overlay cards (T-077, T-081); the default before the first run.</summary>
     public int CameraOverlayOpacityPercent { get; init; } = CameraOverlayOpacity.DefaultPercent;
 
+    /// <summary>The frame rate limit of the mini preview (T-185), <see langword="null"/> = none; the default before the first run.</summary>
+    public int? MiniPreviewFrameRate { get; init; } = Core.Cameras.MiniPreviewFrameRate.Default;
+
     public static MonitoredPrintersState Starting { get; } = new(null, MonitoringFailed: false);
 }
 
@@ -38,7 +41,11 @@ internal sealed class MonitoredPrinters : IMonitoringObserver
     {
         ArgumentNullException.ThrowIfNull(settings);
         // A copy: the state must not change under a reader if the caller reuses its list.
-        Publish(new MonitoredPrintersState([.. settings.Printers], MonitoringFailed: false) { CameraOverlayOpacityPercent = settings.CameraOverlayOpacityPercent });
+        Publish(new MonitoredPrintersState([.. settings.Printers], MonitoringFailed: false)
+        {
+            CameraOverlayOpacityPercent = settings.CameraOverlayOpacityPercent,
+            MiniPreviewFrameRate = settings.MiniPreviewFrameRate,
+        });
     }
 
     /// <summary>
@@ -50,7 +57,12 @@ internal sealed class MonitoredPrinters : IMonitoringObserver
         ArgumentNullException.ThrowIfNull(settings);
         lock (_gate)
         {
-            Volatile.Write(ref _current, _current with { Printers = [.. settings.Printers], CameraOverlayOpacityPercent = settings.CameraOverlayOpacityPercent });
+            Volatile.Write(ref _current, _current with
+            {
+                Printers = [.. settings.Printers],
+                CameraOverlayOpacityPercent = settings.CameraOverlayOpacityPercent,
+                MiniPreviewFrameRate = settings.MiniPreviewFrameRate,
+            });
         }
 
         Changed?.Invoke(this, EventArgs.Empty);

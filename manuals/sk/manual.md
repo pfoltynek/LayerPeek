@@ -201,6 +201,9 @@ Malý náhľad má pod obrazom informačný pásik (priebeh, zostávajúci čas,
 riadky: **názov tlače** a **graf teplôt**. Čo pásik ukazuje, nastavíte na podkarte tlačiarne **Okno kamery**
 (pozrite [11.1](#111-tlačiarne)).
 
+Aby šetril procesor, ukazuje malý náhľad najviac 10 snímok za sekundu, čo malému obrazu stačí; normálne okno a celá
+obrazovka ukazujú každú snímku kamery.
+
 <p align="center">
   <img src="../../docs/images/sk/camera-mini.jpg" alt="Malý náhľad s informačným pásikom, riadkom s názvom tlače a riadkom s grafom teplôt" width="400">
 </p>

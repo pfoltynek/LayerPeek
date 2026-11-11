@@ -203,6 +203,9 @@ La vista mini tiene una franja de información debajo de la imagen (progreso, ti
 Dos botones despliegan filas adicionales: el **nombre de la impresión** y el **gráfico de temperaturas**. Lo que muestra
 la franja se configura en la subpestaña **Ventana de la cámara** de la impresora (consulte [11.1](#111-impresoras)).
 
+Para ahorrar CPU, la vista mini muestra como máximo 10 fotogramas por segundo, más que suficiente para la imagen
+pequeña; la ventana normal y la pantalla completa muestran todos los fotogramas de la cámara.
+
 <p align="center">
   <img src="../../docs/images/es/camera-mini.jpg" alt="Vista mini con la franja de información, la fila del nombre de impresión y la fila del gráfico de temperaturas" width="400">
 </p>

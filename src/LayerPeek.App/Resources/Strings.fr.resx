@@ -924,6 +924,42 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Pour toutes les imprimantes. Une fenêtre fermée manuellement reste fermée.</value>
   </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Fréquence d'images du mini-aperçu (toutes les caméras)</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Économe</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Équilibré</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Fluide</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Personnalisé</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 i/s : la charge processeur et mémoire la plus faible ; les mouvements de l'image sont plus saccadés.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 i/s (recommandé) : assez fluide pour la petite image, pour une fraction de la charge processeur et mémoire.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Toutes les images de la caméra, comme dans la fenêtre normale : la charge processeur et mémoire la plus élevée.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Valeur personnelle : moins d'images par seconde, c'est moins de charge processeur et mémoire.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} i/s</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Sans limite</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Images par seconde du mini-aperçu</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Ouvrir en</value>
   </data>

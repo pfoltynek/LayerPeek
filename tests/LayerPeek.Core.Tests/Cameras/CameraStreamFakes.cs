@@ -11,7 +11,7 @@ namespace LayerPeek.Core.Tests.Cameras;
 /// Scriptable feed with packets (T-143): yields a stream description first, then what the test pushes, filtered by the
 /// demand like a real decoder (packets only while wanted, frames only while wanted, a key frame also while one is due,
 /// T-153; a skipped frame counts as not decoded). Frames are converted like the decoder does (T-184, T-189): in full
-/// resolution while that is due, scaled down to the demand's display size, and into grayscale of the demand's size while
+/// resolution while that is due, scaled down to the demand's display size while that is due (T-185), and into grayscale of the demand's size while
 /// that is due (unless it <see cref="IgnoresConversions"/>); the scaled frame is filled with <see cref="DisplayFill"/>(fill),
 /// so a test can tell which one a subscriber got; the grayscale one is the luma of the frame (the fill for a gray one). Packet
 /// and frame buffers are reused, so they are only valid until the next read.
@@ -131,7 +131,7 @@ internal sealed class FakeItemFeed : ICameraFeed
         _packetBuffer.AsSpan().Fill(fill);
     }
 
-    /// <summary>The conversions of <c>FFmpegDecoder.Convert</c> (T-184, T-189), without the pixel work.</summary>
+    /// <summary>The conversions of <c>FFmpegDecoder.Convert</c> (T-184, T-189, T-185), without the pixel work.</summary>
     private CameraStreamItem Convert(CameraStreamDemand demand, CameraFrame decoded, byte fill)
     {
         if (IgnoresConversions)
@@ -153,7 +153,7 @@ internal sealed class FakeItemFeed : ICameraFeed
         }
 
         CameraFrame display = default;
-        if (demand.DisplaySize is { } displaySize)
+        if (demand.DisplaySize is { } displaySize && (full || demand.DisplayDue))
         {
             CameraFrameSize fit = displaySize.Fit(decoded.Width, decoded.Height);
             if (fit.Width < decoded.Width || fit.Height < decoded.Height)

@@ -202,6 +202,9 @@ Mały podgląd ma pod obrazem pasek informacji (postęp, pozostały czas, godzin
 kolejne wiersze: **nazwę wydruku** i **wykres temperatur**. To, co pokazuje pasek, ustawisz w podkarcie
 **Okno kamery** drukarki (zob. [11.1](#111-drukarki)).
 
+Aby oszczędzać procesor, mały podgląd pokazuje najwyżej 10 klatek na sekundę, co małemu obrazowi wystarcza; zwykłe
+okno i pełny ekran pokazują każdą klatkę kamery.
+
 <p align="center">
   <img src="../../docs/images/pl/camera-mini.jpg" alt="Mały podgląd z paskiem informacji, wierszem nazwy wydruku i wierszem wykresu temperatur" width="400">
 </p>

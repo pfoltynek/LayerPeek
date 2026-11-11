@@ -14,7 +14,8 @@ namespace LayerPeek.Core.Cameras;
 /// <para>
 /// T-184: each decoded frame is converted to BGRA only in the sizes that are wanted: in the camera's resolution while
 /// <see cref="FullResolutionDue"/> (by default always; the hub limits it to the times a full-resolution reader takes a
-/// frame), and scaled down to fit <see cref="DisplaySize"/> when one is set.
+/// frame), and scaled down to fit <see cref="DisplaySize"/> when one is set (T-185: only while <see cref="DisplayDue"/>,
+/// which the hub limits to the times a display reader with a frame rate limit takes a frame).
 /// </para>
 /// <para>
 /// T-189: while <see cref="GrayscaleDue"/> (never by default) the frame is also scaled into 8-bit luma of
@@ -35,6 +36,7 @@ public sealed class CameraStreamDemand
     private long _keyFrameDue = Never;
     private long _fullResolutionDue = long.MinValue;
     private long _displaySize;
+    private long _displayDue = long.MinValue;
     private long _grayscaleDue = Never;
     private long _grayscaleSize;
 
@@ -97,6 +99,28 @@ public sealed class CameraStreamDemand
         get => CameraFrameSize.Unpack(Interlocked.Read(ref _displaySize));
         set => Interlocked.Exchange(ref _displaySize, CameraFrameSize.Pack(value));
     }
+
+    /// <summary>
+    /// Whether the frame for display (<see cref="DisplaySize"/>) is wanted now (T-185): always unless the hub limited it with
+    /// <see cref="RequestDisplay"/> (the mini preview takes a few frames per second). A frame that is converted in full
+    /// resolution anyway is also converted for display, so that a display reader never gets a full frame in its place.
+    /// Checked by the reader for every frame while a display size is set; costs one clock read only while a later time is
+    /// requested.
+    /// </summary>
+    public bool DisplayDue
+    {
+        get
+        {
+            long due = Interlocked.Read(ref _displayDue);
+            return due == long.MinValue || _timeProvider.GetTimestamp() >= due;
+        }
+    }
+
+    /// <summary>
+    /// Wants frames for display from <paramref name="timestamp"/> on (of the clock given to the constructor);
+    /// <see cref="long.MinValue"/>: every frame (the default).
+    /// </summary>
+    public void RequestDisplay(long timestamp) => Interlocked.Exchange(ref _displayDue, timestamp);
 
     /// <summary>
     /// Whether the decoded frame is wanted in the camera's resolution now (<see cref="CameraStreamItem.Frame"/>): always

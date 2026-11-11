@@ -202,6 +202,9 @@ Malý náhled má pod obrazem informační pás (průběh, zbývající čas, č
 **název tisku** a **graf teplot**. Co pás ukazuje, nastavíte na podzáložce **Okno kamery** tiskárny
 (viz [11.1](#111-tiskárny)).
 
+Aby šetřil procesor, ukazuje malý náhled nejvýš 10 snímků za sekundu, což malému obrazu stačí; normální okno a celá
+obrazovka ukazují každý snímek kamery.
+
 <p align="center">
   <img src="../../docs/images/cs/camera-mini.jpg" alt="Malý náhled s informačním pásem, řádkem s názvem tisku a řádkem s grafem teplot" width="400">
 </p>

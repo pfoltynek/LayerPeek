@@ -24,6 +24,10 @@ namespace LayerPeek.Core.Cameras;
 /// converted in full resolution only when a full-resolution subscriber takes it: every frame for one that wants every
 /// frame, only the one it is due for for one with a <see cref="CameraFrameSubscriptionOptions.MinFrameInterval"/>
 /// (the alarm snapshot beside an open camera window costs one full conversion, not one per frame).</item>
+/// <item>T-185: a display subscriber with a <see cref="CameraFrameSubscriptionOptions.MaxFrameRate"/> (the mini preview)
+/// takes only that many frames per second; while no other display subscriber wants every frame, the frames in between are
+/// decoded but not converted. Full-resolution, grayscale and packet subscribers (detection, recording, timelapse) keep their
+/// own pace.</item>
 /// <item>T-189: grayscale subscribers (<see cref="CameraFrameSubscriptionOptions.Grayscale"/>, print failure detection)
 /// get the frame the decoder scaled straight from the picture's luma, only the one they are due for; no BGRA frame is
 /// converted for them. A feed that yields only BGRA frames (or a subscriber of a second grayscale size) gets its samples
@@ -372,11 +376,11 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
-    /// Under the lock: which conversions the subscribers need (T-153, T-184, T-189). The key frame the earliest subscriber of
-    /// key frames only is due for (without full decoding the decoder decodes exactly that one); the time the earliest
-    /// full-resolution subscriber and the earliest grayscale subscriber want their next frame (every frame for one without
-    /// an interval); and the size that fits every display subscriber. Scheduled again after every frame a subscriber with an
-    /// interval took.
+    /// Under the lock: which conversions the subscribers need (T-153, T-184, T-189, T-185). The key frame the earliest
+    /// subscriber of key frames only is due for (without full decoding the decoder decodes exactly that one); the time the
+    /// earliest full-resolution subscriber, the earliest grayscale subscriber and the earliest display subscriber want their
+    /// next frame (every frame for one without an interval or frame rate limit); and the size that fits every display
+    /// subscriber. Scheduled again after every frame a subscriber with an interval or a frame rate limit took.
     /// </summary>
     private static void ScheduleFrames(PrinterStream stream)
     {
@@ -387,6 +391,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         long grayscaleDue = long.MaxValue;
         CameraGrayscaleSize? grayscale = null;
         CameraFrameSize? display = null;
+        long displayDue = long.MaxValue;
         foreach (CameraFrameSubscription subscriber in stream.Frames)
         {
             if (subscriber.IsEnded)
@@ -404,6 +409,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             if (subscriber.DisplaySize is { } size)
             {
                 display = display is { } other ? CameraFrameSize.Union(other, size) : size;
+                displayDue = Math.Min(displayDue, due);
             }
             else if (subscriber.Grayscale is { } gray && (grayscale is null || grayscale == gray))
             {
@@ -439,6 +445,8 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             demand.CancelGrayscale();
         }
 
+        // T-185: a display subscriber with a frame rate limit wants only the frames it is due for; without one, every frame.
+        demand.RequestDisplay(display is null ? long.MinValue : displayDue);
         demand.DisplaySize = display;
         if (keyFrameWanted && stream.Run is not null)
         {
@@ -450,8 +458,11 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         }
     }
 
-    /// <summary>A subscriber changed its display size: the running stream converts the next frame accordingly.</summary>
-    internal void OnDisplaySizeChanged(CameraFrameSubscription subscription)
+    /// <summary>
+    /// A subscriber changed its display size or its frame rate limit (T-185): the running stream converts the next frame
+    /// accordingly.
+    /// </summary>
+    internal void OnScheduleChanged(CameraFrameSubscription subscription)
     {
         lock (_gate)
         {
@@ -552,6 +563,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         stream.Demand.CancelFullResolution();
         stream.Demand.CancelGrayscale();
         stream.Demand.DisplaySize = null;
+        stream.Demand.RequestDisplay(long.MinValue);
         stream.FramesLinger = false;
         stream.StopLinger = false;
         // An idle printer keeps no timer.

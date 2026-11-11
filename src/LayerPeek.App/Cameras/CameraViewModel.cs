@@ -224,6 +224,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             hasRememberedNormal: state.Normal is not null,
             hasRememberedMini: state.Mini is not null);
         _mode = plan.Mode;
+        _miniFrameRate = printers.Current.MiniPreviewFrameRate;
         _normalPlacement = plan.UseRememberedNormal ? state.Normal : null;
         _miniPlacement = plan.UseRememberedMini ? state.Mini : null;
 
@@ -342,6 +343,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(NormalToolTip));
             OnPropertyChanged(nameof(IsTopmost));
             OnTopmostModeChanged();
+            // T-185: only the mini preview limits its frame rate.
+            ApplyFrameRate();
             // The mini preview draws no cards (T-081).
             Overlay.SetMode(value);
             ShowFullScreenCommand.NotifyCanExecuteChanged();
@@ -693,6 +696,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         {
             FrameReceived = (in CameraFrame frame) => OnFrameReceived(frame, runId),
             DisplaySize = _videoSize,
+            // T-185: a few frames per second in the mini preview.
+            MaxFrameRate = FrameRateLimit,
             Status = new StatusReporter(this, runId),
             Ended = subscription => OnLeaseEnded(subscription, ended),
             ShortensReconnectWait = shortensReconnectWait,
@@ -985,6 +990,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         Overlay.ApplySettings(target.Printer, target.Overlay, state.CameraOverlayOpacityPercent);
         // T-110: what the mini strip shows, in place too; the window follows the strip height (T-089).
         MiniStrip.ApplySettings(target.Printer.Camera.MiniStrip);
+        // T-185: the frame rate of the mini preview, for the open one too.
+        SetMiniFrameRate(state.MiniPreviewFrameRate);
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {

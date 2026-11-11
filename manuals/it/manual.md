@@ -207,6 +207,9 @@ L’anteprima mini ha una barra informativa sotto l’immagine (avanzamento, tem
 aprono altre righe: il **nome della stampa** e il **grafico delle temperature**. Cosa mostra la barra si imposta nella
 sottoscheda **Finestra della telecamera** della stampante (vedi [11.1](#111-stampanti)).
 
+Per risparmiare CPU, l’anteprima mini mostra al massimo 10 fotogrammi al secondo, più che sufficienti per l’immagine
+piccola; la finestra normale e lo schermo intero mostrano ogni fotogramma della telecamera.
+
 <p align="center">
   <img src="../../docs/images/it/camera-mini.jpg" alt="Anteprima mini con la barra informativa, la riga del nome della stampa e la riga del grafico delle temperature" width="400">
 </p>

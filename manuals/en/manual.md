@@ -200,6 +200,9 @@ The mini preview has an info strip below the picture (progress, time left, finis
 rows: the **print name** and the **temperature chart**. What the strip shows is set in the printer's **Camera window**
 sub-tab (see [11.1](#111-printers)).
 
+To save CPU, the mini preview shows at most 10 frames per second, which is plenty for the small picture; the normal
+window and full screen show every frame of the camera.
+
 <p align="center">
   <img src="../../docs/images/en/camera-mini.jpg" alt="Mini preview with the info strip, the print name row and the temperature chart row" width="400">
 </p>

@@ -149,9 +149,9 @@ internal sealed class FakeCameraFeed : ICameraFeed
     private long _lastDisplaySize;
 
     /// <summary>
-    /// T-184: the frames converted like the decoder does: scaled down to the demand's display size (same fill, the
-    /// source size kept), in full resolution when no display size is wanted, a full frame or a grayscale sample is due, or the
-    /// frame fits.
+    /// T-184: the frames converted like the decoder does: scaled down to the demand's display size while that is due (same
+    /// fill, the source size kept; T-185), in full resolution when no display size is wanted, a full frame or a grayscale
+    /// sample is due, or the frame fits.
     /// </summary>
     public async IAsyncEnumerable<CameraStreamItem> ReadAsync(CameraStreamDemand demand, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -162,7 +162,8 @@ internal sealed class FakeCameraFeed : ICameraFeed
             CameraFrame scaled = default;
             CameraFrameSize? wanted = demand.DisplaySize;
             Interlocked.Exchange(ref _lastDisplaySize, wanted is { } w ? ((long)w.Width << 32) | (uint)w.Height : 0);
-            if (wanted is { } size && size.Fit(frame.Width, frame.Height) is { } fit && (fit.Width < frame.Width || fit.Height < frame.Height))
+            bool fullDue = demand.FullResolutionDue || demand.GrayscaleDue;
+            if (wanted is { } size && (fullDue || demand.DisplayDue) && size.Fit(frame.Width, frame.Height) is { } fit && (fit.Width < frame.Width || fit.Height < frame.Height))
             {
                 // Rows padded to 64 bytes, like the decoder's aligned buffers.
                 int stride = ((fit.Width * CameraFrame.BytesPerPixel) + 63) / 64 * 64;
@@ -183,7 +184,8 @@ internal sealed class FakeCameraFeed : ICameraFeed
             }
 
             // T-189: no grayscale conversion here; a due grayscale sample is served from the full frame by the hub.
-            bool full = scaled.Width == 0 || demand.FullResolutionDue || demand.GrayscaleDue;
+            // T-185: a frame the mini preview skips (display not due, nothing else wanted) is not converted at all.
+            bool full = fullDue || (scaled.Width == 0 && (wanted is null || demand.DisplayDue));
             yield return CameraStreamItem.FromFrames(full ? frame : default, scaled);
         }
     }

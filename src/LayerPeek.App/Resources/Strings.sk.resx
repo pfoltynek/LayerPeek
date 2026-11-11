@@ -924,6 +924,42 @@
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Platí pre všetky tlačiarne. Okno, ktoré zatvoríte sami, zostane zatvorené.</value>
   </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Snímková frekvencia malého náhľadu (všetky kamery)</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Úsporný</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Vyvážený</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Plynulý</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Vlastný</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: najnižšia záťaž procesora a pamäte, pohyb v obraze je trhanejší.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (odporúčané): pre malý obraz dosť plynulé pri zlomku záťaže procesora a pamäte.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Plná snímková frekvencia kamery ako v normálnom okne: najvyššia záťaž procesora a pamäte.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Vlastná hodnota: menej snímok za sekundu znamená menšiu záťaž procesora a pamäte.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Bez obmedzenia</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Snímky za sekundu v malom náhľade</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otvoriť ako</value>
   </data>

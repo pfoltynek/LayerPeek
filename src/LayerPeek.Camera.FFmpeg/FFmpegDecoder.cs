@@ -639,10 +639,10 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
 
     /// <summary>
     /// Converts the decoded picture in <c>_frame</c> as <paramref name="demand"/> wants it, also a key frame decoded on its
-    /// own (T-153): scaled down to fit its display size (T-184), in full resolution while that is due, and into grayscale
-    /// while that is due (T-189: print failure detection gets no BGRA frame). An image that already fits the display size
-    /// is converted once, in full resolution, for both. With nothing wanted (a lingering connection) nothing is converted
-    /// and the item carries no pixels.
+    /// own (T-153): scaled down to fit its display size while that is due (T-184, T-185), in full resolution while that is
+    /// due, and into grayscale while that is due (T-189: print failure detection gets no BGRA frame). An image that already
+    /// fits the display size is converted once, in full resolution, for both. With nothing wanted (a lingering connection,
+    /// a frame the mini preview skips) nothing is converted and the item carries no pixels.
     /// </summary>
     private CameraStreamItem Convert(CameraStreamDemand demand)
     {
@@ -685,7 +685,10 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         }
 
         CameraFrame displayFrame = default;
-        if (demand.DisplaySize is { } displaySize)
+        // T-185: a display reader with a frame rate limit (the mini preview) wants only some frames; the others are decoded
+        // (the next ones depend on them) but not converted. A frame converted in full resolution anyway is converted for
+        // display too, so that the display reader never gets the full frame in place of its own.
+        if (demand.DisplaySize is { } displaySize && (full || demand.DisplayDue))
         {
             // From the decoded YUV picture, not from the full BGRA frame: the source is 1.5 instead of 4 bytes per pixel, the
             // full conversion is skipped whenever nobody needs it, and the colour handling is the same (see BgraConverter).

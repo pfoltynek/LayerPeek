@@ -913,6 +913,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         RefreshUpdateTexts();
         RefreshRecordingTexts();
         RefreshDetectionTexts();
+        RefreshMiniFrameRateTexts();
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -1065,6 +1066,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _startWithWindows = _autostartBaseline;
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
         _cameraWindowAutoClose = settings.CameraWindowAutoClose;
+        PopulateMiniFrameRate(settings.MiniPreviewFrameRate);
         PopulateRecording(settings.Recording);
         PopulateDetection(settings.Detection);
 
@@ -1482,6 +1484,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,
                 CameraWindowAutoClose = _cameraWindowAutoClose,
+                // T-185: always valid (the slider is clamped and rounded by its property).
+                MiniPreviewFrameRate = _miniFrameRate,
                 Recording = recording,
                 Detection = detection,
                 Notifications = new NotificationSettings
