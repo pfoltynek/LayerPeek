@@ -302,6 +302,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(ImageHint));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusDetail));
+        OnNextAttemptTextChanged();
         OnPropertyChanged(nameof(LayoutToolTip));
         OnPropertyChanged(nameof(TopmostToolTip));
         RefreshRecordingTexts();
@@ -336,6 +337,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(IsFullScreen));
             OnPropertyChanged(nameof(IsMini));
             OnPropertyChanged(nameof(StatusDetail));
+            // T-188: the time to the next attempt is not shown in the mini preview.
+            OnNextAttemptTextChanged();
             OnPropertyChanged(nameof(NormalToolTip));
             OnPropertyChanged(nameof(IsTopmost));
             OnTopmostModeChanged();
@@ -483,7 +486,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     /// <summary>
     /// The window is shown and not minimized (<see langword="true"/>): the stream runs; minimized (<see langword="false"/>):
-    /// it stops until the window is restored.
+    /// it stops until the window is restored. Opening or restoring the window ends a reconnect wait of the shared
+    /// connection (T-188); switching modes of a shown window does not come here.
     /// </summary>
     public void SetActive(bool active)
     {
@@ -495,7 +499,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _active = active;
         if (active)
         {
-            StartStream();
+            StartStream(shortensReconnectWait: true);
         }
         else
         {
@@ -669,7 +673,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         return completed;
     }
 
-    private void StartStream()
+    /// <param name="shortensReconnectWait">The window opened or was restored (T-188): see <see cref="SetActive"/>.</param>
+    private void StartStream(bool shortensReconnectWait)
     {
         if (_lease is not null)
         {
@@ -690,6 +695,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             DisplaySize = _videoSize,
             Status = new StatusReporter(this, runId),
             Ended = subscription => OnLeaseEnded(subscription, ended),
+            ShortensReconnectWait = shortensReconnectWait,
         });
         if (lease.IsEnded)
         {
@@ -770,10 +776,14 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         NextRun();
         if (failure is not null && !_disposed)
         {
-            SetStatus(new CameraStatus(CameraConnectionState.Error, $"The camera stream failed ({failure.GetType().Name})."));
+            // User decision (T-014): an unexpected internal error of an active window is retried after the reconnect delay,
+            // which the status says (T-188).
+            SetStatus(new CameraStatus(CameraConnectionState.Error, $"The camera stream failed ({failure.GetType().Name}).")
+            {
+                NextAttemptAt = _active ? _timeProvider.GetUtcNow() + _retryDelay : null,
+            });
             if (_active)
             {
-                // User decision (T-014): an unexpected internal error is retried after the reconnect delay.
                 ScheduleRetry();
             }
         }
@@ -811,7 +821,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         CancelRetry();
         if (_active && !_disposed && _lease is null)
         {
-            StartStream();
+            StartStream(shortensReconnectWait: false);
         }
     }
 
@@ -918,6 +928,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(StatusDetail));
             OnPropertyChanged(nameof(HasStatusDetail));
         }
+
+        UpdateNextAttempt();
     }
 
     private void OnSnapshotUpdated(object? sender, PrinterSnapshot snapshot)
@@ -985,7 +997,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             SetStatus(CameraStatus.Connecting);
             if (_active)
             {
-                StartStream();
+                StartStream(shortensReconnectWait: false);
             }
         }
     }

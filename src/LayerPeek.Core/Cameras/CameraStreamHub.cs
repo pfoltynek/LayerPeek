@@ -24,6 +24,9 @@ namespace LayerPeek.Core.Cameras;
 /// converted in full resolution only when a full-resolution subscriber takes it: every frame for one that wants every
 /// frame, only the one it is due for for one with a <see cref="CameraFrameSubscriptionOptions.MinFrameInterval"/>
 /// (print failure detection beside an open camera window costs one full conversion per sample, not one per frame).</item>
+/// <item>T-188: a lease of the camera window (<see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>) taken
+/// while the connection waits between reconnect attempts ends the wait (<see cref="CameraReconnectSignal"/>); the other
+/// consumers join the connection as it is.</item>
 /// <item>All subscribers of a printer get the connection status; <see cref="Configure"/> restarts the connection when
 /// the camera address changed and ends all leases when the camera was switched off or the printer removed.</item>
 /// <item>A lease may name the address it expects: when it differs from the current one (a camera window opened right
@@ -280,9 +283,14 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
                     StopCore(stream, ref pending);
                 }
 
+                // T-188: before the status, so that a retried connection is not shown as waiting first.
+                bool retried = stream.Run is not null
+                    && subscription is CameraFrameSubscription { ShortensReconnectWait: true }
+                    && stream.Reconnect.Retry();
+
                 // The current status first (under the lock, before the stream can deliver anything to the new subscriber),
                 // so that it never overtakes a newer one.
-                subscription.OnConnectionStatus(stream.Run is null ? CameraStatus.Connecting : stream.Status);
+                subscription.OnConnectionStatus(stream.Run is null || retried ? CameraStatus.Connecting : stream.Status);
                 if (subscription is CameraPacketSubscription packets && stream.Info is { } info)
                 {
                     // A connection already runs: its description comes before its next packet.
@@ -537,7 +545,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             if (!token.IsCancellationRequested)
             {
                 StatusSink status = new(this, stream, generation);
-                await foreach (CameraStreamItem item in _feed.ReadAsync(uri, stream.Demand, status, token).ConfigureAwait(false))
+                await foreach (CameraStreamItem item in _feed.ReadAsync(uri, stream.Demand, status, stream.Reconnect, token).ConfigureAwait(false))
                 {
                     if (stream.Generation != generation)
                     {
@@ -786,6 +794,9 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         public Uri? Uri { get; set; }
 
         public CameraStreamDemand Demand { get; } = new(frames: false, packets: false, timeProvider);
+
+        /// <summary>Ends the reconnect wait of the running connection (T-188); one connection runs at a time.</summary>
+        public CameraReconnectSignal Reconnect { get; } = new();
 
         /// <summary>Read without the lock by the streaming thread (copy on write); also the subscribers of key frames only.</summary>
         public CameraFrameSubscription[] Frames => _frames;

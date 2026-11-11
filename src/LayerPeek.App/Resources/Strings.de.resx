@@ -810,6 +810,12 @@
   <data name="CameraError" xml:space="preserve">
     <value>Kamerafehler</value>
   </data>
+  <data name="CameraNextAttemptSeconds" xml:space="preserve">
+    <value>Nächster Versuch in etwa {0} s</value>
+  </data>
+  <data name="CameraNextAttemptMinutes" xml:space="preserve">
+    <value>Nächster Versuch in etwa {0} min</value>
+  </data>
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Vollbild (F11)</value>
   </data>

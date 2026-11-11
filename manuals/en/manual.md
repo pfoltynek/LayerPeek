@@ -216,10 +216,12 @@ and the timelapse.
 
 ### 5.4 When the connection drops
 
-The window reconnects by itself when the camera or Wi-Fi drops out; meanwhile it shows **Connecting to the camera…**
-or **No signal**. When the printer is switched off, the window closes and opens again at the same place when the
-printer is back. You can switch this off in **Settings → Printers → Camera window** (**Close when the printer turns
-off, reopen when it is back on**). A window you close yourself stays closed.
+The window reconnects by itself when the camera or Wi-Fi drops out; meanwhile it shows **Connecting to the camera…** or
+**No signal**. It tries again after 5 seconds; while the camera stays unreachable, the pause doubles up to one minute.
+The window shows roughly when the next attempt comes; opening the window or restoring it from the minimised state tries
+again at once. When the printer is switched off, the window closes and opens again at the same place when the printer is
+back. You can switch this off in **Settings → Printers → Camera window** (**Close when the printer turns off, reopen
+when it is back on**). A window you close yourself stays closed.
 
 ## 6. Widgets
 

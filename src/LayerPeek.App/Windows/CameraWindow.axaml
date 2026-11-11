@@ -242,7 +242,7 @@
       <ov:OverlayAnchorItems Anchor="BottomRight" AutomationProperties.AutomationId="CameraOverlayAnchorBottomRight" ItemsSource="{Binding Overlay.BottomRight}" />
     </ov:OverlayAnchorsPanel>
 
-    <!-- Connection state over the last image: connecting, no signal, error with its reason. -->
+    <!-- Connection state over the last image: connecting, no signal, error with its reason and the next attempt (T-188). -->
     <Border Classes="overlay"
             Padding="14,10"
             Margin="16"
@@ -254,6 +254,13 @@
         <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
         <TextBlock Text="{Binding StatusDetail}"
                    IsVisible="{Binding HasStatusDetail}"
+                   FontSize="12"
+                   Opacity="0.85"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center" />
+        <TextBlock Text="{Binding NextAttemptText}"
+                   IsVisible="{Binding HasNextAttempt}"
+                   AutomationProperties.AutomationId="CameraNextAttempt"
                    FontSize="12"
                    Opacity="0.85"
                    HorizontalAlignment="Center"

@@ -250,6 +250,13 @@ public sealed class CameraFrameSubscriptionOptions
     /// <see cref="CameraStreamEndReason.Failed"/>.
     /// </summary>
     public CameraFrameHandler? FrameReceived { get; init; }
+
+    /// <summary>
+    /// T-188 (user decision 2026-11-11): the camera window opened or was restored. When this lease is taken while the
+    /// connection waits between reconnect attempts, the next attempt starts at once and its backoff starts over. Off for
+    /// print failure detection, recording and every other consumer: they never shorten the wait.
+    /// </summary>
+    public bool ShortensReconnectWait { get; init; }
 }
 
 /// <summary>
@@ -286,6 +293,7 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
             ? 0
             : (long)(options.MinFrameInterval.TotalSeconds * timeProvider.TimestampFrequency);
         KeyFramesOnly = options.KeyFramesOnly;
+        ShortensReconnectWait = options.ShortensReconnectWait;
         _displaySize = CameraFrameSize.Pack(options.DisplaySize);
         _frameReceived = options.FrameReceived;
         if (_frameReceived is not null && options.Grayscale is not null)
@@ -331,6 +339,9 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
 
     /// <summary>See <see cref="CameraFrameSubscriptionOptions.KeyFramesOnly"/>.</summary>
     internal bool KeyFramesOnly { get; }
+
+    /// <summary>See <see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>.</summary>
+    internal bool ShortensReconnectWait { get; }
 
     /// <summary>When this subscriber wants its next frame (a timestamp of the hub's clock); <see cref="long.MinValue"/>: now.</summary>
     internal long NextFrameDue

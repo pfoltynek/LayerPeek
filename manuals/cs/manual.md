@@ -219,7 +219,9 @@ Klikněte na obraz pravým tlačítkem (v macOS také se stisknutou klávesou Co
 ### 5.4 Když vypadne spojení
 
 Když vypadne kamera nebo Wi-Fi, okno se samo znovu připojí; mezitím ukazuje **Připojuji se ke kameře…** nebo **Bez
-signálu**. Když tiskárnu vypnete, okno se zavře a po jejím návratu se znovu otevře na stejném místě. Vypnout to můžete
+signálu**. Další pokus přijde za 5 sekund; dokud je kamera nedostupná, pauza se zdvojnásobuje až na jednu minutu. Okno
+ukazuje, asi za jak dlouho přijde další pokus; když okno otevřete nebo obnovíte z minimalizace, zkusí se připojit hned.
+Když tiskárnu vypnete, okno se zavře a po jejím návratu se znovu otevře na stejném místě. Vypnout to můžete
 v **Nastavení → Tiskárny → Okno kamery** (**Zavřít, když se tiskárna vypne, a znovu otevřít po jejím zapnutí**). Okno,
 které zavřete sami, zůstane zavřené.
 

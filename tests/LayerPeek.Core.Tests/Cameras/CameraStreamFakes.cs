@@ -236,12 +236,14 @@ internal sealed class FrameProbe
 
     public int Notified => Volatile.Read(ref _notified);
 
-    public CameraFrameSubscriptionOptions Options(TimeSpan minInterval = default) => new()
+    /// <param name="shortensReconnectWait">A camera window's lease (T-188).</param>
+    public CameraFrameSubscriptionOptions Options(TimeSpan minInterval = default, bool shortensReconnectWait = false) => new()
     {
         FrameAvailable = () => Interlocked.Increment(ref _notified),
         Status = new Recorder(Statuses),
         Ended = Ended.Enqueue,
         MinFrameInterval = minInterval,
+        ShortensReconnectWait = shortensReconnectWait,
     };
 
     private sealed class Recorder(ConcurrentQueue<CameraStatus> statuses) : IProgress<CameraStatus>
