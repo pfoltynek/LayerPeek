@@ -1,0 +1,24 @@
+# Created by scripts/release-winget.ps1 from build/winget (LayerPeek, T-059)
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
+
+PackageIdentifier: 3DPrint.LayerPeek
+PackageVersion: @VERSION@
+InstallerType: exe
+Scope: user
+InstallModes:
+- interactive
+- silent
+- silentWithProgress
+InstallerSwitches:
+  Silent: --silent
+  SilentWithProgress: --silent
+  Log: --log "<LOGPATH>"
+UpgradeBehavior: install
+ProductCode: LayerPeek
+ReleaseDate: @RELEASE_DATE@
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/pfoltynek/LayerPeek/releases/download/v@VERSION@/LayerPeek-@VERSION@-win-x64-Setup.exe
+  InstallerSha256: @INSTALLER_SHA256@
+ManifestType: installer
+ManifestVersion: 1.28.0

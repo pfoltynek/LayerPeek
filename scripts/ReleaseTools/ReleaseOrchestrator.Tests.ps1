@@ -1370,6 +1370,7 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $complete.Output | Should -Match 'has no SHA256SUMS-windows\.txt'
         $publish = Invoke-T 'release-publish.ps1' @('-AllowIncomplete')
         $publish.ExitCode | Should -Be 0 -Because $publish.Output
+        $publish.Output | Should -Match 'winget: 0\.1\.0 is a pre-release, it is not submitted'
         $release = Get-TwoRelease
         $release.isDraft | Should -BeFalse
         $release.isPrerelease | Should -BeTrue
@@ -1425,6 +1426,8 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
         $result.ExitCode | Should -Be 0 -Because $result.Output
         $result.Output | Should -Match 'The windows files are added to the published release v0\.1\.0; the release is complete'
+        # T-059: the winget offer runs after the check; a 0.x release is never offered (no question, no gh call for it).
+        $result.Output | Should -Match 'winget: 0\.1\.0 is a pre-release, it is not submitted'
 
         $release = Get-TwoRelease
         $release.isDraft | Should -BeFalse

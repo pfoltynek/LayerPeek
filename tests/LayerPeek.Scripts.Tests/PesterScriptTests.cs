@@ -4,7 +4,8 @@ namespace LayerPeek.Scripts.Tests;
 
 /// <summary>
 /// Runs the Pester tests of the scripts as part of dotnet test: the release scripts
-/// (scripts/ReleaseTools/ReleaseTools.Tests.ps1 and ReleaseOrchestrator.Tests.ps1 of scripts/release.ps1, T-055) and the
+/// (scripts/ReleaseTools/ReleaseTools.Tests.ps1 and ReleaseOrchestrator.Tests.ps1 of scripts/release.ps1, T-055, and
+/// ReleaseWinget.Tests.ps1 of the winget submission, T-059) and the
 /// one-time migration from the former name (tools/migrate-from-prusatraydiagnostic.Tests.ps1, T-074) and the before/after
 /// check of the user profile (tools/profile-snapshot.Tests.ps1, T-095) and the maintainer tool for a new FFmpeg version on
 /// macOS and Windows (build/update-ffmpeg.Tests.ps1, T-026) and the engine of the user-run verification scripts
@@ -34,6 +35,7 @@ public sealed class PesterScriptTests
     [Theory]
     [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1", 5)]
     [InlineData("scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1", 15)]
+    [InlineData("scripts/ReleaseTools/ReleaseWinget.Tests.ps1", 5)]
     [InlineData("tools/migrate-from-prusatraydiagnostic.Tests.ps1", 5)]
     [InlineData("tools/profile-snapshot.Tests.ps1", 5)]
     [InlineData("build/update-ffmpeg.Tests.ps1", 5)]

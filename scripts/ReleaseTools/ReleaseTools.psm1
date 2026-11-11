@@ -775,7 +775,7 @@ function Get-GitHubRelease {
         Throws on any other gh failure (network, permissions).
     #>
     param([Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Tag)
-    $all = & gh release view $Tag --repo $Repository --json 'tagName,name,isDraft,isPrerelease,url,assets' 2>&1
+    $all = & gh release view $Tag --repo $Repository --json 'tagName,name,isDraft,isPrerelease,url,assets,publishedAt' 2>&1
     $exitCode = $LASTEXITCODE
     $stdout = @($all | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join "`n"
     $stderr = (@($all | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join ' ').Trim()
@@ -3726,6 +3726,481 @@ function Format-RegistryTreeState {
         $lines.Add((Format-RegistryTreeState -State $State.SubKeys[$name] -Indent "$Indent  "))
     }
     $lines -join "`n"
+}
+
+# winget (T-059). Decided by the user 2026-11-11: package identifier 3DPrint.LayerPeek, publisher "Petr Foltýnek" (the
+# same as --packAuthors, which Velopack writes as Publisher of the Apps & features entry), stable versions from 1.0.0 on,
+# the submission an optional step after publishing (release-publish.ps1, release-upload.ps1 -AddToPublished) or
+# scripts/release-winget.ps1 on its own. The first version is submitted from the reviewed manifest templates in
+# build/winget (wingetcreate submit), every later one with wingetcreate update. The token comes from gh auth token at run
+# time and reaches wingetcreate only through WINGET_CREATE_GITHUB_TOKEN of this process while it runs (never as an
+# argument, never printed; wingetcreate's output is redacted). Windows only: wingetcreate and winget are Windows tools.
+$script:Winget = [pscustomobject]@{
+    PackageIdentifier  = '3DPrint.LayerPeek'
+    Repository         = 'pfoltynek/LayerPeek'
+    Runtime            = 'win-x64'
+    TemplateDirectory  = 'build/winget'
+    PackagesRepository = 'microsoft/winget-pkgs'
+    TokenVariable      = 'WINGET_CREATE_GITHUB_TOKEN'
+}
+
+function Get-WingetSettings {
+    <# .SYNOPSIS The fixed values of the winget submission (T-059). #>
+    $script:Winget
+}
+
+function Get-WingetInstallerFileName {
+    <# .SYNOPSIS The Velopack installer of the winget package in the release: LayerPeek-<version>-win-x64-Setup.exe. #>
+    param([Parameter(Mandatory)] [string] $Version)
+    Get-VelopackSetupFileName -Version $Version -Runtime $script:Winget.Runtime
+}
+
+function Get-WingetUrls {
+    <# .SYNOPSIS Pure: the version-specific URLs of the manifest (installer, release notes) for a release of the package repository. #>
+    param([Parameter(Mandatory)] [string] $Version)
+    $base = "https://github.com/$($script:Winget.Repository)"
+    $tag = ConvertTo-ReleaseTag $Version
+    [pscustomobject]@{
+        Installer    = "$base/releases/download/$tag/$(Get-WingetInstallerFileName -Version $Version)"
+        ReleaseNotes = "$base/releases/tag/$tag"
+    }
+}
+
+function Get-WingetManifestRelativePath {
+    <#
+    .SYNOPSIS
+        Pure: the folder of the package in microsoft/winget-pkgs (manifests/3/3DPrint/LayerPeek) or, with -Version, of
+        one version (manifests/3/3DPrint/LayerPeek/1.0.0): lower-case first letter, then each segment of the identifier.
+    #>
+    param([string] $Version)
+    $id = $script:Winget.PackageIdentifier
+    $parts = @('manifests', $id.Substring(0, 1).ToLowerInvariant()) + $id.Split('.')
+    if ($Version) { $parts += $Version }
+    $parts -join '/'
+}
+
+function ConvertTo-WingetManifests {
+    <#
+    .SYNOPSIS
+        Pure: the manifest files of one version (file name -> text) from the templates in build/winget: @VERSION@,
+        @RELEASE_DATE@ (YYYY-MM-DD) and @INSTALLER_SHA256@ (upper case, as wingetcreate writes it) are replaced.
+        Throws when a template is missing, a placeholder is left over or a value is malformed.
+    #>
+    param(
+        [Parameter(Mandatory)] [hashtable] $Templates,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $ReleaseDate,
+        [Parameter(Mandatory)] [string] $InstallerSha256
+    )
+    if (-not (Test-ReleaseVersion $Version)) { throw "'$Version' is not a version in the form X.Y.Z." }
+    if ($ReleaseDate -notmatch '^\d{4}-\d{2}-\d{2}$') { throw "Release date '$ReleaseDate' is not in the form YYYY-MM-DD." }
+    if ($InstallerSha256 -notmatch '^[0-9A-Fa-f]{64}$') { throw "'$InstallerSha256' is no SHA256 (64 hex digits)." }
+    $id = $script:Winget.PackageIdentifier
+    $names = @("$id.yaml", "$id.installer.yaml", "$id.locale.en-US.yaml")
+    $missing = @($names | Where-Object { -not $Templates.ContainsKey($_) })
+    if ($missing.Count -gt 0) { throw "winget manifest template(s) missing: $($missing -join ', ')." }
+    $result = [ordered]@{}
+    foreach ($name in $names) {
+        $text = $Templates[$name].Replace('@VERSION@', $Version).Replace('@RELEASE_DATE@', $ReleaseDate).Replace('@INSTALLER_SHA256@', $InstallerSha256.ToUpperInvariant())
+        if ($text -match '@[A-Z0-9_]+@') { throw "winget manifest template $name has an unknown placeholder $($Matches[0])." }
+        $result[$name] = $text
+    }
+    $result
+}
+
+function Read-WingetTemplates {
+    <# .SYNOPSIS The manifest templates of build/winget (file name -> text, UTF-8). #>
+    param([Parameter(Mandatory)] [string] $Directory)
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) { throw "The winget manifest templates are missing: $Directory." }
+    $templates = @{}
+    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -Filter '*.yaml')) {
+        $templates[$file.Name] = [System.IO.File]::ReadAllText($file.FullName, [System.Text.UTF8Encoding]::new($false))
+    }
+    $templates
+}
+
+function Write-WingetManifests {
+    <# .SYNOPSIS Writes the manifest files into an empty or new folder (UTF-8 without BOM, LF); returns the folder. #>
+    param([Parameter(Mandatory)] $Manifests, [Parameter(Mandatory)] [string] $Directory)
+    if ((Test-Path -LiteralPath $Directory) -and @(Get-ChildItem -LiteralPath $Directory -Force).Count -gt 0) {
+        throw "The folder $Directory is not empty; the manifests go into an empty or new folder."
+    }
+    $null = New-Item -ItemType Directory -Path $Directory -Force
+    foreach ($name in $Manifests.Keys) {
+        [System.IO.File]::WriteAllText((Join-Path $Directory $name), ($Manifests[$name] -replace '\r\n', "`n"), [System.Text.UTF8Encoding]::new($false))
+    }
+    (Resolve-Path -LiteralPath $Directory).ProviderPath
+}
+
+function Get-WingetPreflightProblems {
+    <#
+    .SYNOPSIS
+        Pure: what rules out a winget submission before anything is read from GitHub. Only stable versions (not 0.x; the
+        user decided 2026-11-11 to start with 1.0.0), only releases of the package repository (never a trial repository),
+        and only on Windows unless -AnyOs (writing the manifest files for review works everywhere).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [Parameter(Mandatory)] [string] $HostOs,
+        [switch] $AnyOs
+    )
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if (-not (Test-ReleaseVersion $Version)) { $problems.Add("'$Version' is not a version in the form X.Y.Z.") }
+    elseif (Test-PrereleaseVersion $Version) { $problems.Add("Version $Version is a pre-release (0.x). winget gets stable versions only, from 1.0.0 on (T-059).") }
+    if ($Repository -and $Repository -ne $script:Winget.Repository) {
+        $problems.Add("winget installs the releases of $($script:Winget.Repository) only; $Repository is not submitted (a trial repository never goes to winget).")
+    }
+    if (-not $AnyOs -and $HostOs -ne 'windows') {
+        $problems.Add('The winget submission runs on Windows only (wingetcreate and winget are Windows tools). Run it on a Windows machine: pwsh scripts/release-winget.ps1 -Version ' + $Version + ' (docs/release.md, "Publikace do winget").')
+    }
+    $problems.ToArray()
+}
+
+function Get-WingetReleaseProblems {
+    <#
+    .SYNOPSIS
+        Pure: the published GitHub release must have the Windows installer, completely uploaded with its SHA256 (winget
+        downloads it from the release URL and compares the hash). Returns the problems.
+    #>
+    param([AllowNull()] $Release, [Parameter(Mandatory)] [string] $Version)
+    $tag = ConvertTo-ReleaseTag $Version
+    $setup = Get-WingetInstallerFileName -Version $Version
+    if ($null -eq $Release) { return @("There is no release $tag on GitHub. winget gets a version only after it is published (scripts/release-publish.ps1).") }
+    if ($Release.isDraft) { return @("Release $tag is still a draft. Publish it first (scripts/release-publish.ps1); winget downloads the installer from the published release.") }
+    $asset = @($Release.assets | Where-Object { $_.name -ceq $setup }) | Select-Object -First 1
+    if ($null -eq $asset) { return @("Release $tag has no $setup yet. Add the Windows files first (on Windows: pwsh scripts/release-upload.ps1 -AddToPublished).") }
+    if ($asset.PSObject.Properties['state'] -and $asset.state -and $asset.state -ne 'uploaded') { return @("$setup in release $tag is not completely uploaded (state $($asset.state)).") }
+    $digest = if ($asset.PSObject.Properties['digest']) { "$($asset.digest)" } else { '' }
+    if ($digest -notmatch '^sha256:[0-9a-fA-F]{64}$') { return @("GitHub reports no SHA256 for $setup in release $tag; it is needed for the manifest.") }
+    @()
+}
+
+function Get-WingetInstallerSha256 {
+    <# .SYNOPSIS The SHA256 of the installer asset (upper case) from GitHub's digest; checked by Get-WingetReleaseProblems. #>
+    param([Parameter(Mandatory)] $Release, [Parameter(Mandatory)] [string] $Version)
+    $setup = Get-WingetInstallerFileName -Version $Version
+    $asset = @($Release.assets | Where-Object { $_.name -ceq $setup }) | Select-Object -First 1
+    "$($asset.digest)".Substring('sha256:'.Length).ToUpperInvariant()
+}
+
+function Get-WingetReleaseDate {
+    <# .SYNOPSIS The release date (YYYY-MM-DD, UTC) from publishedAt of the GitHub release; $Fallback when GitHub has none. #>
+    param([Parameter(Mandatory)] $Release, [Parameter(Mandatory)] [string] $Fallback)
+    $published = if ($Release.PSObject.Properties['publishedAt']) { $Release.publishedAt } else { $null }
+    if (-not $published) { return $Fallback }
+    $value = if ($published -is [datetime]) { $published } else { [datetime]::Parse("$published", [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal) }
+    $value.ToUniversalTime().ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-WingetPullRequestProblems {
+    <#
+    .SYNOPSIS
+        Pure: open pull requests in microsoft/winget-pkgs whose title names the package (objects with title and url).
+        One for the same version: never a second one. The first version not merged yet (Mode new): a later version would
+        be a second "New package" pull request, so wait until it is merged.
+    #>
+    param([AllowEmptyCollection()] [object[]] $PullRequests = @(), [Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [ValidateSet('new', 'update')] [string] $Mode)
+    $id = [regex]::Escape($script:Winget.PackageIdentifier)
+    $mine = @($PullRequests | Where-Object { $_ -and "$($_.title)" -match "(?i)(^|[^\w.])$id([^\w.]|$)" })
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $escaped = [regex]::Escape($Version)
+    foreach ($pr in $mine) {
+        if ("$($pr.title)" -match "(^|[^\d.])$escaped([^\d.]|$)") { $problems.Add("An open pull request for $($script:Winget.PackageIdentifier) $Version already exists: $($pr.url)") }
+        elseif ($Mode -eq 'new') { $problems.Add("The package is not in winget yet and its pull request is still open: $($pr.url) ($($pr.title)). Wait until it is merged, then submit $Version (wingetcreate update).") }
+    }
+    $problems.ToArray()
+}
+
+function Get-WingetCreateArguments {
+    <#
+    .SYNOPSIS
+        Pure: the wingetcreate arguments, never with a token (it reaches wingetcreate through the environment).
+        new: wingetcreate submit of the folder with the reviewed manifests; update: wingetcreate update with the version,
+        the installer URL, release notes URL and release date, submitted at once. The architecture needs no override
+        ('<url>|x64'): wingetcreate takes it from the URL first (…-win-x64-Setup.exe, doc/update.md of winget-create). Pull
+        request titles as the winget-pkgs template asks: "New package: <id> version X.Y.Z" / "Update: <id> to X.Y.Z".
+    #>
+    param(
+        [Parameter(Mandatory)] [ValidateSet('new', 'update')] [string] $Mode,
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $ManifestDirectory,
+        [string] $ReleaseDate
+    )
+    $id = $script:Winget.PackageIdentifier
+    if ($Mode -eq 'new') {
+        if (-not $ManifestDirectory) { throw 'wingetcreate submit needs the folder of the manifests.' }
+        return @('submit', '--prtitle', "New package: $id version $Version", $ManifestDirectory)
+    }
+    if ($ReleaseDate -notmatch '^\d{4}-\d{2}-\d{2}$') { throw "Release date '$ReleaseDate' is not in the form YYYY-MM-DD." }
+    $urls = Get-WingetUrls -Version $Version
+    @(
+        'update', $id,
+        '--version', $Version,
+        '--urls', $urls.Installer,
+        '--release-notes-url', $urls.ReleaseNotes,
+        '--release-date', $ReleaseDate,
+        '--prtitle', "Update: $id to $Version",
+        '--submit'
+    )
+}
+
+function Get-WingetTokenProblems {
+    <#
+    .SYNOPSIS
+        Pure: whether the token of gh can be used by wingetcreate. Never puts the token into a message. Fine-grained
+        personal access tokens (github_pat_…) are not supported by wingetcreate (doc/token.md of winget-create) and cannot
+        fork microsoft/winget-pkgs when they are limited to the LayerPeek repository (T-180).
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Token)
+    if ([string]::IsNullOrWhiteSpace($Token)) { return @('gh auth token returned no token. Log in with gh auth login (docs/release.md, "Publikace do winget").') }
+    if ($Token.StartsWith('github_pat_', [StringComparison]::Ordinal)) {
+        return @('The token of gh is a fine-grained personal access token (for example from GH_TOKEN, T-180). wingetcreate supports classic tokens and gh OAuth logins only, with access to public repositories (it forks microsoft/winget-pkgs). Log in for the submission with gh auth login, or set GH_TOKEN to such a token in this terminal only (docs/release.md, "Publikace do winget").')
+    }
+    if ($Token -match '\s') { return @('The token of gh contains white space; gh auth token returned something unexpected.') }
+    @()
+}
+
+function Protect-WingetOutput {
+    <# .SYNOPSIS Pure: a line of tool output with every occurrence of the secret replaced by ***. #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Line, [AllowNull()] [AllowEmptyString()] [string] $Secret)
+    if ([string]::IsNullOrEmpty($Line) -or [string]::IsNullOrEmpty($Secret)) { return "$Line" }
+    $Line.Replace($Secret, '***')
+}
+
+function Invoke-WingetTool {
+    <#
+    .SYNOPSIS
+        Runs wingetcreate (or winget) with the arguments and returns its exit code. With -Token the token is in
+        WINGET_CREATE_GITHUB_TOKEN of this process only while the tool runs (an earlier value is restored afterwards),
+        never on the command line. Every output line (stdout and stderr) is printed with the token replaced by ***.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Tool,
+        [Parameter(Mandatory)] [string[]] $Arguments,
+        [AllowNull()] [AllowEmptyString()] [string] $Token
+    )
+    $variable = $script:Winget.TokenVariable
+    $saved = [Environment]::GetEnvironmentVariable($variable)
+    try {
+        if ($Token) { [Environment]::SetEnvironmentVariable($variable, $Token) }
+        & $Tool @Arguments 2>&1 | ForEach-Object { Write-Host (Protect-WingetOutput -Line "$_" -Secret $Token) }
+        $LASTEXITCODE
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable($variable, $saved)
+    }
+}
+
+function Get-WingetPackageState {
+    <#
+    .SYNOPSIS
+        'update' when microsoft/winget-pkgs has the package folder (manifests/3/3DPrint/LayerPeek), 'new' when GitHub
+        answers 404. Throws on any other gh failure (network, rate limit), so that a failure never leads to a second
+        "New package" pull request.
+    #>
+    $path = "repos/$($script:Winget.PackagesRepository)/contents/$(Get-WingetManifestRelativePath)"
+    $all = & gh api $path --silent 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) { return 'update' }
+    $stderr = (@($all | ForEach-Object { "$_" }) -join ' ').Trim()
+    if ($stderr -match 'HTTP 404|Not Found') { return 'new' }
+    throw "gh api $path failed (exit code $exitCode): $stderr"
+}
+
+function Get-WingetOpenPullRequests {
+    <# .SYNOPSIS Open pull requests in microsoft/winget-pkgs that name the package in their title (title, url). #>
+    $id = $script:Winget.PackageIdentifier
+    $all = & gh pr list --repo $script:Winget.PackagesRepository --state open --search "$id in:title" --json 'number,title,url' 2>&1
+    $exitCode = $LASTEXITCODE
+    $stdout = @($all | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join "`n"
+    if ($exitCode -ne 0) {
+        $stderr = (@($all | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join ' ').Trim()
+        throw "gh pr list --repo $($script:Winget.PackagesRepository) failed (exit code $exitCode): $stderr"
+    }
+    if ([string]::IsNullOrWhiteSpace($stdout)) { return @() }
+    @($stdout | ConvertFrom-Json)
+}
+
+function Get-WingetOffer {
+    <#
+    .SYNOPSIS
+        Pure: what release-publish.ps1 and release-upload.ps1 -AddToPublished say about winget once a release is published
+        (T-059). Ask = $true only when the submission can run now: a stable version of the package repository on Windows
+        whose release has the Windows installer. Otherwise Lines say why not, or how to submit later on Windows.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [Parameter(Mandatory)] [string] $HostOs,
+        [AllowEmptyCollection()] [string[]] $AssetNames = @()
+    )
+    $command = "pwsh scripts/release-winget.ps1 -Version $Version"
+    if (-not (Test-ReleaseVersion $Version) -or (Test-PrereleaseVersion $Version)) {
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: $Version is a pre-release, it is not submitted (stable versions only, T-059).") }
+    }
+    if ($Repository -and $Repository -ne $script:Winget.Repository) {
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: $Repository is not $($script:Winget.Repository), nothing is submitted.") }
+    }
+    $setup = Get-WingetInstallerFileName -Version $Version
+    if ($AssetNames -cnotcontains $setup) {
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: the release has no $setup yet. Once the Windows files are added (on Windows: pwsh scripts/release-upload.ps1 -AddToPublished), that step offers the winget submission.") }
+    }
+    if ($HostOs -ne 'windows') {
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: submit $Version on a Windows machine (wingetcreate is a Windows tool): $command (docs/release.md, ""Publikace do winget"").") }
+    }
+    [pscustomobject]@{ Ask = $true; Lines = @("winget: $Version can be submitted to microsoft/winget-pkgs now ($command does the same later).") }
+}
+
+function Invoke-WingetReleaseOffer {
+    <#
+    .SYNOPSIS
+        The optional winget step at the end of release-publish.ps1 and release-upload.ps1 -AddToPublished: prints the
+        offer and, when it can run and the user answers y, runs the submission (Invoke-WingetRelease, which prints the plan
+        and asks once more before the pull request is opened). Never throws: a
+        failed submission is reported with the command to re-run it, the release itself stays published.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $RepoRoot,
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [AllowEmptyCollection()] [string[]] $AssetNames = @(),
+        [string] $HostOs = (Get-HostOs),
+        [scriptblock] $Confirm = { param($Question) Read-Host $Question }
+    )
+    try {
+        $offer = Get-WingetOffer -Version $Version -Repository $Repository -HostOs $HostOs -AssetNames $AssetNames
+        foreach ($line in $offer.Lines) { Write-Host $line }
+        if (-not $offer.Ask) { return }
+        $answer = try { & $Confirm "Submit LayerPeek $Version to winget (microsoft/winget-pkgs) now? [y/N]" } catch { '' }
+        if ("$answer".Trim() -notmatch '^(?i:y|yes)$') {
+            Write-Host "winget: not submitted. Later on Windows: pwsh scripts/release-winget.ps1 -Version $Version" -ForegroundColor Yellow
+            return
+        }
+        # The plan is printed next and confirmed once more before the pull request is opened.
+        $ok = Invoke-WingetRelease -RepoRoot $RepoRoot -Version $Version -Repository $Repository -HostOs $HostOs -Confirm $Confirm
+        if (-not $ok) { Write-Host "winget: the submission did not finish. Fix the cause and re-run: pwsh scripts/release-winget.ps1 -Version $Version" -ForegroundColor Yellow }
+    }
+    catch {
+        Write-Host "winget: the submission FAILED: $_" -ForegroundColor Red
+        Write-Host "Re-run it on Windows: pwsh scripts/release-winget.ps1 -Version $Version (docs/release.md)" -ForegroundColor Yellow
+    }
+}
+
+function Invoke-WingetRelease {
+    <#
+    .SYNOPSIS
+        The winget submission of a published release (T-059, docs/release.md "Publikace do winget"). Returns $true when it
+        is done (submitted, or the manifests written / the dry run printed), $false when refused or not confirmed.
+    .DESCRIPTION
+        Checks: stable version of the package repository, Windows (except -OutputDirectory), gh logged in, wingetcreate
+        (and for the first version winget) installed, the published release has the installer with its SHA256, no open
+        pull request in the way. The first version (the package folder is not in microsoft/winget-pkgs yet) is made from
+        the templates in build/winget, checked with winget validate and sent with wingetcreate submit; every later version
+        with wingetcreate update --submit. The token is read with gh auth token only after the confirmation.
+        -OutputDirectory only writes the manifests of the version (for winget validate and winget install --manifest
+        before the first submission, or for review on any OS); -DryRun only prints the plan.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $RepoRoot,
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [string] $HostOs = (Get-HostOs),
+        [string] $OutputDirectory,
+        [switch] $DryRun,
+        [scriptblock] $Confirm = { param($Question) Read-Host $Question }
+    )
+    $settings = $script:Winget
+    $problems = [System.Collections.Generic.List[string]]::new()
+    foreach ($p in @(Get-WingetPreflightProblems -Version $Version -Repository $Repository -HostOs $HostOs -AnyOs:([bool]$OutputDirectory))) { $problems.Add($p) }
+    if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+
+    foreach ($p in @(Get-GhProblems)) { $problems.Add($p) }
+    if (-not $OutputDirectory -and -not (Get-Command wingetcreate -ErrorAction SilentlyContinue)) {
+        $problems.Add('wingetcreate is not installed. Install it: winget install --id Microsoft.WingetCreate (docs/prerequisites.md).')
+    }
+    if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+
+    $tag = ConvertTo-ReleaseTag $Version
+    $release = Get-GitHubRelease -Repository $settings.Repository -Tag $tag
+    foreach ($p in @(Get-WingetReleaseProblems -Release $release -Version $Version)) { $problems.Add($p) }
+    if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+
+    $sha256 = Get-WingetInstallerSha256 -Release $release -Version $Version
+    $today = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+    $releaseDate = Get-WingetReleaseDate -Release $release -Fallback $today
+    $urls = Get-WingetUrls -Version $Version
+    # The templates of this checkout (the tag, when run from release-publish.ps1); an update does not need them.
+    $newManifests = { ConvertTo-WingetManifests -Templates (Read-WingetTemplates -Directory (Join-Path $RepoRoot $settings.TemplateDirectory)) -Version $Version -ReleaseDate $releaseDate -InstallerSha256 $sha256 }
+
+    if ($OutputDirectory) {
+        $manifests = & $newManifests
+        $folder = Write-WingetManifests -Manifests $manifests -Directory $OutputDirectory
+        Write-Host "winget manifests of $($settings.PackageIdentifier) $Version (installer SHA256 $sha256, release date $releaseDate) in $($folder):"
+        foreach ($name in $manifests.Keys) { Write-Host "  $name" }
+        Write-Host 'Check them on Windows before the first submission (docs/release.md, "Publikace do winget"):'
+        Write-Host "  winget validate --manifest `"$folder`""
+        Write-Host "  winget install --manifest `"$folder`"   # needs: winget settings --enable LocalManifestFiles (as administrator)"
+        return $true
+    }
+
+    $mode = Get-WingetPackageState
+    foreach ($p in @(Get-WingetPullRequestProblems -PullRequests @(Get-WingetOpenPullRequests) -Version $Version -Mode $mode)) { $problems.Add($p) }
+    if ($mode -eq 'new' -and -not (Get-Command winget -ErrorAction SilentlyContinue)) { $problems.Add('winget is not installed (App Installer); it validates the first manifest before the submission.') }
+    if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+    $manifests = if ($mode -eq 'new') { & $newManifests } else { $null }
+
+    $placeholder = if ($mode -eq 'new') { "<temporary folder>/$($settings.PackageIdentifier)/$Version" } else { $null }
+    $shown = Get-WingetCreateArguments -Mode $mode -Version $Version -ManifestDirectory $placeholder -ReleaseDate $releaseDate
+    $what = if ($mode -eq 'new') { "first version: the package is not in $($settings.PackagesRepository) yet, manifests from $($settings.TemplateDirectory)" } else { "update of the package in $($settings.PackagesRepository)" }
+    Write-Host "winget $($settings.PackageIdentifier) $Version ($what)"
+    Write-Host "  installer $($urls.Installer)"
+    Write-Host "  SHA256    $sha256, release date $releaseDate"
+    Write-Host "  wingetcreate $($shown -join ' ')"
+    Write-Host '  The GitHub token of gh reaches wingetcreate through WINGET_CREATE_GITHUB_TOKEN only while it runs; it is never shown.'
+    if ($DryRun) {
+        Write-Host 'Dry run: nothing was submitted.' -ForegroundColor Green
+        return $true
+    }
+    $answer = try { & $Confirm "Open the pull request in $($settings.PackagesRepository) for $($settings.PackageIdentifier) $($Version)? [y/N]" } catch { '' }
+    if ("$answer".Trim() -notmatch '^(?i:y|yes)$') {
+        Write-Host 'winget: not confirmed, nothing was submitted.' -ForegroundColor Yellow
+        return $false
+    }
+
+    $token = $null
+    $tempDir = $null
+    try {
+        $token = (@(& gh auth token 2>$null) -join '').Trim()
+        $tokenExit = $LASTEXITCODE
+        $tokenProblems = @(Get-WingetTokenProblems -Token $(if ($tokenExit -eq 0) { $token } else { '' }))
+        if ($tokenProblems.Count -gt 0) { Write-Problems -Problems $tokenProblems -Action 'winget'; return $false }
+
+        $folder = $null
+        if ($mode -eq 'new') {
+            $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-winget-$([guid]::NewGuid().ToString('N'))"
+            $folder = Write-WingetManifests -Manifests $manifests -Directory (Join-Path $tempDir $settings.PackageIdentifier $Version)
+            Write-Host "==> winget validate --manifest $folder" -ForegroundColor Cyan
+            $validate = Invoke-WingetTool -Tool 'winget' -Arguments @('validate', '--manifest', $folder)
+            if ($validate -ne 0) {
+                Write-Problems -Problems @("winget validate failed (exit code $validate); nothing was submitted. Fix build/winget, or write the manifests with -OutputDirectory and check them by hand.") -Action 'winget'
+                return $false
+            }
+        }
+        $arguments = Get-WingetCreateArguments -Mode $mode -Version $Version -ManifestDirectory $folder -ReleaseDate $releaseDate
+        Write-Host "==> wingetcreate $($arguments -join ' ')" -ForegroundColor Cyan
+        $exitCode = Invoke-WingetTool -Tool 'wingetcreate' -Arguments $arguments -Token $token
+        if ($exitCode -ne 0) {
+            Write-Problems -Problems @("wingetcreate failed with exit code $exitCode. Check the pull requests of $($settings.PackagesRepository) before a re-run (one pull request per version).") -Action 'winget'
+            return $false
+        }
+        Write-Host "winget: the pull request for $($settings.PackageIdentifier) $Version is open in $($settings.PackagesRepository). Watch its validation (docs/release.md, ""Publikace do winget"")." -ForegroundColor Green
+        $true
+    }
+    finally {
+        $token = $null
+        if ($tempDir -and (Test-Path -LiteralPath $tempDir)) { Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 Export-ModuleMember -Function *
