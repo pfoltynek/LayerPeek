@@ -34,13 +34,13 @@ public sealed partial class PrinterEditorViewModel
     /// <summary>The name has no hint: only its error.</summary>
     public string? NameHelpText => NameError;
 
-    public string? AddressHelpText => AddressError ?? (ShowsAddressHint ? Strings.SettingsAddressHint : null);
+    public string? AddressHelpText => AddressError ?? AddressWarning ?? (ShowsAddressHint ? Strings.SettingsAddressHint : null);
 
     public string? UserNameHelpText => UserNameError ?? (ShowsUserNameHint ? Strings.SettingsUserNameHint : null);
 
     public string? PasswordHelpText => PasswordError ?? (ShowsPasswordHint ? PasswordHint : null);
 
-    public string? CameraUrlHelpText => CameraUrlError ?? (ShowsCameraUrlHint ? Strings.SettingsCameraUrlHint : null);
+    public string? CameraUrlHelpText => CameraUrlError ?? CameraUrlWarning ?? (ShowsCameraUrlHint ? Strings.SettingsCameraUrlHint : null);
 
     public string? NormalSizeHelpText => NormalSizeError;
 

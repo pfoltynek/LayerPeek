@@ -259,12 +259,15 @@ function Get-ReleaseGitState {
     .SYNOPSIS
         Collects the git facts the release checks need. Reads origin with a single git ls-remote and changes nothing,
         neither on origin nor in the local repository (no fetch). Remote failures are returned in RemoteErrors.
+        -LocalOnly collects only the local facts (HEAD, working tree, tags of HEAD) and does not query the remote at all
+        (release-build.ps1 -SignOnly, T-197: the remote is checked by release-upload.ps1).
     #>
     param(
         [Parameter(Mandatory)] [string] $RepoRoot,
         [Parameter(Mandatory)] [string] $Tag,
         [string] $Remote = 'origin',
-        [string] $MainBranch = 'main'
+        [string] $MainBranch = 'main',
+        [switch] $LocalOnly
     )
     $head = Get-GitHead $RepoRoot
     $status = @(Get-GitStatusLines $RepoRoot)
@@ -277,8 +280,11 @@ function Get-ReleaseGitState {
     $onMain = $null
     # One read-only query of the remote; nothing is fetched, so no local ref changes. Without a remote (it could not be
     # resolved; the caller reports why) only the local facts are collected.
-    $lsRemote = if ($Remote) { Invoke-Git $RepoRoot @('ls-remote', $Remote, "refs/heads/$MainBranch", "refs/tags/$Tag", "refs/tags/$Tag^{}") } else { $null }
-    if (-not $Remote) {
+    $lsRemote = if ($Remote -and -not $LocalOnly) { Invoke-Git $RepoRoot @('ls-remote', $Remote, "refs/heads/$MainBranch", "refs/tags/$Tag", "refs/tags/$Tag^{}") } else { $null }
+    if ($LocalOnly) {
+        # Only the local facts: no remote error, and Get-ReleaseGitProblems judges nothing about the remote.
+    }
+    elseif (-not $Remote) {
         $remoteErrors.Add('The tag and the main branch were not checked: there is no remote to check them on.')
     }
     elseif ($lsRemote.ExitCode -ne 0) {
@@ -321,7 +327,7 @@ function Get-ReleaseGitState {
         Remote          = $Remote
         MainBranch      = $MainBranch
         RemoteErrors    = $remoteErrors.ToArray()
-        RemoteQueried   = [bool]($Remote -and $lsRemote.ExitCode -eq 0)
+        RemoteQueried   = [bool]($lsRemote -and $lsRemote.ExitCode -eq 0)
     }
 }
 
@@ -521,7 +527,8 @@ function Get-BuildInfoProblems {
     .SYNOPSIS
         Pure check of a build marker before upload: same version and commit as HEAD, built from a clean tree, only
         uploadable runtimes, the update feeds signed (T-181: FeedSignature.Status 'signed' and a releases.<rid>.json.sig
-        next to every releases.<rid>.json; a trial build of -SkipFeedSignature or a marker without the status is refused),
+        next to every releases.<rid>.json; a trial build of -SkipFeedSignature, a build whose signing did not finish
+        (status 'pending', T-197) or a marker without the status is refused),
         and the files in dist exactly the files listed in the marker. Returns problem messages.
     #>
     param(
@@ -546,7 +553,8 @@ function Get-BuildInfoProblems {
     # T-181: installations that verify the update feed refuse a feed without a valid signature.
     $signature = if ($BuildInfo.PSObject.Properties['FeedSignature']) { $BuildInfo.FeedSignature } else { $null }
     $status = if ($signature -and $signature.PSObject.Properties['Status']) { $signature.Status } else { $null }
-    if ($status -ceq 'skipped') { $problems.Add('Build output was made with -SkipFeedSignature (a trial build): its update feed is not signed, and installed apps that verify the feed would refuse the update. Rebuild with the signing key (docs/release.md).') }
+    if ($status -ceq 'pending') { $problems.Add('Build output is not signed yet: the signing at the end of release-build.ps1 did not finish (key medium disconnected, aborted or wrong password). Sign the finished build without building it again: pwsh scripts/release-build.ps1 -SignOnly (docs/release.md).') }
+    elseif ($status -ceq 'skipped') { $problems.Add('Build output was made with -SkipFeedSignature (a trial build): its update feed is not signed, and installed apps that verify the feed would refuse the update. Rebuild with the signing key (docs/release.md).') }
     elseif ($status -cne 'signed') { $problems.Add('Build output has no update feed signature (made before T-181?). Rebuild with the signing key (docs/release.md).') }
     $names = @($BuildInfo.Files | ForEach-Object { $_.Name })
     foreach ($feed in @($names | Where-Object { $_ -cmatch '^releases\.[^/\\]+\.json$' })) {
@@ -557,6 +565,82 @@ function Get-BuildInfoProblems {
     $extra = @($DistFiles | Where-Object { $expected -cnotcontains $_ })
     if ($missing.Count -gt 0) { $problems.Add("Files listed in the build marker are missing in dist: $($missing -join ', ').") }
     if ($extra.Count -gt 0) { $problems.Add("dist contains files not produced by the build: $($extra -join ', '). Rebuild instead of adding files by hand.") }
+    $problems.ToArray()
+}
+
+function Get-SignOnlyProblems {
+    <#
+    .SYNOPSIS
+        Pure check of release-build.ps1 -SignOnly (T-197) before anything is signed: BuildInfo is the build record that
+        release-build.ps1 writes after packaging and before signing (build-info.json with FeedSignature.Status 'pending'
+        and the public key checked before the build), and dist must be exactly the packaged files of that record. Returns
+        problem messages (empty = this dist may be signed).
+    .DESCRIPTION
+        Refused: no record; a record that is already signed, of a trial build (-SkipFeedSignature) or without the pending
+        status; another version, commit (Head) or OS; a build from a dirty tree; an unknown runtime or one of another OS;
+        another checksum file name; no fingerprint of the checked key; a record listing a feed signature, the checksum file,
+        a file twice or no feed of a runtime; and any file of dist that is missing, added or has another SHA-256. The git
+        state (clean tree, tag of HEAD) is checked by Get-ReleaseGitProblems.
+    .PARAMETER DistFiles
+        Objects with Name and Sha256 of every file in dist.
+    #>
+    param(
+        $BuildInfo,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $Head,
+        [Parameter(Mandatory)] [string] $Os,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $DistFiles,
+        $Config = $script:ReleaseRuntimes
+    )
+    $rebuild = 'Nothing was signed; build again with the signing key (docs/release.md).'
+    if ($null -eq $BuildInfo) {
+        return @("There is no build record ($script:BuildInfoFileName) of version $Version to sign. -SignOnly signs only a dist/ that release-build.ps1 packaged in this checkout and could not sign. $rebuild")
+    }
+    function Value($Object, [string] $Name) { if ($null -ne $Object -and $Object.PSObject.Properties[$Name]) { $Object.$Name } else { $null } }
+    $missing = @('Version', 'Commit', 'Dirty', 'Os', 'Runtimes', 'ChecksumFile', 'Files', 'FeedSignature' | Where-Object { -not $BuildInfo.PSObject.Properties[$_] })
+    if ($missing.Count -gt 0) { return @("The build record $script:BuildInfoFileName is incomplete (no $($missing -join ', ')). $rebuild") }
+    $status = Value $BuildInfo.FeedSignature 'Status'
+    if ($status -ceq 'signed') { return @("The build of version $Version is already signed (FeedSignature.Status 'signed'); a signed dist/ is never signed again. Upload it: pwsh scripts/release-upload.ps1 -DryRun") }
+    if ($status -ceq 'skipped') { return @("The build of version $Version is a trial build of -SkipFeedSignature; it cannot be signed afterwards. $rebuild") }
+    if ($status -cne 'pending') { return @("The build record $script:BuildInfoFileName has no pending signature (FeedSignature.Status '$status'); only a build whose signing did not finish can be signed with -SignOnly. $rebuild") }
+
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if ($BuildInfo.Version -cne $Version) { $problems.Add("The build record is of version $($BuildInfo.Version), the source is $Version.") }
+    if ($BuildInfo.Commit -cne $Head) { $problems.Add("dist/ was built from commit $($BuildInfo.Commit), HEAD is $Head. Sign only in the checkout of the commit it was built from.") }
+    if ($BuildInfo.Dirty -ne $false) { $problems.Add('dist/ was built from a working tree with uncommitted or untracked files; it can never be uploaded.') }
+    if ($BuildInfo.Os -cne $Os) { $problems.Add("dist/ was built on $($BuildInfo.Os), this machine is $Os.") }
+    $runtimes = @($BuildInfo.Runtimes | Where-Object { $_ })
+    if ($runtimes.Count -eq 0) { $problems.Add('The build record names no runtime.') }
+    foreach ($rid in $runtimes) {
+        if (-not $Config.Contains($rid)) { $problems.Add("The build record contains unknown runtime '$rid'.") }
+        elseif ($Config[$rid].Os -cne $Os) { $problems.Add("The build record contains $rid, a runtime of $($Config[$rid].Os).") }
+    }
+    if ($BuildInfo.ChecksumFile -cne (Get-ChecksumFileName $Os)) { $problems.Add("The build record names the checksum file '$($BuildInfo.ChecksumFile)', expected $(Get-ChecksumFileName $Os).") }
+    if ("$(Value $BuildInfo.FeedSignature 'PublicKeySha256')" -cnotmatch '^[0-9a-f]{64}$') { $problems.Add('The build record does not name the public key (SHA-256) checked before the build.') }
+
+    $files = @($BuildInfo.Files | Where-Object { $null -ne $_ })
+    $names = @($files | ForEach-Object { "$(Value $_ 'Name')" })
+    if (@($names | Where-Object { $_ -cnotmatch '^[^\\/]+$' }).Count -gt 0) { $problems.Add('The build record lists a file without a plain file name.') }
+    if (@($names | Sort-Object -Unique -CaseSensitive).Count -ne $names.Count) { $problems.Add('The build record lists a file twice.') }
+    $listedOutputs = @($names | Where-Object { $_ -cmatch '\.json\.sig$' -or $_ -ceq $BuildInfo.ChecksumFile })
+    if ($listedOutputs.Count -gt 0) { $problems.Add("The build record lists $($listedOutputs -join ', '), which only the signing writes.") }
+    foreach ($rid in $runtimes) {
+        $feed = Get-UpdateFeedFileName $rid
+        if ($names -cnotcontains $feed) { $problems.Add("The build record has no update feed $feed of $rid to sign.") }
+    }
+
+    # dist/ unchanged since the build: exactly the files of the record, each with its SHA-256.
+    $distNames = @($DistFiles | ForEach-Object Name)
+    $absent = @($names | Where-Object { $distNames -cnotcontains $_ })
+    $extra = @($distNames | Where-Object { $names -cnotcontains $_ })
+    $changed = @(foreach ($file in $files) {
+            $name = "$(Value $file 'Name')"
+            if (@($DistFiles | Where-Object { $_.Name -ceq $name -and $_.Sha256 -cne "$(Value $file 'Sha256')" }).Count -gt 0) { $name }
+        })
+    if ($absent.Count -gt 0) { $problems.Add("Files of the build are missing in dist/: $($absent -join ', ').") }
+    if ($extra.Count -gt 0) { $problems.Add("dist/ contains files not produced by the build: $($extra -join ', ').") }
+    if ($changed.Count -gt 0) { $problems.Add("Files in dist/ changed after the build (SHA-256 differs from the build record): $($changed -join ', ').") }
+    if ($problems.Count -gt 0) { $problems.Add($rebuild) }
     $problems.ToArray()
 }
 
@@ -905,20 +989,22 @@ function Get-FeedSigningTrustProblems {
     <#
     .SYNOPSIS
         Pure check of a signing key against the keys the released app trusts: the list must not be empty (the app would
-        accept no update at all, fail closed) and, given PublicKey (the SubjectPublicKeyInfo of the signing key), must
-        contain it. Returns problem messages.
+        accept no update at all, fail closed) and, given PublicKey (the SubjectPublicKeyInfo of the signing key) or
+        PublicKeySha256 (its fingerprint, e.g. the key a build record names, T-197), must contain it. Returns problem
+        messages.
     #>
     param(
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys,
         [byte[]] $PublicKey,
+        [string] $PublicKeySha256,
         [string] $ListName = $script:FeedSignature.KeysList
     )
     $source = "$($script:FeedSignature.KeysSource) (UpdateFeedKeys.$ListName)"
     if ($TrustedKeys.Count -eq 0) {
         return @("$source trusts no key yet, so the app of this build would accept no signed update at all. Add the public key of the signing key there first (docs/release.md, 'Podpis feedu aktualizací'), or make a trial build that cannot be uploaded with -SkipFeedSignature.")
     }
-    if ($null -eq $PublicKey) { return @() }
-    $fingerprint = Get-FeedKeyFingerprint $PublicKey
+    $fingerprint = if ($null -ne $PublicKey) { Get-FeedKeyFingerprint $PublicKey } else { $PublicKeySha256 }
+    if (-not $fingerprint) { return @() }
     if (@($TrustedKeys | Where-Object Sha256 -CEQ $fingerprint).Count -eq 0) {
         return @("The signing key (public key SHA-256 $fingerprint) is not trusted by $source, which trusts $(@($TrustedKeys | ForEach-Object Sha256) -join ', '). The installed apps would refuse its signature: wrong key medium, or the public key was never added (docs/release.md).")
     }
@@ -1062,18 +1148,19 @@ function Confirm-FeedSigningKey {
 function Wait-FeedSigningKeyFile {
     <#
     .SYNOPSIS
-        At the end of the build: returns once the key file at Path exists (key medium connected). While it is missing it
-        asks to connect the medium and press Enter (or type 'abort'), so that a disconnected medium does not throw away the
-        build; throws when the session is not interactive, the input ended, or the answer is 'abort'.
+        Before signing (at the end of the build or with -SignOnly): returns once the key file at Path exists (key medium
+        connected). While it is missing it asks to connect the medium and press Enter (or type 'abort'), so that a
+        disconnected medium does not throw away the build; throws when the session is not interactive, the input ended, or
+        the answer is 'abort'. The packages stay unsigned then and release-build.ps1 -SignOnly signs them later (T-197).
     #>
     param([Parameter(Mandatory)] [string] $Path)
-    $unsigned = 'The packages are built, but the update feeds are not signed and this build cannot be uploaded.'
+    $unsigned = 'The packages are built, but the update feeds are not signed and this build cannot be uploaded yet. Connect the key medium and sign the finished build without building it again: pwsh scripts/release-build.ps1 -SignOnly (docs/release.md).'
     while (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         $answer = $null
         try { $answer = Read-Host -Prompt "The update feed signing key $Path is not there (key medium disconnected?). Connect the key medium and press Enter to try again, or type 'abort'" }
         catch { }
         if ($null -eq $answer) {
-            throw "The update feed signing key $Path is not there at the end of the build (key medium disconnected?) and this session is not interactive, so the build cannot wait for it. $unsigned Keep the key medium connected until the end and run the build again."
+            throw "The update feed signing key $Path is not there for signing (key medium disconnected?) and this session is not interactive, so the script cannot wait for it. $unsigned"
         }
         if ($answer.Trim() -ieq 'abort') { throw "Signing aborted: the update feed signing key $Path is not there. $unsigned" }
     }
@@ -1085,7 +1172,8 @@ function Invoke-FeedSigning {
         The signing step of release-build.ps1 after packaging (T-181, decision of question 17): waits for the key file at
         KeyPath (Wait-FeedSigningKeyFile), reads it again, asks for the password a second time (or copies Password),
         refuses a key whose public key is not ExpectedPublicKeySha256 (the key checked before the build), signs and
-        verifies every feed (Add-UpdateFeedSignatures) and disposes the key. Returns the paths of the .sig files.
+        verifies every feed (Add-UpdateFeedSignatures) and disposes the key. Returns the paths of the .sig files. Purpose
+        is shown in the password prompt (release-build.ps1 -SignOnly asks only once, T-197).
     #>
     param(
         [Parameter(Mandatory)] [string] $KeyPath,
@@ -1093,11 +1181,12 @@ function Invoke-FeedSigning {
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys,
         [Parameter(Mandatory)] [string] $DistDirectory,
         [Parameter(Mandatory)] [string[]] $Runtimes,
-        [System.Security.SecureString] $Password
+        [System.Security.SecureString] $Password,
+        [string] $Purpose = 'second time: sign the update feeds'
     )
     Wait-FeedSigningKeyFile $KeyPath
     $encrypted = Read-FeedSigningKeyFile $KeyPath
-    try { $key = Unlock-FeedSigningKey -EncryptedPem $encrypted -KeyPath $KeyPath -Password $Password -Purpose 'second time: sign the update feeds' }
+    try { $key = Unlock-FeedSigningKey -EncryptedPem $encrypted -KeyPath $KeyPath -Password $Password -Purpose $Purpose }
     finally { $encrypted = $null }
     try {
         $fingerprint = Get-FeedKeyFingerprint $key.ExportSubjectPublicKeyInfo()

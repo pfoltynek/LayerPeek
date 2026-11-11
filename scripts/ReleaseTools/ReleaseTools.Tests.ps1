@@ -401,6 +401,13 @@ Describe 'Git state checks (throw-away repositories)' {
     It 'refuses a version bumped without a new tag' {
         Assert-Problems (Get-ReleaseGitProblems -State (State 'v0.2.0') -Version '0.2.0') 'HEAD is tagged v0.1.0 but the version .* is 0.2.0', 'v0.2.0 is not on origin'
     }
+    It 'checks only the local facts with -LocalOnly: no remote query, no remote problem (release-build.ps1 -SignOnly, T-197)' {
+        $local = Get-ReleaseGitState -RepoRoot $script:Work -Tag 'v0.1.0' -Remote 'no-such-remote' -LocalOnly
+        $local.RemoteQueried | Should -BeFalse
+        @($local.RemoteErrors) | Should -BeNullOrEmpty
+        Assert-Problems (Get-ReleaseGitProblems -State $local -Version '0.1.0')
+        Assert-Problems (Get-ReleaseGitProblems -State (Get-ReleaseGitState -RepoRoot $script:Work -Tag 'v0.2.0' -LocalOnly) -Version '0.2.0') 'HEAD is tagged v0.1.0 but the version .* is 0.2.0'
+    }
     It 'refuses an untracked file' {
         [System.IO.File]::WriteAllText((Join-Path $script:Work 'untracked.txt'), 'x')
         try { Assert-Problems (Get-ReleaseGitProblems -State (State) -Version '0.1.0') 'not clean \(1 .*untracked.txt' }
@@ -584,9 +591,87 @@ Describe 'Build marker' {
         Assert-Problems (Problems (Copy-With $script:Info @{ FeedSignature = [pscustomobject]@{ Status = 'maybe' } })) 'has no update feed signature'
         Assert-Problems (Problems (Copy-With $script:Info @{ FeedSignature = $null })) 'has no update feed signature'
     }
+    It 'refuses a build whose signing did not finish and names -SignOnly (pending record, T-197)' {
+        $pending = Copy-With $script:Info @{
+            FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = 'f' * 64 }
+            Files         = @($script:Info.Files | Where-Object Name -CNE 'releases.win-x64.json.sig')
+        }
+        Assert-Problems (Problems $pending @('P-0.1.0-win-x64.zip', 'releases.win-x64.json')) `
+            'is not signed yet: the signing at the end of release-build\.ps1 did not finish .*release-build\.ps1 -SignOnly', 'releases\.win-x64\.json without its signature',
+            'missing in dist: SHA256SUMS-windows\.txt'
+    }
     It 'refuses a signed build whose feed has no signature file (T-181)' {
         $unsigned = Copy-With $script:Info @{ Files = @($script:Info.Files | Where-Object Name -CNE 'releases.win-x64.json.sig') }
         Assert-Problems (Problems $unsigned @($script:DistNames | Where-Object { $_ -cne 'releases.win-x64.json.sig' })) 'releases\.win-x64\.json without its signature'
+    }
+}
+
+Describe 'Sign only an existing dist (T-197, pure)' {
+    BeforeAll {
+        $script:SignHead = 'a' * 40
+        $script:Pending = [pscustomobject]@{
+            Version = '0.1.0'; Commit = $script:SignHead; Dirty = $false; Os = 'macos'; Runtimes = @('osx-arm64'); ChecksumFile = 'SHA256SUMS-macos.txt'
+            Files = @(
+                [pscustomobject]@{ Name = 'LayerPeek-0.1.0-osx-arm64.dmg'; Runtime = 'osx-arm64'; Step = 'app'; Sha256 = '0' * 64 },
+                [pscustomobject]@{ Name = 'releases.osx-arm64.json'; Runtime = 'osx-arm64'; Step = 'app'; Sha256 = '1' * 64 }
+            )
+            FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = 'f' * 64 }
+            Smoke = [pscustomobject]@{ 'osx-arm64' = 'passed' }; CreatedUtc = '2026-11-11T10:00:00.0000000Z'
+        }
+        $script:PendingDist = @(
+            [pscustomobject]@{ Name = 'LayerPeek-0.1.0-osx-arm64.dmg'; Sha256 = '0' * 64 },
+            [pscustomobject]@{ Name = 'releases.osx-arm64.json'; Sha256 = '1' * 64 }
+        )
+        function SignProblems($Info = $script:Pending, [object[]] $Dist = $script:PendingDist, [string] $Os = 'macos') {
+            Get-SignOnlyProblems -BuildInfo $Info -Version '0.1.0' -Head $script:SignHead -Os $Os -DistFiles $Dist
+        }
+        function DistFile([string] $Name, [string] $Hash) { [pscustomobject]@{ Name = $Name; Sha256 = $Hash } }
+        $script:Rebuild = 'Nothing was signed; build again with the signing key'
+    }
+    It 'accepts the unchanged dist of a pending build record of HEAD' {
+        Assert-Problems (SignProblems)
+    }
+    It 'refuses a missing, incomplete, signed, trial or unknown record without looking further' {
+        Assert-Problems (SignProblems $null) 'There is no build record \(build-info\.json\) of version 0\.1\.0 to sign'
+        $incomplete = $script:Pending.PSObject.Copy()
+        $incomplete.PSObject.Properties.Remove('Files')
+        Assert-Problems (SignProblems $incomplete) 'incomplete \(no Files\)'
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'signed'; PublicKeySha256 = 'f' * 64 } }) @()) 'already signed .* never signed again'
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'skipped'; PublicKeySha256 = $null } })) 'trial build of -SkipFeedSignature; it cannot be signed afterwards'
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'Pending' } })) "no pending signature \(FeedSignature\.Status 'Pending'\)"
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = $null })) "no pending signature \(FeedSignature\.Status ''\)"
+    }
+    It 'refuses another version, commit or OS and a build from a dirty tree' {
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Version = '0.0.9' })) 'of version 0\.0\.9, the source is 0\.1\.0', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Commit = 'c' * 40 })) 'built from commit c{40}, HEAD is a{40}', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Dirty = $true })) 'uncommitted or untracked files; it can never be uploaded', $script:Rebuild
+        Assert-Problems (SignProblems -Os 'windows') 'built on macos, this machine is windows', 'contains osx-arm64, a runtime of macos', "checksum file 'SHA256SUMS-macos\.txt', expected SHA256SUMS-windows\.txt", $script:Rebuild
+    }
+    It 'refuses a record without runtimes, with an unknown runtime or without the fingerprint of the checked key' {
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @() })) 'names no runtime', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @('osx-arm64', 'win-arm64') })) "unknown runtime 'win-arm64'", 'no update feed releases\.win-arm64\.json', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = $null } })) 'does not name the public key', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = 'F' * 64 } })) 'does not name the public key', $script:Rebuild
+    }
+    It 'refuses a record listing what only the signing writes, a file twice or no feed' {
+        $sig = DistFile 'releases.osx-arm64.json.sig' ('2' * 64)
+        $withSig = Copy-With $script:Pending @{ Files = @($script:Pending.Files) + [pscustomobject]@{ Name = $sig.Name; Runtime = 'osx-arm64'; Step = 'feed-signature'; Sha256 = $sig.Sha256 } }
+        Assert-Problems (SignProblems $withSig (@($script:PendingDist) + $sig)) 'lists releases\.osx-arm64\.json\.sig, which only the signing writes', $script:Rebuild
+        $twice = Copy-With $script:Pending @{ Files = @($script:Pending.Files) + $script:Pending.Files[0] }
+        Assert-Problems (SignProblems $twice) 'lists a file twice', $script:Rebuild
+        $noFeed = Copy-With $script:Pending @{ Files = @($script:Pending.Files[0]) }
+        Assert-Problems (SignProblems $noFeed @($script:PendingDist[0])) 'has no update feed releases\.osx-arm64\.json of osx-arm64 to sign', $script:Rebuild
+        $path = Copy-With $script:Pending @{ Files = @($script:Pending.Files) + [pscustomobject]@{ Name = '../x.zip'; Runtime = 'osx-arm64'; Step = 'app'; Sha256 = '3' * 64 } }
+        Assert-Problems (SignProblems $path (@($script:PendingDist) + (DistFile '../x.zip' ('3' * 64)))) 'without a plain file name', $script:Rebuild
+    }
+    It 'refuses a changed, a missing and an added file in dist' {
+        Assert-Problems (SignProblems -Dist @((DistFile 'LayerPeek-0.1.0-osx-arm64.dmg' ('9' * 64)), $script:PendingDist[1])) 'changed after the build \(SHA-256 differs from the build record\): LayerPeek-0\.1\.0-osx-arm64\.dmg', $script:Rebuild
+        Assert-Problems (SignProblems -Dist @($script:PendingDist[1])) 'missing in dist/: LayerPeek-0\.1\.0-osx-arm64\.dmg', $script:Rebuild
+        Assert-Problems (SignProblems -Dist (@($script:PendingDist) + (DistFile '.DS_Store' ('4' * 64)))) 'not produced by the build: \.DS_Store', $script:Rebuild
+        # A signature or checksum file left by an earlier signing attempt is a file the record does not list.
+        Assert-Problems (SignProblems -Dist (@($script:PendingDist) + (DistFile 'releases.osx-arm64.json.sig' ('2' * 64)) + (DistFile 'SHA256SUMS-macos.txt' ('5' * 64)))) `
+            'not produced by the build: releases\.osx-arm64\.json\.sig, SHA256SUMS-macos\.txt', $script:Rebuild
+        Assert-Problems (SignProblems -Dist @()) 'missing in dist/: LayerPeek-0\.1\.0-osx-arm64\.dmg, releases\.osx-arm64\.json', $script:Rebuild
     }
 }
 
@@ -896,6 +981,12 @@ Describe 'Update feed signature (T-181)' {
         Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic, $script:TestPublic) -PublicKey $script:TestPublic.SubjectPublicKeyInfo)
         Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:TestPublic))
     }
+    It 'checks the fingerprint of a build record against the trusted list like a public key (T-197)' {
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @() -PublicKeySha256 $script:TestPublic.Sha256) 'trusts no key yet'
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic) -PublicKeySha256 $script:TestPublic.Sha256) `
+            "The signing key \(public key SHA-256 $($script:TestPublic.Sha256)\) is not trusted by"
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic, $script:TestPublic) -PublicKeySha256 $script:TestPublic.Sha256)
+    }
     It 'refuses a missing, unencrypted or foreign key file' {
         Assert-ThrowsMatching { Read-FeedSigningKeyFile (Join-Path $script:TempRoot 'no-such-key.pem') } 'does not exist\. Is the key medium connected\?'
         Assert-ThrowsMatching { Read-FeedSigningKeyFile $script:PlainKeyPath } 'is an unencrypted private key.*encrypted PKCS#8 PEM'
@@ -1059,6 +1150,13 @@ Describe 'Update feed signature (T-181)' {
             Assert-NoSecret ($output | Out-String) 'the output of Invoke-FeedSigning'
             Assert-NoSecretInFolder $setup.Dist
         }
+        It 'names the purpose of the signing in the password prompt (release-build.ps1 -SignOnly asks once, T-197)' {
+            $setup = New-SigningSetup 'twice-purpose'
+            $null = Invoke-FeedSigning -KeyPath $setup.KeyPath -ExpectedPublicKeySha256 $script:TestPublic.Sha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Purpose 'sign the update feeds of the finished build'
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString -and $Prompt -match '\(sign the update feeds of the finished build\)$' } -Times 1 -Exactly
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } -Times 1 -Exactly
+            Verify -Signature ([System.IO.File]::ReadAllBytes((Join-Path $setup.Dist 'releases.osx-arm64.json.sig'))) | Should -BeTrue
+        }
         It 'lets a wrongly typed password be typed again, but tries a given password only once' {
             $setup = New-SigningSetup 'twice-retype'
             $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
@@ -1107,9 +1205,9 @@ Describe 'Update feed signature (T-181)' {
             Assert-NoSecret ($output | Out-String) 'the output of Invoke-FeedSigning'
         }
         It 'stops with a clear message when the key medium is missing at the end and the user aborts (<Case>)' -ForEach @(
-            @{ Case = 'non-interactive session'; Answer = 'throw'; Pattern = 'is not there at the end of the build \(key medium disconnected\?\) and this session is not interactive, so the build cannot wait for it\. The packages are built, but the update feeds are not signed and this build cannot be uploaded\.' }
-            @{ Case = 'end of the input'; Answer = 'null'; Pattern = 'this session is not interactive, so the build cannot wait for it' }
-            @{ Case = 'abort'; Answer = ' Abort '; Pattern = 'Signing aborted: the update feed signing key .* is not there\. The packages are built, but the update feeds are not signed' }
+            @{ Case = 'non-interactive session'; Answer = 'throw'; Pattern = 'is not there for signing \(key medium disconnected\?\) and this session is not interactive, so the script cannot wait for it\. The packages are built, but the update feeds are not signed and this build cannot be uploaded yet\. Connect the key medium and sign the finished build without building it again: pwsh scripts/release-build\.ps1 -SignOnly' }
+            @{ Case = 'end of the input'; Answer = 'null'; Pattern = 'this session is not interactive, so the script cannot wait for it' }
+            @{ Case = 'abort'; Answer = ' Abort '; Pattern = 'Signing aborted: the update feed signing key .* is not there\. The packages are built, but the update feeds are not signed.*release-build\.ps1 -SignOnly' }
         ) {
             $setup = New-SigningSetup "twice-missing-$($Answer.Trim())"
             $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
@@ -1127,9 +1225,14 @@ Describe 'Update feed signature (T-181)' {
     It 'marks a build of -SkipFeedSignature in build-info.json and signs the feeds before the checksum file (release-build.ps1)' {
         $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))
         $script | Should -Match "Status = 'skipped'"
-        $script | Should -Match 'FeedSignature = \$feedSignature'
-        $script.IndexOf('Invoke-FeedSigning ') | Should -BeGreaterThan $script.IndexOf('foreach ($step in @($packagingSteps')
+        $script | Should -Match "FeedSignature = \`$feedSigning \? \[ordered\]@\{ Status = 'pending'"
+        # The signing (a function, shared with -SignOnly, T-197) comes before the checksum file; in the build it runs after
+        # packaging, right after the pending build record is written.
         $script.IndexOf('Invoke-FeedSigning ') | Should -BeLessThan $script.IndexOf('Write-Sha256Sums')
+        $main = $script.Substring($script.IndexOf('foreach ($step in @($packagingSteps'))
+        $main.IndexOf('Write-BuildInfo $buildInfo $releaseDir') | Should -BeGreaterThan 0
+        $main.IndexOf('Add-FeedSignatureFiles ') | Should -BeGreaterThan $main.IndexOf('Write-BuildInfo $buildInfo $releaseDir')
+        $main.IndexOf('Complete-BuildOutput ') | Should -BeGreaterThan $main.IndexOf('Add-FeedSignatureFiles ')
         # The key is checked before the long build, and only its path and fingerprint are kept until the signing (question 17).
         $script.IndexOf('$feedSigning = Get-FeedSigning') | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
         $script.IndexOf('Confirm-FeedSigningKey ') | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")

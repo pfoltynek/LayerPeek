@@ -24,8 +24,9 @@ décrit les deux systèmes ; là où Windows et macOS diffèrent, le texte le p
 11. [Référence des paramètres](#11-référence-des-paramètres)
 12. [Mises à jour](#12-mises-à-jour)
 13. [Où sont stockées vos données](#13-où-sont-stockées-vos-données)
-14. [Dépannage](#14-dépannage)
-15. [Désinstallation](#15-désinstallation)
+14. [Accès sécurisé à PrusaLink](#14-accès-sécurisé-à-prusalink)
+15. [Dépannage](#15-dépannage)
+16. [Désinstallation](#16-désinstallation)
 
 ## 1. Ce dont vous avez besoin
 
@@ -120,11 +121,17 @@ L'icône affiche aussitôt l'état de l'imprimante. Ajoutez d'autres imprimantes
 imprimante** dans l'onglet **Imprimantes**.
 
 **macOS 15 et versions ultérieures :** la première connexion à une imprimante ou à une caméra demande l'accès au
-**Réseau local**. Cliquez sur **Autoriser**. Si vous l'avez refusé, consultez [Dépannage](#14-dépannage).
+**Réseau local**. Cliquez sur **Autoriser**. Si vous l'avez refusé, consultez [Dépannage](#15-dépannage).
 
 Le mot de passe est stocké dans le **Gestionnaire d'identification** de Windows (Credential Manager) ou dans le
 **Trousseau** de macOS (Keychain), jamais dans le fichier de paramètres. Lorsque vous modifiez une imprimante plus tard,
 le champ du mot de passe affiche **Inchangé** ; laissez-le vide pour conserver le mot de passe enregistré.
+
+**Avertissement sous l'adresse :** une adresse `http://` qui peut se trouver hors du réseau local (une adresse IP
+publique, ou un nom d'hôte autre qu'un nom sans point ou se terminant par `.local`, `.lan` ou `.home.arpa`) affiche un
+avertissement à la place de l'aide. PrusaLink se connecte sans chiffrement, le mot de passe pourrait donc être
+intercepté en chemin. L'enregistrement reste possible. Préférez `https://` via un proxy inverse, ou un VPN. **En savoir
+plus** à côté de l'avertissement ouvre le chapitre [Accès sécurisé à PrusaLink](#14-accès-sécurisé-à-prusalink).
 
 ### 3.3 Ajouter la caméra (facultatif)
 
@@ -134,6 +141,11 @@ le champ du mot de passe affiche **Inchangé** ; laissez-le vide pour conserver
    est 554). Ne mettez ni nom d'utilisateur ni mot de passe dans l'adresse.
 4. Cliquez sur **Tester la caméra**. Une caméra qui fonctionne affiche une image et sa résolution.
 5. Cliquez sur **Enregistrer** et choisissez **Afficher la caméra** dans le sous-menu de l'imprimante.
+
+Comme pour l'adresse de l'imprimante, une adresse de caméra qui peut se trouver hors du réseau local affiche un
+avertissement : RTSP n'est pas chiffré, l'image de la caméra pourrait donc être interceptée en chemin. L'enregistrement
+reste possible ; préférez un VPN. Le même lien à côté ouvre le chapitre [Accès sécurisé à
+PrusaLink](#14-accès-sécurisé-à-prusalink).
 
 ### 3.4 Image de l'imprimante
 
@@ -548,7 +560,164 @@ L'historique des températures est conservé uniquement en mémoire. LayerPeek s
 caméras que vous ajoutez et, sauf si vous désactivez la recherche de mises à jour, à GitHub (la liste des versions, sans
 aucun compte, et le téléchargement d'une mise à jour que vous lancez). Il n'y a aucune télémétrie.
 
-## 14. Dépannage
+## 14. Accès sécurisé à PrusaLink
+
+PrusaLink sur l'imprimante ne parle que **HTTP** non chiffré ; l'imprimante elle-même n'offre pas HTTPS. Prusa conçoit
+PrusaLink pour le réseau local et déconseille d'y accéder depuis Internet par une redirection de port sur le routeur ;
+Prusa recommande plutôt un VPN chiffré. Sur un réseau domestique que vous êtes seul à utiliser, cela suffit en général.
+Lisez la suite si d'autres personnes ou appareils partagent le réseau entre votre ordinateur et l'imprimante (Wi-Fi
+partagé, bureau, atelier, résidence) ou si vous voulez accéder à l'imprimante depuis l'extérieur.
+
+Une adresse d'imprimante `http://` ou une adresse de caméra qui peut se trouver hors du réseau local reçoit un
+avertissement dans les paramètres (voir [3.2 Ajouter l'imprimante](#32-ajouter-limprimante)) ; l'enregistrement reste
+possible.
+
+### 14.1 En quoi consiste le risque
+
+- **Quiconque peut voir le trafic** entre votre ordinateur et l'imprimante peut le lire : l'état de l'imprimante, les
+  noms de fichiers et le G-code envoyé par l'interface web PrusaLink.
+- **La connexion :** LayerPeek se connecte avec HTTP Digest, la seule connexion que l'imprimante propose en dehors de la
+  clé API. Le mot de passe lui-même n'est pas envoyé, mais le Digest de l'imprimante est l'ancienne variante MD5 (RFC
+  2069). À partir d'une connexion enregistrée, un attaquant peut essayer de deviner le mot de passe hors ligne et,
+  pendant 5 minutes au plus, rejouer la même requête enregistrée. Digest ne protège pas le contenu : qui peut modifier
+  le trafic peut modifier les données.
+- **La clé API :** les outils qui se connectent avec la clé API (l'en-tête `X-Api-Key`) envoient le mot de passe
+  PrusaLink lui-même, lisible par quiconque écoute. Dans PrusaSlicer, choisissez **HTTP digest** plutôt que la clé API.
+- **Avec le mot de passe**, n'importe qui contrôle l'imprimante via PrusaLink : lance et arrête des impressions, envoie
+  et supprime des fichiers.
+
+### 14.2 Le mot de passe
+
+L'imprimante génère elle-même le mot de passe ; le firmware actuel le compose de 15 caractères aléatoires parmi 57
+lettres et chiffres (sans les 0, O, 1, l et I faciles à confondre). Deviner un tel mot de passe à partir d'une connexion
+enregistrée n'est pas réaliste. Sur les imprimantes à firmware Buddy, vous ne pouvez pas saisir votre propre mot de
+passe, vous pouvez seulement en générer un nouveau.
+
+Générez un nouveau mot de passe dès que l'ancien a pu fuiter (une photo partagée de l'écran ou du QR code PrusaLink, qui
+contient le mot de passe, ou la clé API utilisée sur un réseau non fiable) :
+
+1. Sur l'imprimante, ouvrez **Settings → Network → PrusaLink** (Réglages → Réseau → PrusaLink) et choisissez **Generate
+   Password** (Générer un Mot de Passe).
+2. Dans LayerPeek, ouvrez **Paramètres → Imprimantes**, sélectionnez l'imprimante, saisissez le nouveau mot de passe
+   dans **Mot de passe** du sous-onglet **Imprimante**, cliquez sur **Tester la connexion** puis sur **Enregistrer**.
+3. Changez-le aussi dans les autres outils qui utilisent PrusaLink (PrusaSlicer et autres).
+
+### 14.3 Un réseau séparé et le pare-feu
+
+- Placez les imprimantes et les caméras dans un **réseau séparé** de votre routeur (pour les objets connectés, un VLAN).
+  Autorisez l'ordinateur où tourne LayerPeek à les joindre : le port TCP **80** de l'imprimante (PrusaLink) et le port
+  RTSP de la caméra (**554** par défaut). Les réseaux invités bloquent souvent les connexions entre appareils ;
+  consultez le manuel de votre routeur.
+- **Ne redirigez jamais un port du routeur** vers l'imprimante. Pour y accéder depuis l'extérieur, connectez-vous à
+  votre réseau domestique par un VPN.
+- LayerPeek lui-même n'offre rien au réseau : **Ouvrir PrusaLink** n'écoute que sur `127.0.0.1` de votre ordinateur. Le
+  pare-feu de votre ordinateur n'a besoin d'aucune nouvelle règle pour LayerPeek.
+
+### 14.4 HTTPS via un proxy inverse
+
+Un petit ordinateur à côté de l'imprimante (par exemple un Raspberry Pi) exécute un proxy inverse, **Caddy** ou
+**nginx**. LayerPeek communique avec le proxy en HTTPS ; seul le proxy parle à l'imprimante en HTTP non chiffré. Reliez
+le proxy et l'imprimante par un câble court ou au même switch et, si votre routeur le permet, ne laissez que le proxy
+joindre l'imprimante.
+
+- Dans LayerPeek, saisissez l'adresse du proxy comme adresse de l'imprimante, par ex. `https://printer.home.arpa`. Le
+  nom doit mener au proxy (une entrée DNS dans le routeur ou le fichier `hosts`).
+- Utilisez **un nom d'hôte ou un port par imprimante**, pas un chemin comme `https://proxy/mk4/`. L'imprimante vérifie
+  la connexion d'après le chemin de la requête : un proxy qui retire un tel préfixe fait refuser le mot de passe par
+  l'imprimante.
+- La caméra (RTSP) ne passe pas par le proxy ; LayerPeek s'y connecte directement.
+
+**Caddy** (le fichier `Caddyfile`, `192.168.1.20` est l'imprimante) :
+
+```caddyfile
+printer.home.arpa {
+	tls internal
+	reverse_proxy 192.168.1.20
+}
+```
+
+Avec `tls internal`, Caddy émet le certificat depuis sa propre autorité de certification (CA). Faites confiance à son
+certificat racine sur votre ordinateur (voir [14.5](#145-faire-confiance-au-certificat-sur-votre-ordinateur)) ; quand
+Caddy tourne comme service Linux, le fichier est `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`.
+Caddy transmet le chemin et les en-têtes de connexion sans les modifier.
+
+**nginx** (un bloc `server`, par ex. dans `/etc/nginx/conf.d/printer.conf`) :
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name printer.home.arpa;
+    ssl_certificate     /etc/nginx/tls/printer.crt;
+    ssl_certificate_key /etc/nginx/tls/printer.key;
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://192.168.1.20;
+    }
+}
+```
+
+`proxy_pass` sans chemin transmet le chemin sans le modifier. `client_max_body_size 0` lève la limite de 1 Mo, pour que
+l'envoi de G-code par l'interface web PrusaLink fonctionne. nginx a besoin d'un certificat de votre propre CA, créé par
+exemple avec OpenSSL :
+
+```sh
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=Printer proxy CA" \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -keyout ca.key -out ca.crt
+openssl req -newkey rsa:3072 -nodes -subj "/CN=printer.home.arpa" -keyout printer.key -out printer.csr
+printf "subjectAltName=DNS:printer.home.arpa\nextendedKeyUsage=serverAuth\n" > printer.ext
+openssl x509 -req -in printer.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 825 \
+  -extfile printer.ext -out printer.crt
+```
+
+Copiez `printer.crt` et `printer.key` sur le proxy et `ca.crt` sur vos ordinateurs ; gardez `ca.key` en lieu sûr et hors
+du réseau. Le certificat du serveur est valable 825 jours, le maximum accepté par macOS.
+
+### 14.5 Faire confiance au certificat sur votre ordinateur
+
+LayerPeek n'accepte que les certificats auxquels votre système fait confiance. Un certificat auto-signé, ou celui d'une
+CA que le système ne connaît pas, échoue : **Tester la connexion** indique *« La connexion sécurisée (https) a échoué.
+Essayez l'adresse avec http:// ou vérifiez le certificat de l'imprimante. »*, l'imprimante apparaît **Hors ligne** et
+**Diagnostic** affiche *« La connexion sécurisée (https) à l'imprimante a échoué. »* LayerPeek ne peut pas faire
+confiance de lui-même à un certificat précis ; ajoutez le certificat de votre CA (`ca.crt` ou le `root.crt` de Caddy) au
+système :
+
+- **Windows :** appuyez sur **Win+R**, lancez `certmgr.msc`, faites un clic droit sur **Autorités de certification
+  racines de confiance → Certificats** (Trusted Root Certification Authorities → Certificates), choisissez **Toutes les
+  tâches → Importer…** et importez le fichier dans **Autorités de certification racines de confiance** ; confirmez
+  l'avertissement de sécurité. Ou dans un terminal : `certutil -user -addstore Root ca.crt`.
+- **macOS :** ouvrez **Trousseaux d'accès** (avec Spotlight), sélectionnez le trousseau **session** (login) et faites
+  glisser le fichier dans la fenêtre. Double-cliquez sur le certificat, ouvrez **Se fier** et réglez **Lors de
+  l'utilisation de ce certificat** sur **Toujours approuver** (Always Trust) ; confirmez avec votre mot de passe.
+
+Relancez ensuite **Tester la connexion**.
+
+Sources : PrusaLink [sur le réseau
+local](https://help.prusa3d.com/article/prusa-connect-and-prusalink-explained_302608), [redirection de port et
+VPN](https://help.prusa3d.com/article/prusalink-sl1-sl1s_146094), [HTTP digest dans
+PrusaSlicer](https://help.prusa3d.com/article/prusalink-troubleshooting_304411) ; firmware : [port 80 sans
+TLS](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/http_lifetime.cpp),
+[Digest et clé
+API](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/nhttp/req_parser.cpp),
+[validité du
+nonce](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/common/http/types.h),
+[génération du mot de
+passe](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/wui.cpp) et
+[longueur](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/persistent_stores/store_instances/config_store/constants.hpp),
+[menu
+PrusaLink](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/gui/screen_prusa_link.cpp) ;
+[RFC 2069](https://www.rfc-editor.org/rfc/rfc2069) ; [Caddy
+`reverse_proxy`](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy),
+[`tls`](https://caddyserver.com/docs/caddyfile/directives/tls), [répertoire de
+données](https://caddyserver.com/docs/running) ; [nginx
+`proxy_pass`](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass),
+[`client_max_body_size`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size) ; [exigences
+d'Apple pour les certificats](https://support.apple.com/en-us/103769), [Trousseaux
+d'accès](https://support.apple.com/guide/keychain-access/change-the-trust-settings-of-a-certificate-kyca11871/mac) ;
+[certutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil).
+
+## 15. Dépannage
 
 **L'icône n'est pas visible (Windows).** Cliquez sur la flèche **`^`** dans la zone de notification et faites glisser
 l'icône de LayerPeek sur la barre des tâches.
@@ -559,6 +728,10 @@ paramètres de l'imprimante.
 
 **Identifiants non valides.** Saisissez de nouveau le nom d'utilisateur et le mot de passe indiqués dans
 **Settings → Network → PrusaLink** (Paramètres → Réseau → PrusaLink) sur l'imprimante, puis enregistrez.
+
+**La connexion sécurisée (https) a échoué.** L'adresse de l'imprimante commence par `https://`. Soit elle mène
+directement à l'imprimante, qui n'offre pas HTTPS (utilisez `http://`), soit votre système ne fait pas confiance au
+certificat du proxy : voir [14.5](#145-faire-confiance-au-certificat-sur-votre-ordinateur).
 
 **Pas de connexion sur macOS.** L'accès au réseau local est peut-être désactivé. LayerPeek propose alors **Ouvrir
 Réglages Système** ; activez LayerPeek dans **Réglages Système → Confidentialité et sécurité → Réseau local**.
@@ -582,7 +755,7 @@ reproduisez le problème, enregistrez le paquet, puis désactivez de nouveau la 
 Signalez les bugs et les idées dans les [issues](https://github.com/pfoltynek/LayerPeek/issues) sur GitHub. Indiquez
 le modèle de votre imprimante, la version du firmware et votre système d'exploitation.
 
-## 15. Désinstallation
+## 16. Désinstallation
 
 - **Windows, version installée :** **Paramètres → Applications → Applications installées → LayerPeek → Désinstaller**.
 - **Windows, version ZIP :** quittez LayerPeek et supprimez son dossier.

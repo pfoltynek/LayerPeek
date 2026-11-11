@@ -471,7 +471,7 @@ No. It asks for the state every few seconds (configurable), the same way the Pru
 ### Prerequisites
 
 - [.NET SDK 11](https://dotnet.microsoft.com/download/dotnet/11.0). The exact version is pinned in
-  [`global.json`](global.json) and preview versions are allowed.
+  [`global.json`](global.json); only stable SDK releases are used, no previews.
 - Git.
 - For a **Native AOT publish** only: on Windows the Visual Studio Build Tools with the *Desktop development with
   C++* workload, on macOS the Xcode Command Line Tools.
@@ -567,6 +567,10 @@ There is no CLA. By submitting a contribution you agree that it is licensed unde
 Please don't report security issues in public issues. Use GitHub's
 [private vulnerability reporting](https://github.com/pfoltynek/LayerPeek/security/advisories/new) instead.
 See [SECURITY.md](SECURITY.md).
+
+PrusaLink on the printer offers only plain HTTP with an MD5 Digest login. How to protect it (the printer's password,
+a separate network, HTTPS through a Caddy or nginx reverse proxy) is described in the user manual:
+[Securing access to PrusaLink](manuals/en/manual.md#14-securing-access-to-prusalink).
 
 ## License
 

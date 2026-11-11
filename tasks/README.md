@@ -192,8 +192,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-174 | Ruční ověření dalších modelů tiskáren (MK4/MK4S, MK3.9, MK3.5, XL, MINI) | all | qa-reviewer | P2 | – |
 | T-180 | Zabezpečení účtu a repozitáře na GitHubu (2FA klíčem, pravidla tagů a větví, krátkodobý token pro vydání) | all | user | P1 | – |
 | T-181 | Podepsaný feed aktualizací (podpis `releases.<RID>.json` offline klíčem, ověření v aplikaci) (hotovo; Windows v T-125, zkušební vydání v T-127) | all | core-dev | P2 | – |
-| T-182 | Varování u adresy `http://` mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť) | all | core-dev + ui-dev | P2 | – |
-| T-183 | Dokumentace – zabezpečení přístupu k PrusaLink (silné heslo, oddělená síť, HTTPS přes reverzní proxy) | all | architect + qa-reviewer | P2 | – |
+| T-182 | Varování u adresy `http://` mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť) (hotovo; Windows v T-125) | all | core-dev + ui-dev | P2 | – |
+| T-183 | Dokumentace – zabezpečení přístupu k PrusaLink (silné heslo, oddělená síť, HTTPS přes reverzní proxy) (hotovo; CA v úložišti OS v T-125 / T-127) | all | architect + qa-reviewer | P2 | – |
 | T-184 | Kamera – převod obrazu rovnou ve velikosti, ve které se zobrazuje (výkon) (hotovo) | all | core-dev + ui-dev | P2 | – |
 | T-185 | Kamera – omezení snímkové frekvence v malém náhledu (výkon) (hotovo) | all | core-dev + ui-dev | P2 | – |
 | T-188 | Kamera – exponenciální backoff při opětovném připojení (výkon) (hotovo) | all | core-dev | P2 | – |
@@ -202,10 +202,11 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-194 | Kamera – „Otestovat kameru“ zkrátí pauzu znovupřipojení a čas dalšího pokusu bez zastarání (hotovo) | all | ui-dev + core-dev | P2 | T-188 |
 | T-195 | Kamera – zmenšovat dekódovaný obraz jen tehdy, když to ušetří (hotovo) | all | core-dev + ui-dev | P3 | T-184 |
 | T-196 | Smoke test – zálohovat a obnovovat i mezipaměť `~/Library/Caches/LayerPeek` (hotovo; Windows v T-125) | all | qa-reviewer | P3 | – |
-| T-197 | Vydání – jen podepsat hotový `dist/` (opakování podpisu feedu bez nového buildu; jen `dist/` z čistého tagu beze změny od buildu) | all | qa-reviewer | P3 | T-181 |
+| T-197 | Vydání – jen podepsat hotový `dist/` (opakování podpisu feedu bez nového buildu; jen `dist/` z čistého tagu beze změny od buildu) (hotovo; `release-build.ps1 -SignOnly`) | all | qa-reviewer | P3 | T-181 |
 | T-190 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) (zamítnuto 2026-11-11) | all | ui-dev | P3 | – |
 | T-191 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) (hotovo, build beze změny) | all | qa-reviewer | P3 | – |
 | T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) | all | architect | P3 | T-184, T-185 |
+| T-198 | Připravenost vydání 1.0.0 (blokery, první podepsané vydání, zveřejnění repozitáře, plán dne vydání) | all | architect | P1 | – |
 
 ### Windows (`windows`)
 
