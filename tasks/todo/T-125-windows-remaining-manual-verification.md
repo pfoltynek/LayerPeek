@@ -420,6 +420,15 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] **T-185** (volitelně, měření): malý náhled se simulátorem (1280 × 720, 25 fps) před / po – CPU procesu při
       Vyvážený (10 fps) a Úsporný (5 fps) proti Plynulý; na Macu −31 % / −42 % (poznámky T-185).
 
+### 2x. Práh zmenšení obrazu kamery (z T-195, implementováno na Macu 2026-11-11)
+- [ ] **T-195** (automaticky): `dotnet test` na Windows bez chyb, hlavně `CameraDisplayScalerTests` a
+      `FFmpegCameraFeedDisplayTests.ADisplaySizeOnlyALittleSmallerThanTheCameraIsConvertedInFullResolution`.
+- [ ] **T-195** (volitelně, měření x64): práh 70 % / 75 % strany zdroje je změřený na Macu (Skia na Metalu, swscale
+      s NEON). Na Windows má renderer (Skia přes Direct3D/ANGLE) i swscale (x64 SIMD) jiné cesty. Simulátor 720p
+      (`--camera-clip` s klipem 1280 × 720), normální okno při 100 % DPI s plochou obrazu 1152, 960, 928, 896 a 640 px
+      široké a malý náhled: CPU a working set procesu, výsledek zapsat do poznámek T-195. Pokud by na Windows
+      vycházel jiný práh, založit nový úkol (práh podle OS), T-195 se znovu neotevírá.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

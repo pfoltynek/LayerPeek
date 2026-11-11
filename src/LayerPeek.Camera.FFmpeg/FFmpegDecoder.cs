@@ -77,6 +77,9 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     private readonly BgraConverter _display = new();
     private readonly GrayscaleConverter _grayscale = new();
 
+    // T-195: whether the frame for display is scaled down here or converted in full resolution for the renderer to scale.
+    private readonly CameraDisplayScaler _displayScaler = new();
+
     public FFmpegDecoder(string url, bool isNetwork, TimeSpan ioTimeout, InterruptFlag interrupt)
     {
         _url = url;
@@ -641,8 +644,9 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// Converts the decoded picture in <c>_frame</c> as <paramref name="demand"/> wants it, also a key frame decoded on its
     /// own (T-153): scaled down to fit its display size while that is due (T-184, T-185), in full resolution while that is
     /// due, and into grayscale while that is due (T-189: print failure detection gets no BGRA frame). An image that already
-    /// fits the display size is converted once, in full resolution, for both. With nothing wanted (a lingering connection,
-    /// a frame the mini preview skips) nothing is converted and the item carries no pixels.
+    /// fits the display size, or would get only a little smaller (T-195, <see cref="CameraDisplayScaler"/>), is converted
+    /// once, in full resolution, for both. With nothing wanted (a lingering connection, a frame the mini preview skips)
+    /// nothing is converted and the item carries no pixels.
     /// </summary>
     private CameraStreamItem Convert(CameraStreamDemand demand)
     {
@@ -692,8 +696,8 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         {
             // From the decoded YUV picture, not from the full BGRA frame: the source is 1.5 instead of 4 bytes per pixel, the
             // full conversion is skipped whenever nobody needs it, and the colour handling is the same (see BgraConverter).
-            CameraFrameSize fit = displaySize.Fit(width, height);
-            if (fit.Width < width || fit.Height < height)
+            // T-195: only when it is clearly smaller; otherwise the full conversion is cheaper and the renderer scales it.
+            if (_displayScaler.Target(displaySize, width, height) is { } fit)
             {
                 displayFrame = _display.Convert(_frame, format, fullRange, fit.Width, fit.Height);
             }
