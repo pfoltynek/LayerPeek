@@ -273,6 +273,14 @@ a kritérium.
       interaktivně `pwsh tools/macos-verify.ps1 -Only mac.update-check`). Výsledek všech tří scénářů a důkazy
       (`*-watch.jsonl`, `*-before/after.png`, `github-requests.txt`, log aplikace) ze složky běhu zapsat sem; při `FAIL`
       založit úkol na opravu.
+### 1e. Kamera v rozlišení zobrazení (z T-184, implementováno na Macu 2026-11-11)
+- [ ] **T-184** (krit. „Kvalita obrazu na celé obrazovce se viditelně nezhorší“, ruční, simulátor stačí): okno kamery
+      na celé obrazovce, v normálním okně a v malém náhledu na Retina i na monitoru se škálováním 1× – obraz je ostrý, bez
+      zubatých hran a bez posunu barev oproti verzi před T-184 (malý náhled a okna menší než obraz kamery v pixelech se teď
+      převádějí zmenšené, `SWS_BILINEAR`). Tažení úchytu malého náhledu, přepnutí režimu (malý náhled ↔ okno ↔ celá
+      obrazovka, i zeleným tlačítkem) a přesun okna mezi Retina a monitorem 1× stream nepřeruší; obraz se asi 0,25 s po
+      uklidnění velikosti zaostří na novou velikost, nic nebliká a nezčerná.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

@@ -702,8 +702,9 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     [Fact]
     public async Task RunThatEndsByItselfCanBePausedAndRestartedWithoutException()
     {
-        // The third post (the first frame, after "connecting" and "streaming") throws: the run ends by itself.
-        FaultyDispatcher dispatcher = new(_dispatcher, failingPost: 3);
+        // The second post (the first frame, after "connecting"; T-184: the frame is written and posted before the hub reports
+        // "streaming") throws: the run ends by itself.
+        FaultyDispatcher dispatcher = new(_dispatcher, failingPost: 2);
         CameraViewModel viewModel = Create(dispatcher: dispatcher);
         viewModel.SetActive(true);
         FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
@@ -721,10 +722,10 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Assert.True(viewModel.IsStreaming);
     }
 
-    /// <summary>A window whose run ended by itself (the third post, the first frame, throws) and shows the error.</summary>
+    /// <summary>A window whose run ended by itself (the second post, the first frame, throws) and shows the error.</summary>
     private async Task<CameraViewModel> RunEndedByItselfAsync()
     {
-        CameraViewModel viewModel = Create(dispatcher: new FaultyDispatcher(_dispatcher, failingPost: 3));
+        CameraViewModel viewModel = Create(dispatcher: new FaultyDispatcher(_dispatcher, failingPost: 2));
         viewModel.SetActive(true);
         FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
         first.Send();
