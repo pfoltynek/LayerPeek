@@ -1,7 +1,7 @@
 ---
 id: T-191
 title: A/B měření nastavení GC a Native AOT (paměť a CPU)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P3
 platform: all
@@ -22,13 +22,16 @@ Výkonnostní analýza (2026-11-06): výchozí nastavení GC a AOT se nezkoušel
 
 ## Akceptační kritéria
 - [x] Tabulka všech variant a scénářů je v `docs/` (česky).
-- [ ] Doporučení je předložené uživateli. Případná změna buildu vznikne jako samostatný úkol po jeho souhlasu.
+- [x] Doporučení je předložené uživateli. Případná změna buildu vznikne jako samostatný úkol po jeho souhlasu.
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
 - (žádné pro samotné měření; o změně buildu rozhodne uživatel podle výsledků)
 - Pro uživatele: ponechat výchozí build (doporučeno), nebo zapnout `OptimizationPreference=Size` (−1,9 % exe, bez měřitelné ztráty) jako samostatný úkol?
 - Pro uživatele: doplnit `~/Library/Caches/LayerPeek` do smoke profilu (`Get-SmokeProfile`) jako nový úkol?
+
+Rozhodnuto uživatelem 2026-11-11: **build ponechat výchozí** (žádná změna, žádný navazující úkol); mezipaměť do smoke
+profilu **ano, samostatný úkol T-196**.
 
 ## Poznámky k implementaci
 - Měřeno 2026-11-11 na Macu mini M2 Pro (osx-arm64, SDK 11.0.100): 4 varianty, 3 scénáře, 2 opakování se střídaným
