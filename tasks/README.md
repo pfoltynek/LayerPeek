@@ -193,7 +193,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-180 | Zabezpečení účtu a repozitáře na GitHubu (2FA klíčem, pravidla tagů a větví, krátkodobý token pro vydání) | all | user | P1 | – |
 | T-181 | Podepsaný feed aktualizací (podpis `releases.<RID>.json` offline klíčem, ověření v aplikaci) (hotovo; Windows v T-125, zkušební vydání v T-127) | all | core-dev | P2 | – |
 | T-182 | Varování u adresy `http://` mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť) | all | core-dev + ui-dev | P2 | – |
-| T-183 | Dokumentace – zabezpečení přístupu k PrusaLink (silné heslo, oddělená síť, HTTPS přes reverzní proxy) | all | architect + qa-reviewer | P2 | – |
+| T-183 | Dokumentace – zabezpečení přístupu k PrusaLink (silné heslo, oddělená síť, HTTPS přes reverzní proxy) (hotovo; CA v úložišti OS v T-125 / T-127) | all | architect + qa-reviewer | P2 | – |
 | T-184 | Kamera – převod obrazu rovnou ve velikosti, ve které se zobrazuje (výkon) (hotovo) | all | core-dev + ui-dev | P2 | – |
 | T-185 | Kamera – omezení snímkové frekvence v malém náhledu (výkon) (hotovo) | all | core-dev + ui-dev | P2 | – |
 | T-188 | Kamera – exponenciální backoff při opětovném připojení (výkon) (hotovo) | all | core-dev | P2 | – |

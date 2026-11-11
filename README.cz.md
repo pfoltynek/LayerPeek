@@ -560,6 +560,10 @@ Bezpečnostní chyby prosím nehlas ve veřejných issues. Použij
 [soukromé hlášení zranitelností](https://github.com/pfoltynek/LayerPeek/security/advisories/new) na GitHubu.
 Viz [SECURITY.md](SECURITY.md) (anglicky).
 
+PrusaLink na tiskárně nabízí jen nešifrované HTTP s přihlášením Digest (MD5). Jak ho chránit (heslo tiskárny, oddělená
+síť, HTTPS přes reverzní proxy Caddy nebo nginx), popisuje příručka:
+[Zabezpečení přístupu k PrusaLinku](manuals/cs/manual.md#14-zabezpečení-přístupu-k-prusalinku).
+
 ## Licence
 
 Copyright © Petr Foltýnek

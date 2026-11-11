@@ -24,8 +24,9 @@ tam, kde sa Windows a macOS líšia, to text uvádza alebo ukazuje obe varianty.
 11. [Prehľad nastavení](#11-prehľad-nastavení)
 12. [Aktualizácie](#12-aktualizácie)
 13. [Kde sú uložené vaše údaje](#13-kde-sú-uložené-vaše-údaje)
-14. [Riešenie problémov](#14-riešenie-problémov)
-15. [Odinštalovanie](#15-odinštalovanie)
+14. [Zabezpečenie prístupu k PrusaLinku](#14-zabezpečenie-prístupu-k-prusalinku)
+15. [Riešenie problémov](#15-riešenie-problémov)
+16. [Odinštalovanie](#16-odinštalovanie)
 
 ## 1. Čo potrebujete
 
@@ -118,7 +119,7 @@ Ikona hneď začne ukazovať stav tlačiarne. Ďalšie tlačiarne pridáte rovna
 **Tlačiarne**.
 
 **macOS 15 a novší:** pri prvom pripojení k tlačiarni alebo kamere sa systém spýta na prístup k **lokálnej sieti**
-(Local Network). Kliknite na **Povoliť**. Ak ste prístup zamietli, pozrite si [Riešenie problémov](#14-riešenie-problémov).
+(Local Network). Kliknite na **Povoliť**. Ak ste prístup zamietli, pozrite si [Riešenie problémov](#15-riešenie-problémov).
 
 Heslo sa ukladá do **Správcu poverení Windows** alebo do **Kľúčenky macOS**, nikdy nie do súboru s nastaveniami.
 Keď tlačiareň neskôr upravujete, pole hesla ukazuje **Bez zmeny**; ak ho necháte prázdne, uložené heslo zostane.
@@ -508,7 +509,150 @@ História teplôt sa uchováva iba v pamäti. LayerPeek sa pripája iba k tlači
 kontrolu aktualizácií nevypnete, aj ku GitHubu (zoznam vydaní, bez akéhokoľvek účtu, a stiahnutie aktualizácie, ktoré
 sami spustíte). Nezbiera žiadnu telemetriu.
 
-## 14. Riešenie problémov
+## 14. Zabezpečenie prístupu k PrusaLinku
+
+PrusaLink v tlačiarni komunikuje len nešifrovaným **HTTP**, samotná tlačiareň HTTPS nemá. Prusa navrhuje PrusaLink pre
+miestnu sieť a neodporúča k nemu pristupovať z internetu cez presmerovanie portu na routeri; namiesto toho odporúča
+šifrovanú VPN. V domácej sieti, ktorú používate len vy, to zvyčajne stačí. Čítajte ďalej, ak sieť medzi počítačom
+a tlačiarňou zdieľajú ďalší ľudia alebo zariadenia (zdieľaná Wi-Fi, kancelária, dielňa, internát), alebo ak chcete
+k tlačiarni pristupovať odinakiaľ.
+
+### 14.1 V čom je riziko
+
+- **Ktokoľvek, kto vidí prevádzku** medzi počítačom a tlačiarňou, ju môže čítať: stav tlačiarne, názvy súborov aj G-code
+  nahraný cez webové rozhranie PrusaLink.
+- **Prihlásenie:** LayerPeek sa prihlasuje pomocou HTTP Digest, jediného prihlásenia, ktoré tlačiareň okrem API kľúča
+  ponúka. Samotné heslo sa neposiela, ale Digest v tlačiarni je stará varianta s MD5 (RFC 2069). Z jedného zachyteného
+  prihlásenia môže útočník skúšať heslo uhádnuť offline a až 5 minút môže rovnakú zachytenú požiadavku opakovať. Digest
+  nechráni obsah: kto môže prevádzku meniť, môže meniť aj údaje.
+- **API kľúč:** nástroje, ktoré sa prihlasujú API kľúčom (hlavička `X-Api-Key`), posielajú samotné heslo PrusaLinku
+  čitateľne pre kohokoľvek, kto počúva. V PrusaSliceri preto namiesto API kľúča zvoľte **HTTP digest**.
+- **S heslom** môže ktokoľvek tlačiareň cez PrusaLink plne ovládať: spúšťať a zastavovať tlače, nahrávať a mazať súbory.
+
+### 14.2 Heslo
+
+Heslo vytvára tlačiareň sama; súčasný firmvér ho tvorí z 15 náhodných znakov z 57 písmen a číslic (bez ľahko
+zameniteľných 0, O, 1, l a I). Uhádnuť také heslo zo zachyteného prihlásenia nie je prakticky možné. V tlačiarňach
+s firmvérom Buddy si vlastné heslo zadať nemôžete, môžete len nechať vytvoriť nové.
+
+Nové heslo vytvorte vždy, keď mohlo to staré uniknúť (zdieľaná fotka displeja alebo QR kódu PrusaLinku, ktorý heslo
+obsahuje, alebo API kľúč použitý v nedôveryhodnej sieti):
+
+1. V tlačiarni otvorte **Nastavenia → Sieť → PrusaLink** (Settings → Network → PrusaLink) a zvoľte **Generate
+   Password**.
+2. V LayerPeeku otvorte **Nastavenia → Tlačiarne**, vyberte tlačiareň, na podzáložke **Tlačiareň** zadajte nové heslo do
+   poľa **Heslo**, kliknite na **Otestovať spojenie** a **Uložiť**.
+3. Zmeňte ho aj v ďalších nástrojoch, ktoré PrusaLink používajú (PrusaSlicer a ďalšie).
+
+### 14.3 Oddelená sieť a firewall
+
+- Dajte tlačiarne a kamery do **oddelenej siete** na routeri (pre zariadenia IoT, VLAN). Povoľte počítaču s LayerPeekom
+  prístup k nim: port TCP **80** tlačiarne (PrusaLink) a port RTSP kamery (predvolený **554**). Siete pre hostí často
+  blokujú spojenia medzi zariadeniami; pozrite si návod k routeru.
+- **Nikdy nepresmerúvajte port routera** na tlačiareň. Odinakiaľ sa k nej pripojte cez VPN do domácej siete.
+- LayerPeek sám do siete nič neponúka: **Otvoriť PrusaLink** počúva len na adrese `127.0.0.1` vášho počítača. Firewall
+  počítača kvôli LayerPeeku nepotrebuje žiadne nové pravidlo.
+
+### 14.4 HTTPS cez reverznú proxy
+
+Na malom počítači vedľa tlačiarne (napríklad Raspberry Pi) beží reverzná proxy, **Caddy** alebo **nginx**. LayerPeek
+komunikuje s proxy cez HTTPS; nešifrovaným HTTP s tlačiarňou hovorí len proxy. Proxy a tlačiareň prepojte krátkym káblom
+alebo ich zapojte do rovnakého switchu, a ak to router umožňuje, povoľte prístup k tlačiarni len proxy.
+
+- V LayerPeeku zadajte ako adresu tlačiarne adresu proxy, napr. `https://printer.home.arpa`. Názov musí viesť na proxy
+  (záznam DNS v routeri alebo súbor `hosts`).
+- Použite **pre každú tlačiareň jeden názov hostiteľa alebo port**, nie cestu typu `https://proxy/mk4/`. Tlačiareň
+  overuje prihlásenie podľa cesty požiadavky, takže pri proxy, ktorá takú predponu odstráni, tlačiareň heslo odmietne.
+- Kamera (RTSP) cez proxy nejde; LayerPeek sa k nej pripája priamo.
+
+**Caddy** (súbor `Caddyfile`, `192.168.1.20` je tlačiareň):
+
+```caddyfile
+printer.home.arpa {
+	tls internal
+	reverse_proxy 192.168.1.20
+}
+```
+
+Vďaka `tls internal` vydá Caddy certifikát zo svojej vlastnej certifikačnej autority (CA). Jej koreňovému certifikátu
+v počítači dôverujte (pozri [14.5](#145-dôvera-v-certifikát-v-počítači)); keď Caddy beží ako služba systému Linux, je to
+súbor `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`. Caddy odovzdáva cestu aj hlavičky prihlásenia
+bez zmeny.
+
+**nginx** (blok `server`, napr. v `/etc/nginx/conf.d/printer.conf`):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name printer.home.arpa;
+    ssl_certificate     /etc/nginx/tls/printer.crt;
+    ssl_certificate_key /etc/nginx/tls/printer.key;
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://192.168.1.20;
+    }
+}
+```
+
+`proxy_pass` bez cesty odovzdáva cestu bez zmeny. `client_max_body_size 0` ruší limit 1 MB, aby fungovalo nahrávanie
+G-code cez webové rozhranie PrusaLink. nginx potrebuje certifikát z vašej vlastnej CA, vytvorený napríklad pomocou
+OpenSSL:
+
+```sh
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=Printer proxy CA" \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -keyout ca.key -out ca.crt
+openssl req -newkey rsa:3072 -nodes -subj "/CN=printer.home.arpa" -keyout printer.key -out printer.csr
+printf "subjectAltName=DNS:printer.home.arpa\nextendedKeyUsage=serverAuth\n" > printer.ext
+openssl x509 -req -in printer.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 825 \
+  -extfile printer.ext -out printer.crt
+```
+
+Súbory `printer.crt` a `printer.key` skopírujte na proxy a `ca.crt` do svojich počítačov; `ca.key` uschovajte v bezpečí
+a mimo siete. Certifikát servera platí 825 dní, najdlhšie, čo macOS prijme.
+
+### 14.5 Dôvera v certifikát v počítači
+
+LayerPeek prijíma len certifikáty, ktorým dôveruje váš systém. Certifikát podpísaný sám sebou (self-signed) alebo
+certifikát od CA, ktorú systém nepozná, zlyhá: **Otestovať spojenie** hlási *„Zabezpečené spojenie (https) zlyhalo.
+Skúste adresu s http:// alebo skontrolujte certifikát tlačiarne.“*, tlačiareň je **Nedostupná** a **Diagnostika**
+ukazuje *„Zabezpečené (https) spojenie s tlačiarňou zlyhalo.“* LayerPeek sám dôverovať jednotlivému certifikátu nevie;
+pridajte certifikát svojej CA (`ca.crt` alebo `root.crt` od Caddy) do systému:
+
+- **Windows:** stlačte **Win+R**, spustite `certmgr.msc`, kliknite pravým tlačidlom na **Dôveryhodné koreňové
+  certifikačné autority → Certifikáty** (Trusted Root Certification Authorities → Certificates), zvoľte **Všetky úlohy →
+  Importovať…** a importujte súbor do úložiska **Dôveryhodné koreňové certifikačné autority**; bezpečnostné upozornenie
+  potvrďte. Alebo v termináli: `certutil -user -addstore Root ca.crt`.
+- **macOS:** otvorte aplikáciu **Prístup ku kľúčenke** (nájdete ju cez Spotlight), vyberte kľúčenku **prihlásenie**
+  (login) a pretiahnite súbor do okna. Dvakrát kliknite na certifikát, rozbaľte **Dôvera** a pri **Pri použití tohto
+  certifikátu** nastavte **Vždy dôverovať** (Always Trust); potvrďte heslom.
+
+Potom znova spustite **Otestovať spojenie**.
+
+Zdroje: PrusaLink [v miestnej sieti](https://help.prusa3d.com/article/prusa-connect-and-prusalink-explained_302608),
+[presmerovanie portu a VPN](https://help.prusa3d.com/article/prusalink-sl1-sl1s_146094), [HTTP digest
+v PrusaSliceri](https://help.prusa3d.com/article/prusalink-troubleshooting_304411); firmvér: [port 80 bez
+TLS](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/http_lifetime.cpp),
+[Digest a API
+kľúč](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/nhttp/req_parser.cpp),
+[platnosť
+nonce](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/common/http/types.h),
+[tvorba
+hesla](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/wui.cpp)
+a [dĺžka](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/persistent_stores/store_instances/config_store/constants.hpp),
+[ponuka
+PrusaLink](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/gui/screen_prusa_link.cpp);
+[RFC 2069](https://www.rfc-editor.org/rfc/rfc2069); [Caddy
+`reverse_proxy`](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy),
+[`tls`](https://caddyserver.com/docs/caddyfile/directives/tls), [dátový adresár](https://caddyserver.com/docs/running);
+[nginx `proxy_pass`](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass),
+[`client_max_body_size`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size); [požiadavky
+Apple na certifikáty](https://support.apple.com/en-us/103769), [Prístup ku
+kľúčenke](https://support.apple.com/guide/keychain-access/change-the-trust-settings-of-a-certificate-kyca11871/mac);
+[certutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil).
+
+## 15. Riešenie problémov
 
 **Ikona nie je vidieť (Windows).** Kliknite na šípku **`^`** v oznamovacej oblasti a pretiahnite ikonu LayerPeek na
 panel úloh.
@@ -519,6 +663,10 @@ spojenie**.
 
 **Neplatné prihlasovacie údaje.** Znova zadajte používateľské meno a heslo z ponuky tlačiarne **Nastavenia → Sieť →
 PrusaLink** a uložte.
+
+**Zabezpečené spojenie (https) zlyhalo.** Adresa tlačiarne začína `https://`. Buď vedie priamo na tlačiareň, ktorá HTTPS
+nemá (použite `http://`), alebo váš systém nedôveruje certifikátu proxy: pozri
+[14.5](#145-dôvera-v-certifikát-v-počítači).
 
 **V macOS nie je spojenie.** Prístup k lokálnej sieti môže byť vypnutý. LayerPeek potom ponúkne **Otvoriť Systémové
 nastavenia**; zapnite LayerPeek v **Systémové nastavenia → Súkromie a bezpečnosť → Lokálna sieť**.
@@ -542,7 +690,7 @@ problém, uložte balík a podrobné logovanie znova vypnite.
 Chyby a nápady hláste v [issues](https://github.com/pfoltynek/LayerPeek/issues) na GitHube. Uveďte, prosím, model
 tlačiarne, verziu firmvéru a operačný systém.
 
-## 15. Odinštalovanie
+## 16. Odinštalovanie
 
 - **Windows, nainštalovaná verzia:** **Nastavenie → Aplikácie → Nainštalované aplikácie → LayerPeek → Odinštalovať**.
 - **Windows, verzia ZIP:** ukončite LayerPeek a vymažte jeho priečinok.

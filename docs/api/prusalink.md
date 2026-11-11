@@ -209,7 +209,23 @@ Ověřeno ve zdrojích firmwaru na `master` (commit `baac5e67`, 2026-11-03). Na 
 - `X-Api-Key` firmware 6.x stále přijímá se stejnou hodnotou jako heslo. Klient ho nepoužívá (rozhodnutí: jen Digest).
 - 401 má tělo `{"title": "401: Unauthorized","message":""}`. Chybové odpovědi jsou v JSON jen tehdy, když je `application/json` první v hlavičce `Accept`.
 
-**Reverzní proxy:** adresa smí obsahovat cestu (např. `http://proxy/printers/mk4`). Proxy ale musí cestu předat beze změny, protože firmware počítá Digest z cesty v požadavku. Proxy, která prefix odřízne, se projeví jako „The printer rejected the password.“
+**Reverzní proxy:** adresa smí obsahovat cestu (např. `http://proxy/printers/mk4`). Proxy ale musí cestu předat beze změny, protože firmware počítá Digest z cesty v požadavku. Proxy, která prefix odřízne, se projeví jako „The printer rejected the password.“ (ověřeno přes Caddy `handle_path` proti simulátoru, T-183). Firmware ale obsluhuje jen kořen (`/api/...`), takže pro skutečnou tiskárnu příručka doporučuje jeden název hostitele nebo port na tiskárnu, ne prefix cesty (viz níže).
+
+## HTTPS přes reverzní proxy (T-183)
+
+Firmware Buddy poslouchá jen na portu 80 bez TLS (`lib/WUI/http_lifetime.cpp`, `tcp_bind(l, IP_ANY_TYPE, 80)`), HTTPS tedy jde jen přes reverzní proxy před tiskárnou. Návod pro uživatele (riziko, heslo, oddělená síť, ukázky Caddy a nginx, důvěra v certifikát ve Windows a macOS) je kapitola 14 příručky: `manuals/<jazyk>/manual.md`, česky [14. Zabezpečení přístupu k PrusaLinku](../../manuals/cs/manual.md#14-zabezpečení-přístupu-k-prusalinku).
+
+**Chování aplikace (ze zdroje, ověřeno 2026-11-11):**
+- `PrusaLinkAddress` přijímá `http` i `https`.
+- Všechny tři pojmenované `HttpClient` z `PrusaLinkServiceCollectionExtensions` (API, web proxy T-028, náhledy G-code) mají `SocketsHttpHandler` bez `SslOptions` a bez `RemoteCertificateValidationCallback`. Certifikát se tedy ověřuje výchozím způsobem .NET proti úložišti důvěryhodných certifikátů OS (Windows: úložiště certifikátů, macOS: Klíčenka). Vlastní důvěra ani pinning v aplikaci nejsou (rozhodnutí uživatele 2026-11-11: stačí návod „přidejte CA do úložiště OS“).
+- Selhání TLS (`HttpRequestError.SecureConnectionError`) → `PrusaLinkFailure.SecureConnectionFailed` / `PrinterProblem.SecureConnectionFailed`, stav `Offline`; test spojení hlásí `SettingsTestSecureConnection`, Diagnostika `DiagnosticsProblemSecureConnection`. Web proxy (T-028) v tom případě vrátí `PrinterWebFallback.NotReachable` s holou adresou `https://…` (prohlížeč pak ukáže vlastní varování certifikátu).
+
+**Ověření 2026-11-11 (macOS, jen 127.0.0.1, simulátor `tools/PrusaSimulator` na portu 18080):**
+- Nástroje: Caddy 2.11.9 (oficiální binárka z GitHub Releases, kontrolní součet SHA-512 ověřen) a nginx 1.30.6 (zdrojový tarball z nginx.org, podpis PGP neověřen – `gpg` nebyl k dispozici; přeloženo s OpenSSL 4.1 z Homebrew), oba ve scratch adresáři, nic se neinstalovalo do systému. Caddy s `skip_install_trust`, takže do Klíčenky nic nezapsal. Úložiště certifikátů OS se neměnilo.
+- Konfigurace odpovídaly ukázkám v příručce, lišily se jen adresami (`bind 127.0.0.1` / `listen 127.0.0.1:…`, `localhost` místo `printer.home.arpa`, upstream `127.0.0.1:18080`) a globálními volbami Caddy pro test (`skip_install_trust`, `admin off`, vlastní `storage`, porty). Certifikát pro nginx vznikl přesně podle receptu z příručky (OpenSSL 4.1 i LibreSSL 3.3.6 z macOS; `openssl verify` OK).
+- `curl --cacert <CA> --digest` přes Caddy (`tls internal`) i nginx: výzva `401` s `WWW-Authenticate: Digest realm="Printer API"` projde k klientovi, přihlášení projde (`200` u `/api/version`, `/api/v1/status`, `/thumb/l/...`). `PUT` 2 MB přes nginx s `client_max_body_size 0` i přes Caddy: přihlášení Digest s metodou `PUT` projde (simulátor pak vrátí `405`, nahrávání neimplementuje); bez `client_max_body_size` vrátí nginx `413`. Špatné heslo → `401`.
+- Klient aplikace (registrace `AddPrusaLink()` beze změny, dočasná konzolová aplikace mimo repozitář): přes HTTP proxy Caddy i nginx funguje vše (`GetInfoAsync`, `GetSnapshotAsync`, náhled G-code `Downloaded`, web proxy T-028 `200`). Přes HTTPS s certifikátem CA, která není v úložišti OS (Caddy `tls internal`, vlastní CA pro nginx), i se self-signed certifikátem: `SecureConnectionFailed`, stav `Offline`, web proxy `NotReachable`. Proxy s odříznutým prefixem cesty: `PasswordRejected`.
+- **Neověřeno** (vyžaduje zásah do úložiště certifikátů OS, přesunuto do T-125 / T-127): HTTPS s certifikátem soukromé CA, která je v úložišti OS (API, Otevřít PrusaLink, náhledy), a postupy importu CA z příručky. Neověřeno ani se skutečnou tiskárnou a na Raspberry Pi (konfigurace jsou ověřené jen proti simulátoru), ani nahrání skutečného souboru přes proxy.
 
 ## Otevření webu s přihlášením (T-028)
 
