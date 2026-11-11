@@ -124,6 +124,12 @@ Ikona hneď začne ukazovať stav tlačiarne. Ďalšie tlačiarne pridáte rovna
 Heslo sa ukladá do **Správcu poverení Windows** alebo do **Kľúčenky macOS**, nikdy nie do súboru s nastaveniami.
 Keď tlačiareň neskôr upravujete, pole hesla ukazuje **Bez zmeny**; ak ho necháte prázdne, uložené heslo zostane.
 
+**Varovanie pod adresou:** adresa `http://`, ktorá môže byť mimo miestnej siete (verejná IP adresa alebo iný názov
+hostiteľa ako názov bez bodky alebo s koncovkou `.local`, `.lan` či `.home.arpa`), ukáže namiesto nápovedy varovanie.
+PrusaLink prihlasuje bez šifrovania, takže heslo môže niekto cestou zachytiť. Uložiť adresu aj tak možno. Radšej použite
+`https://` cez reverzný proxy alebo VPN. Odkaz **Viac informácií** vedľa varovania otvorí kapitolu [Zabezpečenie
+prístupu k PrusaLinku](#14-zabezpečenie-prístupu-k-prusalinku).
+
 ### 3.3 Pridanie kamery (voliteľné)
 
 1. V **Nastavenia → Tlačiarne** vyberte tlačiareň a otvorte jej podkartu **Kamera**.
@@ -132,6 +138,10 @@ Keď tlačiareň neskôr upravujete, pole hesla ukazuje **Bez zmeny**; ak ho nec
    Do adresy nedávajte používateľské meno ani heslo.
 4. Kliknite na **Otestovať kameru**. Funkčná kamera ukáže snímku a svoje rozlíšenie.
 5. Kliknite na **Uložiť** a v podponuke tlačiarne vyberte **Zobraziť kameru**.
+
+Rovnako ako pri adrese tlačiarne ukáže varovanie aj adresa kamery, ktorá môže byť mimo miestnej siete: RTSP nie je
+šifrované, takže obraz kamery môže niekto cestou zachytiť. Uložiť adresu aj tak možno; radšej použite VPN. Rovnaký odkaz
+vedľa neho otvorí kapitolu [Zabezpečenie prístupu k PrusaLinku](#14-zabezpečenie-prístupu-k-prusalinku).
 
 ### 3.4 Obrázok tlačiarne
 
@@ -516,6 +526,9 @@ miestnu sieť a neodporúča k nemu pristupovať z internetu cez presmerovanie p
 šifrovanú VPN. V domácej sieti, ktorú používate len vy, to zvyčajne stačí. Čítajte ďalej, ak sieť medzi počítačom
 a tlačiarňou zdieľajú ďalší ľudia alebo zariadenia (zdieľaná Wi-Fi, kancelária, dielňa, internát), alebo ak chcete
 k tlačiarni pristupovať odinakiaľ.
+
+Adresa tlačiarne `http://` alebo adresa kamery, ktorá môže byť mimo miestnej siete, dostane v nastaveniach varovanie
+(pozri [3.2 Pridanie tlačiarne](#32-pridanie-tlačiarne)); uložiť ju aj tak možno.
 
 ### 14.1 V čom je riziko
 

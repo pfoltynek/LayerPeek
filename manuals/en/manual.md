@@ -123,6 +123,12 @@ If you denied it, see [Troubleshooting](#15-troubleshooting).
 The password is stored in the **Windows Credential Manager** or in the **macOS Keychain**, never in the settings file.
 When you edit a printer later, the password field shows **Unchanged**; leave it empty to keep the saved password.
 
+**Warning under the address:** an `http://` address that may be outside the local network (a public IP address, or a
+host name other than a name without a dot or one ending in `.local`, `.lan` or `.home.arpa`) shows a warning in place of
+the hint. PrusaLink signs in without encryption, so the password could be intercepted on the way. Saving is still
+allowed. Prefer `https://` through a reverse proxy, or a VPN. **More information** next to the warning opens [Securing
+access to PrusaLink](#14-securing-access-to-prusalink).
+
 ### 3.3 Add the camera (optional)
 
 1. In **Settings → Printers**, select the printer and open its **Camera** sub-tab.
@@ -131,6 +137,10 @@ When you edit a printer later, the password field shows **Unchanged**; leave it 
    Don't put a user name or password in the address.
 4. Click **Test camera**. A working camera shows a snapshot and its resolution.
 5. Click **Save** and choose **Show camera** in the printer's submenu.
+
+Like the printer address, a camera address that may be outside the local network shows a warning: RTSP is not encrypted,
+so the camera image could be intercepted on the way. Saving is still allowed; prefer a VPN. The same link next to it
+opens [Securing access to PrusaLink](#14-securing-access-to-prusalink).
 
 ### 3.4 Printer image
 
@@ -513,6 +523,9 @@ for the local network and advises against reaching it from the internet through 
 encrypted VPN instead. On a home network that only you use, this is usually enough. Read on if other people or devices
 share the network between your computer and the printer (shared Wi-Fi, office, workshop, dormitory) or if you want to
 reach the printer from elsewhere.
+
+An `http://` printer address or a camera address that may be outside the local network gets a warning in the settings
+(see [3.2 Add the printer](#32-add-the-printer)); saving it is still allowed.
 
 ### 14.1 What the risk is
 

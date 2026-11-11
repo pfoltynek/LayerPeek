@@ -36,12 +36,14 @@
           <SolidColorBrush x:Key="SettingsSuccessBrush" Color="#0F7B0F" />
           <SolidColorBrush x:Key="NoticeBrush" Color="#FFF4E5" />
           <SolidColorBrush x:Key="ExperimentalBrush" Color="#8A4B00" />
+          <SolidColorBrush x:Key="SettingsWarningBrush" Color="#8A4B00" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <SolidColorBrush x:Key="SettingsErrorBrush" Color="#FF99A4" />
           <SolidColorBrush x:Key="SettingsSuccessBrush" Color="#6CCB5F" />
           <SolidColorBrush x:Key="NoticeBrush" Color="#4A3410" />
           <SolidColorBrush x:Key="ExperimentalBrush" Color="#FFC56B" />
+          <SolidColorBrush x:Key="SettingsWarningBrush" Color="#FFC56B" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>
@@ -62,6 +64,13 @@
       <Setter Property="FontSize" Value="12" />
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="0,2,0,0" />
+    </Style>
+    <!-- T-182: a warning (informative, saving stays allowed) in place of the hint of its field. -->
+    <Style Selector="TextBlock.warning">
+      <Setter Property="Foreground" Value="{DynamicResource SettingsWarningBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="TextBlock.section">
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -144,6 +153,11 @@
     <!-- TextBox: PART_BorderElement has no child; the content keeps its margin of the control's BorderThickness (1). -->
     <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
       <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <!-- T-182: a field with a warning (class "warning", bound to its Has…Warning) the same way in SettingsWarningBrush. -->
+    <Style Selector="TextBox.warning /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsWarningBrush}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
     <!-- Editable ComboBox: the border and the focus overlay have no child; its inner TextBox has no border of its own. -->
@@ -345,9 +359,28 @@
                                  AutomationProperties.Name="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}"
                                  AutomationProperties.HelpText="{Binding AddressHelpText}"
                                  Classes.invalid="{Binding HasAddressError}"
+                                 Classes.warning="{Binding HasAddressWarning}"
                                  Text="{Binding Address}"
                                  PlaceholderText="192.168.1.20" />
                         <TextBlock AutomationProperties.AutomationId="PrinterAddressHint" Classes="hint" Text="{Binding [SettingsAddressHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsAddressHint}" />
+                        <!--
+                          T-182: an unencrypted address outside the local network: the warning in place of the hint, at most two
+                          lines next to the link to the security chapter of the manual (T-183); the link is 32 DIP high (T-111).
+                        -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0" IsVisible="{Binding HasAddressWarning}">
+                          <TextBlock AutomationProperties.AutomationId="PrinterAddressWarning" Classes="warning" Text="{Binding AddressWarning}" />
+                          <HyperlinkButton Grid.Column="1"
+                                           AutomationProperties.AutomationId="PrinterAddressSecurityHelp"
+                                           Margin="8,0,0,0"
+                                           Padding="0"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"
+                                           Content="{Binding [SettingsSecurityMoreInfo], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                           ToolTip.Tip="{Binding [SettingsSecurityMoreInfoHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                           AutomationProperties.HelpText="{Binding [SettingsSecurityMoreInfoHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                           IsVisible="{Binding ShowsSecurityHelp}"
+                                           Command="{Binding OpenSecurityHelpCommand}" />
+                        </Grid>
                         <TextBlock AutomationProperties.AutomationId="PrinterAddressError" Classes="error" Text="{Binding AddressError}" IsVisible="{Binding AddressError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
                         <Grid ColumnDefinitions="*,16,*" Margin="0,8,0,0">
@@ -483,9 +516,25 @@
                                    PlaceholderText="rtsp://192.168.0.227/live"
                                    AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}"
                                    AutomationProperties.HelpText="{Binding CameraUrlHelpText}"
-                                   Classes.invalid="{Binding HasCameraUrlError}" />
+                                   Classes.invalid="{Binding HasCameraUrlError}"
+                                   Classes.warning="{Binding HasCameraUrlWarning}" />
                         </Grid>
                         <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlHint" Classes="hint" Text="{Binding [SettingsCameraUrlHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsCameraUrlHint}" />
+                        <!-- T-182: as under the printer address; the two-line hint it replaces keeps the tab within its height. -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0" IsVisible="{Binding HasCameraUrlWarning}">
+                          <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlWarning" Classes="warning" Text="{Binding CameraUrlWarning}" />
+                          <HyperlinkButton Grid.Column="1"
+                                           AutomationProperties.AutomationId="PrinterCameraSecurityHelp"
+                                           Margin="8,0,0,0"
+                                           Padding="0"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"
+                                           Content="{Binding [SettingsSecurityMoreInfo], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                           ToolTip.Tip="{Binding [SettingsSecurityMoreInfoHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                           AutomationProperties.HelpText="{Binding [SettingsSecurityMoreInfoHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                           IsVisible="{Binding ShowsSecurityHelp}"
+                                           Command="{Binding OpenSecurityHelpCommand}" />
+                        </Grid>
                         <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlError" Classes="error" Text="{Binding CameraUrlError}" IsVisible="{Binding CameraUrlError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
                         <!--

@@ -1969,4 +1969,16 @@
   <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
     <value>Czarny lub bardzo ciemny filament: jako zmiana liczy się także mniejsze pociemnienie na stole. Na ciemnej płycie wykrywa nieco więcej, przy większym ryzyku fałszywych alarmów.</value>
   </data>
+  <data name="SettingsAddressUntrustedNetwork" xml:space="preserve">
+    <value>Połączenie nieszyfrowane poza siecią lokalną: hasło PrusaLink może zostać przechwycone. Użyj https:// (odwrotne proxy) lub VPN.</value>
+  </data>
+  <data name="SettingsCameraUrlUntrustedNetwork" xml:space="preserve">
+    <value>Połączenie nieszyfrowane poza siecią lokalną: obraz z kamery może zostać przechwycony. Użyj VPN.</value>
+  </data>
+  <data name="SettingsSecurityMoreInfo" xml:space="preserve">
+    <value>Więcej informacji</value>
+  </data>
+  <data name="SettingsSecurityMoreInfoHint" xml:space="preserve">
+    <value>Otwiera w instrukcji obsługi rozdział o zabezpieczeniu dostępu do PrusaLink.</value>
+  </data>
 </root>

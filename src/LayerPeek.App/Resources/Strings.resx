@@ -2184,4 +2184,20 @@
     <value>Black or very dark filament: smaller darkening on the bed counts as a change. Finds a little more on a dark sheet, with a higher risk of false alarms.</value>
     <comment>T-163: tooltip and screen reader help of SettingsDetectionDarkFilament.</comment>
   </data>
+  <data name="SettingsAddressUntrustedNetwork" xml:space="preserve">
+    <value>Unencrypted connection outside the local network: the PrusaLink password could be intercepted. Use https:// (reverse proxy) or a VPN.</value>
+    <comment>T-182: under the printer address (replaces its hint) when an http:// address may be outside the local network (not private, link-local, loopback or a local name). Informative, saving stays allowed. At most two lines next to SettingsSecurityMoreInfo (layout test).</comment>
+  </data>
+  <data name="SettingsCameraUrlUntrustedNetwork" xml:space="preserve">
+    <value>Unencrypted connection outside the local network: the camera image could be intercepted. Use a VPN.</value>
+    <comment>T-182: under the camera address (replaces its hint) when the RTSP address may be outside the local network. RTSP is never encrypted. At most two lines next to SettingsSecurityMoreInfo (layout test).</comment>
+  </data>
+  <data name="SettingsSecurityMoreInfo" xml:space="preserve">
+    <value>More information</value>
+    <comment>T-182: link next to the warnings, opens the PrusaLink access security chapter of the manual (T-183). Keep it short.</comment>
+  </data>
+  <data name="SettingsSecurityMoreInfoHint" xml:space="preserve">
+    <value>Opens the chapter about securing the access to PrusaLink in the user manual.</value>
+    <comment>T-182: tooltip and screen reader help of SettingsSecurityMoreInfo.</comment>
+  </data>
 </root>

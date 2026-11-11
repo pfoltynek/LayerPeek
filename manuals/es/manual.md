@@ -126,6 +126,13 @@ La contraseña se guarda en el **Administrador de credenciales de Windows** o en
 archivo de configuración. Cuando más adelante edite una impresora, el campo de la contraseña muestra **Sin cambios**;
 déjelo vacío para conservar la contraseña guardada.
 
+**Advertencia bajo la dirección:** una dirección `http://` que puede estar fuera de la red local (una dirección IP
+pública, o un nombre de host que no sea un nombre sin punto ni termine en `.local`, `.lan` o `.home.arpa`) muestra una
+advertencia en lugar de la ayuda. PrusaLink inicia sesión sin cifrar, así que la contraseña podría ser interceptada por
+el camino. Se puede guardar igualmente. Es mejor usar `https://` a través de un proxy inverso, o una VPN. **Más
+información** junto a la advertencia abre el capítulo [Proteger el acceso a
+PrusaLink](#14-proteger-el-acceso-a-prusalink).
+
 ### 3.3 Añadir la cámara (opcional)
 
 1. En **Configuración → Impresoras**, seleccione la impresora y abra su subpestaña **Cámara**.
@@ -134,6 +141,11 @@ déjelo vacío para conservar la contraseña guardada.
    puerto predeterminado es el 554). No ponga ningún nombre de usuario ni contraseña en la dirección.
 4. Haga clic en **Probar cámara**. Si la cámara funciona, se muestran una instantánea y su resolución.
 5. Haga clic en **Guardar** y elija **Mostrar cámara** en el submenú de la impresora.
+
+Igual que la dirección de la impresora, una dirección de cámara que puede estar fuera de la red local muestra una
+advertencia: RTSP no está cifrado, así que la imagen de la cámara podría ser interceptada por el camino. Se puede
+guardar igualmente; es mejor usar una VPN. El mismo enlace junto a ella abre el capítulo [Proteger el acceso a
+PrusaLink](#14-proteger-el-acceso-a-prusalink).
 
 ### 3.4 Imagen de la impresora
 
@@ -539,6 +551,9 @@ para la red local y desaconseja acceder a él desde internet mediante una redire
 lugar recomienda una VPN cifrada. En una red doméstica que solo usa usted, esto suele bastar. Siga leyendo si otras
 personas o dispositivos comparten la red entre su ordenador y la impresora (Wi-Fi compartida, oficina, taller,
 residencia) o si quiere acceder a la impresora desde fuera.
+
+Una dirección de impresora `http://` o una dirección de cámara que puede estar fuera de la red local recibe una
+advertencia en los ajustes (véase [3.2 Añadir la impresora](#32-añadir-la-impresora)); se puede guardar igualmente.
 
 ### 14.1 En qué consiste el riesgo
 

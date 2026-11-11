@@ -125,6 +125,12 @@ Heslo se ukládá do **Správce pověření ve Windows** (Credential Manager) ne
 do souboru s nastavením. Když tiskárnu později upravujete, pole pro heslo ukazuje **Beze změny**; nechte ho prázdné
 a uložené heslo zůstane.
 
+**Varování pod adresou:** adresa `http://`, která může být mimo místní síť (veřejná IP adresa nebo jiný název hostitele
+než název bez tečky nebo s koncovkou `.local`, `.lan` či `.home.arpa`), ukáže místo nápovědy varování. PrusaLink
+přihlašuje bez šifrování, takže heslo může někdo cestou zachytit. Uložit adresu přesto jde. Raději použijte `https://`
+přes reverzní proxy nebo VPN. Odkaz **Více informací** vedle varování otevře kapitolu [Zabezpečení přístupu k
+PrusaLinku](#14-zabezpečení-přístupu-k-prusalinku).
+
 ### 3.3 Přidání kamery (volitelné)
 
 1. V **Nastavení → Tiskárny** vyberte tiskárnu a otevřete její podzáložku **Kamera**.
@@ -133,6 +139,10 @@ a uložené heslo zůstane.
    Do adresy nepište uživatelské jméno ani heslo.
 4. Klikněte na **Otestovat kameru**. Funkční kamera ukáže snímek a své rozlišení.
 5. Klikněte na **Uložit** a v podnabídce tiskárny vyberte **Zobrazit kameru**.
+
+Stejně jako u adresy tiskárny ukáže varování i adresa kamery, která může být mimo místní síť: RTSP není šifrované, takže
+obraz kamery může někdo cestou zachytit. Uložit adresu přesto jde; raději použijte VPN. Stejný odkaz vedle něj otevře
+kapitolu [Zabezpečení přístupu k PrusaLinku](#14-zabezpečení-přístupu-k-prusalinku).
 
 ### 3.4 Obrázek tiskárny
 
@@ -514,6 +524,9 @@ místní síť a nedoporučuje k němu přistupovat z internetu přes přesměro
 šifrovanou VPN. V domácí síti, kterou používáte jen vy, to obvykle stačí. Čtěte dál, pokud síť mezi počítačem
 a tiskárnou sdílejí další lidé nebo zařízení (sdílená Wi-Fi, kancelář, dílna, kolej), nebo pokud chcete na tiskárnu
 přistupovat odjinud.
+
+Adresa tiskárny `http://` nebo adresa kamery, která může být mimo místní síť, dostane v nastavení varování (viz [3.2
+Přidání tiskárny](#32-přidání-tiskárny)); uložit ji přesto jde.
 
 ### 14.1 V čem je riziko
 

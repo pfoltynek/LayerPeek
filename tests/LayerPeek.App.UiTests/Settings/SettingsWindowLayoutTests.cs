@@ -40,6 +40,11 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
     private static readonly CameraSettings WorkingCamera = new(enabled: true, new Uri("rtsp://192.168.0.227/live"));
 
+    /// <summary>T-182: addresses outside the local network (TEST-NET-3), which get the warning.</summary>
+    private const string UntrustedPrinterAddress = "http://203.0.113.10";
+
+    private static readonly Uri UntrustedCameraAddress = new("rtsp://203.0.113.10/live");
+
     public static TheoryData<string> Languages => [.. AppLanguages.Supported];
 
     /// <summary>The views of the window: main tab and, on the Printers tab, the printer sub-tab.</summary>
@@ -1473,6 +1478,34 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         });
         yield return ("camera credentials removed + longest failed camera test", static scope => OpenWithCameraTestAsync(scope, LongestCameraFailure(), removedCredentials: true));
 
+        // T-182: the warnings about an address outside the local network with the link next to them (the harness shows it),
+        // in the tallest states of their sub-tabs.
+        yield return ("address warning + all other errors + refused test", static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWithAllErrorsAsync(scope, PasswordPolicy.Unsupported, refusedTest: true, address: UntrustedPrinterAddress);
+            Assert.True(ui.ViewModel.Printers[0].HasAddressWarning);
+            return ui;
+        });
+        yield return ("address warning + name error + longest failed connection test", static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWithNameErrorAndTestAsync(scope, LongestConnectionFailure(), UntrustedPrinterAddress);
+            Assert.True(ui.ViewModel.SelectedPrinter!.HasAddressWarning);
+            return ui;
+        });
+        yield return ("camera warning + credentials removed + longest failed camera test", static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWithCameraTestAsync(scope, LongestCameraFailure(), removedCredentials: true, UntrustedCameraAddress);
+            Assert.True(ui.ViewModel.SelectedPrinter!.HasCameraUrlWarning);
+            return ui;
+        });
+        yield return ("camera warning + successful camera test + preview", static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWithCameraTestAsync(scope, new CameraTestResult(CameraTestOutcome.Success, 1920, 1080, Image: TestCameraImages.Solid(160, 90, 0xFFFF0000)), removedCredentials: false, UntrustedCameraAddress);
+            Assert.True(ui.ViewModel.SelectedPrinter!.HasCameraUrlWarning);
+            Assert.True(ui.ViewModel.SelectedPrinter.HasCameraPreview);
+            return ui;
+        });
+
         // Camera window (T-035): the longest monitor label is a disconnected monitor (the combo trims a longer name).
         yield return ("camera window: camera on, size errors", static async scope =>
         {
@@ -1579,7 +1612,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
     }
 
     /// <summary>The longest message of every field of both sub-tabs (in the current language), after a save attempt.</summary>
-    private static async Task<SettingsWindowHarness> OpenWithAllErrorsAsync(UiTestScope scope, PasswordPolicy policy, bool refusedTest)
+    /// <param name="address">The printer address; by default an invalid one (its error), else one with the warning (T-182).</param>
+    private static async Task<SettingsWindowHarness> OpenWithAllErrorsAsync(UiTestScope scope, PasswordPolicy policy, bool refusedTest, string address = "ftp://printer")
     {
         FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30"), LinkPrinter("b", "Beta", "192.168.1.21"));
         SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store, policy: policy);
@@ -1588,7 +1622,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             ("", Strings.SettingsErrorNameRequired),
             (new string('n', SettingsViewModel.MaxNameLength + 1), Format(Strings.SettingsErrorNameTooLong, SettingsViewModel.MaxNameLength)),
             ("Beta", Strings.SettingsErrorNameDuplicate));
-        printer.Address = "ftp://printer";
+        printer.Address = address;
         printer.UserName = Longest(
             ("", Strings.SettingsErrorUserNameRequired),
             (new string('u', PrinterUserName.MaxLength + 1), Format(Strings.SettingsErrorUserNameTooLong, PrinterUserName.MaxLength)),
@@ -1634,10 +1668,11 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
     }
 
-    private static async Task<SettingsWindowHarness> OpenWithNameErrorAndTestAsync(UiTestScope scope, ConnectionTestResult result)
+    private static async Task<SettingsWindowHarness> OpenWithNameErrorAndTestAsync(UiTestScope scope, ConnectionTestResult result, string? address = null)
     {
         FakeConnectionTester tester = new() { Immediate = result };
-        SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop")), tester);
+        PrinterDefinition saved = LinkPrinter("a", "MK4S workshop");
+        SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(address is null ? saved : saved with { Address = address }), tester);
         PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
         printer.Name = new string('n', SettingsViewModel.MaxNameLength + 1);
         await printer.TestConnectionCommand.ExecuteAsync(null);
@@ -1646,10 +1681,12 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         return ui;
     }
 
-    private static async Task<SettingsWindowHarness> OpenWithCameraTestAsync(UiTestScope scope, CameraTestResult result, bool removedCredentials)
+    /// <param name="streamUri">The camera address; by default one in the local network (no warning, T-182).</param>
+    private static async Task<SettingsWindowHarness> OpenWithCameraTestAsync(UiTestScope scope, CameraTestResult result, bool removedCredentials, Uri? streamUri = null)
     {
         // The loader turns a camera with removed credentials off.
-        CameraSettings camera = removedCredentials ? new CameraSettings(enabled: false, WorkingCamera.StreamUri) : WorkingCamera;
+        Uri stream = streamUri ?? WorkingCamera.StreamUri!;
+        CameraSettings camera = new(enabled: !removedCredentials, stream);
         FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha") with { Camera = camera });
         if (removedCredentials)
         {

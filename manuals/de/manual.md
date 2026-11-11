@@ -128,6 +128,13 @@ Das Passwort wird in der **Windows-Anmeldeinformationsverwaltung** oder im **mac
 in der Einstellungsdatei. Wenn Sie einen Drucker später bearbeiten, zeigt das Passwortfeld **Unverändert**; lassen Sie es
 leer, um das gespeicherte Passwort zu behalten.
 
+**Warnung unter der Adresse:** Eine `http://`-Adresse, die außerhalb des lokalen Netzwerks liegen kann (eine öffentliche
+IP-Adresse oder ein anderer Hostname als ein Name ohne Punkt oder mit der Endung `.local`, `.lan` oder `.home.arpa`),
+zeigt statt des Hinweises eine Warnung. PrusaLink meldet sich unverschlüsselt an, das Passwort könnte also unterwegs
+abgefangen werden. Speichern ist trotzdem möglich. Nutzen Sie besser `https://` über einen Reverse Proxy oder ein VPN.
+**Weitere Informationen** neben der Warnung öffnet das Kapitel [Zugriff auf PrusaLink
+absichern](#14-zugriff-auf-prusalink-absichern).
+
 ### 3.3 Kamera hinzufügen (optional)
 
 1. Wählen Sie in **Einstellungen → Drucker** den Drucker aus und öffnen Sie seinen Unterreiter **Kamera**.
@@ -136,6 +143,11 @@ leer, um das gespeicherte Passwort zu behalten.
    Standardport ist 554). Schreiben Sie keinen Benutzernamen und kein Passwort in die Adresse.
 4. Klicken Sie auf **Kamera testen**. Eine funktionierende Kamera zeigt ein Standbild und ihre Auflösung.
 5. Klicken Sie auf **Speichern** und wählen Sie im Untermenü des Druckers **Kamera anzeigen**.
+
+Wie bei der Druckeradresse zeigt auch eine Kameraadresse, die außerhalb des lokalen Netzwerks liegen kann, eine Warnung:
+RTSP ist nicht verschlüsselt, das Kamerabild könnte also unterwegs abgefangen werden. Speichern ist trotzdem möglich;
+nutzen Sie besser ein VPN. Derselbe Link daneben öffnet das Kapitel [Zugriff auf PrusaLink
+absichern](#14-zugriff-auf-prusalink-absichern).
 
 ### 3.4 Bild des Druckers
 
@@ -539,6 +551,9 @@ PrusaLink für das lokale Netzwerk vor und rät davon ab, es aus dem Internet ü
 erreichen; stattdessen empfiehlt Prusa ein verschlüsseltes VPN. In einem Heimnetz, das nur Sie nutzen, reicht das meist
 aus. Lesen Sie weiter, wenn andere Personen oder Geräte das Netzwerk zwischen Ihrem Computer und dem Drucker teilen
 (gemeinsames WLAN, Büro, Werkstatt, Wohnheim) oder wenn Sie den Drucker von unterwegs erreichen möchten.
+
+Eine `http://`-Druckeradresse oder eine Kameraadresse, die außerhalb des lokalen Netzwerks liegen kann, bekommt in den
+Einstellungen eine Warnung (siehe [3.2 Drucker hinzufügen](#32-drucker-hinzufügen)); speichern lässt sie sich trotzdem.
 
 ### 14.1 Worin das Risiko besteht
 
