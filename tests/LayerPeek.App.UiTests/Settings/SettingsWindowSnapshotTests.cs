@@ -247,6 +247,25 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-recording");
         });
 
+    /// <summary>
+    /// T-185 / T-204: the Camera tab with the mini preview's frame rate and hardware decoding (Automatic), as on the OS of
+    /// the snapshot set: the note that Automatic is still software only on Windows (user decision 2026-11-12).
+    /// </summary>
+    [Fact]
+    public Task CameraTab() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")),
+                hardwareDecodingSoftwareNote: !OperatingSystem.IsMacOS());
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.CameraTab;
+            ui.Window.Settle();
+
+            Assert.True(ui.Find<Avalonia.Controls.TabItem>("SettingsTabCamera").IsSelected);
+            SnapshotAssert.Matches(ui.Window, "settings-camera-tab");
+        });
+
     [Fact]
     public Task DetectionSubTabOfACoreOneWithItsLastFrame() =>
         session.RunAsync(static async scope =>

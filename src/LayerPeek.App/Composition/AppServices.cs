@@ -1079,6 +1079,8 @@ internal static partial class AppServices
             ImageStartDirectory = environment.IsIsolated ? environment.DataDirectory() : null,
             // macOS (T-019, user decision 2026-10-29): "Open at Login". T-058: the pre-release option on every OS (Q3 a).
             UsesMacTerms = OperatingSystem.IsMacOS(),
+            // T-204 (user decision 2026-11-12): the note that "Automatic" hardware decoding is still software (Windows).
+            ShowsHardwareDecodingSoftwareNote = !FFmpegCameraFeedFactory.AutomaticUsesHardware,
             // T-058: "Check now" (Q4 a) and the hint to move the macOS app to Applications first (Q8 a).
             CheckForUpdatesNow = services.GetRequiredService<UpdateOffer>().CheckNowAsync,
             ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,

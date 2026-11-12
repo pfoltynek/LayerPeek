@@ -508,6 +508,14 @@ Ajustes para todas las cámaras (la cámara de cada impresora se configura en su
   datos copiados; la cámara se sigue leyendo completa, así que las grabaciones, los timelapses y la detección de errores
   de impresión no cambian. La ventana normal y la pantalla completa muestran siempre todos los fotogramas. El cambio se
   aplica a una vista mini abierta después de **Guardar**.
+- **Decodificación por hardware:** **Automática** (el valor predeterminado) deja que el hardware gráfico decodifique el
+  vídeo de la ventana de la cámara y de la vista mini cuando puede; si no, lo decodifica el procesador. Así baja la
+  carga de CPU. **Desactivada** decodifica siempre con el procesador: menos memoria y ningún decodificador del sistema,
+  pero más carga de CPU. Elija **Desactivada** si la imagen de la cámara está dañada o en negro, tras un problema con el
+  controlador gráfico o para ahorrar memoria. En Windows, por ahora también **Automática** decodifica con el procesador.
+  La prueba de la cámara y la detección de errores de impresión usan siempre el procesador. El cambio se aplica después
+  de **Guardar**; una ventana de la cámara abierta cambia en el siguiente fotograma clave de la cámara (normalmente en
+  pocos segundos), sin volver a conectarse.
 
 ## 12. Actualizaciones
 
@@ -724,6 +732,10 @@ proxy: vea [14.5](#145-confiar-en-el-certificado-en-su-ordenador).
 
 **La cámara muestra Sin señal.** Compruebe la dirección RTSP con **Probar cámara**, y que la cámara está encendida y
 accesible. No ponga ningún nombre de usuario ni contraseña en la dirección.
+
+**La imagen de la cámara está dañada o en negro** (la dirección y **Probar cámara** están bien). Ponga
+**Configuración → Cámara → Decodificación por hardware** en **Desactivada** y guarde; la ventana de la cámara decodifica
+entonces con el procesador (consulte [11.6](#116-cámara)).
 
 **No aparecen las notificaciones.** Use **Enviar notificación de prueba** en **Configuración → General** y compruebe
 **No molestar** (Windows) o los **Modos de concentración** (macOS).

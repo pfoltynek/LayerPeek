@@ -487,6 +487,13 @@ Nastavenia pre všetky kamery (kameru jednotlivej tlačiarne nastavíte na jej p
   (**Vlastný**). Menej snímok znamená menšiu záťaž procesora a menej kopírovaných dát; kamera sa ďalej číta celá, takže
   nahrávky, timelapse a detekcia chýb tlače sa nemenia. Normálne okno a celá obrazovka ukazujú vždy každú snímku. Zmena
   sa pri otvorenom malom náhľade prejaví po **Uložiť**.
+- **Hardvérové dekódovanie:** **Automaticky** (predvolené) nechá video okna kamery a malého náhľadu dekódovať grafický
+  hardvér, keď to ide, inak ho dekóduje procesor; to znižuje záťaž procesora. **Vypnuté** dekóduje vždy procesorom:
+  menej pamäte a žiadny systémový dekodér, ale vyššia záťaž procesora. **Vypnuté** zvoľte, keď je obraz kamery
+  poškodený alebo čierny, po problémoch s ovládačom grafiky alebo kvôli úspore pamäte. Vo Windows zatiaľ aj
+  **Automaticky** dekóduje procesorom. Test kamery a detekcia chýb tlače používajú vždy procesor. Zmena platí po
+  **Uložiť**; otvorené okno kamery prejde od ďalšej kľúčovej snímky kamery (zvyčajne do niekoľkých sekúnd), bez nového
+  pripojenia.
 
 ## 12. Aktualizácie
 
@@ -690,6 +697,10 @@ nastavenia**; zapnite LayerPeek v **Systémové nastavenia → Súkromie a bezpe
 
 **Kamera ukazuje Bez signálu.** Overte adresu RTSP tlačidlom **Otestovať kameru** a skontrolujte, či je kamera
 zapnutá a dostupná. Do adresy nedávajte používateľské meno ani heslo.
+
+**Obraz kamery je poškodený alebo čierny** (adresa aj **Otestovať kameru** sú v poriadku). Nastavte **Nastavenia →
+Kamera → Hardvérové dekódovanie** na **Vypnuté** a uložte; okno kamery potom dekóduje procesorom (pozrite
+[11.6](#116-kamera)).
 
 **Upozornenia sa nezobrazujú.** Použite **Poslať skúšobné upozornenie** v **Nastavenia → Všeobecné** a skontrolujte
 režim **Nerušiť** (Windows) alebo **Sústredenie** (macOS).

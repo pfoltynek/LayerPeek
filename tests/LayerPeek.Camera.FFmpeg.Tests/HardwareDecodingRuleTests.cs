@@ -26,6 +26,11 @@ public sealed class HardwareDecodingRuleTests
     public void TheRuleOfTheRunningOs() =>
         Assert.Equal(OperatingSystem.IsMacOS() ? VideoToolbox : Software, HardwareDecoderSelection.Select(CameraHardwareDecoding.Automatic));
 
+    /// <summary>T-204: the settings window notes "Automatic is still software" exactly where the rule says so.</summary>
+    [Fact]
+    public void AutomaticUsesHardwareOnlyWhereTheRuleSelectsADevice() =>
+        Assert.Equal(OperatingSystem.IsMacOS(), FFmpegCameraFeedFactory.AutomaticUsesHardware);
+
     [Fact]
     public void AnUnknownModeIsRejected() =>
         Assert.Throws<ArgumentOutOfRangeException>(() => HardwareDecoderSelection.Select((CameraHardwareDecoding)9, isMacOS: true));
