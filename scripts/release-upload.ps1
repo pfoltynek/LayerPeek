@@ -3,7 +3,8 @@
     Uploads the release files built by scripts/release-build.ps1 into the DRAFT GitHub release of the tag vX.Y.Z.
 
 .DESCRIPTION
-    The first run (on either OS) creates the draft release with the notes of the version from CHANGELOG.md; the run
+    The first run (on either OS) creates the draft release with the notes of the version from CHANGELOG.md, followed by
+    the FFmpeg sentence with links to both FFmpeg source archives of the release (T-199); the run
     on the other OS adds its files to the same draft. Nothing is visible to others until scripts/release-publish.ps1
     publishes the draft. Versions 0.x are marked as pre-releases.
 
@@ -103,6 +104,8 @@ try {
         Write-Problems -Problems $problems -Action 'Upload'
         exit 1
     }
+    # ffmpeg.org legal checklist point 9: the download page links the FFmpeg source (T-199).
+    $notes = Get-ReleaseNotes -ChangelogSection $notes -Repository $preflight.Repository -Version $version
 
     # Reads the release (drafts included); nothing is changed yet.
     $release = Get-GitHubRelease -Repository $preflight.Repository -Tag $tag

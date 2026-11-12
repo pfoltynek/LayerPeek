@@ -696,8 +696,21 @@ project under the LGPLv3 or later.“ (přeložená do všech 8 jazyků) a odkaz
 `https://github.com/pfoltynek/LayerPeek/releases/download/v<verze>/ffmpeg-source-<verze>-<os>.tar.xz`
 (`ThirdPartyLicenses.FFmpeg.SourceArchiveUri`, OS podle běžící aplikace). Šablona na ffmpeg.org uvádí „LGPLv2.1“;
 oba buildy jsou ale `--enable-version3`, tedy LGPL 3 nebo novější, proto věta uvádí skutečnou verzi licence
-(otevřená otázka v T-199). Sestavení verze, která nebyla vydaná, má odkaz bez souboru (stejně jako odkaz na skript
+(schváleno uživatelem 2026-11-12). Sestavení verze, která nebyla vydaná, má odkaz bez souboru (stejně jako odkaz na skript
 buildu podle tagu).
+
+**Text vydání na GitHubu** (rozhodnutí uživatele 2026-11-12, bod 9 kontrolního seznamu: věta na každé stránce se
+stažením): `release-upload.ps1` při vytvoření konceptu připojí za sekci `CHANGELOG.md` oddělovač `---` a větu
+„This software uses code of FFmpeg licensed under the LGPLv3 or later and its source can be downloaded here: …“
+s odkazy na oba archivy vydání (`Get-ReleaseNotes`, `Get-FFmpegSourceNotice`; adresy
+`https://github.com/<repozitář>/releases/download/v<verze>/ffmpeg-source-<verze>-windows.tar.xz` a `…-macos.tar.xz`,
+repozitář podle `-Repo`). `-DryRun` celý text vypíše. Do balíčku Velopack jde dál jen sekce `CHANGELOG.md`; manifest
+winget větu nedostává. README (EN i CZ) má stejnou větu v oddílu stažení. Vydání jen s jedním OS (`-AllowIncomplete`,
+do 1.0.0) má odkaz druhého OS do doplnění jeho souborů nefunkční.
+
+**Přechodný stav Windows:** balení zdroje Windows z commitu FFmpeg a skriptů BtbN nahradí **T-202** (vlastní
+minimální LGPL build FFmpeg na Windows jako na macOS, rozhodnutí uživatele 2026-11-12); archiv Windows pak bude
+obsahovat jen oficiální tarball FFmpeg a skript buildu.
 
 **Nová verze FFmpeg:** po `build/update-ffmpeg.ps1 -Update` je potřeba připnout i zdroj (postup v
 `docs/prerequisites.md`, „Nová verze FFmpeg“); dokud se to neudělá, selže test Pester a `release-build.ps1` skončí

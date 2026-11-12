@@ -2843,6 +2843,23 @@ Describe 'FFmpeg source of a release (T-199)' {
         Get-FFmpegSourceFileName -Version '1.0.0' -Os 'windows' | Should -BeExactly 'ffmpeg-source-1.0.0-windows.tar.xz'
         Get-FFmpegSourceFileName -Version '1.2.3' -Os 'macos' | Should -BeExactly 'ffmpeg-source-1.2.3-macos.tar.xz'
     }
+    It 'links both source archives of the release in the FFmpeg sentence of the release notes (legal checklist point 9)' {
+        $notice = Get-FFmpegSourceNotice -Repository 'o/r' -Version '1.0.0'
+        $notice | Should -BeExactly ('This software uses code of [FFmpeg](https://ffmpeg.org/) licensed under the LGPLv3 or later and its source can be downloaded here: ' +
+            'Windows [`ffmpeg-source-1.0.0-windows.tar.xz`](https://github.com/o/r/releases/download/v1.0.0/ffmpeg-source-1.0.0-windows.tar.xz), ' +
+            'macOS [`ffmpeg-source-1.0.0-macos.tar.xz`](https://github.com/o/r/releases/download/v1.0.0/ffmpeg-source-1.0.0-macos.tar.xz).')
+        # Our builds are --enable-version3: the LGPLv2.1 of the ffmpeg.org template would not be true.
+        $notice | Should -Not -Match 'LGPLv2'
+    }
+    It 'appends the FFmpeg sentence to the CHANGELOG section in the release notes' {
+        $notes = Get-ReleaseNotes -ChangelogSection "### Added`n`n- First." -Repository 'o/r' -Version '1.2.3'
+        $notes | Should -BeExactly ("### Added`n`n- First.`n`n---`n`n" + (Get-FFmpegSourceNotice -Repository 'o/r' -Version '1.2.3'))
+    }
+    It 'creates the GitHub release with these notes (release-upload.ps1) but packs the plain section into Velopack (release-build.ps1)' {
+        $upload = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-upload.ps1'))
+        $upload | Should -Match '\$notes = Get-ReleaseNotes -ChangelogSection \$notes -Repository \$preflight\.Repository -Version \$version'
+        [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1')) | Should -Not -Match 'Get-ReleaseNotes|Get-FFmpegSourceNotice'
+    }
 
     It 'keeps the inputs next to the FFmpeg build cache' -Skip:(-not ($IsWindows -or $IsMacOS)) {
         $expected = if ($IsWindows) { Join-Path $env:LOCALAPPDATA 'LayerPeek.Build' 'ffmpeg-source' } else { Join-Path $HOME 'Library' 'Caches' 'LayerPeek.Build' 'ffmpeg-source' }

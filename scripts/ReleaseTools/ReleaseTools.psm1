@@ -1369,6 +1369,33 @@ function Get-FFmpegSourceFileName {
     "ffmpeg-source-$Version-$Os.tar.xz"
 }
 
+function Get-FFmpegSourceNotice {
+    <#
+    .SYNOPSIS
+        Pure: the FFmpeg sentence of the release notes (ffmpeg.org/legal.html checklist point 9, decided 2026-11-12),
+        linking the FFmpeg source archives of both OS in the release of Repository (T-199).
+    .DESCRIPTION
+        LGPLv3 or later, not the LGPLv2.1 of the template: both FFmpeg builds use --enable-version3.
+    #>
+    param([Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Version)
+    $base = "https://github.com/$Repository/releases/download/v$Version"
+    $links = foreach ($os in @(@('Windows', 'windows'), @('macOS', 'macos'))) {
+        $name = Get-FFmpegSourceFileName -Version $Version -Os $os[1]
+        "$($os[0]) [``$name``]($base/$name)"
+    }
+    "This software uses code of [FFmpeg](https://ffmpeg.org/) licensed under the LGPLv3 or later and its source can be downloaded here: $($links -join ', ')."
+}
+
+function Get-ReleaseNotes {
+    <#
+    .SYNOPSIS
+        Pure: the text of a new GitHub release, the CHANGELOG.md section followed by the FFmpeg sentence
+        (Get-FFmpegSourceNotice). Only the GitHub release gets the sentence; the Velopack package keeps the plain section.
+    #>
+    param([Parameter(Mandatory)] [string] $ChangelogSection, [Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Version)
+    "$ChangelogSection`n`n---`n`n$(Get-FFmpegSourceNotice -Repository $Repository -Version $Version)"
+}
+
 function Get-FFmpegSourceCacheDirectory {
     <# .SYNOPSIS The cache of the FFmpeg source inputs, next to the FFmpeg build cache of build/FFmpeg.targets. #>
     if ($IsWindows) { return Join-Path $env:LOCALAPPDATA 'LayerPeek.Build' 'ffmpeg-source' }

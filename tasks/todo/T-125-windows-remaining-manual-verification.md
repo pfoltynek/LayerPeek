@@ -459,6 +459,10 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       ukazuje autora i committera s adresou noreply. Výsledek zapsat do T-198 (Poznámky).
 
 ### 2ab. Zdroj FFmpeg u vydání a věta o FFmpeg v okně O aplikaci (z T-199, implementováno na Macu 2026-11-11)
+> Doplněno 2026-11-12: balení zdroje Windows z commitu FFmpeg a skriptů BtbN (`git archive`, 3. bod) je přechodný stav,
+> nahradí ho T-202 (vlastní build FFmpeg na Windows). Pokud T-202 skončí dřív než toto ověření, 3. bod se ověří už
+> podle T-202 (archiv jen s tarballem FFmpeg a skriptem buildu). Text vydání z `release-upload.ps1 -DryRun` má na konci
+> větu o FFmpeg s odkazy na oba archivy (T-199, rozhodnutí 2026-11-12).
 - [ ] **T-199** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*AboutWindowLayoutTests"`
       a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) blok licence s větou o FFmpeg
       drobným písmem a řádek odkazů se třemi odkazy (třetí „FFmpeg source code of this version“ na dalším řádku):

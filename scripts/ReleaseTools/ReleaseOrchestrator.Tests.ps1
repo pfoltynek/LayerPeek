@@ -1351,6 +1351,11 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $new[1] | Should -Not -Match 'releases\.osx-arm64\.json(?!\.sig)|SHA256SUMS'
         $new[2] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two .*releases\.osx-arm64\.json'
         $new[2] | Should -Not -Match '\.sig|\.nupkg|\.dmg'
+        # T-199 (ffmpeg.org legal checklist point 9): the release text links the FFmpeg source archives of the release.
+        $body = (Get-TwoRelease).body
+        $body | Should -Match '(?m)^- '
+        $body | Should -Match 'licensed under the LGPLv3 or later and its source can be downloaded here'
+        $body | Should -Match ([regex]::Escape('(https://github.com/test-owner/two/releases/download/v0.1.0/ffmpeg-source-0.1.0-macos.tar.xz)'))
 
         # T-181: publishing refuses a feed without its signature, also with -AllowIncomplete.
         $uploaded = [System.IO.File]::ReadAllText($script:TwoRelease)

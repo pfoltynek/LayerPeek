@@ -1,7 +1,7 @@
 ---
 id: T-199
 title: Vydání – zdrojový kód FFmpeg přiložený k vydání a věta o FFmpeg v okně O aplikaci (LGPL)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P1
 platform: all
@@ -51,6 +51,9 @@ a build BtbN, na který se odkazuje, už jednou zmizel (T-162).
    `LICENSE.txt` = `COPYING.LGPLv3`), takže „LGPLv2.1“ by nebylo pravda. Implementováno: „This software uses libraries
    from the FFmpeg project under the LGPLv3 or later.“, přeložené do 8 jazyků. Souhlasí uživatel s (a) verzí licence
    místo šablony a (b) překladem (místo anglické věty doslova ve všech jazycích)?
+
+   Rozhodnuto uživatelem 2026-11-12: implementovaná věta „This software uses libraries from the FFmpeg project under
+   the LGPLv3 or later.“ přeložená do všech 8 jazyků se schvaluje beze změny.
 2. **Windows: externí knihovny v DLL BtbN (bod 18 kontrolního seznamu).** Varianta `win64-lgpl-shared` staticky
    přikládá do DLL asi 50 knihoven (řádek configure z `avcodec-63.dll`: mimo jiné `libdav1d`, `libaom`, `libvpx`,
    `libopus`, `libass`, `libfribidi`, `gmp`, `libbluray`, `libmp3lame`, `libssh`, `libtwolame`, `libzvbi`, `libsoxr`,
@@ -59,15 +62,26 @@ a build BtbN, na který se odkazuje, už jednou zmizel (T-162).
    v archivu není, `README.txt` to říká). Stačí to, nebo (b) přikládat i zdroje všech závislostí (stovky MB, skript,
    který stáhne každý repozitář/commit z `scripts.d`), nebo (c) na Windows přejít na vlastní minimální LGPL build jako
    na macOS (jen RTSP/H.264/MP4, žádné externí knihovny; nový úkol, toolchain na Windows)? Licenční / balicí rozhodnutí.
+
+   Rozhodnuto uživatelem 2026-11-12: **varianta (c)** – vlastní minimální LGPL build FFmpeg na Windows jako na macOS,
+   nový úkol **T-202** (`windows`, P1, `core-dev`, blokuje vydání 1.0.0, bloker B10 v T-198). Podle rozhodnutí k T-192
+   ze stejného dne musí obsahovat D3D11VA; volba toolchainu je otevřená otázka T-202. Současné balení zdroje Windows
+   (commit FFmpeg + skripty BtbN) je **přechodný stav**, který T-202 nahradí archivem jen se zdrojem FFmpeg a skriptem
+   buildu.
 3. **Bod 9 kontrolního seznamu (stránky se stažením):** věta „This software uses code of FFmpeg licensed under the
    LGPL… and its source can be downloaded here“ na každé stránce s odkazem ke stažení (text vydání na GitHubu, README,
    winget). Rozhodnutí 2026-11-11 jmenuje jen okno O aplikaci, proto neimplementováno; README dostal jen věcnou větu,
    že vydání zdroj obsahuje. Doplnit větu do textu vydání (`release-upload.ps1`, sekce CHANGELOG) a README?
+
+   Rozhodnuto uživatelem 2026-11-12: **ano**, do textu vydání na GitHubu a do README (EN i CZ), ne do manifestu winget.
+   Věta uvádí skutečnou licenci „LGPLv3 or later“. Implementováno (viz poznámky, 2026-11-12).
 4. **Rozložení okna O aplikaci (ui-designer).** Věta s odkazem se do 508 DIP (T-033) v původním rozložení nevešla (561 DIP,
    rezerva byla 24 DIP). Řešení: blok licence (licence, copyright, věta o FFmpeg drobným písmem 12 px, průhlednost 0,75)
    s mezerou 2 DIP a tři odkazy v `WrapPanel` (dva v řádku, třetí pod nimi). Výsledek 506 / 508 DIP ve všech jazycích
    (Inter, macOS), rezerva jen 2 DIP. Schválit, nebo navrhnout jiné rozložení (např. širší okno, tlačítka podpory
    vedle sebe)?
+
+   Rozhodnuto uživatelem 2026-11-12: rozložení (506 / 508 DIP) se schvaluje beze změny.
 
 ## Poznámky k implementaci
 Implementace 2026-11-11 (qa-reviewer, Mac, větev `feature/T-199-ffmpeg-source-in-release`):
@@ -126,3 +140,20 @@ Implementace 2026-11-11 (qa-reviewer, Mac, větev `feature/T-199-ffmpeg-source-i
   zapíše xz, Git for Windows zapíše `git archive` se stejným SHA-256, zkušební `release-build.ps1 -SkipFeedSignature`.
 - **Návrh na později (ne rozhodnutí):** `build/update-ffmpeg.ps1 -Platform windows` by mohl zdroj připnout sám (commit
   z API GitHubu, tag přes `git ls-remote`, SHA-256 `git archive`); dnes ručně podle `docs/prerequisites.md`.
+
+Dokončení 2026-11-12 (qa-reviewer, Mac, po rozhodnutích uživatele k otázkám 1–4):
+- **Text vydání (otázka 3):** `Get-FFmpegSourceNotice` (čistá: věta podle bodu 9 s „LGPLv3 or later“ a odkazy
+  `https://github.com/<repozitář>/releases/download/v<verze>/ffmpeg-source-<verze>-windows.tar.xz` a `…-macos.tar.xz`;
+  názvy z `Get-FFmpegSourceFileName`) a `Get-ReleaseNotes` (sekce CHANGELOG + `---` + věta) v `ReleaseTools.psm1`;
+  `release-upload.ps1` je použije pro nový koncept (i výpis `-DryRun`). `-AddToPublished` text nemění (beze změny).
+  Balíček Velopack (`release-build.ps1`) dál nese jen sekci CHANGELOG, manifest winget beze změny.
+- **README EN + CZ:** věta s odkazem na stránku Releases a názvy obou archivů na konci oddílu stažení („1. Download“ /
+  „1. Stažení“). `docs/release.md` (text vydání, přechodný stav Windows), `CHANGELOG.md` doplněné.
+- **Pester:** 3 nové testy v `FFmpeg source of a release (T-199)` (přesná věta, složení textu, použití ve
+  `release-upload.ps1` a ne v `release-build.ps1`) a kontrola textu konceptu v end-to-end testu
+  `ReleaseOrchestrator.Tests.ps1` (falešný `gh`, tělo vydání obsahuje větu a odkaz na archiv macOS).
+- **Nový úkol T-202** (otázka 2c), bloker B10 v T-198, řádek v `tasks/README.md`; poznámka do T-125 (2ab).
+- **Build a testy (Mac, 2026-11-12):** `dotnet build` 0 varování, 0 chyb; `dotnet test` 10 441 celkem, 10 174 prošlo,
+  0 selhalo, 267 přeskočeno; Pester (`ReleaseTools`, `ReleaseOrchestrator`, `ReleaseWinget`) 483 prošlo, 0 selhalo,
+  4 přeskočeno.
+- Uzavřeno 2026-11-12: zbývající ověření na Windows je v T-125 (2ab) (rozhodnutí uživatele).
