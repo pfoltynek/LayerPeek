@@ -29,6 +29,7 @@ public sealed class InstallerHooksTests
     private readonly InMemoryNotificationSettings _notificationSettings = new();
     private readonly InMemoryNotifyIconSettings _trayIcons = new();
     private readonly FakeAutostart _autostart = new() { Enabled = true };
+    private readonly FakeAutostartChoice _choice = new();
     private readonly ListLogger<InstallerHooks> _logger = new();
 
     [Fact]
@@ -51,6 +52,7 @@ public sealed class InstallerHooksTests
         Assert.True(_autostart.Enabled);
     }
 
+    /// <summary>A new install without a choice of the user: autostart on (user decision 2026-10-26).</summary>
     [Fact]
     public void AfterInstallSwitchesAutostartOn()
     {
@@ -59,6 +61,87 @@ public sealed class InstallerHooksTests
         Assert.Empty(Hooks().AfterInstall());
 
         Assert.True(_autostart.Enabled);
+        Assert.Equal(1, _choice.Reads);
+    }
+
+    /// <summary>
+    /// T-201: a reinstall over the installation (<c>winget upgrade</c>, <c>Setup.exe --silent</c>) or a new install after an
+    /// uninstall (the settings stay) keeps the autostart the user switched off; the hook does not touch it at all.
+    /// </summary>
+    [Fact]
+    public void AfterInstallKeepsAutostartTheUserSwitchedOff()
+    {
+        _autostart.Enabled = false;
+        _choice.Choice = false;
+
+        Assert.Empty(Hooks().AfterInstall());
+
+        Assert.False(_autostart.Enabled);
+        Assert.Empty(_autostart.Changes);
+        Assert.Equal(1, _toasts.Registrations);
+    }
+
+    /// <summary>T-201: switched off, but the shortcut is still there (e.g. made by an older hook): the hook leaves it alone too.</summary>
+    [Fact]
+    public void AfterInstallNeverSwitchesAutostartOff()
+    {
+        _autostart.Enabled = true;
+        _choice.Choice = false;
+
+        Assert.Empty(Hooks().AfterInstall());
+
+        Assert.True(_autostart.Enabled);
+        Assert.Empty(_autostart.Changes);
+    }
+
+    /// <summary>T-201: a reinstall after the user switched autostart on keeps it on (the shortcut is written again).</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AfterInstallKeepsAutostartTheUserSwitchedOn(bool enabledBefore)
+    {
+        _autostart.Enabled = enabledBefore;
+        _choice.Choice = true;
+
+        Assert.Empty(Hooks().AfterInstall());
+
+        Assert.True(_autostart.Enabled);
+        Assert.Equal([true], _autostart.Changes);
+    }
+
+    /// <summary>T-201: settings that cannot be read are no choice: autostart on like a new install, the reason in the log.</summary>
+    [Fact]
+    public void AfterInstallWithUnreadableSettingsSwitchesAutostartOn()
+    {
+        _autostart.Enabled = false;
+        _choice.Failure = new System.Text.Json.JsonException("damaged");
+
+        Assert.Empty(Hooks().AfterInstall());
+
+        Assert.True(_autostart.Enabled);
+        Assert.Contains(_logger.Entries, static entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Warning && entry.Exception is System.Text.Json.JsonException);
+    }
+
+    /// <summary>Without an autostart there is nothing to decide: the settings are not read.</summary>
+    [Fact]
+    public void AfterInstallWithoutAutostartDoesNotReadTheSettings()
+    {
+        InstallerHooks hooks = new(_toasts, _history, _activators, _notificationSettings, Promotion(), autostart: null, _choice, Exe, _logger);
+
+        Assert.Empty(hooks.AfterInstall());
+        Assert.Equal(0, _choice.Reads);
+    }
+
+    /// <summary>The uninstall removes the autostart whatever the choice; the choice itself stays in the settings.</summary>
+    [Fact]
+    public void BeforeUninstallDoesNotReadTheChoice()
+    {
+        _choice.Choice = true;
+
+        Assert.Empty(Hooks().BeforeUninstall());
+
+        Assert.False(_autostart.Enabled);
+        Assert.Equal(0, _choice.Reads);
     }
 
     /// <summary>The app works without autostart: a failure does not fail the install, it goes to the log.</summary>
@@ -78,7 +161,7 @@ public sealed class InstallerHooksTests
     [Fact]
     public void AfterInstallWithoutAutostartRegistersToasts()
     {
-        InstallerHooks hooks = new(_toasts, _history, _activators, _notificationSettings, Promotion(), autostart: null, Exe, _logger);
+        InstallerHooks hooks = new(_toasts, _history, _activators, _notificationSettings, Promotion(), autostart: null, _choice, Exe, _logger);
 
         Assert.Empty(hooks.AfterInstall());
         Assert.Equal(1, _toasts.Registrations);
@@ -147,7 +230,7 @@ public sealed class InstallerHooksTests
     [Fact]
     public void BeforeUninstallWithoutAutostartOrExecutableStillCleansUp()
     {
-        InstallerHooks hooks = new(_toasts, _history, _activators, _notificationSettings, Promotion(), autostart: null, executablePath: null, _logger);
+        InstallerHooks hooks = new(_toasts, _history, _activators, _notificationSettings, Promotion(), autostart: null, _choice, executablePath: null, _logger);
 
         Assert.Empty(hooks.BeforeUninstall());
         Assert.Equal(["LayerPeek"], _history.Cleared);
@@ -161,14 +244,14 @@ public sealed class InstallerHooksTests
         const string host = @"C:\Program Files\dotnet\dotnet.exe";
         _trayIcons.Add("1", host, promoted: 1);
 
-        InstallerHooks hooks = new(_toasts, _history, _activators, _notificationSettings, Promotion(), _autostart, host, _logger);
+        InstallerHooks hooks = new(_toasts, _history, _activators, _notificationSettings, Promotion(), _autostart, _choice, host, _logger);
 
         Assert.Empty(hooks.BeforeUninstall());
         Assert.Empty(_trayIcons.ClearedKeys);
     }
 
     private InstallerHooks Hooks() =>
-        new(_toasts, _history, _activators, _notificationSettings, Promotion(), _autostart, Exe, _logger);
+        new(_toasts, _history, _activators, _notificationSettings, Promotion(), _autostart, _choice, Exe, _logger);
 
     private TrayIconPromotion Promotion() => new(_trayIcons, new ListLogger<TrayIconPromotion>());
 
@@ -186,6 +269,22 @@ public sealed class InstallerHooksTests
             }
 
             Registrations++;
+        }
+    }
+
+    /// <summary>The choice stored in the settings, in memory.</summary>
+    private sealed class FakeAutostartChoice : IAutostartChoiceSource
+    {
+        public bool? Choice { get; set; }
+
+        public Exception? Failure { get; set; }
+
+        public int Reads { get; private set; }
+
+        public bool? Read()
+        {
+            Reads++;
+            return Failure is not null ? throw Failure : Choice;
         }
     }
 

@@ -60,6 +60,11 @@ your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this
 
 - Settings, the printer's **Camera** sub-tab: in Italian, Spanish, French and Polish the **Keep the last minutes
   (dashcam)** check box was cut off; the labels are shorter now.
+- Windows: installing LayerPeek again over an existing installation (running `Setup.exe` again, or `winget upgrade`)
+  no longer switches **Start automatically when I sign in to Windows** back on after you switched it off. The settings
+  now remember your choice; a new installation still switches it on, and so does a reinstall when you never changed
+  the option. If you switched it off in an earlier version, the first start of this version remembers that, so the
+  next reinstall keeps it off too.
 
 ### Security
 

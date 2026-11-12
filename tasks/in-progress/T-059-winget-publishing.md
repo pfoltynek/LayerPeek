@@ -44,7 +44,7 @@ Aplikaci jde nainstalovat a aktualizovat příkazem `winget install` z oficiáln
   5. ~~Telemetrie `wingetcreate`~~ **Rozhodnuto:** **vypnout** přes jeho `settings.json`; skript ji nastaví před spuštěním `wingetcreate`, opakovaně bezpečně a bez přepsání jiných nastavení.
   6. ~~Volitelná pole manifestu (`ElevationRequirement`, `InstallLocation`, `PrivacyUrl`)~~ **Rozhodnuto:** **žádná další volitelná pole** (ani `RequireExplicitUpgrade`).
 - **Nové (2026-11-11, po doplnění), k rozhodnutí uživatele:**
-  1. T-201 má podle zadání `depends_on: [T-059]`. T-059 bude hotový až po prvním odeslání po vydání 1.0.0, takže by oprava autostartu do 1.0.0 podle pravidel nestihla, i když na T-059 technicky nezávisí (týká se i ruční přeinstalace `Setup.exe`). Zrušit závislost? (stejná otázka je v T-201)
+  1. ~~T-201 má podle zadání `depends_on: [T-059]`. … Zrušit závislost?~~ **Rozhodnuto uživatelem 2026-11-12:** závislost zrušena, T-201 se opraví před 1.0.0 (varianta A, uložená volba).
   2. Pozdější verze: `wingetcreate` před vytvořením větve synchronizuje fork (`merge-upstream`). Když se ve `microsoft/winget-pkgs` mezitím změní soubory `.github/workflows`, GitHub může synchronizaci tokenu bez scope `workflow` odmítnout (neověřeno; v issues winget-create jsem hlášení nenašel). Výchozí `gh auth login` scope `workflow` nemá. Řešit až při výskytu (`gh auth refresh --scopes workflow` jen pro odeslání, nebo smazat fork), nebo přihlašovat rovnou se `workflow`?
 
 ## Poznámky k implementaci

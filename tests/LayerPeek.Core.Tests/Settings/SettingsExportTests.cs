@@ -28,6 +28,18 @@ public sealed class SettingsExportTests
         Assert.Equal(2, document.RootElement.GetProperty("version").GetInt32());
     }
 
+    /// <summary>T-201 (user decision 2026-11-12): the start after logon the user chose is not part of the bundle.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void StartAtLoginChoiceIsNotExported(bool start)
+    {
+        string json = SettingsExport.ToSupportJson(With(CameraSettings.Disabled) with { StartAtLogin = start });
+
+        Assert.DoesNotContain("startAtLogin", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"debugLogging\": true", json, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void InvalidAddressKeptForCorrectionIsNotHandedOut()
     {
