@@ -26,9 +26,9 @@ dokumentace prostředí.
    (https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/cross-compile): „Cross-compiling from x64 Windows
    to ARM64 Windows or vice versa works as long as the appropriate VS 2022 C++ build tools are installed. To target
    ARM64 make sure the Visual Studio component "VS 2022 C++ ARM64/ARM64EC build tools (Latest)" is installed.“
-   - Komponenta `Microsoft.VisualStudio.Component.VC.Tools.ARM64` (ID ověřit v instalátoru Build Tools 2026, na tomto
-     stroji 2026-11-12 není nainstalovaná – `vswhere -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64` nic
-     nevypíše). Instaluje ji **uživatel jako správce** (pokus agenta v T-055 skončil kódem 5007 bez zvýšených oprávnění).
+   - Komponenta `Microsoft.VisualStudio.Component.VC.Tools.ARM64` je na vývojovém stroji Windows nainstalovaná od
+     2026-11-12 (hlavní agent se souhlasem uživatele; VS Build Tools 2026, MSVC 14.51.36231, otázka 1). Na dalších
+     strojích ji instaluje uživatel jako správce (pokus bez zvýšených oprávnění v T-055 skončil kódem 5007).
      Návrh příkazu (ověřit): `& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify
      --installPath <cesta z vswhere> --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --passive --norestart`.
    - Obnovení balíčků cílového RID (`runtime.win-arm64.Microsoft.DotNet.ILCompiler`,
@@ -40,7 +40,8 @@ dokumentace prostředí.
    v T-209. Pester test kontroly upravit.
 3. **Publish `win-arm64`:** bez varování IL2xxx/IL3xxx z kódu projektu (stávající hlášky `ILC: Method … will always
    throw` z Avalonia DComposition zapsat, pokud se objeví stejně jako u x64). `LayerPeek.exe` i všechny nativní DLL
-   v publish složce mají v hlavičce PE pole Machine `0xAA64` – kontrola skriptem nebo testem (ne ručně), žádná x64 DLL.
+   v publish složce mají v hlavičce PE pole Machine `0xAA64`, žádná x64 DLL – kontrola funkcí v `ReleaseTools.psm1`
+   s Pester testem, volaná z `release-build.ps1` a `aot-smoke.ps1` (otázka 2).
 4. **Nativní závislosti NuGet (ověřeno 2026-11-12 v místní NuGet cache, verze podle `project.assets.json` aplikace):**
    `SkiaSharp.NativeAssets.Win32` 3.119.4, `HarfBuzzSharp.NativeAssets.Win32` 8.3.1.3 a
    `Avalonia.Angle.Windows.Natives` 2.1.27548.20260419 mají `runtimes/win-arm64/native`. `Velopack` 1.2.161 je čistě
@@ -60,7 +61,7 @@ dokumentace prostředí.
    ověření běhu je v T-210.
 
 ## Akceptační kritéria
-- [ ] Komponenta MSVC ARM64 je nainstalovaná (uživatel, jako správce) a `vswhere -requires
+- [ ] Komponenta MSVC ARM64 je nainstalovaná (na vývojovém stroji 2026-11-12, otázka 1) a `vswhere -requires
       Microsoft.VisualStudio.Component.VC.Tools.ARM64` ji najde; postup v `docs/prerequisites.md`
 - [ ] `dotnet publish src/LayerPeek.App -c Release -r win-arm64` na Windows x64 projde bez trim/AOT varování z kódu
       projektu; exe a všechny nativní DLL publish složky jsou ARM64 PE (`0xAA64`), kontrola automatizovaná
@@ -71,12 +72,14 @@ dokumentace prostředí.
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-1. **Instalace komponenty MSVC ARM64:** provede ji uživatel sám jako správce (doporučeno, stejně jako v T-055/T-063),
-   nebo má agent připravit skript, který si o zvýšení oprávnění řekne (UAC)? Doporučení: uživatel ručně, příkaz
-   v `docs/prerequisites.md`.
-2. **Kontrola PE hlavičky:** stačí Pester/pwsh kontrola v `release-build.ps1` (T-209), nebo i xUnit test nad publish
-   složkou (publish v testu je pomalý)? Doporučení: funkce v `ReleaseTools.psm1` + Pester test nad malými ukázkovými
-   soubory, volaná z `release-build.ps1` a `aot-smoke.ps1`.
+1. ~~**Instalace komponenty MSVC ARM64:** provede ji uživatel sám jako správce, nebo skript s UAC?~~
+   **Rozhodnuto uživatelem 2026-11-12:** komponentu `Microsoft.VisualStudio.Component.VC.Tools.ARM64` nainstaloval
+   2026-11-12 hlavní agent se souhlasem uživatele na tomto vývojovém stroji Windows (VS Build Tools 2026, MSVC
+   14.51.36231; přítomné `Hostx64\arm64\link.exe` a `lib\arm64`). Ruční instalační příkaz (jako správce) a ověření
+   `vswhere` přesto patří do `docs/prerequisites.md` pro další stroje.
+2. ~~**Kontrola PE hlavičky:** Pester/pwsh funkce, nebo i xUnit test nad publish složkou?~~ **Rozhodnuto uživatelem
+   2026-11-12:** funkce v `scripts/ReleaseTools/ReleaseTools.psm1` + Pester test (malé ukázkové soubory), volaná
+   z `release-build.ps1` a `aot-smoke.ps1`; žádný xUnit test s publish.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

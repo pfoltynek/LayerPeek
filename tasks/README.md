@@ -54,6 +54,13 @@ Mac → **T-115** (sezení s agentem na Macu), **T-126** (instalátor) nebo **T-
   `tools/macos-verify.ps1`, kontroly T-117 / T-118 / T-122). Nově přesouvané body se píšou do těchto úkolů stejným
   způsobem („→ přesunuto do T-12x“).
 
+## Sběrný ověřovací úkol Windows ARM64 (rozhodnutí uživatele 2026-11-12)
+
+Kritérium, které potřebuje běh na zařízení s Windows na ARM64 (Windows x64 binárky ARM64 spustit neumí), se přesouvá do
+sběrného úkolu **T-210 „Windows ARM64 – ověření na zařízení ARM64“** stejným způsobem jako do T-125 („→ přesunuto do
+T-210“; v T-210 bod se zaškrtávacím polem, původním úkolem, kritériem a postupem). Ověřuje se na vlastním nebo
+zapůjčeném zařízení ARM64, bez CI a cloudu. Přesunout nejde nedokončená práce ani kritérium blokované otevřenou otázkou.
+
 ## Větve (Gitflow)
 
 - Každý úkol má vlastní větev `feature/T-XXX-kratky-nazev` (stejný název jako soubor úkolu), založenou z `develop`.
@@ -249,7 +256,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-207 | Windows ARM64 – sestavovací prostředí a Native AOT publish `win-arm64` z x64 (bez FFmpeg) | windows | core-dev | P2 | – |
 | T-208 | Windows ARM64 – vlastní LGPL build FFmpeg pro `win-arm64` (křížový překlad z x64) | windows | core-dev | P2 | T-202, T-207 |
 | T-209 | Windows ARM64 – vydání `win-arm64` (skripty, Velopack, aktualizace, winget, README a příručky) | windows | qa-reviewer | P2 | T-207, T-208 |
-| T-210 | Windows ARM64 – ověření na zařízení ARM64 (aplikace, kamera, instalátor, aktualizace) | windows | qa-reviewer | P2 | T-209 |
+| T-210 | Windows ARM64 – ověření na zařízení ARM64 (sběrný úkol pro ARM64: aplikace, kamera, instalátor, aktualizace) | windows | qa-reviewer | P2 | T-209 |
 
 ### macOS (`macos`) – jen na Macu, později
 

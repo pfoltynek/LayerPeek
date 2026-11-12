@@ -13,8 +13,11 @@ depends_on: [T-209]
 > soustředěné sem. Uživatel zatím zařízení s Windows na ARM64 nemá (stav 2026-11-12, stejně jako 2026-10-21 v T-057).
 
 ## Cíl
-Ověřit na skutečném Windows ARM64 (nebo náhradě podle otázky 1), že AOT build `win-arm64` z T-209 funguje stejně jako
-`win-x64`, a podle výsledku povolit nahrávání `win-arm64` (`Uploadable = $true`, viz T-209 otázka 1).
+**Sběrný ověřovací úkol pro Windows ARM64** (rozhodnutí uživatele 2026-11-12, jako T-125): kritéria jiných úkolů, která
+potřebují běh na ARM64, se sem přesouvají („→ přesunuto do T-210“) a každý takový bod tu má zaškrtávací pole, původní
+úkol, kritérium a krátký postup. Ověřit na vlastním nebo zapůjčeném zařízení s Windows na ARM64 (otázka 1), že AOT
+build `win-arm64` z T-209 funguje stejně jako `win-x64`, a podle výsledku povolit nahrávání `win-arm64` (`Uploadable = $true`, viz T-209 otázka 1) a doplnit README
+a příručky o soubory ARM64 ke stažení.
 
 ## Rozsah
 Na ARM64 zařízení, s balíčkem z `release-build.ps1` (T-209) a se simulátorem (`tools/PrusaSimulator`, běží na x64
@@ -33,7 +36,10 @@ stroji v síti nebo na zařízení):
 6. **E2E na zařízení (volitelné):** `tools/run-e2e.ps1` a `tools/windows-verify.ps1` s RID hostitele (T-209 bod 7);
    výsledek zapsat.
 7. Výsledek zapsat do poznámek; nalezené chyby = nové úkoly. Po úspěchu přepnout `win-arm64` na `Uploadable = $true`
-   (malá změna v `ReleaseTools.psm1` + test), upravit README / příručky, pokud T-209 použil označení „neověřeno“.
+   (malá změna v `ReleaseTools.psm1` + test), v README a příručkách nabídnout soubory ARM64 ke stažení; od prvního
+   vydání s `win-arm64` přidat uzel `arm64` do winget (T-209 otázka 3).
+8. **Přesunuté body z jiných úkolů** (doplňují se sem podle pravidla v `tasks/README.md`):
+   - (zatím žádné)
 
 ## Akceptační kritéria
 - [ ] AOT smoke test `win-arm64` prošel na ARM64 (zařízení, Windows verze a CPU v poznámkách)
@@ -44,20 +50,12 @@ stroji v síti nebo na zařízení):
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-1. **Na čem ověřovat (blokuje celý úkol):** uživatel ARM64 zařízení nemá. Možnosti:
-   (a) vlastní / zapůjčené zařízení se Snapdragon X apod. (plné ověření včetně GPU a D3D11VA);
-   (b) placený cloudový Windows 11 ARM64 stroj (např. Azure ARM64 VM) – odporuje zásadě vydání za 0 Kč, bez skutečné GPU;
-   (c) běžec GitHub Actions `windows-11-arm`, zdarma pro veřejné repozitáře
-       (https://github.blog/changelog/2025-04-14-windows-arm64-hosted-runners-now-available-in-public-preview/,
-       https://blogs.windows.com/windowsdeveloper/2025/04/14/github-actions-now-supports-windows-on-arm-runners-for-all-public-repos/)
-       – jen ručně spouštěný workflow pro AOT smoke a testy (bez interaktivního UI a bez GPU); CI bylo ale zamítnuto
-       (T-016, 2026-11-01), takže by šlo o nové rozhodnutí;
-   (d) emulace celého Windows 11 ARM64 v QEMU na x64 – velmi pomalé, bez GPU, licence Windows; nedoporučuje se.
-   **Doporučení:** (a) pro plné ověření; pokud zařízení nebude brzy, (c) jako minimální automatická kontrola, že AOT
-   exe na ARM64 vůbec startuje a testy FFmpeg projdou – vyžaduje výjimku z T-016.
-2. **Do té doby:** zůstává úkol v `todo/` (žádné přesouvání do T-125, protože T-125 se dělá na x64 stroji), nebo se
-   z něj stane sběrný úkol „Windows ARM64“, kam budou další úkoly přesouvat body vyžadující ARM64? **Doporučení:**
-   sběrný úkol pro ARM64 (stejný formát jako T-125), doplnit do pravidel v `tasks/README.md`.
+1. ~~**Na čem ověřovat?** (a) vlastní / zapůjčené zařízení, (b) Azure ARM64 VM, (c) běžec GitHub Actions
+   `windows-11-arm`, (d) QEMU.~~ **Rozhodnuto uživatelem 2026-11-12:** **(a)** vlastní nebo zapůjčené zařízení
+   s Windows na ARM64. Žádný běžec CI ani Azure. Do té doby úkol čeká.
+2. ~~**Do té doby: zůstává úkol v `todo/`, nebo sběrný úkol „Windows ARM64“?**~~ **Rozhodnuto uživatelem 2026-11-12:**
+   T-210 je **sběrný ověřovací úkol pro Windows ARM64** (jako T-125); ostatní úkoly sem přesouvají kritéria, která
+   potřebují běh na ARM64 („→ přesunuto do T-210“). Pravidlo je v `tasks/README.md`.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
