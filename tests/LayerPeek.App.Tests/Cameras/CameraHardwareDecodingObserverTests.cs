@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Composition;
+using LayerPeek.App.Tray;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Settings;
@@ -43,5 +44,10 @@ public sealed class CameraHardwareDecodingObserverTests
         CameraHardwareDecodingObserver observer = services.GetRequiredService<CameraHardwareDecodingObserver>();
         observer.ApplySettings(new AppSettings { CameraHardwareDecoding = CameraHardwareDecoding.Off });
         Assert.Equal(CameraHardwareDecoding.Off, Assert.IsType<FFmpegCameraFeedFactory>(services.GetRequiredService<ICameraFeedFactory>()).HardwareDecoding);
+        // T-204 (applied right after saving): settings saved by the settings window reach it through the monitoring session
+        // without a restart (only the polled printers restart monitoring), before the hub starts a connection for them.
+        List<IMonitoringObserver> observers = [.. services.GetRequiredService<MonitoringSession>().Observers];
+        Assert.Contains(observer, observers);
+        Assert.True(observers.IndexOf(observer) < observers.IndexOf(services.GetRequiredService<CameraStreamHubObserver>()));
     }
 }

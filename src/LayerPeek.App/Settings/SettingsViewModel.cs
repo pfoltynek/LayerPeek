@@ -921,6 +921,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         RefreshRecordingTexts();
         RefreshDetectionTexts();
         RefreshMiniFrameRateTexts();
+        RefreshHardwareDecodingTexts();
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -1079,6 +1080,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
         _cameraWindowAutoClose = settings.CameraWindowAutoClose;
         PopulateMiniFrameRate(settings.MiniPreviewFrameRate);
+        _hardwareDecoding = settings.CameraHardwareDecoding;
         PopulateRecording(settings.Recording);
         PopulateDetection(settings.Detection);
 
@@ -1498,6 +1500,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 CameraWindowAutoClose = _cameraWindowAutoClose,
                 // T-185: always valid (the slider is clamped and rounded by its property).
                 MiniPreviewFrameRate = _miniFrameRate,
+                // T-204: the window keeps a saved "Off" (before it, every save wrote the default).
+                CameraHardwareDecoding = _hardwareDecoding,
                 Recording = recording,
                 Detection = detection,
                 Notifications = new NotificationSettings

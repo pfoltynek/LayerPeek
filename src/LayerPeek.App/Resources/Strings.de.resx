@@ -960,6 +960,24 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Eigener Wert: weniger Bilder pro Sekunde bedeuten weniger CPU-Last und weniger kopierte Bilddaten.</value>
   </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Hardware-Dekodierung</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automatisch</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Aus</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>Die Grafikhardware dekodiert das Kameravideo, wenn möglich, sonst der Prozessor: weniger CPU-Last.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Immer der Prozessor: weniger Speicher, kein Systemdecoder. Hilft bei beschädigtem oder schwarzem Kamerabild.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>Unter Windows dekodiert auch Automatisch vorerst in Software.</value>
+  </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} fps</value>
   </data>

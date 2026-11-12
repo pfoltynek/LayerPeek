@@ -17,7 +17,7 @@ jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrt
    Windows (testovací body 2c–2q: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165,
    T-159, T-163, T-167).
 2. **Snímky UI sady Windows (blokuje build vydání; bez nich selžou snímkové testy nastavení):** jeden běh
-   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · detekce experimentální, 2o · T-159, 2p · T-163, 2v · T-185 a kontrola souborů
+   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · detekce experimentální, 2o · T-159, 2p · T-163, 2v · T-185, 2ac · T-204 a kontrola souborů
    vyjmenovaných u těchto bodů.
 3. **Native AOT `win-x64`:** jeden `dotnet publish src/LayerPeek.App -c Release -r win-x64` uzavře body AOT v 2b–2q.
 4. **E2E:** 2b · **T-151** (`CameraWindowAutoCloseTests`, `*Camera*`), 2e · **T-146** (`*CameraRecording*`,
@@ -479,6 +479,18 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       s vypsaným hashem, výsledek zapsat do poznámek T-199). Kontrola verze `avcodec-63.dll` (`n9.0.2-39-g7adfbe40dc-20261031`)
       projde, `README.txt` v archivu má řádek configure z DLL, `SHA256SUMS-windows.txt` a `build-info.json` soubor uvádějí.
       Druhý běh nic nestahuje. Doba kroku (xz z ~100 MB) do poznámek T-199.
+
+### 2ac. Nastavení > Kamera – Hardwarové dekódování (z T-204, implementováno na Macu 2026-11-12)
+- [ ] **T-204** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
+      a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) nový snímek `settings-camera-tab.png`
+      (záložka Kamera: snímková frekvence malého náhledu, pod ní „Hardware decoding“ s volbou „Automatic“, popisem
+      a na Windows druhým řádkem „On Windows, Automatic still decodes in software for now.“); nic se neořezává.
+- [ ] **T-204** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně `SettingsWindowCameraTabUiTests`,
+      `SettingsWindowLayoutTests.EverythingFitsWithoutScrollingInEveryState` (první stav má na záložce Kamera „Vypnuto“
+      s poznámkou Windows) a `HardwareDecodingRuleTests.AutomaticUsesHardwareOnlyWhereTheRuleSelectsADevice`.
+- [ ] **T-204** (ruční, krátce): v nainstalované / spuštěné aplikaci Nastavení > Kamera ukazuje poznámku Windows;
+      „Vypnuto“ uložit, v `%APPDATA%\LayerPeek\settings.json` je `"cameraHardwareDecoding": "Off"`, okno kamery dál
+      ukazuje obraz; zpět „Automaticky“ hodnotu ze souboru odebere.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

@@ -1421,8 +1421,9 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         yield return ("PrusaLink with a saved password", static async scope =>
         {
             FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30") with { Camera = WorkingCamera }, LinkPrinter("c", "Studio XL", "192.168.1.42"));
-            store.Data = store.Data with { PrintersWithPassword = Ids("a") };
-            return await SettingsWindowHarness.OpenAsync(scope, store);
+            // T-204: the Camera tab at its tallest, the description of Off (the longer one) and the note of Windows.
+            store.Data = store.Data with { PrintersWithPassword = Ids("a"), Settings = store.Data.Settings with { CameraHardwareDecoding = CameraHardwareDecoding.Off } };
+            return await SettingsWindowHarness.OpenAsync(scope, store, hardwareDecodingSoftwareNote: true);
         });
 
         yield return ("all errors", static scope => OpenWithAllErrorsAsync(scope, SettingsWindowHarness.Supported, refusedTest: false));

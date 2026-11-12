@@ -1,3 +1,5 @@
+using FFmpeg.AutoGen.Abstractions;
+
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.Core.Cameras;
@@ -68,6 +70,14 @@ public sealed class FFmpegCameraFeedFactory : ICameraFeedFactory
         get => _hardware.Mode;
         set => _hardware.Mode = value;
     }
+
+    /// <summary>
+    /// Whether <see cref="CameraHardwareDecoding.Automatic"/> asks for a hardware decoder on the running OS (the rule of
+    /// <see cref="HardwareDecoderSelection"/>): on macOS, not on Windows until T-206. The settings window notes it when
+    /// "Automatic" still means software (T-204, user decision 2026-11-12).
+    /// </summary>
+    public static bool AutomaticUsesHardware =>
+        HardwareDecoderSelection.Select(CameraHardwareDecoding.Automatic) != AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
 
     /// <summary>Hardware decoding of the feeds of this factory (for tests).</summary>
     internal HardwareDecodingPolicy Hardware => _hardware;

@@ -960,6 +960,24 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Vlastní hodnota: méně snímků za sekundu znamená menší zátěž procesoru a méně kopírovaných dat.</value>
   </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Hardwarové dekódování</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automaticky</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Vypnuto</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>Video kamery dekóduje grafický hardware, když to jde, jinak procesor: menší zátěž procesoru.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Vždy dekóduje procesor: méně paměti, bez systémového dekodéru. Zkuste, je-li obraz kamery poškozený nebo černý.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>Na Windows zatím i Automaticky dekóduje software.</value>
+  </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} fps</value>
   </data>

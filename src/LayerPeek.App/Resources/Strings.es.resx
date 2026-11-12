@@ -960,6 +960,24 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Valor propio: menos fotogramas por segundo suponen menos carga de CPU y menos datos copiados.</value>
   </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Decodificación por hardware</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automática</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Desactivada</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>El hardware gráfico decodifica el vídeo de la cámara si puede; si no, el procesador: menos carga de CPU.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Siempre el procesador: menos memoria, sin decodificador del sistema. Pruébelo si la imagen está dañada o en negro.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>En Windows, Automática aún decodifica por software.</value>
+  </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} fps</value>
   </data>

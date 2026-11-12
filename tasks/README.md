@@ -210,7 +210,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-199 | Vydání – zdrojový kód FFmpeg přiložený k vydání a věta o FFmpeg v okně O aplikaci (LGPL) (hotovo; ověření v T-125) | all | qa-reviewer | P1 | T-198 |
 | T-200 | Skripty vydání pro neměnná vydání – odmítnout `-AddToPublished` a `-AllowIncomplete` (až po vydání 1.0.0) | all | qa-reviewer | P2 | T-180 |
 | T-203 | Kamera – hardwarové dekódování H.264, sdílený základ a VideoToolbox (macOS) (hotovo; Windows D3D11VA v T-206) | all | core-dev | P2 | T-192 |
-| T-204 | Nastavení > Kamera – volba „Hardwarové dekódování“ (Automaticky / Vypnuto) | all | ui-dev | P2 | T-203 |
+| T-204 | Nastavení > Kamera – volba „Hardwarové dekódování“ (Automaticky / Vypnuto) (hotovo; sada snímků Windows v T-125) | all | ui-dev | P2 | T-203 |
 
 ### Windows (`windows`)
 

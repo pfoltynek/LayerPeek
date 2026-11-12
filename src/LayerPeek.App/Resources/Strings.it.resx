@@ -960,6 +960,24 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Valore personale: meno fotogrammi al secondo significano meno carico di CPU e meno dati copiati.</value>
   </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Decodifica hardware</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automatica</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Disattivata</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>L'hardware grafico decodifica il video se possibile, altrimenti la CPU: meno carico di CPU.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Sempre la CPU: meno memoria, nessun decoder di sistema. Utile se l'immagine è danneggiata o nera.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>Su Windows, Automatica per ora decodifica via software.</value>
+  </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} fps</value>
   </data>
