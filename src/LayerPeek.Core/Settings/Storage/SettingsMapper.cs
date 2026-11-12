@@ -31,6 +31,7 @@ internal static class SettingsMapper
             DebugLogging = settings.DebugLogging,
             OfferPrereleaseUpdates = settings.OfferPrereleaseUpdates,
             CheckForUpdates = settings.CheckForUpdates,
+            StartAtLogin = settings.StartAtLogin,
             Notifications = new NotificationsDocument
             {
                 Enabled = notifications.Enabled,
@@ -99,6 +100,7 @@ internal static class SettingsMapper
             DebugLogging = document.DebugLogging ?? false,
             OfferPrereleaseUpdates = document.OfferPrereleaseUpdates,
             CheckForUpdates = document.CheckForUpdates ?? true,
+            StartAtLogin = document.StartAtLogin,
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
             CameraWindowAutoClose = document.CameraWindowAutoClose ?? true,
             MiniPreviewFrameRate = ToMiniPreviewFrameRate(document.MiniPreviewFrameRate, warnings),

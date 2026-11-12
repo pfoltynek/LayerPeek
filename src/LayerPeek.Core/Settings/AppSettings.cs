@@ -70,6 +70,15 @@ public sealed record AppSettings
     public bool CheckForUpdates { get; init; } = true;
 
     /// <summary>
+    /// Whether the app starts after logon, as the user last chose it in the settings window (T-201), or
+    /// <see langword="null"/> while the user never chose. The state itself belongs to the OS (Startup folder shortcut, Login
+    /// Item); this only remembers the choice so that the install hook of Velopack, which also runs for a reinstall over an
+    /// existing installation (<c>winget upgrade</c>), switches the autostart on only when the user did not switch it off.
+    /// Written on macOS too, where no install hook reads it. Not part of the diagnostic bundle (<see cref="SettingsExport"/>).
+    /// </summary>
+    public bool? StartAtLogin { get; init; }
+
+    /// <summary>
     /// Opacity of the background of the overlay widget cards in whole percent (T-077): one value for the camera windows of
     /// all printers, within <see cref="CameraOverlayOpacity.MinPercent"/>–<see cref="CameraOverlayOpacity.MaxPercent"/>,
     /// <see cref="CameraOverlayOpacity.DefaultPercent"/> by default.
@@ -300,6 +309,7 @@ public sealed record AppSettings
         && DebugLogging == other.DebugLogging
         && OfferPrereleaseUpdates == other.OfferPrereleaseUpdates
         && CheckForUpdates == other.CheckForUpdates
+        && StartAtLogin == other.StartAtLogin
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && CameraWindowAutoClose == other.CameraWindowAutoClose
         && MiniPreviewFrameRate == other.MiniPreviewFrameRate
@@ -316,6 +326,7 @@ public sealed record AppSettings
         hash.Add(DebugLogging);
         hash.Add(OfferPrereleaseUpdates);
         hash.Add(CheckForUpdates);
+        hash.Add(StartAtLogin);
         hash.Add(CameraOverlayOpacityPercent);
         hash.Add(CameraWindowAutoClose);
         hash.Add(MiniPreviewFrameRate);

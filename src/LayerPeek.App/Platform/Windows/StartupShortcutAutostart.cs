@@ -10,7 +10,7 @@ namespace LayerPeek.App.Platform.Windows;
 /// Velopack update rewrites the id of every shortcut into the installation anyway, and Windows may take either shortcut
 /// for the toasts of the id. No admin rights, no registry.
 /// </summary>
-internal sealed partial class StartupShortcutAutostart : IAutostart
+internal sealed partial class StartupShortcutAutostart : IAutostart, IAutostartState
 {
     /// <summary>The same name as the Start menu shortcut (what Windows shows under Settings &gt; Apps &gt; Startup).</summary>
     public const string ShortcutFileName = AppShortcutRegistration.ShortcutFileName;
@@ -45,18 +45,28 @@ internal sealed partial class StartupShortcutAutostart : IAutostart
     /// On when the shortcut starts this exe; a shortcut of another copy (a <c>.zip</c> or a development build) or one that
     /// cannot be read counts as off (switching on replaces it).
     /// </summary>
-    public bool IsEnabled()
+    public bool IsEnabled() => QueryState() == AutostartState.On;
+
+    /// <summary>
+    /// T-201: no shortcut is off; a shortcut of this exe is on; a shortcut that cannot be read (e.g. held by an antivirus
+    /// scan) or one of another copy of the app is unknown, so that the migration of the stored choice never takes it for off.
+    /// </summary>
+    public AutostartState QueryState()
     {
+        AppShortcut? existing;
         try
         {
-            return _store.Read(_shortcutPath) is { } existing
-                && AppShortcutRegistration.Decide(existing, existing with { TargetPath = _desired.TargetPath }) == ShortcutAction.UpToDate;
+            existing = _store.Read(_shortcutPath);
         }
         catch (Exception ex)
         {
             LogUnreadable(ex);
-            return false;
+            return AutostartState.Unknown;
         }
+
+        return existing is null ? AutostartState.Off
+            : AppShortcutRegistration.Decide(existing, existing with { TargetPath = _desired.TargetPath }) == ShortcutAction.UpToDate ? AutostartState.On
+            : AutostartState.Unknown;
     }
 
     public void SetEnabled(bool enabled)

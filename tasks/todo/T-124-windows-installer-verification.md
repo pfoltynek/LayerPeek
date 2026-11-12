@@ -1,7 +1,7 @@
 ---
 id: T-124
 title: Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace)
-status: done
+status: todo
 owner: qa-reviewer
 priority: P1
 platform: windows
@@ -42,6 +42,16 @@ Postup: [docs/windows-manual-testing.md](../../docs/windows-manual-testing.md), 
       `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'` – projdou i oba instalační případy
       `InstalledOlderVersionUpdatesFromALocalFeedAfterAClick(MenuItem|Banner)` (s instalací uživatele se přeskočí). → přesunuto do T-125 (blokuje T-133: upozornění testovací aplikace vypnutá ve Windows)
 
+### Přeinstalace zachová vypnutý autostart (z T-201, implementováno 2026-11-12)
+- [ ] **T-201** (krit. „Ruční ověření na Windows: nainstalovat, vypnout autostart, spustit tentýž / novější
+      `Setup.exe --silent` (nebo `winget install --manifest` podruhé) → autostart zůstane vypnutý“): instalátor
+      z `pwsh scripts/release-build.ps1`, `pwsh tools/windows-verify.ps1 -Only win.install`; v nainstalované aplikaci
+      Nastavení → Spouštění a aktualizace → vypnout spouštění s Windows, Uložit (v `%APPDATA%\LayerPeek\settings.json`
+      přibude `"startAtLogin": false`), LayerPeek ukončit; spustit tentýž `Setup.exe --silent` znovu → ve složce Po
+      spuštění (`shell:startup`) **není** `LayerPeek.lnk` a v logu Velopacku (`%LOCALAPPDATA%\velopack\velopack_LayerPeek.log`)
+      je „the user switched autostart off in the settings; it stays off“. Pak spouštění zapnout, Uložit, znovu
+      `Setup.exe --silent` → `LayerPeek.lnk` je zpět. Nakonec `pwsh tools/windows-verify.ps1 -Only win.uninstall`.
+
 ### Závěr
 - [x] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; ověřovací
       instalace odinstalovaná a profil vrácený (`win.uninstall`, případně `pwsh tools/windows-verify.ps1 -RestoreOnly`);
@@ -69,3 +79,4 @@ verzí 0.4.0, nic nenahráno):
   (`DisabledForApplication`) a zapnout je nejde ani zápisem do registru, ani jednorázovou obnovou přes Nastavení → T-133,
   ověření → T-125.
 - Uzavřeno 2026-11-01. Instalace uživatele se vrátí instalací zveřejněné 0.4.0.
+- Znovu otevřeno 2026-11-12 (ui-dev): přibyl bod z T-201 (přeinstalace zachová vypnutý autostart).
