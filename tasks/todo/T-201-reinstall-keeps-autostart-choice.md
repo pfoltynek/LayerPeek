@@ -5,7 +5,7 @@ status: todo
 owner: ui-dev
 priority: P1
 platform: windows
-depends_on: [T-059]
+depends_on: []
 ---
 
 ## Cíl
@@ -68,6 +68,13 @@ rozhodnutí uživatele 2026-11-11: opravit hook v samostatném úkolu.
 4. **Závislost na T-059:** T-059 bude hotový až po prvním odeslání do winget po vydání 1.0.0, takže by se T-201
    podle pravidel nesměl začít dřív a oprava by do 1.0.0 nestihla. Oprava sama na T-059 technicky nezávisí (týká se
    i ruční přeinstalace přes `Setup.exe`). Zrušit závislost, aby šlo opravit před 1.0.0?
+
+Rozhodnuto uživatelem 2026-11-12:
+1. **Varianta A** – uložená výslovná volba v `AppSettings` (nevolil / zapnuto / vypnuto).
+2. Po odinstalaci a nové instalaci **respektovat dřívější vypnutí** (nastavení zůstává, hook odinstalace volbu nemaže).
+3. **Jen Windows, bez exportu** – na macOS se pole nepoužívá, do `SettingsExport` ani diagnostického balíčku nepatří.
+4. **Závislost na T-059 zrušena**; oprava se udělá na Windows před vydáním 1.0.0 a je blokerem vydání (T-198).
+   Dovětek do příruček („winget upgrade zapne autostart znovu“) se tím nepotřebuje.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

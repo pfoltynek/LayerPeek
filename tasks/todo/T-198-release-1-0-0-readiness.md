@@ -63,6 +63,7 @@ Legenda: **W** = potřebuje Windows, **M** = potřebuje Mac, **U** = potřebuje 
 | B8 | **Identita autorů v historii** (oddíl 3.1, otázka 1) – **rozhodnuto 2026-11-11:** historie zůstává, od teď adresa noreply | T-198, T-125 2aa | U | Repozitář je veřejný od 2026-10-30, adresy v historii už veřejné jsou; přepis by nepomohl. Zbývá `user.email` na Windows (T-125 2aa); na Macu nastavil hlavní agent |
 | B9 | **Kontrola veřejného repozitáře na GitHubu** (oddíl 3.2) | T-198, T-180 | U | Repozitář je už veřejný. Agent nevidí obsah na GitHubu (vydání 0.x, issues, vzdálené větve, nastavení); před 1.0.0 zkontrolovat, co je vidět, a upozornění secret scanningu. Nevratnost zveřejnění už nehraje roli, bod je doporučený, ne blokující |
 | B10 | **T-202** – vlastní minimální LGPL build FFmpeg na Windows (místo BtbN, s D3D11VA) – přidáno 2026-11-12 | T-202 | W, U | Rozhodnutí uživatele 2026-11-12 (T-199, otázka 2c): DLL BtbN obsahují ~50 staticky přilinkovaných knihoven, jejichž zdroje vydání nepřikládá (bod 18 kontrolního seznamu https://ffmpeg.org/legal.html). Uživatel musí nejdřív zvolit toolchain (T-202, otázka 1) |
+| B11 | **T-201** – přeinstalace (`winget upgrade`, `Setup.exe`) nezapne znovu vypnutý autostart – přidáno 2026-11-12 | T-201 | W | Rozhodnutí uživatele 2026-11-12 (T-201, otázka 4): závislost na T-059 zrušena, oprava musí být ve vydání 1.0.0 |
 
 ### 1.2 Sběrné úkoly T-124–T-127: co je důležité pro 1.0.0
 
@@ -396,6 +397,7 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
       → Mac: nastavil hlavní agent 2026-11-11 (`git config user.email`); Windows → přesunuto do T-125 (2aa)
 - [ ] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný
 - [ ] B10: T-202 hotový (vlastní minimální LGPL build FFmpeg na Windows s D3D11VA, zdroj Windows u vydání bez BtbN)
+- [ ] B11: T-201 hotový (přeinstalace respektuje vypnutý autostart)
 - [x] Odpovědi na otázky 2–4 a 6–10 zapsané
 - [x] `docs/release.md` po rozhodnutí o otázce 4 popisuje tok 1.0.0 (oba OS do konceptu), doplněný `caffeinate`
       a oprava věty o zkušebním vydání (2.2)
