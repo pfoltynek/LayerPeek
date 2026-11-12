@@ -257,6 +257,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-208 | Windows ARM64 – vlastní LGPL build FFmpeg pro `win-arm64` (křížový překlad z x64) | windows | core-dev | P2 | T-202, T-207 |
 | T-209 | Windows ARM64 – vydání `win-arm64` (skripty, Velopack, aktualizace, winget, README a příručky) | windows | qa-reviewer | P2 | T-207, T-208 |
 | T-210 | Windows ARM64 – ověření na zařízení ARM64 (sběrný úkol pro ARM64: aplikace, kamera, instalátor, aktualizace) | windows | qa-reviewer | P2 | T-209 |
+| T-211 | Windows – 47 selhávajících testů na develop (snapshoty UI, proxy, porty E2E, FFmpeg, Pester) | windows | qa-reviewer | P1 | – |
 
 ### macOS (`macos`) – jen na Macu, později
 
