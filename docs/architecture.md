@@ -358,14 +358,29 @@ A/B měření (2026-11-11, macOS Apple Silicon, simulátor se 3 tiskárnami) vý
 o 1,9 %. Doporučení je build neměnit. Hlavní náklad je zobrazení kamery (~20 % jádra), ne GC. Tabulky a postup jsou
 v [aot-gc-settings.md](aot-gc-settings.md).
 
-## Hardwarové dekódování kamery (T-192, průzkum)
+## Hardwarové dekódování kamery (T-192 průzkum, plán T-203 až T-206)
 
 Měření (2026-11-11, macOS Apple Silicon, simulátor 720p a 1080p): softwarové dekódování H.264 je i po T-184 / T-185 /
 T-195 50–58 % instrukcí aplikace s otevřeným oknem kamery a 67–69 % u malého náhledu. VideoToolbox (`av_hwframe_map`,
-NV12 dál přes `BgraConverter` / `GrayscaleConverter`) by ušetřil 45–63 % instrukcí včetně systémového procesu
-`VTDecoderXPCService`. macOS build FFmpeg by potřeboval dva přepínače configure (LGPL zůstává), build BtbN pro Windows
-D3D11VA už obsahuje. Dnes se dekóduje jen softwarově. Implementace čeká na rozhodnutí uživatele. Čísla, rizika
-a doporučení jsou v [hw-decoding.md](hw-decoding.md).
+NV12 dál přes `BgraConverter` / `GrayscaleConverter`) ušetří 45–63 % instrukcí včetně systémového procesu
+`VTDecoderXPCService`. Čísla, rizika a doporučení jsou v [hw-decoding.md](hw-decoding.md).
+
+**Plán (rozhodnutí uživatele 2026-11-12, zatím neimplementováno – dnes se dekóduje jen softwarově):**
+
+- **Core** zná jen neutrální volbu `AppSettings.CameraHardwareDecoding` (`Automatic` výchozí / `Off`, jedna pro všechny
+  kamery, T-203). Typ zařízení, FFmpeg ani GPU v Core nejsou. App předá hodnotu do `FFmpegCameraFeedFactory`
+  pozorovatelem nastavení (jako `DebugLoggingObserver`); dekodér ji čte při otevření plného dekódování.
+- **Camera.FFmpeg** má jediné pravidlo podle OS: `Automatic` → macOS VideoToolbox, Windows software (D3D11VA jen za
+  vývojovým přepínačem `LAYERPEEK_TEST_HW_DECODER`, Debug, do rozhodnutí po měření v T-125, T-206). `Off` → vždy
+  software. Hardware jen pro plné dekódování (okno kamery, malý náhled); samostatné klíčové snímky detekce, test kamery
+  a `CameraSnapshot` zůstávají softwarové, takže bez okna kamery se systémový dekodér nepoužije. Selhání hardwaru →
+  návrat k softwaru v témže spojení bez odpojení RTSP.
+- **Build:** macOS `build/macos/build-ffmpeg.sh` + `--enable-videotoolbox --enable-hwaccel=h264_videotoolbox` (T-203,
+  LGPL 3 zůstává). Windows: vlastní build T-202 s `h264_d3d11va` (T-206).
+- **Bezpečnost (doplněk T-050):** data řezů z nedůvěryhodné kamery zpracuje při hardwarovém dekódování i systémový
+  dekodér a ovladač GPU (macOS `VTDecoderXPCService` a AppleAVD, Windows ovladač D3D11VA). Uživatel to 2026-11-12
+  přijal, pojistkou je volba „Vypnuto“. Whitelisty T-050 platí beze změny. Paměť +10–25 MB na stream.
+- UI volby (Nastavení > Kamera, T-204), měření produktového kódu na Macu (T-205).
 
 ## Logování
 
