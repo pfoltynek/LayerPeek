@@ -1,7 +1,7 @@
 ---
 id: T-202
 title: Windows – vlastní minimální LGPL build FFmpeg ze zdrojů (místo BtbN), s D3D11VA
-status: todo
+status: in-progress
 owner: core-dev
 priority: P1
 platform: windows
@@ -89,9 +89,15 @@ Vlastní minimální build:
 - [ ] Velikost DLL a doba prvního buildu proti BtbN zapsané v poznámkách
 - [ ] `ThirdPartyLicenses`, `docs/prerequisites.md`, `docs/release.md`, README EN + CZ, `CHANGELOG.md` aktualizované
 - [ ] `dotnet publish src/LayerPeek.App -c Release -r win-x64` (Native AOT) projde, aplikace s kamerou běží
+- [ ] Po přechodu na vlastní build znovu změřit `GrayscaleSampleEquivalenceTests` na x64 (průměrná odchylka a posun) a navrhnout
+      limit x64 s rezervou ~15 % (rozhodnutí uživatele 2026-11-12, T-211; nový limit schvaluje uživatel)
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
+Rozhodnuto uživatelem 2026-11-12: 1 **MSYS2 + MinGW-w64** (MSYS2 nainstalovaný na vývojovém stroji Windows v `C:\msys64`
+přes `winget install MSYS2.MSYS2`, balíčky `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm mingw-w64-x86_64-pkgconf`;
+gcc 16.2.0, nasm 3.02, make 4.4.1); 2 **jen D3D11VA** (bez DXVA2 a D3D12VA); 3 **při prvním `dotnet build`** jako na macOS.
+
 1. **Toolchain na Windows (rozhoduje uživatel, blokuje implementaci):** (a) MSYS2 + MinGW-w64 (`configure` FFmpeg je
    skript pro POSIX shell, MSYS2 je obvyklá cesta; nová vývojová závislost mimo Visual Studio; nutnost statického
    `libgcc` / `winpthreads`, licence runtime MinGW ověřit), nebo (b) MSVC (`--toolchain=msvc`, překladač už je potřeba pro
@@ -104,3 +110,33 @@ Vlastní minimální build:
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
+
+### Rozpracováno 2026-11-12 (přerušeno vypnutím stroje)
+- **Hotovo:** jen analýza. Přečteno zadání, `build/macos/build-ffmpeg.sh`, `build/FFmpeg.targets`,
+  `build/update-ffmpeg.ps1` a FFmpeg část `scripts/ReleaseTools/ReleaseTools.psm1` (`Get-FFmpegSourcePins`,
+  `New-GitSourceArchive`, `Save-FFmpegSourceInput`, `Get-FFmpegSourceReadme`, `Get-FFmpegLibraryVersionProblems`,
+  `New-FFmpegSourceArchive`). V repozitáři se **nic nezměnilo** (kromě této poznámky), nic se nepřekládalo, cache
+  `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg\` ani `...\ffmpeg-source\` se nedotkly (žádné nové složky `win-x64-*` ani `tmp-*`).
+- **Rozpracováno / nefunguje:** nic se neimplementovalo, žádné testy se nepřidaly.
+- **Další kroky:**
+  1. Najít všechny odkazy (`grep` na `BtbN`, `swresample`, `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256`,
+     `LayerPeekFFmpegArchiveFolder`, `LayerPeekFFmpegWindows*`, `LayerPeekFFmpegMacSource*` mimo `tasks/done`), tj. src
+     (`FFmpegRuntime`, `ThirdPartyLicenses.cs`), testy (Camera.FFmpeg.Tests, App.Tests `ThirdPartyLicensesTests`,
+     Scripts.Tests / Pester `build/update-ffmpeg.Tests.ps1`), dokumentaci.
+  2. Napřed testy: knihovny bez swresample, `av_hwdevice_find_type_by_name("d3d11va")` a hwaccel `h264_d3d11va`
+     (`avcodec_get_hw_config`) přes stávající interop FFmpeg, Pester pro novou větev Windows v `Get-FFmpegSourcePins` /
+     `Get-FFmpegSourceReadme` (bez git/BtbN), `ThirdPartyLicensesTests`.
+  3. `build/windows/build-ffmpeg.sh` (spouštěný přes `C:\msys64\usr\bin\bash.exe` s čistým prostředím, `MSYSTEM=MINGW64`,
+     PATH jen `/mingw64/bin:/usr/bin`): stejné příznaky jako macOS + `--target-os=mingw32 --arch=x86_64
+     --enable-d3d11va --enable-hwaccel=h264_d3d11va`, `-static-libgcc` a statický winpthreads (`--extra-ldflags=-static`
+     u sdílených knihoven ověřit), kontrola `objdump -p` (DLL Name jen av*/sw* a systémové DLL), parametr architektury
+     (`x86_64` teď, `aarch64` pro T-208).
+  4. `build/FFmpeg.targets`: přejmenovat `LayerPeekFFmpegMacSource*` na společné `LayerPeekFFmpegSource*`, odstranit BtbN
+     a `LayerPeekFFmpegWindows*`, cílový adresář `win-x64-<hash>`, kontrola toolchainu (existence `C:\msys64\usr\bin\bash.exe`
+     a gcc/nasm/make v `/mingw64`), chybová hláška s `-p:LayerPeekFFmpegEnabled=false`; RID zvolený proměnnou kvůli T-208.
+  5. `update-ffmpeg.ps1` a ReleaseTools bez BtbN, docs/README/CHANGELOG, ověření (simulátor, E2E kamery, AOT publish),
+     měření velikosti DLL / doby buildu, nové měření `GrayscaleSampleEquivalenceTests`.
+- **Otevřené otázky:** zatím žádné nové (počkat, jestli při kroku 3 nevyjdou najevo další potřebné volby configure pro
+  Windows nebo licenční otázky runtime MinGW).
+- **Cache / logy:** zatím žádné; po prvním buildu budou v `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg\win-x64-<hash>\` a
+  po chybě v `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg\tmp-*\` (configure.log, make.log).
