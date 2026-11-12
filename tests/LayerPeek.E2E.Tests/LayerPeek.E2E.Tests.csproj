@@ -2,7 +2,10 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-    <!-- NtQueryInformationProcess interop (command lines of leftover browser processes) in the cleanup helpers. -->
+    <!--
+      NtQueryInformationProcess interop (command lines of leftover browser processes) in the cleanup helpers and the
+      GetExtendedTcpTable interop of the OS listener table (tests/Shared/Network/TcpListenerTable.cs).
+    -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
@@ -18,6 +21,7 @@
   <ItemGroup>
     <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
     <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+    <Compile Include="..\Shared\Network\TcpListenerTable.cs" Link="Shared\Network\TcpListenerTable.cs" />
     <!-- One firmware imitation for the proxy integration tests and the browser tests (no copy that could diverge). -->
     <Compile Include="..\LayerPeek.PrusaLink.Tests\FakePrusaLinkServer.cs" Link="Shared\FakePrusaLinkServer.cs" />
   </ItemGroup>

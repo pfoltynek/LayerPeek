@@ -3013,7 +3013,13 @@ Describe 'FFmpeg source of a release (T-199)' {
             try { $path = Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache }
             finally { [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, '') }
             Get-FileSha256 $path | Should -BeExactly $script:Source.Sha256
-            (& (Get-TarCommand) -xOf $path 'ffmpeg-n1.0-1-gabc/configure' | Out-String) | Should -Not -Match "`r"
+            # Extracted to a file and read as is: native output piped through PowerShell is split into lines and joined
+            # with CRLF again on Windows (Out-String), which would hide the line endings of the archive (T-211).
+            $extracted = Join-Path $script:FFmpegRoot "extract-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $extracted
+            & (Get-TarCommand) -xf $path -C $extracted 'ffmpeg-n1.0-1-gabc/configure'
+            $LASTEXITCODE | Should -Be 0
+            [System.IO.File]::ReadAllText((Join-Path $extracted 'ffmpeg-n1.0-1-gabc' 'configure')) | Should -BeExactly "#!/bin/sh`necho configure`n"
             @(& (Get-TarCommand) -tf $path) | Should -Contain 'ffmpeg-n1.0-1-gabc/libavutil/avutil.h'
             @(Get-ChildItem -LiteralPath $script:Cache -Force | ForEach-Object Name) | Should -Be @('ffmpeg-n1.0-1-gabc.tar')
             Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache | Should -BeExactly $path
