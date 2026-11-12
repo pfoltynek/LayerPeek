@@ -4,6 +4,15 @@
 > „Hardwarové dekódování“ Automaticky / Vypnuto (výchozí Automaticky); Windows (D3D11VA) souběžně, ale výchozí
 > software do měření v T-125; rozšířená útočná plocha a paměť navíc přijaty. Podrobnosti v oddílu „Rozhodnutí
 > a implementační úkoly“. Text níže je průzkum z 2026-11-11.
+>
+> **Stav implementace (T-203, 2026-11-12):** hotový sdílený základ a VideoToolbox na macOS. Model nastavení
+> `AppSettings.CameraHardwareDecoding` (`Automatic` / `Off`), pravidlo podle OS `HardwareDecoderSelection`, hardwarová
+> cesta v `FFmpegDecoder` (jen okno kamery, `av_hwframe_map` jen splatných snímků, kopie při selhání mapování, návrat
+> k softwaru od dalšího klíčového snímku, 2 selhání za sebou → software do konce běhu nebo změny volby), build macOS
+> s `h264_videotoolbox`, vývojový přepínač `LAYERPEEK_TEST_HW_DECODER` (Debug, testovací režim). Uložená změna volby
+> se projeví od dalšího klíčového snímku (T-204, otázka 2). Popis v [architecture.md](architecture.md), oddíl
+> „Hardwarové dekódování kamery“, rychlá kontrola úspory v T-203 („Poznámky k implementaci“). Zbývá: UI volby (T-204),
+> podrobné měření a ověření na Macu (T-205), Windows D3D11VA (T-206).
 
 Stav 2026-11-11 (architekt, Mac mini M2 Pro, 10 jader, macOS 27.2, .NET SDK 11.0.100, Debug JIT). Rozhodnutí uživatele
 2026-11-11: **„ano, zkoumat – nejdřív měřit“**. Prototypy běžely jen mimo repozitář: benchmark v C a dočasná sonda

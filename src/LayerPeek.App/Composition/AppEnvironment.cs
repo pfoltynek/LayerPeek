@@ -249,6 +249,13 @@ internal sealed class AppEnvironment
     public const string TestFakeDetectorVariable = "LAYERPEEK_TEST_FAKE_DETECTOR";
 
     /// <summary>
+    /// Debug builds only (T-203): <c>off</c>, <c>videotoolbox</c> or <c>d3d11va</c> decodes every camera window that way,
+    /// whatever the "Hardware decoding" setting and the rule of the OS say, for the measurements of T-205 and T-125. Any
+    /// other value is logged by the decoder and means software (it does not refuse the start).
+    /// </summary>
+    public const string TestHardwareDecoderVariable = "LAYERPEEK_TEST_HW_DECODER";
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
     /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
@@ -349,6 +356,9 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestFakeDetectorVariable"/>: the detector of the end-to-end tests is registered.</summary>
     public bool TestFakeDetector { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestHardwareDecoderVariable"/>: its value as given; otherwise <see langword="null"/>.</summary>
+    public string? TestHardwareDecoder { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -361,6 +371,7 @@ internal sealed class AppEnvironment
     /// <param name="cameraCloseAfter">The offline delay of the automatic close of the camera windows (T-151).</param>
     /// <param name="cameraOpenAfter">The online delay of their automatic reopen (T-151).</param>
     /// <param name="fakeDetector">The detector of the end-to-end tests (T-154).</param>
+    /// <param name="hardwareDecoder">The hardware decoder of the measurements (T-203), as given.</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
     public static AppEnvironment ForTests(
         string dataDirectory,
@@ -371,7 +382,8 @@ internal sealed class AppEnvironment
         Installer.UpdateSource? updateSource = null,
         TimeSpan? cameraCloseAfter = null,
         TimeSpan? cameraOpenAfter = null,
-        bool fakeDetector = false)
+        bool fakeDetector = false,
+        string? hardwareDecoder = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -412,6 +424,7 @@ internal sealed class AppEnvironment
             TestNoDisplay = noDisplay,
             TestUpdateSource = updateSource,
             TestFakeDetector = fakeDetector,
+            TestHardwareDecoder = string.IsNullOrWhiteSpace(hardwareDecoder) ? null : hardwareDecoder.Trim(),
         };
     }
 
@@ -432,10 +445,11 @@ internal sealed class AppEnvironment
         string? cameraCloseAfter = read(TestCameraCloseAfterVariable);
         string? cameraOpenAfter = read(TestCameraOpenAfterVariable);
         string? fakeDetector = read(TestFakeDetectorVariable);
+        string? hardwareDecoder = read(TestHardwareDecoderVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter), (TestFakeDetectorVariable, fakeDetector) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter), (TestFakeDetectorVariable, fakeDetector), (TestHardwareDecoderVariable, hardwareDecoder) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -455,7 +469,8 @@ internal sealed class AppEnvironment
             updateSource: ParseUpdateSource(updateSource),
             cameraCloseAfter: string.IsNullOrEmpty(cameraCloseAfter) ? null : ParseMilliseconds(cameraCloseAfter, TestCameraCloseAfterVariable, MaxTestCameraAutoDelayMilliseconds),
             cameraOpenAfter: string.IsNullOrEmpty(cameraOpenAfter) ? null : ParseMilliseconds(cameraOpenAfter, TestCameraOpenAfterVariable, MaxTestCameraAutoDelayMilliseconds),
-            fakeDetector: fakeDetector == "1");
+            fakeDetector: fakeDetector == "1",
+            hardwareDecoder: hardwareDecoder);
     }
 
     /// <summary>Only the loopback or an existing local folder; anything else refuses the start (never GitHub, never another host).</summary>

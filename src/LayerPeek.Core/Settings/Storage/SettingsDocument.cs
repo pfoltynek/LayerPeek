@@ -61,6 +61,13 @@ internal sealed class SettingsDocument
     public double? MiniPreviewFrameRate { get; set; }
 
     /// <summary>
+    /// "Hardware decoding" of the camera video (T-203): <c>Off</c>; missing (older files, the default) = <c>Automatic</c>
+    /// and not written while it is the default. An unknown value falls back to the default with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CameraHardwareDecoding { get; set; }
+
+    /// <summary>
     /// Folder and size limit of the camera recordings (T-145): a <see cref="RecordingDocument"/> object; missing in older
     /// files and not written while both are the defaults. Kept as raw JSON and read leniently by <see cref="SettingsMapper"/>
     /// (a value of the wrong type is a warning and its default, not a corrupted file).

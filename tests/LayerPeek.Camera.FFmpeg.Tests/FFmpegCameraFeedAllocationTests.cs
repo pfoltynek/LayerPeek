@@ -54,6 +54,13 @@ public sealed class FFmpegCameraFeedAllocationTests
         Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false)));
     }
 
+    [HardwareDecodingFact]
+    public async Task SteadyStateHardwareDisplayFramesDoNotAllocate()
+    {
+        // T-203: the camera window's frames from VideoToolbox, mapped without a copy (into a reused frame) and converted.
+        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false, hardware: true)));
+    }
+
     [FFmpegFact]
     public async Task SwitchingBetweenDisplaySizesUsedBeforeDoesNotAllocate()
     {
@@ -182,14 +189,16 @@ public sealed class FFmpegCameraFeedAllocationTests
     }
 
     /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> display frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
-    private static async Task<long?> MeasureDisplayPassAsync(bool switchSizes)
+    private static async Task<long?> MeasureDisplayPassAsync(bool switchSizes, bool hardware = false)
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         CameraFrameSize large = new(640, 640);
         CameraFrameSize small = new(320, 320);
         CameraStreamDemand demand = new(frames: true, packets: false) { DisplaySize = large };
         demand.CancelFullResolution();
-        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
+        await using FFmpegCameraFeed feed = hardware
+            ? (FFmpegCameraFeed)new FFmpegCameraFeedFactory { HardwareDecoding = CameraHardwareDecoding.Automatic }.Create(TestFixtures.Buddy3D)
+            : TestFixtures.CreateFeed(TestFixtures.Buddy3D);
         IAsyncEnumerator<CameraStreamItem> items = feed.ReadAsync(demand, ct).GetAsyncEnumerator(ct);
         try
         {
@@ -215,6 +224,7 @@ public sealed class FFmpegCameraFeedAllocationTests
             }
 
             long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            Assert.True(!hardware || feed.MappedFrames >= WarmUpFrames + MeasuredFrames, "The frames came from the hardware decoder.");
             return ThreadPool.ThreadCount == threads ? allocated : null;
         }
         finally
