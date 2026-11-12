@@ -265,6 +265,31 @@ public sealed class HardwareDecodingVideoToolboxTests
     }
 
     [HardwareDecodingFact]
+    public async Task AFailureAfterTheSettingChangedAndChangedBackCountsInTheCurrentGeneration()
+    {
+        // The setting goes to Off and back to Automatic within one GOP: the hardware session carries on past the next key
+        // frame (frame 51 of the fixture) under the new choice, so a failure after it counts there and ends hardware for
+        // the connection, instead of being booked to the old generation and retried at the following key frame.
+        (FFmpegCameraFeedFactory factory, ListLogger log) = CreateFactory(CameraHardwareDecoding.Automatic);
+        factory.Hardware.Faults = new HardwareDecodingFaults { FailDecodingAfterFrames = 60 };
+        await using FFmpegCameraFeed feed = (FFmpegCameraFeed)factory.Create(TestFixtures.Buddy3D);
+        int frames = 0;
+
+        await foreach (CameraStreamItem item in feed.ReadAsync(Window(), Ct))
+        {
+            if (item.Kind == CameraStreamItemKind.Frame && ++frames == 5)
+            {
+                factory.HardwareDecoding = CameraHardwareDecoding.Off;
+                factory.HardwareDecoding = CameraHardwareDecoding.Automatic;
+            }
+        }
+
+        Assert.Equal(1, factory.Hardware.DevicesCreated);
+        Assert.Single(log.At(LogLevel.Warning));
+        Assert.Equal(1, feed.HardwareHistory.FailuresIn(factory.Hardware.Current.Generation));
+    }
+
+    [HardwareDecodingFact]
     public async Task AWindowThatGetsItsSizeLaterSwitchesToHardwareAtTheNextKeyFrame()
     {
         // A camera window starts in full resolution until it is laid out (T-184): software first, then hardware.

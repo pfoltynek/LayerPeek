@@ -227,3 +227,17 @@ software, `LAYERPEEK_TEST_HW_DECODER=d3d11va` už teď projde stejnou obecnou ce
 kopie, návrat –, ale bez ověření a bez ošetření ztráty zařízení D3D11; testy `HardwareDecodingFallbackTests` na Windows
 používají D3D11VA jen pro šev selhání vytvoření zařízení a pro „bez okna žádné zařízení“). `CHANGELOG.md` doplní T-204
 s UI volby.
+
+## Review
+Review qa-reviewer 2026-11-12 (Mac): verdikt **schváleno**, nic blokujícího.
+- **Opraveno:** hardwarová relace, která pokračovala přes klíčový snímek po změně volby tam a zpět (Automaticky → Vypnuto
+  → Automaticky během jednoho GOP), si nechala generaci z otevření. Pozdější selhání se pak započítalo do staré generace
+  (historie nové generace zůstala 0) a spojení to na dalším klíčovém snímku zkusilo v hardwaru znovu. Teď relace na
+  klíčovém snímku převezme aktuální generaci (`FFmpegDecoder.SendPacket`); test
+  `AFailureAfterTheSettingChangedAndChangedBackCountsInTheCurrentGeneration` (bez opravy selže).
+- Nice-to-have (neopraveno): při kopii po selhání mapování (`av_hwframe_transfer_data`) se do prázdného `AVFrame`
+  alokuje nový nativní buffer pro každý převedený snímek (jen záložní cesta, spravovaná paměť se nealokuje); historie
+  selhání (`HardwareDecodingPolicy.HistoryOf`) roste o jednu položku na každou adresu (i soubory exportu T-165), malé.
+- Ověřeno: `dotnet build` 0 varování, `dotnet test` vše zelené, sada FFmpeg 194/194 s `Automatic` i s `Off`
+  (`LAYERPEEK_TEST_CAMERA_HARDWARE_DECODING=off`), testy VideoToolbox na tomto Macu běží (nepřeskočeny);
+  `dotnet publish src/LayerPeek.App -c Release -r osx-arm64` bez varování trim / AOT.

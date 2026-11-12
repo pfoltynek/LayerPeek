@@ -786,6 +786,12 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             {
                 OpenDecoder(device, reason, log: true);
             }
+            else if (_hardwareFormat != AVPixelFormat.AV_PIX_FMT_NONE)
+            {
+                // The hardware session goes on under the current choice (the setting may have changed and changed back
+                // since it was opened): a later failure counts in that generation and ends hardware for this connection.
+                _sessionGeneration = _policy.Current.Generation;
+            }
         }
 
         int sent = ffmpeg.avcodec_send_packet(_codec, _packet);
