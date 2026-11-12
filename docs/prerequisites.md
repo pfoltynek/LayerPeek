@@ -52,6 +52,7 @@ Projekt `LayerPeek.Camera.FFmpeg` potřebuje nativní knihovny FFmpeg 9.0.2 (LGP
 Společné:
 
 - **První build potřebuje internet.** Archiv / tarball se ověří podle připnutého SHA256. Při neshodě build selže a stažený soubor se zahodí. Další buildy jen zkontrolují cache a fungují offline. Jinou složku cache nastavíš vlastností nebo proměnnou prostředí `LayerPeekFFmpegCacheRoot`. `LayerPeekFFmpegEnabled=false` krok vypne úplně (testy FFmpeg se pak přeskočí).
+- **Vydání (T-199)** přikládá zdroj FFmpeg (`ffmpeg-source-<verze>-<os>.tar.xz`, `docs/release.md`, „Zdrojový kód FFmpeg“). `scripts/release-build.ps1` ho bere z vlastní cache vedle této: `~/Library/Caches/LayerPeek.Build/ffmpeg-source/` (tarball z ffmpeg.org) a `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\` (tary `git archive` commitu FFmpeg a skriptů BtbN; potřebuje `git` a `tar` se zápisem xz). Stahuje jen při prvním vydání dané verze FFmpeg a nic v cache nemaže.
 - Knihovny a `FFmpeg-LICENSE.txt` se kopírují do výstupu i do publish složky projektů, které na FFmpeg projekt odkazují. V `LayerPeek.app` jsou knihovny v `Contents/MacOS` (vedle exe, jako ostatní nativní knihovny) a licence v `Contents/Resources`.
 - IDE (design-time build) nic nestahuje ani nepřekládá. Jiné RID (např. `osx-x64`) a Intel Mac krok přeskočí.
 
@@ -104,6 +105,7 @@ Obě platformy mají mít stejné vydání FFmpeg (stejné verze knihoven `avfor
 
    Při jakékoli neshodě skončí kódem 1 a nezapíše nic (ani hodnoty platformy, která prošla). `-Update` zapíše hodnoty do `build/FFmpeg.targets` a `src/LayerPeek.App/Licenses/ThirdPartyLicenses.cs`. Bez `-Update` je jen vypíše; když se shodují s připnutými, řekne to. Dočasná složka se vždy smaže.
 2. U nové větve FFmpeg upravit kontrolu verze `^9\.0\.` v `build/macos/build-ffmpeg.sh`; u každé nové verze verze, které hlídá `ThirdPartyLicensesTests` (`n9.0.2-`, `ffmpeg-9.0.2.`).
+   **Zdroj pro vydání (T-199, `docs/release.md`, „Zdrojový kód FFmpeg“):** `update-ffmpeg.ps1` je zatím nezapisuje, ručně se v `build/FFmpeg.targets` doplní `LayerPeekFFmpegWindowsSourceCommit` (celý hash commitu z názvu assetu, `-g<zkrácený hash>`: `gh api repos/FFmpeg/FFmpeg/commits/<zkrácený hash> --jq .sha`), `LayerPeekFFmpegWindowsScriptsTag` (nový tag BtbN) a `LayerPeekFFmpegWindowsScriptsCommit` (`git ls-remote https://github.com/BtbN/FFmpeg-Builds.git refs/tags/<tag>`), stromy (`gh api repos/<repo>/commits/<commit> --jq .commit.tree.sha`) a SHA-256 tarů `git archive` (oba vypíše chyba prvního běhu `Get-FFmpegSourceInputs`, ten commit i strom ověří gitem sám; zkontrolovat a teprve pak připnout). macOS nic nového nepotřebuje (bere `LayerPeekFFmpegMac*`). Než se hodnoty doplní, selže test Pester `FFmpeg source of a release (T-199)` a `release-build.ps1` skončí chybou před buildem.
 3. Na Macu `dotnet build` (nová cache, klíč obsahuje SHA256) a `dotnet test`: testy FFmpeg ověří verze knihoven a licenci LGPL 3, testy okna licencí shodu odkazů s `build/FFmpeg.targets`. Na Windows totéž.
 4. Aktualizovat verze v dokumentaci (tento soubor, `docs/architecture.md`) a `CHANGELOG.md`.
 

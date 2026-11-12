@@ -458,6 +458,28 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       kontrola `git config user.email`; po prvním commitu na Windows `git log -1 --format='%an <%ae> | %cn <%ce>'`
       ukazuje autora i committera s adresou noreply. Výsledek zapsat do T-198 (Poznámky).
 
+### 2ab. Zdroj FFmpeg u vydání a věta o FFmpeg v okně O aplikaci (z T-199, implementováno na Macu 2026-11-11)
+> Doplněno 2026-11-12: balení zdroje Windows z commitu FFmpeg a skriptů BtbN (`git archive`, 3. bod) je přechodný stav,
+> nahradí ho T-202 (vlastní build FFmpeg na Windows). Pokud T-202 skončí dřív než toto ověření, 3. bod se ověří už
+> podle T-202 (archiv jen s tarballem FFmpeg a skriptem buildu). Text vydání z `release-upload.ps1 -DryRun` má na konci
+> větu o FFmpeg s odkazy na oba archivy (T-199, rozhodnutí 2026-11-12).
+- [ ] **T-199** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*AboutWindowLayoutTests"`
+      a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) blok licence s větou o FFmpeg
+      drobným písmem a řádek odkazů se třemi odkazy (třetí „FFmpeg source code of this version“ na dalším řádku):
+      `about-support.png`, `about-support-copied.png`, `about-support-error-de.png`.
+- [ ] **T-199** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
+      `AboutWindowLayoutTests.FitsTheSmallestScreenWithTheSameSizeInEveryState` (na macOS s Inter 506 z 508 DIP ve všech
+      jazycích, rezerva jen 2 DIP) a `TabMovesFromTheLinksThroughTheSupportActionsToClose`; Pester
+      `FFmpeg source of a release (T-199)` v `scripts/ReleaseTools/ReleaseTools.Tests.ps1` (mimo jiné `System32\tar.exe`
+      zapíše a přečte `.tar.xz`, `git archive` bez převodu konců řádků i s `core.autocrlf=true`).
+- [ ] **T-199** (vydání, bez nahrání): `pwsh scripts/release-build.ps1 -SkipFeedSignature` vytvoří
+      `dist/ffmpeg-source-<verze>-windows.tar.xz` a před buildem v `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\`
+      `ffmpeg-n9.0.2-39-g7adfbe40dc.tar` a `FFmpeg-Builds-autobuild-2026-10-31-12-59.tar` se SHA-256 z `build/FFmpeg.targets`
+      (Git for Windows musí `git archive` zapsat stejně jako git na Macu: `bb3aaf57…ae28` a `61c8b7b2…7c23`; jinak chyba
+      s vypsaným hashem, výsledek zapsat do poznámek T-199). Kontrola verze `avcodec-63.dll` (`n9.0.2-39-g7adfbe40dc-20261031`)
+      projde, `README.txt` v archivu má řádek configure z DLL, `SHA256SUMS-windows.txt` a `build-info.json` soubor uvádějí.
+      Druhý běh nic nestahuje. Doba kroku (xz z ~100 MB) do poznámek T-199.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

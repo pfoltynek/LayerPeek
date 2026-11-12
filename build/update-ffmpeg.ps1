@@ -36,6 +36,9 @@
       3. Checks the zip: exactly one top folder named like the asset (LayerPeekFFmpegArchiveFolder), LICENSE.txt with the
          LGPL 3 text, and bin/<dll> for every Windows library of build/FFmpeg.targets (avformat-63.dll ...).
       Values: LayerPeekFFmpegUrl, LayerPeekFFmpegSha256, LayerPeekFFmpegArchiveFolder and WindowsBuildUri.
+      Not written: the corresponding source the releases attach (T-199, LayerPeekFFmpegWindowsSource* and
+      LayerPeekFFmpegWindowsScripts*: the FFmpeg commit and BtbN's scripts at the commit of the tag). Pin them by hand
+      (docs/prerequisites.md, "Nová verze FFmpeg"); until then a Pester test and scripts/release-build.ps1 fail.
 
     The temporary folder is deleted at the end. Nothing is installed; only read-only HTTPS GETs. Procedure:
     docs/prerequisites.md ("Nová verze FFmpeg").

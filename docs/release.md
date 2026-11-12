@@ -411,7 +411,7 @@ nahradí nainstalovanou aplikaci. Na každém OS:
 ```
 artifacts/release/<verze>/
   publish/<rid>/        Native AOT publish složka (vstup balení)
-  dist/                 soubory k nahrání: archivy, později instalátory, SHA256SUMS-<os>.txt
+  dist/                 soubory k nahrání: archivy, instalátory, zdroj FFmpeg, SHA256SUMS-<os>.txt
   build-info.json       značka sestavení: verze, commit, čistý strom, RID, soubory a jejich SHA256, podpis feedu, výsledek smoke testu
 ```
 
@@ -421,6 +421,7 @@ artifacts/release/<verze>/
 - macOS (T-019, T-058): `LayerPeek-<verze>-osx-arm64.dmg`, balíček a feed Velopacku (`LayerPeek-<verze>-osx-arm64-full.nupkg`, `releases.osx-arm64.json`, `assets.osx-arm64.json`, `RELEASES-osx-arm64`; `Portable.zip` ani `.pkg` se nevydávají) a podepsaná aplikace od `vpk` pro místní použití v `artifacts/release/<verze>/app/osx-arm64/portable/LayerPeek.app` (nenahrává se).
 - Instalátor Velopack (jen Windows, T-017, viz „Instalátor pro Windows“ níže): `LayerPeek-<verze>-<RID>-Setup.exe` a soubory aktualizací `LayerPeek-<verze>-<RID>-full.nupkg`, `releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`. `vpk` pracuje ve vlastní složce `velopack-<RID>` vedle `dist/` a po zkopírování ji skript smaže.
 - **Ladicí symboly se nevydávají** (rozhodnuto 2026-10-21): archiv neobsahuje soubory `*.pdb` ani nic ze složek `*.dSYM` a nikam se nenahrávají. V publish složce zůstanou pro lokální ladění. Zip `win-x64` má tak asi 70 MB místo 120 MB.
+- Zdrojový kód FFmpeg (T-199): `ffmpeg-source-<verze>-<os>.tar.xz` (viz „Zdrojový kód FFmpeg“ níže).
 - Podpis feedu (T-181): `releases.<RID>.json.sig` ke každému `releases.<RID>.json` (jeden řádek base64 + LF). `build-info.json` má `FeedSignature`: `Status` `signed` (s `PublicKeySha256`, otiskem veřejného klíče) nebo `skipped` (`-SkipFeedSignature`).
 - Kontrolní součty: jeden soubor na OS, formát `sha256sum` (`<hash>  <soubor>`, LF), obsahuje všechny soubory z `dist/` tohoto běhu (i `.sig`).
 - Build zastaví jakékoli varování (`-warnaserror` u `dotnet build` i `dotnet publish`, tedy i trim/AOT varování z ILC). Testy běží v konfiguraci Release.
@@ -645,6 +646,76 @@ Bezpečná rotace aktualizací **nejde**: útočník se starým klíčem může 
 - **Opětovné nahrání staršího podepsaného feedu (replay)** k instalaci starší verze nevede (Velopack instaluje jen vyšší verzi), jen „zmrazí“ aktualizace. Přijatelné zbytkové riziko. Podpis feedu jednoho RID nejde použít pro jiný RID (RID je součástí podepsaných dat).
 - **Příznak stabilní / předběžné vydání podpis nekryje:** podepsaná data jsou jen prefix, RID a bajty feedu, příznak `--prerelease` vydání na GitHubu ne. Kdo má přístup k vydáním, může pravý podepsaný feed předběžné verze (např. `0.5.0-rc.1`) znovu nahrát jako stabilní vydání. Aplikace ale nabídku filtruje podle přípony verze (semver), ne podle příznaku na GitHubu, takže uživatel bez volby „Nabízet předběžné verze“ ji stejně nedostane; podstrčit jde jen pravý, námi podepsaný build. Přijato jako zbytkové riziko (rozhodnuto uživatelem 2026-11-11, otázka 23 v T-181).
 
+## Zdrojový kód FFmpeg (T-199)
+
+Rozhodnutí uživatele 2026-11-11 (T-198, otázka 9): ke každému vydání se přiloží **přesně použitý zdrojový kód FFmpeg**
+a okno O aplikaci má větu z kontrolního seznamu LGPL na https://ffmpeg.org/legal.html (bod 10). Kontrolní seznam
+doporučuje zdroj hostovat u binárky (body 3–8); dřív aplikace jen odkazovala na cizí servery a build BtbN už jednou
+zmizel (T-162).
+
+**Co vydání obsahuje.** Každé OS má jiný zdroj, proto má každý build svůj soubor `ffmpeg-source-<verze>-<os>.tar.xz`
+(jedna složka nejvyšší úrovně stejného názvu, xz):
+
+| OS | Obsah | Odkud |
+|---|---|---|
+| macOS | `ffmpeg-9.0.2.tar.xz` (oficiální tarball beze změny, ověřitelný podpisem `.asc` z ffmpeg.org), `build-ffmpeg.sh` (skript, který knihovny přeložil) a `README.txt` | `LayerPeekFFmpegMac*` v `build/FFmpeg.targets` |
+| Windows | `ffmpeg-n9.0.2-39-g7adfbe40dc.tar` (FFmpeg v commitu `7adfbe40dc…` větve `release/9.0`, beze změny), `FFmpeg-Builds-autobuild-2026-10-31-12-59.tar` (skripty BtbN v commitu tagu vydání `autobuild-2026-10-31-12-59`, `5031c6f1…`) a `README.txt` | `LayerPeekFFmpegWindows*` v `build/FFmpeg.targets` |
+
+Oba tary Windows jsou `git archive --format=tar --prefix=<název>/ <commit>`. Oficiální tarball pro commit větve
+neexistuje; zip BtbN se nepřikládá (binárky jsou v aplikaci, `README.txt` uvádí jeho adresu a SHA-256). FFmpeg BtbN
+neupravuje (jen klonuje větev `release/9.0`, záplaty ve `patches/` jsou pro závislosti). `README.txt` popisuje obsah,
+původ (URL, commit, strom, SHA-256), postup buildu a **řádek configure přečtený z vydávané knihovny `avcodec`**
+(prefix instalace nahrazený `<prefix>`, aby v něm nebyla cesta stroje buildu).
+
+**Jak to dělá `release-build.ps1`.**
+1. **Před dlouhým buildem** (po kontrole klíče feedu) `Get-FFmpegSourceInputs` přečte připnuté hodnoty
+   (`Get-FFmpegSourcePins`, i kontrola souladu: commit Windows musí být ten z názvu složky zipu BtbN
+   `LayerPeekFFmpegArchiveFolder`, tag skriptů tag z `LayerPeekFFmpegUrl`) a připraví vstupy v cache
+   **`LayerPeek.Build/ffmpeg-source`** (macOS `~/Library/Caches/LayerPeek.Build/ffmpeg-source`, Windows
+   `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source`, vedle cache buildu FFmpeg). Soubor v cache se připnutým SHA-256 se
+   použije bez stahování; jinak se stáhne (macOS, HTTPS) nebo vezme gitem (Windows: mělký `fetch` jediného commitu do
+   dočasného holého repozitáře, kontrola commitu a stromu, `git archive` bez převodu konců řádků) do pracovní složky
+   `tmp-…` v cache, ověří a přesune na místo. Při neshodě SHA-256 skript skončí chybou a stažené zahodí. **Cache se
+   nikdy nemaže**; soubor se špatným hashem se nahradí.
+2. **Krok balení `ffmpeg-source`** (oba OS, po smoke testu publish složky): z publish složky přečte knihovnu
+   `avcodec-<n>.dll` / `libavcodec.<n>.dylib` a ověří, že je z připnutého zdroje (`FFmpeg version` v knihovně: macOS
+   přesně `9.0.2`, Windows `n9.0.2-39-g7adfbe40dc` s datem buildu BtbN `-RRRRMMDD`). Pak sbalí vstupy, skript a
+   `README.txt` do `dist/` (pracovní složka `ffmpeg-source-<RID>` vedle `dist/`, po zabalení smazaná) a výsledek
+   vypíše a porovná s očekávaným seznamem souborů.
+3. Soubor je jako ostatní kroky v `build-info.json` (krok `ffmpeg-source`, i v záznamu `pending` před podpisem, takže
+   `-SignOnly` z T-197 funguje beze změny) a v `SHA256SUMS-<os>.txt`; `release-upload.ps1` ho nahraje v první dávce
+   (není to značka OS) a `release-publish.ps1` ho zkontroluje proti součtům. Seznam povolených názvů nahrání nemá:
+   nahrává se přesně to, co je v `build-info.json`.
+
+**Potřeba:** síť jen při prvním běhu dané verze FFmpeg (~12 MB z ffmpeg.org na Macu, ~21 MB přes git z GitHubu na
+Windows), `git` a `tar`, který zapisuje xz (macOS `/usr/bin/tar`; Windows `System32\tar.exe`, ověření v T-125).
+Na Macu trvá krok pár sekund, na Windows asi 20–30 s (xz z ~100 MB).
+
+**Okno O aplikaci** má pod licencí a copyrightem drobným písmem větu „This software uses libraries from the FFmpeg
+project under the LGPLv3 or later.“ (přeložená do všech 8 jazyků) a odkaz „FFmpeg source code of this version“ na
+`https://github.com/pfoltynek/LayerPeek/releases/download/v<verze>/ffmpeg-source-<verze>-<os>.tar.xz`
+(`ThirdPartyLicenses.FFmpeg.SourceArchiveUri`, OS podle běžící aplikace). Šablona na ffmpeg.org uvádí „LGPLv2.1“;
+oba buildy jsou ale `--enable-version3`, tedy LGPL 3 nebo novější, proto věta uvádí skutečnou verzi licence
+(schváleno uživatelem 2026-11-12). Sestavení verze, která nebyla vydaná, má odkaz bez souboru (stejně jako odkaz na skript
+buildu podle tagu).
+
+**Text vydání na GitHubu** (rozhodnutí uživatele 2026-11-12, bod 9 kontrolního seznamu: věta na každé stránce se
+stažením): `release-upload.ps1` při vytvoření konceptu připojí za sekci `CHANGELOG.md` oddělovač `---` a větu
+„This software uses code of FFmpeg licensed under the LGPLv3 or later and its source can be downloaded here: …“
+s odkazy na oba archivy vydání (`Get-ReleaseNotes`, `Get-FFmpegSourceNotice`; adresy
+`https://github.com/<repozitář>/releases/download/v<verze>/ffmpeg-source-<verze>-windows.tar.xz` a `…-macos.tar.xz`,
+repozitář podle `-Repo`). `-DryRun` celý text vypíše. Do balíčku Velopack jde dál jen sekce `CHANGELOG.md`; manifest
+winget větu nedostává. README (EN i CZ) má stejnou větu v oddílu stažení. Vydání jen s jedním OS (`-AllowIncomplete`,
+do 1.0.0) má odkaz druhého OS do doplnění jeho souborů nefunkční.
+
+**Přechodný stav Windows:** balení zdroje Windows z commitu FFmpeg a skriptů BtbN nahradí **T-202** (vlastní
+minimální LGPL build FFmpeg na Windows jako na macOS, rozhodnutí uživatele 2026-11-12); archiv Windows pak bude
+obsahovat jen oficiální tarball FFmpeg a skript buildu.
+
+**Nová verze FFmpeg:** po `build/update-ffmpeg.ps1 -Update` je potřeba připnout i zdroj (postup v
+`docs/prerequisites.md`, „Nová verze FFmpeg“); dokud se to neudělá, selže test Pester a `release-build.ps1` skončí
+chybou ještě před buildem.
+
 ## Bod rozšíření pro instalátory (T-017, T-019)
 
 `scripts/release-build.ps1` má explicitní seznam `$packagingSteps` (žádné hledání skriptů podle masky). Každý krok má `Name`, `Os` (pro které OS se spouští) a `Invoke` – scriptblock, který dostane kontext:
@@ -657,7 +728,7 @@ Bezpečná rotace aktualizací **nejde**: útočník se starým klíčem může 
 | `PublishDirectory` | hotová a smoke testem ověřená publish složka RID |
 | `OutputDirectory` | `dist/`, sem krok uloží své soubory |
 
-Krok vrátí cesty souborů, které vytvořil přímo v `dist/`. Skript je sám zapíše do `SHA256SUMS-<os>.txt` a `build-info.json`, takže je `release-upload.ps1` nahraje a `release-publish.ps1` zkontroluje bez další změny. Kroky dnes: `archive` (Windows, `.zip`), `installer` (Windows, T-017, Velopack) a `app` (macOS, T-019: `LayerPeek.app`, `.dmg`, `.tar.gz`). Logika kroku `installer` je ve funkcích `Get-VelopackPackArguments`, `Get-VelopackOutputMap`, `Copy-VelopackOutput` a `Get-VelopackVersionProblems`, kroku `app` ve funkcích `New-MacIcon`, `New-MacAppBundle`, `Get-VelopackMacPackArguments`, `Expand-ZipWithDitto`, `Get-MacSignatureProblems`, `Get-MacVelopackBundleProblems`, `Get-MacHardenedRuntimeProblems` a `New-MacDiskImage` modulu `ReleaseTools.psm1` (Pester testy). Build, publish a smoke test publish složky se tím nezměnily.
+Krok vrátí cesty souborů, které vytvořil přímo v `dist/`. Skript je sám zapíše do `SHA256SUMS-<os>.txt` a `build-info.json`, takže je `release-upload.ps1` nahraje a `release-publish.ps1` zkontroluje bez další změny. Kroky dnes: `archive` (Windows, `.zip`), `installer` (Windows, T-017, Velopack), `app` (macOS, T-019: `LayerPeek.app`, `.dmg`, `.tar.gz`) a `ffmpeg-source` (oba OS, T-199: `ffmpeg-source-<verze>-<os>.tar.xz`). Logika kroku `installer` je ve funkcích `Get-VelopackPackArguments`, `Get-VelopackOutputMap`, `Copy-VelopackOutput` a `Get-VelopackVersionProblems`, kroku `app` ve funkcích `New-MacIcon`, `New-MacAppBundle`, `Get-VelopackMacPackArguments`, `Expand-ZipWithDitto`, `Get-MacSignatureProblems`, `Get-MacVelopackBundleProblems`, `Get-MacHardenedRuntimeProblems` a `New-MacDiskImage` modulu `ReleaseTools.psm1` (Pester testy). Build, publish a smoke test publish složky se tím nezměnily.
 
 Poznámky pro navazující kroky:
 

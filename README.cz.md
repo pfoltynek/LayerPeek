@@ -378,6 +378,11 @@ včetně notifikací a okna kamery.
 Od macOS 15 se první spojení s tiskárnou nebo kamerou zeptá na přístup do **místní sítě**: klikni na **Povolit**.
 Pokud jsi ho zamítl, zapni LayerPeek v **Nastavení systému → Soukromí a zabezpečení → Místní síť**.
 
+Tento software používá kód [FFmpeg](https://ffmpeg.org/) pod licencí LGPLv3 nebo novější a jeho zdrojový kód lze
+stáhnout zde: každé vydání na stránce [Releases](https://github.com/pfoltynek/LayerPeek/releases) ho obsahuje jako
+`ffmpeg-source-X.Y.Z-windows.tar.xz` a `ffmpeg-source-X.Y.Z-macos.tar.xz` (viz
+[Komponenty třetích stran](#komponenty-třetích-stran)).
+
 ### 2. Zapni PrusaLink na tiskárně
 
 Na tiskárně otevři **Nastavení → Síť → PrusaLink**. Zkontroluj, že je PrusaLink zapnutý, a poznamenej si
@@ -579,7 +584,9 @@ prodejnosti nebo vhodnosti pro určitý účel.
 
 Aplikace obsahuje nativní knihovny **FFmpeg** pod licencí LGPL. Jsou linkované dynamicky a dají se vyměnit. Text
 licence FFmpeg je přibalený jako `FFmpeg-LICENSE.txt`. Všechny komponenty třetích stran, jejich verze a plná znění
-licencí najdeš v aplikaci v okně **O aplikaci → Licence třetích stran…**.
+licencí najdeš v aplikaci v okně **O aplikaci → Licence třetích stran…**. Každé vydání obsahuje přesně ten zdrojový
+kód FFmpeg, ze kterého jsou knihovny sestavené, se skripty buildu a řádkem configure
+(`ffmpeg-source-<verze>-windows.tar.xz`, `ffmpeg-source-<verze>-macos.tar.xz`).
 
 ---
 

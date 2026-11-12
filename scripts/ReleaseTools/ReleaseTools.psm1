@@ -1349,6 +1349,417 @@ function Get-UploadBatches {
     }
 }
 
+# ---------------------------------------------------------------------------------------------------------------------
+# FFmpeg source of a release (T-199, user decision 2026-11-11; docs/release.md "Zdrojový kód FFmpeg"): every release
+# attaches ffmpeg-source-<version>-<os>.tar.xz, the exact source of the FFmpeg libraries of that OS with how they were
+# built (https://ffmpeg.org/legal.html, checklist points 3-8). The two OSes use different sources, so each build makes
+# its own archive:
+#   macos    the official release tarball (LayerPeekFFmpegMac* in build/FFmpeg.targets), unchanged, and
+#            build/macos/build-ffmpeg.sh that compiled it
+#   windows  the FFmpeg commit of the BtbN build and BtbN's FFmpeg-Builds scripts at the commit of its release tag
+#            (LayerPeekFFmpegWindows*), each as the git archive tar of the commit
+# The inputs are verified against the pinned SHA-256 (git inputs also by commit and tree id) and kept in a cache next to
+# the FFmpeg build cache (LayerPeek.Build/ffmpeg-source); the version embedded in the published libraries must match the
+# pinned source. Nothing in the cache is ever deleted; a file with the wrong hash is replaced.
+# ---------------------------------------------------------------------------------------------------------------------
+
+function Get-FFmpegSourceFileName {
+    <# .SYNOPSIS ffmpeg-source-<version>-<os>.tar.xz (the app links it from the About window, ThirdPartyLicenses.FFmpeg). #>
+    param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os)
+    "ffmpeg-source-$Version-$Os.tar.xz"
+}
+
+function Get-FFmpegSourceNotice {
+    <#
+    .SYNOPSIS
+        Pure: the FFmpeg sentence of the release notes (ffmpeg.org/legal.html checklist point 9, decided 2026-11-12),
+        linking the FFmpeg source archives of both OS in the release of Repository (T-199).
+    .DESCRIPTION
+        LGPLv3 or later, not the LGPLv2.1 of the template: both FFmpeg builds use --enable-version3.
+    #>
+    param([Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Version)
+    $base = "https://github.com/$Repository/releases/download/v$Version"
+    $links = foreach ($os in @(@('Windows', 'windows'), @('macOS', 'macos'))) {
+        $name = Get-FFmpegSourceFileName -Version $Version -Os $os[1]
+        "$($os[0]) [``$name``]($base/$name)"
+    }
+    "This software uses code of [FFmpeg](https://ffmpeg.org/) licensed under the LGPLv3 or later and its source can be downloaded here: $($links -join ', ')."
+}
+
+function Get-ReleaseNotes {
+    <#
+    .SYNOPSIS
+        Pure: the text of a new GitHub release, the CHANGELOG.md section followed by the FFmpeg sentence
+        (Get-FFmpegSourceNotice). Only the GitHub release gets the sentence; the Velopack package keeps the plain section.
+    #>
+    param([Parameter(Mandatory)] [string] $ChangelogSection, [Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Version)
+    "$ChangelogSection`n`n---`n`n$(Get-FFmpegSourceNotice -Repository $Repository -Version $Version)"
+}
+
+function Get-FFmpegSourceCacheDirectory {
+    <# .SYNOPSIS The cache of the FFmpeg source inputs, next to the FFmpeg build cache of build/FFmpeg.targets. #>
+    if ($IsWindows) { return Join-Path $env:LOCALAPPDATA 'LayerPeek.Build' 'ffmpeg-source' }
+    if ($IsMacOS) { return Join-Path $HOME 'Library' 'Caches' 'LayerPeek.Build' 'ffmpeg-source' }
+    throw 'The FFmpeg source is packed on Windows and macOS only.'
+}
+
+function Get-FFmpegSourcePins {
+    <#
+    .SYNOPSIS
+        Pure: the pinned FFmpeg source of an OS from the text of build/FFmpeg.targets, checked for consistency; throws
+        with every problem. Windows: the commit must be the one named in LayerPeekFFmpegArchiveFolder (git describe
+        n<version>-<n>-g<abbreviated commit>) and the scripts tag the release tag of LayerPeekFFmpegUrl, so that a new
+        BtbN build cannot be released with the source of the old one.
+    .OUTPUTS
+        Os, Version (the FFmpeg version the libraries report: '9.0.2' / 'n9.0.2-39-g7adfbe40dc'), Inputs (Kind 'download'
+        with Url, or 'git' with Repository, Commit, Tree and Prefix; each with Name and Sha256), and the facts the README
+        names (macOS: BuildScript; Windows: BuildUrl, BuildSha256, ScriptsTag).
+    #>
+    param([Parameter(Mandatory)] [string] $TargetsText, [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os)
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $value = {
+        param([string] $Name, [string] $Pattern)
+        $found = @([regex]::Matches($TargetsText, "<$Name>([^<]*)</$Name>"))
+        if ($found.Count -ne 1) { $problems.Add("build/FFmpeg.targets must contain <$Name> exactly once (found $($found.Count))."); return $null }
+        $text = $found[0].Groups[1].Value.Trim()
+        if ($text -cnotmatch $Pattern) { $problems.Add("<$Name> in build/FFmpeg.targets is '$text', expected $Pattern."); return $null }
+        $text
+    }
+    $sha256 = '^[0-9a-f]{64}$'
+    $gitId = '^[0-9a-f]{40}$'
+    if ($Os -eq 'macos') {
+        $folder = & $value 'LayerPeekFFmpegMacSourceFolder' '^ffmpeg-\d+\.\d+(\.\d+)*$'
+        $url = & $value 'LayerPeekFFmpegMacSourceUrl' '^https://ffmpeg\.org/releases/ffmpeg-[0-9.]+\.tar\.xz$'
+        $hash = & $value 'LayerPeekFFmpegMacSourceSha256' $sha256
+        if ($folder -and $url -and -not $url.EndsWith("/$folder.tar.xz", [StringComparison]::Ordinal)) {
+            $problems.Add("LayerPeekFFmpegMacSourceUrl ($url) is not the tarball of LayerPeekFFmpegMacSourceFolder ($folder).")
+        }
+        if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+        return [pscustomobject]@{
+            Os          = 'macos'
+            Version     = $folder.Substring('ffmpeg-'.Length)
+            Inputs      = @([pscustomobject]@{ Kind = 'download'; Name = "$folder.tar.xz"; Url = $url; Sha256 = $hash })
+            BuildScript = 'build/macos/build-ffmpeg.sh'
+        }
+    }
+
+    $folder = & $value 'LayerPeekFFmpegArchiveFolder' '^ffmpeg-n\d+\.\d+(\.\d+)*-\d+-g[0-9a-f]{7,40}-win64-lgpl-shared-[0-9.]+$'
+    $buildUrl = & $value 'LayerPeekFFmpegUrl' '^https://github\.com/BtbN/FFmpeg-Builds/releases/download/[^/]+/[^/]+\.zip$'
+    $buildHash = & $value 'LayerPeekFFmpegSha256' $sha256
+    $sourceRepository = & $value 'LayerPeekFFmpegWindowsSourceRepository' '^https://\S+$'
+    $sourceCommit = & $value 'LayerPeekFFmpegWindowsSourceCommit' $gitId
+    $sourceTree = & $value 'LayerPeekFFmpegWindowsSourceTree' $gitId
+    $sourceHash = & $value 'LayerPeekFFmpegWindowsSourceSha256' $sha256
+    $scriptsRepository = & $value 'LayerPeekFFmpegWindowsScriptsRepository' '^https://\S+$'
+    $scriptsTag = & $value 'LayerPeekFFmpegWindowsScriptsTag' '^[A-Za-z0-9._-]+$'
+    $scriptsCommit = & $value 'LayerPeekFFmpegWindowsScriptsCommit' $gitId
+    $scriptsTree = & $value 'LayerPeekFFmpegWindowsScriptsTree' $gitId
+    $scriptsHash = & $value 'LayerPeekFFmpegWindowsScriptsSha256' $sha256
+    $describe = if ($folder) { [regex]::Match($folder, '^ffmpeg-(n.+-g[0-9a-f]+)-win64-').Groups[1].Value } else { $null }
+    if ($describe -and $sourceCommit) {
+        $abbreviated = $describe.Substring($describe.LastIndexOf('-g', [StringComparison]::Ordinal) + 2)
+        if (-not $sourceCommit.StartsWith($abbreviated, [StringComparison]::Ordinal)) {
+            $problems.Add("LayerPeekFFmpegWindowsSourceCommit ($sourceCommit) is not the commit $abbreviated of the BtbN build ${folder}: pin the source of the new build (docs/prerequisites.md, 'Nová verze FFmpeg').")
+        }
+    }
+    if ($buildUrl -and $scriptsTag -and -not $buildUrl.Contains("/releases/download/$scriptsTag/", [StringComparison]::Ordinal)) {
+        $problems.Add("LayerPeekFFmpegWindowsScriptsTag ($scriptsTag) is not the release tag of LayerPeekFFmpegUrl ($buildUrl): pin the build scripts of the new build (docs/prerequisites.md, 'Nová verze FFmpeg').")
+    }
+    if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+    [pscustomobject]@{
+        Os          = 'windows'
+        Version     = $describe
+        Inputs      = @(
+            [pscustomobject]@{ Kind = 'git'; Name = "ffmpeg-$describe.tar"; Prefix = "ffmpeg-$describe/"; Repository = $sourceRepository; Commit = $sourceCommit; Tree = $sourceTree; Sha256 = $sourceHash }
+            [pscustomobject]@{ Kind = 'git'; Name = "FFmpeg-Builds-$scriptsTag.tar"; Prefix = "FFmpeg-Builds-$scriptsTag/"; Repository = $scriptsRepository; Commit = $scriptsCommit; Tree = $scriptsTree; Sha256 = $scriptsHash }
+        )
+        BuildUrl    = $buildUrl
+        BuildSha256 = $buildHash
+        ScriptsTag  = $scriptsTag
+    }
+}
+
+function Invoke-FFmpegSourceDownload {
+    <# .SYNOPSIS Downloads a file (read-only HTTPS GET, with retries); the only network access of a 'download' input. #>
+    param([Parameter(Mandatory)] [string] $Uri, [Parameter(Mandatory)] [string] $OutFile)
+    Invoke-WebRequest -Uri $Uri -OutFile $OutFile -MaximumRetryCount 3 -RetryIntervalSec 2
+}
+
+function New-GitSourceArchive {
+    <#
+    .SYNOPSIS
+        Fetches exactly one commit (shallow, into a new bare repository in WorkDirectory), checks that it is Commit with
+        the tree Tree (git verifies every object it receives) and writes 'git archive --format=tar --prefix=<Prefix>' of
+        it to Destination. No line ending conversion (core.autocrlf / core.eol of the machine do not apply).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Repository,
+        [Parameter(Mandatory)] [string] $Commit,
+        [Parameter(Mandatory)] [string] $Tree,
+        [Parameter(Mandatory)] [string] $Prefix,
+        [Parameter(Mandatory)] [string] $Destination,
+        [Parameter(Mandatory)] [string] $WorkDirectory
+    )
+    $bare = Join-Path $WorkDirectory 'repository.git'
+    $null = New-Item -ItemType Directory -Path $bare
+    $steps = @(
+        @('init', '--quiet', '--bare'),
+        @('-c', 'protocol.version=2', 'fetch', '--quiet', '--no-tags', '--depth', '1', $Repository, $Commit)
+    )
+    foreach ($arguments in $steps) {
+        $result = Invoke-Git $bare $arguments
+        if ($result.ExitCode -ne 0) { throw "git $($arguments -join ' ') failed (exit code $($result.ExitCode)): $($result.Error)" }
+    }
+    $fetched = Invoke-Git $bare @('rev-parse', '--verify', '--quiet', "$Commit^{commit}")
+    if ($fetched.ExitCode -ne 0 -or @($fetched.Output)[0] -cne $Commit) { throw "$Repository did not deliver the commit $Commit." }
+    $fetchedTree = Invoke-Git $bare @('rev-parse', "$Commit^{tree}")
+    if ($fetchedTree.ExitCode -ne 0 -or @($fetchedTree.Output)[0] -cne $Tree) { throw "The commit $Commit of $Repository has the tree $(@($fetchedTree.Output)[0]), expected $Tree (build/FFmpeg.targets)." }
+    $archive = Invoke-Git $bare @('-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'archive', '--format=tar', "--prefix=$Prefix", '-o', $Destination, $Commit)
+    if ($archive.ExitCode -ne 0) { throw "git archive of $Commit failed (exit code $($archive.ExitCode)): $($archive.Error)" }
+}
+
+function Save-FFmpegSourceInput {
+    <#
+    .SYNOPSIS
+        The verified file of one input of Get-FFmpegSourcePins in CacheDirectory: a cached file with the pinned SHA-256 is
+        used as it is (nothing is downloaded); otherwise the input is downloaded or archived with git into a work folder
+        of the cache, verified and moved into place (replacing a cached file with the wrong hash). Returns its path.
+    #>
+    param([Parameter(Mandatory)] $SourceInput, [Parameter(Mandatory)] [string] $CacheDirectory)
+    $target = Join-Path $CacheDirectory $SourceInput.Name
+    if (Test-Path -LiteralPath $target -PathType Leaf) {
+        if ((Get-FileSha256 $target) -ceq $SourceInput.Sha256) {
+            Write-Host "$($SourceInput.Name): verified in the cache $CacheDirectory"
+            return $target
+        }
+        Write-Host "$($SourceInput.Name) in the cache $CacheDirectory has another SHA-256; fetching it again." -ForegroundColor Yellow
+    }
+    $work = Join-Path $CacheDirectory "tmp-$([guid]::NewGuid().ToString('N'))"
+    $null = New-Item -ItemType Directory -Path $work -Force
+    try {
+        $file = Join-Path $work $SourceInput.Name
+        if ($SourceInput.Kind -ceq 'download') {
+            Write-Host "==> Downloading $($SourceInput.Url)" -ForegroundColor Cyan
+            Invoke-FFmpegSourceDownload -Uri $SourceInput.Url -OutFile $file
+            $origin = $SourceInput.Url
+        }
+        else {
+            Write-Host "==> Fetching commit $($SourceInput.Commit) of $($SourceInput.Repository) (git archive)" -ForegroundColor Cyan
+            New-GitSourceArchive -Repository $SourceInput.Repository -Commit $SourceInput.Commit -Tree $SourceInput.Tree -Prefix $SourceInput.Prefix -Destination $file -WorkDirectory $work
+            $origin = "git archive of $($SourceInput.Commit) (commit and tree verified)"
+        }
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "$($SourceInput.Name) was not created." }
+        $actual = Get-FileSha256 $file
+        if ($actual -cne $SourceInput.Sha256) {
+            $hint = if ($SourceInput.Kind -ceq 'git') { ' The commit and its tree are the pinned ones, so another git version may write the tar differently; compare the content before pinning anything (docs/prerequisites.md, "Nová verze FFmpeg").' } else { '' }
+            throw "$($SourceInput.Name) ($origin) has SHA-256 $actual, build/FFmpeg.targets pins $($SourceInput.Sha256). It was discarded.$hint"
+        }
+        Move-Item -LiteralPath $file -Destination $target -Force
+        Write-Host "$($SourceInput.Name): verified (SHA-256 $actual) and cached in $CacheDirectory"
+    }
+    finally {
+        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $target
+}
+
+function Get-FFmpegSourceInputs {
+    <#
+    .SYNOPSIS
+        The pinned FFmpeg source of an OS (Get-FFmpegSourcePins of build/FFmpeg.targets) with the verified file of every
+        input (Save-FFmpegSourceInput). Called before the long build, so that a missing source fails the release early.
+    .OUTPUTS
+        Pins and Files (the paths, in the order of Pins.Inputs).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $RepoRoot,
+        [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os,
+        [string] $CacheDirectory = (Get-FFmpegSourceCacheDirectory)
+    )
+    $pins = Get-FFmpegSourcePins -TargetsText ([System.IO.File]::ReadAllText((Join-Path $RepoRoot 'build' 'FFmpeg.targets'))) -Os $Os
+    $null = New-Item -ItemType Directory -Path $CacheDirectory -Force
+    $files = @(foreach ($sourceInput in $pins.Inputs) { Save-FFmpegSourceInput -SourceInput $sourceInput -CacheDirectory $CacheDirectory })
+    [pscustomobject]@{ Pins = $pins; Files = $files }
+}
+
+function Get-FFmpegLibraryFacts {
+    <#
+    .SYNOPSIS
+        Pure: what an FFmpeg library (avcodec) says about itself in its bytes: Version ('FFmpeg version <v>' of the
+        library) and Configuration (the configure line it was built with, the installation prefix replaced by <prefix>:
+        it names a folder of the build machine). $null for what is not found.
+    #>
+    param([Parameter(Mandatory)] [byte[]] $Bytes)
+    $text = [System.Text.Encoding]::Latin1.GetString($Bytes)
+    $version = [regex]::Match($text, 'FFmpeg version ([\x21-\x7e]+)\x00')
+    $configuration = [regex]::Match($text, "--prefix=[\x20-\x7e]*(?=\x00)")
+    [pscustomobject]@{
+        Version       = $version.Success ? $version.Groups[1].Value : $null
+        Configuration = $configuration.Success ? ($configuration.Value -replace "^--prefix=('[^']*'|\S+)", '--prefix=<prefix>') : $null
+    }
+}
+
+function Get-FFmpegLibraryVersionProblems {
+    <#
+    .SYNOPSIS
+        Pure: the published library must be built from the pinned source. macOS: exactly the version of the tarball;
+        Windows: the git describe of the commit, optionally with BtbN's build date (--extra-version, -YYYYMMDD).
+    #>
+    param([Parameter(Mandatory)] $Pins, [AllowNull()] [AllowEmptyString()] [string] $LibraryVersion, [Parameter(Mandatory)] [string] $LibraryName)
+    if (-not $LibraryVersion) { return @("$LibraryName names no FFmpeg version; it cannot be matched with the pinned source.") }
+    $pattern = if ($Pins.Os -eq 'windows') { "^$([regex]::Escape($Pins.Version))(-\d{8})?$" } else { "^$([regex]::Escape($Pins.Version))$" }
+    if ($LibraryVersion -cnotmatch $pattern) {
+        return @("$LibraryName is FFmpeg $LibraryVersion, but the pinned source in build/FFmpeg.targets is $($Pins.Version): the published libraries and the attached source would differ.")
+    }
+    @()
+}
+
+function Get-FFmpegSourceReadme {
+    <# .SYNOPSIS Pure: README.txt of the FFmpeg source archive (what it contains, where it comes from, how it was built). #>
+    param(
+        [Parameter(Mandatory)] $Pins,
+        [Parameter(Mandatory)] [string] $AppVersion,
+        [Parameter(Mandatory)] [string] $LibraryName,
+        [Parameter(Mandatory)] [string] $LibraryVersion,
+        [Parameter(Mandatory)] [string] $Configuration
+    )
+    $platform = if ($Pins.Os -eq 'windows') { 'Windows (win-x64)' } else { 'macOS (osx-arm64)' }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add("FFmpeg source code of LayerPeek $AppVersion for $platform")
+    $lines.Add('')
+    $lines.Add('LayerPeek uses libraries from the FFmpeg project (https://ffmpeg.org/) under the GNU Lesser General Public')
+    $lines.Add('License version 3 or later (LGPL). This archive contains the source code these libraries were built from and')
+    $lines.Add('how they were built. FFmpeg itself was not modified, so there is no changes.diff (it would be empty).')
+    $lines.Add('')
+    $lines.Add("FFmpeg version of the shipped libraries: $LibraryVersion")
+    $lines.Add('')
+    $lines.Add('Files')
+    $lines.Add('-----')
+    if ($Pins.Os -eq 'macos') {
+        $tarball = $Pins.Inputs[0]
+        $lines.Add("$($tarball.Name)")
+        $lines.Add("    The official FFmpeg source release, unchanged: $($tarball.Url)")
+        $lines.Add("    (signature: $($tarball.Url).asc)")
+        $lines.Add("    SHA-256: $($tarball.Sha256)")
+        $lines.Add('build-ffmpeg.sh')
+        $lines.Add("    The script that built the libraries ($($Pins.BuildScript) of LayerPeek, tag v$AppVersion,")
+        $lines.Add('    https://github.com/pfoltynek/LayerPeek). It extracts the tarball, runs configure with the line below,')
+        $lines.Add('    make and make install with the Xcode Command Line Tools in a clean environment, and keeps libavformat,')
+        $lines.Add('    libavcodec, libavutil and libswscale. To build them again:')
+        $lines.Add("        bash build-ffmpeg.sh $($tarball.Name) ffmpeg-$($Pins.Version) <work folder> <output folder>")
+    }
+    else {
+        $source = $Pins.Inputs[0]
+        $scripts = $Pins.Inputs[1]
+        $lines.Add("$($source.Name)")
+        $lines.Add("    FFmpeg at commit $($source.Commit) (tree $($source.Tree))")
+        $lines.Add("    of $($source.Repository), unchanged. It is a git checkout, not a release tarball:")
+        $lines.Add("    it has no VERSION file, the build named it $($Pins.Version) (git describe).")
+        $lines.Add("    SHA-256: $($source.Sha256)")
+        $lines.Add("$($scripts.Name)")
+        $lines.Add("    The build scripts by BtbN at commit $($scripts.Commit) (tree $($scripts.Tree))")
+        $lines.Add("    of $($scripts.Repository), the commit of the release $($Pins.ScriptsTag).")
+        $lines.Add('    They built the variant win64 lgpl-shared with the addin 9.0 (build.sh, variants/win64-lgpl-shared.sh,')
+        $lines.Add('    addins/9.0.sh) in Docker with MinGW-w64; scripts.d/ names every external library compiled into the DLLs')
+        $lines.Add('    with its source repository and commit (their source code is not part of this archive).')
+        $lines.Add("    SHA-256: $($scripts.Sha256)")
+        $lines.Add('Both tar files are "git archive --format=tar --prefix=<name>/ <commit>" of the commit.')
+        $lines.Add('')
+        $lines.Add('The libraries (avformat, avcodec, avutil, swscale, swresample) are taken unchanged from this BtbN build:')
+        $lines.Add("    $($Pins.BuildUrl)")
+        $lines.Add("    SHA-256: $($Pins.BuildSha256)")
+    }
+    $lines.Add('README.txt')
+    $lines.Add('    This file.')
+    $lines.Add('')
+    $lines.Add("Configure line of the shipped libraries (read from $LibraryName; the installation prefix replaced by <prefix>):")
+    $lines.Add("    $Configuration")
+    $lines.Add('')
+    $lines.Add('The license texts of FFmpeg are in its source (COPYING.LGPLv3, LICENSE.md). LayerPeek itself is licensed under')
+    $lines.Add('the GPL-3.0-only: https://github.com/pfoltynek/LayerPeek')
+    ($lines -join "`n") + "`n"
+}
+
+function Get-FFmpegPublishedLibrary {
+    <# .SYNOPSIS The avcodec library of a publish folder (avcodec-<n>.dll / libavcodec.<n>.dylib); throws unless there is exactly one. #>
+    param([Parameter(Mandatory)] [string] $PublishDirectory, [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os)
+    $pattern = if ($Os -eq 'windows') { '^avcodec-\d+\.dll$' } else { '^libavcodec\.\d+\.dylib$' }
+    $found = @(Get-ChildItem -LiteralPath $PublishDirectory -File | Where-Object { $_.Name -cmatch $pattern })
+    if ($found.Count -ne 1) { throw "Expected exactly one FFmpeg avcodec library in $PublishDirectory, found $($found.Count) (build/FFmpeg.targets)." }
+    $found[0].FullName
+}
+
+function New-FFmpegSourceArchive {
+    <#
+    .SYNOPSIS
+        Packs the FFmpeg source of a release: <Destination> (ffmpeg-source-<version>-<os>.tar.xz) with one top folder of
+        the same name holding the verified input files, the build script (macOS) and README.txt. The library of the
+        publish folder must report the version of the pinned source. The archive is listed afterwards and must hold
+        exactly these files. WorkDirectory (must not exist) holds the copies while packing and is deleted afterwards.
+        Returns Destination.
+    #>
+    param(
+        [Parameter(Mandatory)] $Source,
+        [Parameter(Mandatory)] [string] $PublishDirectory,
+        [Parameter(Mandatory)] [string] $AppVersion,
+        [Parameter(Mandatory)] [string] $Destination,
+        [Parameter(Mandatory)] [string] $WorkDirectory,
+        [Parameter(Mandatory)] [string] $RepoRoot
+    )
+    if (Test-Path -LiteralPath $Destination) { throw "Archive already exists: $Destination" }
+    if (Test-Path -LiteralPath $WorkDirectory) { throw "Work folder already exists: $WorkDirectory" }
+    $pins = $Source.Pins
+    $library = Get-FFmpegPublishedLibrary -PublishDirectory $PublishDirectory -Os $pins.Os
+    $libraryName = Split-Path -Leaf $library
+    $facts = Get-FFmpegLibraryFacts -Bytes ([System.IO.File]::ReadAllBytes($library))
+    $problems = @(Get-FFmpegLibraryVersionProblems -Pins $pins -LibraryVersion $facts.Version -LibraryName $libraryName)
+    if (-not $facts.Configuration) { $problems += "$libraryName names no configure line (--prefix=...)." }
+    if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+
+    $name = [System.IO.Path]::GetFileName($Destination)
+    if (-not $name.EndsWith('.tar.xz', [StringComparison]::Ordinal)) { throw "Unsupported archive type: $Destination" }
+    $top = $name.Substring(0, $name.Length - '.tar.xz'.Length)
+    $work = $WorkDirectory
+    $folder = Join-Path $work $top
+    $null = New-Item -ItemType Directory -Path $folder
+    try {
+        $entries = [System.Collections.Generic.List[string]]::new()
+        foreach ($file in $Source.Files) {
+            Copy-Item -LiteralPath $file -Destination $folder
+            $entries.Add("$top/$(Split-Path -Leaf $file)")
+        }
+        if ($pins.Os -eq 'macos') {
+            Copy-Item -LiteralPath (Join-Path $RepoRoot $pins.BuildScript) -Destination $folder
+            $entries.Add("$top/$(Split-Path -Leaf $pins.BuildScript)")
+        }
+        $readme = Get-FFmpegSourceReadme -Pins $pins -AppVersion $AppVersion -LibraryName $libraryName -LibraryVersion $facts.Version -Configuration $facts.Configuration
+        [System.IO.File]::WriteAllText((Join-Path $folder 'README.txt'), $readme, [System.Text.UTF8Encoding]::new($false))
+        $entries.Add("$top/README.txt")
+
+        # As New-ReleaseArchive: no AppleDouble entries or extended attributes of macOS in the archive.
+        [string[]] $macArguments = if ($IsMacOS) { @('--no-mac-metadata') } else { @() }
+        $savedCopyFile = $env:COPYFILE_DISABLE
+        if ($IsMacOS) { $env:COPYFILE_DISABLE = '1' }
+        try {
+            Write-Host "==> Packing $name (xz)" -ForegroundColor Cyan
+            & (Get-TarCommand) @macArguments -cJf $Destination -C $work $top
+            if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE (does this tar write xz? docs/prerequisites.md)." }
+        }
+        finally { if ($IsMacOS) { $env:COPYFILE_DISABLE = $savedCopyFile } }
+        $listed = @(& (Get-TarCommand) -tJf $Destination | ForEach-Object { "$_".TrimEnd('/') } | Where-Object { $_ -cne $top })
+        if ($LASTEXITCODE -ne 0) { throw "tar could not list $Destination (exit code $LASTEXITCODE)." }
+        $expected = @($entries | Sort-Object -CaseSensitive)
+        if ((@($listed | Sort-Object -CaseSensitive) -join "`n") -cne ($expected -join "`n")) {
+            Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+            throw "$name holds $($listed -join ', ') instead of $($expected -join ', ')."
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $Destination
+}
+
 # Velopack packaging (T-017, docs/velopack.md point 12). Fixed by the user: package id, title and AppUserModelID
 # 'LayerPeek', Start menu shortcut only, one channel per RID, no deltas yet, no Portable.zip (the archive step makes the .zip).
 # macOS (T-058, decision Q9 a): vpk packs the finished LayerPeek.app of the 'app' step and signs it ad hoc with the hardened

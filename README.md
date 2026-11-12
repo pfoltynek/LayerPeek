@@ -383,6 +383,11 @@ the same features as on Windows, including notifications and the camera window.
 On macOS 15 and later, the first connection to a printer or camera asks for **Local Network** access: click **Allow**.
 If you denied it, turn LayerPeek on in **System Settings → Privacy & Security → Local Network**.
 
+This software uses code of [FFmpeg](https://ffmpeg.org/) licensed under the LGPLv3 or later and its source can be
+downloaded here: every release on the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page attaches it as
+`ffmpeg-source-X.Y.Z-windows.tar.xz` and `ffmpeg-source-X.Y.Z-macos.tar.xz` (see
+[Third-party components](#third-party-components)).
+
 ### 2. Enable PrusaLink on the printer
 
 On the printer, open **Settings → Network → PrusaLink**. Check that PrusaLink is enabled and note the **user name**
@@ -586,7 +591,9 @@ implied warranty of merchantability or fitness for a particular purpose.
 
 The app bundles the native **FFmpeg** libraries, which are licensed under the LGPL. They are dynamically linked and
 can be replaced. The FFmpeg license text ships with the app as `FFmpeg-LICENSE.txt`. All third-party components,
-their versions and full license texts are listed in the app under **About → Third-party licences…**.
+their versions and full license texts are listed in the app under **About → Third-party licences…**. Every release
+attaches the exact FFmpeg source the libraries were built from, with the build scripts and the configure line
+(`ffmpeg-source-<version>-windows.tar.xz`, `ffmpeg-source-<version>-macos.tar.xz`).
 
 ---
 

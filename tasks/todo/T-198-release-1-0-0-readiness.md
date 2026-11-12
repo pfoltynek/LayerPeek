@@ -27,7 +27,9 @@ se uzavře, až budou odškrtnuté blokery a kritéria níže (vydání samotné
 - **Stav 2026-11-11 (po rozhodnutích uživatele):** z 9 blokerů jsou hotové B6 (CHANGELOG) a B7 (texty 1.x), B8 je
   rozhodnutý (historie zůstává, adresa noreply; Windows zbývá v T-125 2aa) a B9 je jen kontrola už veřejného
   repozitáře. Zbývají B1–B3 (Windows), B4 (generálka na obou OS) a B5 (Mac).
-- **Blokery: 9** (oddíl 1.1), mimo jiné na Windows: SDK GA + build vydání (T-193), snímky UI sady Windows (T-185), E2E ověření
+- **Doplněno 2026-11-12:** nový bloker **B10** (T-202, vlastní build FFmpeg na Windows, rozhodnutí uživatele k T-199);
+  T-199 sám je hotový.
+- **Blokery: 10** (oddíl 1.1), mimo jiné na Windows: SDK GA + build vydání (T-193), snímky UI sady Windows (T-185), E2E ověření
   podpisu feedu (T-181). Na obou OS: generálka podepsaného buildu s produkčním klíčem bez GitHubu. Texty pro 1.0
   (CHANGELOG, README, SECURITY, příručky v 8 jazycích). Rozhodnutí uživatele o e-mailech v historii gitu.
 - **Sběrné úkoly:** neodškrtnutých bodů je **114** (T-124: 0, T-125: 42, T-126: 7, T-127: 65). Pro 1.0.0 je z nich
@@ -60,6 +62,7 @@ Legenda: **W** = potřebuje Windows, **M** = potřebuje Mac, **U** = potřebuje 
 | B7 | **Texty „0.x = předběžné“** v README (EN/CZ), `SECURITY.md` a příručkách všech 8 jazyků (oddíl 4.4) – **hotovo 2026-11-11** | T-198 | A, U | Po vydání 1.0.0 by první veřejná stránka i příručka tvrdily, že jde o předběžnou verzi. Znění podle otázky 5 na větvi `feature/T-198-decisions` |
 | B8 | **Identita autorů v historii** (oddíl 3.1, otázka 1) – **rozhodnuto 2026-11-11:** historie zůstává, od teď adresa noreply | T-198, T-125 2aa | U | Repozitář je veřejný od 2026-10-30, adresy v historii už veřejné jsou; přepis by nepomohl. Zbývá `user.email` na Windows (T-125 2aa); na Macu nastavil hlavní agent |
 | B9 | **Kontrola veřejného repozitáře na GitHubu** (oddíl 3.2) | T-198, T-180 | U | Repozitář je už veřejný. Agent nevidí obsah na GitHubu (vydání 0.x, issues, vzdálené větve, nastavení); před 1.0.0 zkontrolovat, co je vidět, a upozornění secret scanningu. Nevratnost zveřejnění už nehraje roli, bod je doporučený, ne blokující |
+| B10 | **T-202** – vlastní minimální LGPL build FFmpeg na Windows (místo BtbN, s D3D11VA) – přidáno 2026-11-12 | T-202 | W, U | Rozhodnutí uživatele 2026-11-12 (T-199, otázka 2c): DLL BtbN obsahují ~50 staticky přilinkovaných knihoven, jejichž zdroje vydání nepřikládá (bod 18 kontrolního seznamu https://ffmpeg.org/legal.html). Uživatel musí nejdřív zvolit toolchain (T-202, otázka 1) |
 
 ### 1.2 Sběrné úkoly T-124–T-127: co je důležité pro 1.0.0
 
@@ -119,7 +122,7 @@ funkcí (detekce, timelapse) mají v UI i v CHANGELOG štítek „Experimentáln
 | T-183 dokumentace zabezpečení přístupu k PrusaLink | doporučeno | A | Jen dokumentace, hodí se k veřejnému repozitáři. Připravuje se souběžně |
 | T-182 varování u `http://` mimo místní síť | může počkat | A | Nová funkce s texty v 8 jazycích. Kdyby šla do 1.0.0, přidá body do T-125 / T-127 |
 | T-059 winget | po vydání | W, U | Potřebuje zveřejněné vydání (validace stahuje instalátor; repozitář už je veřejný). Připravuje se souběžně, odeslání je krok C5 |
-| T-199 FFmpeg – zdroj u vydání a věta v okně O aplikaci (otázka 9) | připravuje se | A | Rozhodnutí uživatele 2026-11-11 (otázka 9). Úkol zakládá souběžně jiný agent (větev `feature/T-199-ffmpeg-source-in-release`); zda blokuje 1.0.0, určí ten úkol |
+| T-199 FFmpeg – zdroj u vydání a věta v okně O aplikaci (otázka 9) | hotovo 2026-11-12 (ověření na Windows v T-125 2ab) | A | Rozhodnutí uživatele 2026-11-11 (otázka 9) a 2026-11-12 (otázky T-199): věta o FFmpeg i v textu vydání a v README; balení zdroje Windows z BtbN je přechodný stav, nahradí ho T-202 (B10) |
 | T-197 jen podepsat hotový `dist/` | může počkat | A | Zkrátí opakování po selhání podpisu; riziko dne vydání snižuje i B4 |
 | T-174 další modely tiskáren | může počkat | komunita | Šablona issue už existuje |
 | T-054 heslo přes UI Automation | může počkat | W | Měření; útočník by musel běžet pod stejným uživatelem |
@@ -392,6 +395,7 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 - [x] B8: rozhodnutí o e-mailech autorů zapsané (otázka 1) a provedené; `user.email` nastavený na obou počítačích
       → Mac: nastavil hlavní agent 2026-11-11 (`git config user.email`); Windows → přesunuto do T-125 (2aa)
 - [ ] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný
+- [ ] B10: T-202 hotový (vlastní minimální LGPL build FFmpeg na Windows s D3D11VA, zdroj Windows u vydání bez BtbN)
 - [x] Odpovědi na otázky 2–4 a 6–10 zapsané
 - [x] `docs/release.md` po rozhodnutí o otázce 4 popisuje tok 1.0.0 (oba OS do konceptu), doplněný `caffeinate`
       a oprava věty o zkušebním vydání (2.2)

@@ -67,6 +67,8 @@ public sealed class AboutViewModelTests
         Assert.Equal("License: GNU General Public License v3.0 only", viewModel.LicenseText);
         Assert.Equal("Copyright © Petr Foltýnek", viewModel.Copyright);
         Assert.Equal("Source code on GitHub", viewModel.RepositoryText);
+        Assert.Equal("This software uses libraries from the FFmpeg project under the LGPLv3 or later.", viewModel.FFmpegNotice);
+        Assert.Equal("FFmpeg source code of this version", viewModel.FFmpegSourceText);
     }
 
     [Fact]
@@ -84,6 +86,8 @@ public sealed class AboutViewModelTests
         Assert.Equal("Licence: GNU General Public License v3.0 only", viewModel.LicenseText);
         Assert.Equal("Zdrojový kód na GitHubu", viewModel.RepositoryText);
         Assert.Equal("Zavřít", viewModel.CloseText);
+        Assert.Equal("Tento software používá knihovny projektu FFmpeg pod licencí LGPLv3 nebo novější.", viewModel.FFmpegNotice);
+        Assert.Equal("Zdrojový kód FFmpeg této verze", viewModel.FFmpegSourceText);
     }
 
     [Fact]
@@ -106,6 +110,8 @@ public sealed class AboutViewModelTests
         Assert.Equal("Lizenz: GNU General Public License v3.0 only", viewModel.LicenseText);
         Assert.Equal("Quellcode auf GitHub", viewModel.RepositoryText);
         Assert.Equal("Schließen", viewModel.CloseText);
+        Assert.Equal("Diese Software verwendet Bibliotheken des FFmpeg-Projekts unter der LGPLv3 oder neuer.", viewModel.FFmpegNotice);
+        Assert.Equal("Quellcode von FFmpeg dieser Version", viewModel.FFmpegSourceText);
         Assert.Equal("Copyright © Petr Foltýnek", viewModel.Copyright);
         // "Everything changed" for the bindings.
         Assert.Equal([string.Empty], changes);
@@ -130,6 +136,45 @@ public sealed class AboutViewModelTests
         Assert.Equal("LayerPeek", viewModel.AppName);
         Assert.Equal(subtitle, viewModel.Subtitle);
         Assert.Contains("Prusa Research", viewModel.Disclaimer, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("cs-CZ")]
+    [InlineData("de-DE")]
+    [InlineData("es-ES")]
+    [InlineData("fr-FR")]
+    [InlineData("it-IT")]
+    [InlineData("pl-PL")]
+    [InlineData("sk-SK")]
+    public void FFmpegNoticeNamesFFmpegAndItsLicenceInEveryLanguage(string culture)
+    {
+        // T-199 (https://ffmpeg.org/legal.html, point 10): FFmpeg spelled as the project does, the licence of the build
+        // (LGPL 3 or later, --enable-version3), never the LGPLv2.1 of the checklist's template.
+        using CultureScope scope = new(culture);
+
+        AboutViewModel viewModel = new(_launcher, AppAssembly);
+
+        Assert.Contains("FFmpeg", viewModel.FFmpegNotice, StringComparison.Ordinal);
+        Assert.Contains("LGPLv3", viewModel.FFmpegNotice, StringComparison.Ordinal);
+        Assert.DoesNotContain("2.1", viewModel.FFmpegNotice, StringComparison.Ordinal);
+        Assert.Contains("FFmpeg", viewModel.FFmpegSourceText, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false, "windows")]
+    [InlineData(true, "macos")]
+    public void FFmpegSourceLinkOpensTheArchiveOfThisReleaseAndPlatform(bool macOS, string os)
+    {
+        // T-199: the source attached to the GitHub release of this version by scripts/release-build.ps1.
+        string version = AboutViewModel.ProductVersion(AppAssembly);
+        AboutViewModel viewModel = new(_launcher, AppAssembly, macOS: macOS);
+
+        viewModel.OpenFFmpegSourceCommand.Execute(null);
+
+        Assert.Equal(
+            [new Uri($"https://github.com/pfoltynek/LayerPeek/releases/download/v{version}/ffmpeg-source-{version}-{os}.tar.xz")],
+            _launcher.Opened);
     }
 
     [Fact]

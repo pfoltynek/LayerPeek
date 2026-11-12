@@ -266,6 +266,27 @@ public sealed partial class ThirdPartyLicensesTests
         Assert.Equal(new Uri(expected), ThirdPartyLicenses.FFmpeg.MacOSBuildScriptUri(version));
     }
 
+    [Theory]
+    [InlineData("1.0.0", false, "https://github.com/pfoltynek/LayerPeek/releases/download/v1.0.0/ffmpeg-source-1.0.0-windows.tar.xz")]
+    [InlineData("1.0.0", true, "https://github.com/pfoltynek/LayerPeek/releases/download/v1.0.0/ffmpeg-source-1.0.0-macos.tar.xz")]
+    [InlineData("2.0.0-beta.1", true, "https://github.com/pfoltynek/LayerPeek/releases/download/v2.0.0-beta.1/ffmpeg-source-2.0.0-beta.1-macos.tar.xz")]
+    public void FFmpegSourceArchiveLinkPointsToTheReleaseOfTheVersion(string version, bool macOS, string expected)
+    {
+        // T-199: the file release-build.ps1 attaches to the release vX.Y.Z (tag format of scripts/release.ps1).
+        Assert.Equal(new Uri(expected), ThirdPartyLicenses.FFmpeg.SourceArchiveUri(version, macOS));
+    }
+
+    [Fact]
+    public void FFmpegSourceArchiveHasTheNameOfTheReleaseScripts()
+    {
+        // The app links the file by name; Get-FFmpegSourceFileName of the release tools writes it.
+        string tools = File.ReadAllText(Path.Combine(RepositoryRoot, "scripts", "ReleaseTools", "ReleaseTools.psm1"));
+
+        Assert.Contains("\"ffmpeg-source-$Version-$Os.tar.xz\"", tools, StringComparison.Ordinal);
+        Assert.Equal("ffmpeg-source-1.0.0-windows.tar.xz", ThirdPartyLicenses.FFmpeg.SourceArchiveFileName("1.0.0", macOS: false));
+        Assert.Equal("ffmpeg-source-1.0.0-macos.tar.xz", ThirdPartyLicenses.FFmpeg.SourceArchiveFileName("1.0.0", macOS: true));
+    }
+
     [Fact]
     public void FFmpegMacOSBuildScriptLinkUsesTheApplicationVersion()
     {
