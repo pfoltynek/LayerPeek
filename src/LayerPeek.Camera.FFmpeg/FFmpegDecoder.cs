@@ -23,11 +23,32 @@ internal sealed class InterruptFlag
 /// <summary>
 /// The native part of one camera connection: demuxer, H.264 decoder and conversion into BGRA (in the camera's resolution
 /// and/or scaled down for display, T-184) and into grayscale (T-189), as the <see cref="CameraStreamDemand"/> wants. Not
-/// thread-safe; every
-/// member except <see cref="HoldsNativeResources"/> is called on the feed's decoder thread only. Blocking FFmpeg
-/// calls return early once the <see cref="InterruptFlag"/> is set; they then throw <see cref="OperationCanceledException"/>
-/// (the caller translates it). Failures throw <see cref="CameraFeedException"/> with a message free of the address.
+/// thread-safe; every member except the counters and <see cref="HoldsNativeResources"/> is called on the feed's decoder
+/// thread only. Blocking FFmpeg calls return early once the <see cref="InterruptFlag"/> is set; they then throw
+/// <see cref="OperationCanceledException"/> (the caller translates it). Failures throw <see cref="CameraFeedException"/>
+/// with a message free of the address.
 /// </summary>
+/// <remarks>
+/// <para>
+/// T-203, hardware decoding: only full decoding for a camera window (a display reader, <see cref="CameraStreamDemand.DisplaySize"/>;
+/// the camera window is the only one, T-184) uses the device of <see cref="HardwareDecodingPolicy.Current"/>. Key frames
+/// decoded on their own (detection, T-153), the snapshot and the camera test stay in software, so without a camera window no
+/// device exists. There is one codec context at a time: the hardware one is opened for full decoding and freed (with its
+/// device) when full decoding stops; the key frames of detection then get a software context again. Hardware or software
+/// is chosen when full decoding starts and again at every key frame of it, where a switch loses nothing (a saved change of
+/// the setting applies there, T-204); a running hardware session keeps going without a display reader until full decoding
+/// stops (the hub's linger), so closing and reopening a window does not switch twice.
+/// </para>
+/// <para>
+/// The decoder picks the hardware pixel format through FFmpeg's default <c>get_format</c> (with a device attached it takes
+/// the device's format when the decoder offers it, otherwise the first software format; FFmpeg calls it again without the
+/// hardware format when the hardware initialization fails). Only frames that are converted are mapped into memory
+/// (<c>av_hwframe_map</c>, no copy, T-185); when mapping fails they are copied (<c>av_hwframe_transfer_data</c>) for the rest
+/// of the session. Any hardware failure (no device, no hardware format, a decoding or transfer error) logs one warning and
+/// leaves the connection in software from the next key frame on, without an error of the feed; see
+/// <see cref="HardwareDecodingHistory"/> for the rule against switching back and forth.
+/// </para>
+/// </remarks>
 internal sealed unsafe class FFmpegDecoder : IDisposable
 {
     /// <summary>Name of FFmpeg's native H.264 decoder, the only one allowed (<c>codec_whitelist</c>).</summary>
@@ -39,10 +60,17 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// <summary>Computed once: FFmpeg.AutoGen's <c>ffmpeg.AVERROR(int)</c> allocates on every call.</summary>
     private static readonly int ErrorAgain = ffmpeg.AVERROR(ffmpeg.EAGAIN);
 
+    /// <summary>AVERROR(ENOSYS): the hardware path is not available (not in this build, not offered by the decoder).</summary>
+    private static readonly int ErrorNotSupported = ffmpeg.AVERROR(OperatingSystem.IsWindows() ? 40 : OperatingSystem.IsMacOS() ? 78 : 38);
+
+    private const AVHWDeviceType Software = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
+
     private readonly string _url;
     private readonly bool _isNetwork;
     private readonly TimeSpan _ioTimeout;
     private readonly InterruptFlag _interrupt;
+    private readonly HardwareDecodingPolicy _policy;
+    private readonly HardwareDecodingHistory _history;
 
     private GCHandle _interruptHandle;
     private AVFormatContext* _format;
@@ -80,13 +108,35 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     // T-195: whether the frame for display is scaled down here or converted in full resolution for the renderer to scale.
     private readonly CameraDisplayScaler _displayScaler = new();
 
-    public FFmpegDecoder(string url, bool isNetwork, TimeSpan ioTimeout, InterruptFlag interrupt)
+    // T-203: the device of the open codec context (Software: none), the pixel format of its hardware frames
+    // (AV_PIX_FMT_NONE while the session decodes in software) and the generation of the choice it was opened with.
+    private AVHWDeviceType _codecDevice = Software;
+    private AVPixelFormat _hardwareFormat = AVPixelFormat.AV_PIX_FMT_NONE;
+    private int _sessionGeneration;
+    private long _sessionHardwareFrames;
+    private bool _transferFrames;
+
+    // Hardware failed on this connection in this generation of the choice: software to the end of the connection.
+    private int _failedGeneration = -1;
+
+    // The mapped (or copied) picture of a hardware frame; reused, released right after its conversion.
+    private AVFrame* _hardwarePicture;
+    private long _mappedFrames;
+    private long _transferredFrames;
+    private volatile bool _holdsHardwareDevice;
+
+    public FFmpegDecoder(string url, bool isNetwork, TimeSpan ioTimeout, InterruptFlag interrupt, HardwareDecodingPolicy policy, HardwareDecodingHistory history)
     {
         _url = url;
         _isNetwork = isNetwork;
         _ioTimeout = ioTimeout;
         _interrupt = interrupt;
+        _policy = policy;
+        _history = history;
     }
+
+    /// <summary>The flag that interrupts the blocking FFmpeg calls of this decoder.</summary>
+    public InterruptFlag Interrupt => _interrupt;
 
     /// <summary>Any native FFmpeg object is allocated. Safe to read from any thread.</summary>
     public bool HoldsNativeResources => _holdsNativeResources;
@@ -96,6 +146,15 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
 
     /// <summary>The H.264 decoder was opened (it is only opened once frames are wanted). Safe to read from any thread.</summary>
     public bool DecoderOpened { get; private set; }
+
+    /// <summary>A hardware device is attached to the open decoder (T-203). Safe to read from any thread.</summary>
+    public bool HoldsHardwareDevice => _holdsHardwareDevice;
+
+    /// <summary>Hardware frames mapped into memory for a conversion (T-203, for tests). Safe to read from any thread.</summary>
+    public long MappedFrames => Interlocked.Read(ref _mappedFrames);
+
+    /// <summary>Hardware frames copied into memory because mapping failed (T-203, for tests). Safe to read from any thread.</summary>
+    public long TransferredFrames => Interlocked.Read(ref _transferredFrames);
 
     private string OpenStage => _isNetwork ? "Connecting to the camera failed" : "Opening the video failed";
 
@@ -226,17 +285,20 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     }
 
     /// <summary>
-    /// Opens the H.264 decoder; only when frames are wanted for the first time (T-143: recording alone decodes nothing).
+    /// Opens the H.264 decoder on <paramref name="device"/> (<see cref="Software"/>: none) in place of the open one; only when
+    /// frames are wanted (T-143: recording alone decodes nothing). A hardware device that cannot be used is a hardware
+    /// failure (logged, counted) and the decoder opens in software. <paramref name="softwareReason"/> (why software was
+    /// chosen) and <paramref name="log"/> (full decoding: one line saying which path it takes) are for the log.
     /// </summary>
-    private void EnsureDecoder()
+    private void OpenDecoder(AVHWDeviceType device, string? softwareReason, bool log)
     {
-        if (_codec is not null)
+        CloseDecoder();
+        if (_frame is null)
         {
-            return;
+            _frame = ffmpeg.av_frame_alloc();
         }
 
         _codec = ffmpeg.avcodec_alloc_context3(_decoder);
-        _frame = ffmpeg.av_frame_alloc();
         if (_codec is null || _frame is null)
         {
             throw new CameraFeedException("Out of memory while opening the camera stream.");
@@ -249,18 +311,217 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         _codec->flags |= ffmpeg.AV_CODEC_FLAG_LOW_DELAY;
         _codec->thread_count = 1;
 
+        if (device != Software)
+        {
+            int attached = AttachDevice(device);
+            if (attached < 0)
+            {
+                softwareReason = "the hardware decoder is not available";
+                ReportHardwareFailure(device, "starting", attached);
+            }
+        }
+
         AVDictionary* decoderOptions = null;
+        int opened;
         try
         {
             ffmpeg.av_dict_set(&decoderOptions, "codec_whitelist", H264Decoder, 0);
-            Check(ffmpeg.avcodec_open2(_codec, _decoder, &decoderOptions), DecoderStage);
+            opened = ffmpeg.avcodec_open2(_codec, _decoder, &decoderOptions);
         }
         finally
         {
             ffmpeg.av_dict_free(&decoderOptions);
         }
 
+        if (opened < 0 && _codecDevice != Software)
+        {
+            // Not expected (the hardware is set up with the first picture), but then software it is.
+            ReportHardwareFailure(_codecDevice, "starting", opened);
+            OpenDecoder(Software, "the hardware decoder is not available", log);
+            return;
+        }
+
+        Check(opened, DecoderStage);
         DecoderOpened = true;
+        if (log)
+        {
+            HardwareDecodingLog.Decoding(_policy.Logger, _codecDevice, softwareReason);
+        }
+    }
+
+    /// <summary>
+    /// Attaches a new device of <paramref name="device"/> to the codec context, which owns it from then on
+    /// (<c>avcodec_free_context</c> releases it with <c>av_buffer_unref</c>). Returns 0, or the FFmpeg error.
+    /// </summary>
+    private int AttachDevice(AVHWDeviceType device)
+    {
+        AVPixelFormat format = HardwareFormat(_decoder, device);
+        if (format == AVPixelFormat.AV_PIX_FMT_NONE)
+        {
+            // Not in this FFmpeg build (or not for H.264).
+            return ErrorNotSupported;
+        }
+
+        AVBufferRef* context = null;
+        int created = _policy.Faults is { FailDeviceCreation: true }
+            ? ffmpeg.AVERROR_EXTERNAL
+            : ffmpeg.av_hwdevice_ctx_create(&context, device, null, null, 0);
+        if (created < 0)
+        {
+            return created;
+        }
+
+        _policy.OnDeviceCreated();
+        _codec->hw_device_ctx = context;
+        _codecDevice = device;
+        _hardwareFormat = format;
+        _sessionGeneration = _policy.Current.Generation;
+        _sessionHardwareFrames = 0;
+        _transferFrames = false;
+        _holdsHardwareDevice = true;
+        return 0;
+    }
+
+    /// <summary>The pixel format of <paramref name="decoder"/>'s frames on a device of <paramref name="device"/>; none when it has no such hardware path.</summary>
+    internal static AVPixelFormat HardwareFormat(AVCodec* decoder, AVHWDeviceType device)
+    {
+        for (int i = 0; ; i++)
+        {
+            AVCodecHWConfig* config = ffmpeg.avcodec_get_hw_config(decoder, i);
+            if (config is null)
+            {
+                return AVPixelFormat.AV_PIX_FMT_NONE;
+            }
+
+            if (config->device_type == device && (config->methods & (int)AvCodecHwConfigMethod.AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) != 0)
+            {
+                return config->pix_fmt;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Frees the codec context, and with it a hardware device (T-203); counts a hardware session that decoded frames without
+    /// a failure as a success. Idempotent.
+    /// </summary>
+    private void CloseDecoder()
+    {
+        if (_codec is null)
+        {
+            return;
+        }
+
+        if (_hardwareFormat != AVPixelFormat.AV_PIX_FMT_NONE && _sessionHardwareFrames > 0)
+        {
+            _history.ReportSuccess(_sessionGeneration);
+        }
+
+        // The pictures may still reference the decoder's (hardware) buffers.
+        ffmpeg.av_frame_unref(_frame);
+        if (_hardwarePicture is not null)
+        {
+            ffmpeg.av_frame_unref(_hardwarePicture);
+        }
+
+        AVCodecContext* codec = _codec;
+        ffmpeg.avcodec_free_context(&codec);
+        _codec = null;
+        _codecDevice = Software;
+        _hardwareFormat = AVPixelFormat.AV_PIX_FMT_NONE;
+        _sessionHardwareFrames = 0;
+        _holdsHardwareDevice = false;
+    }
+
+    /// <summary>
+    /// Full decoding starts (T-203): opens the decoder on the device the policy wants for <paramref name="demand"/>, unless
+    /// the open one already is; logs which path it takes.
+    /// </summary>
+    private void StartDecoding(CameraStreamDemand demand)
+    {
+        AVHWDeviceType device = WantedDevice(demand, out string? reason);
+        if (_codec is null || device != _codecDevice)
+        {
+            OpenDecoder(device, reason, log: true);
+        }
+        else
+        {
+            // The software decoder of the key frames goes on (flushed when it decoded the last one).
+            HardwareDecodingLog.Decoding(_policy.Logger, Software, reason);
+        }
+
+        _decoding = true;
+    }
+
+    /// <summary>
+    /// The device full decoding should use now (T-203), <see cref="Software"/> with a <paramref name="reason"/> otherwise.
+    /// A hardware session is started only for a display reader (the camera window) and then kept until full decoding stops.
+    /// </summary>
+    private AVHWDeviceType WantedDevice(CameraStreamDemand demand, out string? reason)
+    {
+        HardwareDecodingChoice choice = _policy.Current;
+        if (choice.Device == Software)
+        {
+            reason = choice.SoftwareReason;
+            return Software;
+        }
+
+        if (_failedGeneration == choice.Generation)
+        {
+            reason = "hardware decoding failed on this connection";
+            return Software;
+        }
+
+        if (_history.IsDisabled(choice.Generation))
+        {
+            reason = "hardware decoding failed on several connections in a row";
+            return Software;
+        }
+
+        if (_hardwareFormat == AVPixelFormat.AV_PIX_FMT_NONE && demand.DisplaySize is null)
+        {
+            reason = "no camera window";
+            return Software;
+        }
+
+        reason = null;
+        return choice.Device;
+    }
+
+    /// <summary>
+    /// A hardware failure (T-203): one warning with the error, counted in the camera's history; the connection decodes in
+    /// software from now on (until the setting changes).
+    /// </summary>
+    private void ReportHardwareFailure(AVHWDeviceType device, string stage, int error)
+    {
+        int generation = _codecDevice != Software ? _sessionGeneration : _policy.Current.Generation;
+        _failedGeneration = generation;
+        int failures = _history.ReportFailure(generation);
+        HardwareDecodingLog.HardwareFailed(_policy.Logger, device, stage, error, failures);
+        // No success of this session any more.
+        _sessionHardwareFrames = 0;
+    }
+
+    /// <summary>
+    /// The hardware decoder failed while decoding (T-203): it is released at once, and the next key frame opens the decoder
+    /// in software (the frames until then are lost, as after any decoding error).
+    /// </summary>
+    private void AbandonHardware(string stage, int error)
+    {
+        ReportHardwareFailure(_codecDevice, stage, error);
+        CloseDecoder();
+        _needKeyFrame = true;
+    }
+
+    /// <summary>
+    /// Opens the software decoder for a key frame decoded on its own (T-153); detection, the snapshot and the camera test
+    /// never use a hardware device.
+    /// </summary>
+    private void EnsureSoftwareDecoder()
+    {
+        if (_codec is null || _codecDevice != Software)
+        {
+            OpenDecoder(Software, softwareReason: null, log: false);
+        }
     }
 
     /// <summary>
@@ -293,12 +554,19 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 StopDecoding();
             }
 
-            if (_decoding)
+            // Without a codec context after a hardware failure until the next key frame opens the software one.
+            if (_decoding && _codec is not null)
             {
                 int received = ffmpeg.avcodec_receive_frame(_codec, _frame);
                 if (received == 0)
                 {
                     Interlocked.Increment(ref _decodedFrames);
+                    if (_hardwareFormat != AVPixelFormat.AV_PIX_FMT_NONE && !AcceptHardwareFrame())
+                    {
+                        // The hardware decoder failed (simulated by a test); the frame is dropped.
+                        continue;
+                    }
+
                     item = Convert(demand);
                     return true;
                 }
@@ -312,6 +580,13 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 // A damaged frame (INVALIDDATA) is skipped like a missing one: live streams recover with the next key frame.
                 if (received != ErrorAgain && received != ffmpeg.AVERROR_INVALIDDATA)
                 {
+                    if (_hardwareFormat != AVPixelFormat.AV_PIX_FMT_NONE)
+                    {
+                        ThrowIfInterrupted();
+                        AbandonHardware("decoding", received);
+                        continue;
+                    }
+
                     Check(received, "Decoding the video failed");
                 }
             }
@@ -337,7 +612,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                     continue;
                 }
 
-                SendPacket();
+                SendPacket(demand);
                 continue;
             }
 
@@ -345,7 +620,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             if (read == ffmpeg.AVERROR_EOF)
             {
                 ThrowIfInterrupted();
-                if (!_decoding)
+                if (!_decoding || _codec is null)
                 {
                     item = default;
                     return false;
@@ -366,15 +641,14 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
 
             if (frames && !_decoding)
             {
-                EnsureDecoder();
-                _decoding = true;
+                StartDecoding(demand);
             }
 
             // Checked only for key frames (one clock read every few seconds), and only without full decoding.
             bool keyFrame = !_decoding && (_packet->flags & ffmpeg.AV_PKT_FLAG_KEY) != 0 && demand.KeyFrameDue;
             if (keyFrame)
             {
-                EnsureDecoder();
+                EnsureSoftwareDecoder();
             }
 
             if (demand.Packets)
@@ -395,7 +669,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
 
             if (_decoding)
             {
-                SendPacket();
+                SendPacket(demand);
             }
             else if (keyFrame)
             {
@@ -473,7 +747,12 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             _keyFramePending = false;
         }
 
-        if (_codec is not null)
+        if (_codecDevice != Software)
+        {
+            // T-203: the hardware session (and the system decoder behind it) exists only during full decoding.
+            CloseDecoder();
+        }
+        else if (_codec is not null)
         {
             ffmpeg.avcodec_flush_buffers(_codec);
         }
@@ -482,12 +761,16 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         _needKeyFrame = true;
     }
 
-    /// <summary>Sends <c>_packet</c> to the decoder (from a key frame on, after skipped packets) and releases it.</summary>
-    private void SendPacket()
+    /// <summary>
+    /// Sends <c>_packet</c> to the decoder (from a key frame on, after skipped packets) and releases it. At a key frame the
+    /// decoder switches between hardware and software when the policy wants the other one (T-203): nothing is lost there.
+    /// </summary>
+    private void SendPacket(CameraStreamDemand demand)
     {
-        if (_needKeyFrame)
+        bool key = (_packet->flags & ffmpeg.AV_PKT_FLAG_KEY) != 0;
+        if (_needKeyFrame || _codec is null)
         {
-            if ((_packet->flags & ffmpeg.AV_PKT_FLAG_KEY) == 0)
+            if (!key)
             {
                 ffmpeg.av_packet_unref(_packet);
                 return;
@@ -496,12 +779,106 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             _needKeyFrame = false;
         }
 
+        if (key)
+        {
+            AVHWDeviceType device = WantedDevice(demand, out string? reason);
+            if (_codec is null || device != _codecDevice)
+            {
+                OpenDecoder(device, reason, log: true);
+            }
+        }
+
         int sent = ffmpeg.avcodec_send_packet(_codec, _packet);
         ffmpeg.av_packet_unref(_packet);
-        if (sent != ffmpeg.AVERROR_INVALIDDATA)
+        if (sent == ffmpeg.AVERROR_INVALIDDATA)
         {
-            Check(sent, "Decoding the video failed");
+            return;
         }
+
+        if (sent < 0 && _hardwareFormat != AVPixelFormat.AV_PIX_FMT_NONE)
+        {
+            ThrowIfInterrupted();
+            AbandonHardware("decoding", sent);
+            return;
+        }
+
+        Check(sent, "Decoding the video failed");
+    }
+
+    /// <summary>
+    /// Checks a frame of a hardware session (T-203). A software frame means FFmpeg could not set the hardware up and chose a
+    /// software format (<c>get_format</c>): a hardware failure, but the frame is good and the session goes on in software
+    /// until the next key frame reopens the decoder. Returns <see langword="false"/> when the frame is to be dropped.
+    /// </summary>
+    private bool AcceptHardwareFrame()
+    {
+        if (_frame->format != (int)_hardwareFormat)
+        {
+            AVHWDeviceType device = _codecDevice;
+            ReportHardwareFailure(device, "starting", ErrorNotSupported);
+            _hardwareFormat = AVPixelFormat.AV_PIX_FMT_NONE;
+            return true;
+        }
+
+        _sessionHardwareFrames++;
+        if (_policy.Faults is { FailDecodingAfterFrames: { } failAfter } && _sessionHardwareFrames > failAfter)
+        {
+            AbandonHardware("decoding", ffmpeg.AVERROR_EXTERNAL);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The picture of the hardware frame in <c>_frame</c> in memory (T-203): mapped without a copy, or copied when mapping
+    /// failed before in this session; <see langword="null"/> when that failed too (the hardware is then abandoned). The
+    /// caller releases it after the conversion.
+    /// </summary>
+    private AVFrame* MapHardwareFrame()
+    {
+        if (_hardwarePicture is null)
+        {
+            _hardwarePicture = ffmpeg.av_frame_alloc();
+            if (_hardwarePicture is null)
+            {
+                throw new CameraFeedException("Out of memory while decoding the camera stream.");
+            }
+        }
+
+        if (!_transferFrames)
+        {
+            int mapped = _policy.Faults is { FailMapping: true }
+                ? ErrorNotSupported
+                : ffmpeg.av_hwframe_map(_hardwarePicture, _frame, (int)AvHwframeMap.AV_HWFRAME_MAP_READ);
+            if (mapped >= 0)
+            {
+                Interlocked.Increment(ref _mappedFrames);
+                return _hardwarePicture;
+            }
+
+            ffmpeg.av_frame_unref(_hardwarePicture);
+            _transferFrames = true;
+            HardwareDecodingLog.MappingFailed(_policy.Logger, _codecDevice, mapped);
+        }
+
+        int transferred = ffmpeg.av_hwframe_transfer_data(_hardwarePicture, _frame, 0);
+        if (transferred >= 0)
+        {
+            // The copy carries only the pixels; the colour properties come from the decoded frame.
+            transferred = ffmpeg.av_frame_copy_props(_hardwarePicture, _frame);
+        }
+
+        if (transferred < 0)
+        {
+            ffmpeg.av_frame_unref(_hardwarePicture);
+            ThrowIfInterrupted();
+            AbandonHardware("copying a frame", transferred);
+            return null;
+        }
+
+        Interlocked.Increment(ref _transferredFrames);
+        return _hardwarePicture;
     }
 
     /// <summary>The current packet as a borrowed <see cref="CameraPacket"/> over a reused managed buffer.</summary>
@@ -537,17 +914,20 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         _display.Dispose();
         _grayscale.Dispose();
 
+        // Also releases a hardware device (T-203).
+        CloseDecoder();
+
         AVFrame* frame = _frame;
         ffmpeg.av_frame_free(&frame);
         _frame = null;
 
+        AVFrame* hardwarePicture = _hardwarePicture;
+        ffmpeg.av_frame_free(&hardwarePicture);
+        _hardwarePicture = null;
+
         AVPacket* packet = _packet;
         ffmpeg.av_packet_free(&packet);
         _packet = null;
-
-        AVCodecContext* codec = _codec;
-        ffmpeg.avcodec_free_context(&codec);
-        _codec = null;
 
         if (_format is not null)
         {
@@ -646,7 +1026,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// due, and into grayscale while that is due (T-189: print failure detection gets no BGRA frame). An image that already
     /// fits the display size, or would get only a little smaller (T-195, <see cref="CameraDisplayScaler"/>), is converted
     /// once, in full resolution, for both. With nothing wanted (a lingering connection, a frame the mini preview skips)
-    /// nothing is converted and the item carries no pixels.
+    /// nothing is converted and the item carries no pixels; a hardware frame (T-203) is then not even mapped into memory.
     /// </summary>
     private CameraStreamItem Convert(CameraStreamDemand demand)
     {
@@ -657,8 +1037,62 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             throw new CameraFeedException("The camera sent an image of an unsupported size.");
         }
 
-        AVPixelFormat format = (AVPixelFormat)_frame->format;
-        bool fullRange = _frame->color_range == AVColorRange.AVCOL_RANGE_JPEG;
+        // What is due, decided once per frame before any pixel is touched.
+        bool full = demand.FullResolutionDue;
+        CameraGrayscaleSize? grayscaleSize = demand.GrayscaleDue ? demand.GrayscaleSize : null;
+        CameraFrameSize? displayFit = null;
+        // T-185: a display reader with a frame rate limit (the mini preview) wants only some frames; the others are decoded
+        // (the next ones depend on them) but not converted. A frame converted in full resolution anyway is converted for
+        // display too, so that the display reader never gets the full frame in place of its own.
+        if (demand.DisplaySize is { } displaySize && (full || demand.DisplayDue))
+        {
+            // From the decoded YUV picture, not from the full BGRA frame: the source is 1.5 instead of 4 bytes per pixel, the
+            // full conversion is skipped whenever nobody needs it, and the colour handling is the same (see BgraConverter).
+            // T-195: only when it is clearly smaller; otherwise the full conversion is cheaper and the renderer scales it.
+            if (_displayScaler.Target(displaySize, width, height) is { } fit)
+            {
+                displayFit = fit;
+            }
+            else
+            {
+                full = true;
+            }
+        }
+
+        if (!full && grayscaleSize is null && displayFit is null)
+        {
+            return CameraStreamItem.FromFrames(default, default, default);
+        }
+
+        AVFrame* source = _frame;
+        if (_hardwareFormat != AVPixelFormat.AV_PIX_FMT_NONE && _frame->format == (int)_hardwareFormat)
+        {
+            // T-203: NV12 in memory shared with the hardware decoder; it goes through the same conversions as software frames.
+            source = MapHardwareFrame();
+            if (source is null)
+            {
+                return CameraStreamItem.FromFrames(default, default, default);
+            }
+        }
+
+        try
+        {
+            return Convert(source, full, grayscaleSize, displayFit);
+        }
+        finally
+        {
+            if (source != _frame)
+            {
+                // Unlocks the mapped picture (or drops the copy) right away; the conversions copied what they need.
+                ffmpeg.av_frame_unref(source);
+            }
+        }
+    }
+
+    private CameraStreamItem Convert(AVFrame* source, bool full, CameraGrayscaleSize? grayscaleSize, CameraFrameSize? displayFit)
+    {
+        AVPixelFormat format = (AVPixelFormat)source->format;
+        bool fullRange = source->color_range == AVColorRange.AVCOL_RANGE_JPEG;
         // The deprecated "J" formats mean full range; swscale wants the plain format plus the range.
         switch (format)
         {
@@ -680,34 +1114,12 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 break;
         }
 
-        bool full = demand.FullResolutionDue;
-        CameraGrayscaleFrame grayscaleFrame = default;
-        if (demand.GrayscaleDue && demand.GrayscaleSize is { } grayscaleSize)
-        {
+        CameraGrayscaleFrame grayscaleFrame = grayscaleSize is { } gray
             // From the luma plane of the decoded picture, scaled straight to the detectors' size (see GrayscaleConverter).
-            grayscaleFrame = _grayscale.Convert(_frame, format, fullRange, grayscaleSize.Width, grayscaleSize.Height);
-        }
-
-        CameraFrame displayFrame = default;
-        // T-185: a display reader with a frame rate limit (the mini preview) wants only some frames; the others are decoded
-        // (the next ones depend on them) but not converted. A frame converted in full resolution anyway is converted for
-        // display too, so that the display reader never gets the full frame in place of its own.
-        if (demand.DisplaySize is { } displaySize && (full || demand.DisplayDue))
-        {
-            // From the decoded YUV picture, not from the full BGRA frame: the source is 1.5 instead of 4 bytes per pixel, the
-            // full conversion is skipped whenever nobody needs it, and the colour handling is the same (see BgraConverter).
-            // T-195: only when it is clearly smaller; otherwise the full conversion is cheaper and the renderer scales it.
-            if (_displayScaler.Target(displaySize, width, height) is { } fit)
-            {
-                displayFrame = _display.Convert(_frame, format, fullRange, fit.Width, fit.Height);
-            }
-            else
-            {
-                full = true;
-            }
-        }
-
-        CameraFrame fullFrame = full ? _full.Convert(_frame, format, fullRange, width, height) : default;
+            ? _grayscale.Convert(source, format, fullRange, gray.Width, gray.Height)
+            : default;
+        CameraFrame displayFrame = displayFit is { } fit ? _display.Convert(source, format, fullRange, fit.Width, fit.Height) : default;
+        CameraFrame fullFrame = full ? _full.Convert(source, format, fullRange, source->width, source->height) : default;
         return CameraStreamItem.FromFrames(fullFrame, displayFrame, grayscaleFrame);
     }
 }

@@ -107,6 +107,24 @@ public sealed record AppSettings
         }
     } = Cameras.MiniPreviewFrameRate.Default;
 
+    /// <summary>
+    /// "Hardware decoding" of the camera video (T-203, user decision 2026-11-12): one value for every camera,
+    /// <see cref="CameraHardwareDecoding.Automatic"/> by default. Applied by the decoder from its next key frame on.
+    /// </summary>
+    public CameraHardwareDecoding CameraHardwareDecoding
+    {
+        get;
+        init
+        {
+            if (value is not (CameraHardwareDecoding.Automatic or CameraHardwareDecoding.Off))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown hardware decoding setting.");
+            }
+
+            field = value;
+        }
+    }
+
     /// <summary>Folder and size limit of the camera recordings (T-145); whether a printer records is per printer.</summary>
     public Cameras.Recording.CameraRecordingSettings Recording
     {
@@ -303,6 +321,7 @@ public sealed record AppSettings
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && CameraWindowAutoClose == other.CameraWindowAutoClose
         && MiniPreviewFrameRate == other.MiniPreviewFrameRate
+        && CameraHardwareDecoding == other.CameraHardwareDecoding
         && Recording == other.Recording
         && Detection == other.Detection
         && Notifications == other.Notifications
@@ -319,6 +338,7 @@ public sealed record AppSettings
         hash.Add(CameraOverlayOpacityPercent);
         hash.Add(CameraWindowAutoClose);
         hash.Add(MiniPreviewFrameRate);
+        hash.Add(CameraHardwareDecoding);
         hash.Add(Recording);
         hash.Add(Detection);
         hash.Add(Notifications);

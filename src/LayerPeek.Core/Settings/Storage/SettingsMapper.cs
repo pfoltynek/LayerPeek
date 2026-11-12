@@ -51,6 +51,7 @@ internal static class SettingsMapper
                 : new CameraOverlaySettingsDocument { BackgroundOpacityPercent = settings.CameraOverlayOpacityPercent },
             CameraWindowAutoClose = settings.CameraWindowAutoClose ? null : false,
             MiniPreviewFrameRate = ToDocument(settings.MiniPreviewFrameRate),
+            CameraHardwareDecoding = settings.CameraHardwareDecoding == CameraHardwareDecoding.Automatic ? null : FormatHardwareDecoding(settings.CameraHardwareDecoding),
             Recording = ToDocument(settings.Recording),
             Detection = DetectionSettingsMapper.ToDocument(settings.Detection),
             Printers = [.. settings.Printers.Select(static printer => new PrinterDocument
@@ -102,6 +103,7 @@ internal static class SettingsMapper
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
             CameraWindowAutoClose = document.CameraWindowAutoClose ?? true,
             MiniPreviewFrameRate = ToMiniPreviewFrameRate(document.MiniPreviewFrameRate, warnings),
+            CameraHardwareDecoding = ToHardwareDecoding(document.CameraHardwareDecoding, warnings),
             Recording = ToRecording(document.Recording, warnings),
             Detection = DetectionSettingsMapper.ToSettings(document.Detection, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
@@ -446,6 +448,35 @@ internal static class SettingsMapper
             $"Mini preview frame rate is invalid (whole number {MiniPreviewFrameRate.Min}–{MiniPreviewFrameRate.Max} fps, {NoMiniPreviewFrameRateLimit} = no limit); {MiniPreviewFrameRate.Default} fps is used.");
         return MiniPreviewFrameRate.Default;
     }
+
+    /// <summary>T-203: missing = the default; an unknown name falls back to the default with a warning.</summary>
+    private static CameraHardwareDecoding ToHardwareDecoding(string? value, List<string> warnings)
+    {
+        if (value is null)
+        {
+            return CameraHardwareDecoding.Automatic;
+        }
+
+        // Explicit names instead of Enum.Parse: numeric strings must not be accepted and the format must stay stable.
+        ReadOnlySpan<char> name = value.AsSpan().Trim();
+        foreach (CameraHardwareDecoding mode in (ReadOnlySpan<CameraHardwareDecoding>)[CameraHardwareDecoding.Automatic, CameraHardwareDecoding.Off])
+        {
+            if (name.Equals(FormatHardwareDecoding(mode), StringComparison.OrdinalIgnoreCase))
+            {
+                return mode;
+            }
+        }
+
+        warnings.Add($"Unknown camera hardware decoding setting '{Shorten(value)}'; the default ({nameof(CameraHardwareDecoding.Automatic)}) is used.");
+        return CameraHardwareDecoding.Automatic;
+    }
+
+    private static string FormatHardwareDecoding(CameraHardwareDecoding mode) => mode switch
+    {
+        CameraHardwareDecoding.Automatic => nameof(CameraHardwareDecoding.Automatic),
+        CameraHardwareDecoding.Off => nameof(CameraHardwareDecoding.Off),
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown hardware decoding setting."),
+    };
 
     private static TimeSpan ToPollingInterval(double? seconds, List<string> warnings)
     {

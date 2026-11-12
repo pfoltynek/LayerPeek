@@ -1,9 +1,10 @@
 #!/bin/bash
 #
 # Builds the native FFmpeg libraries of the camera for osx-arm64 (T-026) from the official FFmpeg source tarball:
-# shared, LGPL version 3 or later (no --enable-gpl, no --enable-nonfree), software decoding only (no VideoToolbox),
-# only what LayerPeek.Camera.FFmpeg uses (RTSP over TCP and raw H.264 files, the H.264 decoder, swscale to BGRA) and,
-# since T-147, the MP4 muxer for camera recording (remux of the H.264 packets into fragmented MP4, no encoder).
+# shared, LGPL version 3 or later (no --enable-gpl, no --enable-nonfree), only what LayerPeek.Camera.FFmpeg uses (RTSP
+# over TCP and raw H.264 files, the H.264 decoder, swscale to BGRA), since T-147 the MP4 muxer for camera recording
+# (remux of the H.264 packets into fragmented MP4, no encoder) and, since T-203, hardware decoding of H.264 through
+# VideoToolbox (the system framework; FFmpeg's own h264 decoder parses the stream, VideoToolbox decodes the slices).
 #
 # Called by build/FFmpeg.targets on the first macOS build (the tarball is already downloaded and SHA256-verified there);
 # it can also be run by hand with the same arguments. Needs only the Xcode Command Line Tools (clang, make, otool, lipo)
@@ -39,6 +40,9 @@ LIBRARIES="libavformat.63.dylib libavcodec.63.dylib libavutil.61.dylib libswscal
 # fragmented MP4. The mov muxer converts Annex B to length-prefixed NAL units and the extradata to avcC itself
 # (movenc.c: ff_nal_parse_units, ff_isom_write_avcc), so no bitstream filter is needed for H.264; configure adds the
 # mov muxer and its fixed dependencies (mov_muxer_select) on its own. Writing uses the file protocol enabled below.
+# --enable-videotoolbox --enable-hwaccel=h264_videotoolbox (T-203): needed explicitly because of --disable-autodetect and
+# --disable-everything. VideoToolbox, CoreMedia, CoreVideo, CoreFoundation and CoreServices are system frameworks
+# (/System/Library, allowed by the dependency check below); neither GPL nor nonfree, the license stays LGPL 3.
 CONFIGURE_FLAGS=(
     --enable-shared --disable-static
     --enable-version3
@@ -52,6 +56,7 @@ CONFIGURE_FLAGS=(
     --enable-muxer=mp4
     --enable-parser=h264
     --enable-decoder=h264
+    --enable-videotoolbox --enable-hwaccel=h264_videotoolbox
     --arch=aarch64
     --install-name-dir=@loader_path
     "--extra-cflags=-arch arm64 -mmacosx-version-min=$MIN_MACOS"
