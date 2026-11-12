@@ -8,7 +8,9 @@
     log every call (arguments and a SHA256 of WINGET_CREATE_GITHUB_TOKEN as the tool saw it); the fake wingetcreate also
     prints the token it got on stdout and stderr, so that the tests prove the output is redacted. The real tools are
     never called. Every run checks that the token never appears in the output, in the logged arguments or in the
-    environment after the call.
+    environment after the call. The fake gh answers gh api --include user with the X-OAuth-Scopes header of
+    $env:LAYERPEEK_FAKE_GH_SCOPES (none: no header, as for a fine-grained token); the fake wingetcreate logs whether its
+    settings.json (under the temporary LOCALAPPDATA of the tests, never the real profile) had telemetry switched off.
 
     Temporary files live in one folder under $env:LAYERPEEK_PESTER_TESTS_TEMP (set by the xUnit wrapper
     tests/LayerPeek.Scripts.Tests, which also deletes it after a crash) or under the system temp folder.
@@ -49,6 +51,16 @@ switch ($tool) {
             if ($env:LAYERPEEK_FAKE_RELEASE -and (Test-Path -LiteralPath $env:LAYERPEEK_FAKE_RELEASE)) { [Console]::Out.Write([System.IO.File]::ReadAllText($env:LAYERPEEK_FAKE_RELEASE)); exit 0 }
             [Console]::Error.WriteLine('release not found'); exit 1
         }
+        if ($a[0] -eq 'api' -and $a[1] -eq '--include' -and $a[2] -eq 'user') {
+            $scopes = $env:LAYERPEEK_FAKE_GH_SCOPES
+            if ($scopes -eq '401') { [Console]::Error.WriteLine('gh: Bad credentials (HTTP 401)'); exit 1 }
+            [Console]::Out.WriteLine('HTTP/2.0 200 OK')
+            if ($scopes -ne 'none') { [Console]::Out.WriteLine("X-Oauth-Scopes: $(if ($scopes) { $scopes } else { 'gist, read:org, repo' })") }
+            [Console]::Out.WriteLine('Content-Type: application/json; charset=utf-8')
+            [Console]::Out.WriteLine('')
+            [Console]::Out.WriteLine('{"login":"fake-user","note":"X-Oauth-Scopes: repo in the body is no header"}')
+            exit 0
+        }
         if ($a[0] -eq 'api') {
             switch ($env:LAYERPEEK_FAKE_PACKAGE) {
                 'exists' { exit 0 }
@@ -60,6 +72,9 @@ switch ($tool) {
         [Console]::Error.WriteLine("fake gh: unsupported $($a -join ' ')"); exit 99
     }
     'wingetcreate' {
+        $settings = Join-Path $env:LOCALAPPDATA 'Microsoft' 'WindowsPackageManagerManifestCreator' 'settings.json'
+        $telemetry = if (Test-Path -LiteralPath $settings) { "$((Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json).Telemetry.disable)" } else { 'no-settings' }
+        Add-Content -LiteralPath $env:LAYERPEEK_FAKE_LOG -Value "  telemetry-disabled $telemetry"
         if ($a[0] -eq 'submit') {
             $folder = $a[-1]
             foreach ($file in @(Get-ChildItem -LiteralPath $folder -File | Sort-Object Name)) {
@@ -102,6 +117,10 @@ switch ($tool) {
         LAYERPEEK_FAKE_PRS             = $null
         LAYERPEEK_FAKE_WINGETCREATE_EXIT = $null
         LAYERPEEK_FAKE_WINGET_EXIT     = $null
+        LAYERPEEK_FAKE_GH_SCOPES       = $null
+        # wingetcreate's settings.json goes here, never into the real profile.
+        LOCALAPPDATA                   = (Join-Path $script:TempRoot 'localappdata')
+        GITHUB_TOKEN                   = $null
         # An earlier value must be restored after the call (and must not reach the tool: the gh token replaces it).
         WINGET_CREATE_GITHUB_TOKEN     = 'value-before-the-test'
         GH_TOKEN                       = $null
@@ -133,8 +152,12 @@ switch ($tool) {
         $env:LAYERPEEK_FAKE_GH_TOKEN = $script:Token
         $env:LAYERPEEK_FAKE_WINGETCREATE_EXIT = $null
         $env:LAYERPEEK_FAKE_WINGET_EXIT = $null
+        $env:LAYERPEEK_FAKE_GH_SCOPES = $null
+        $env:GH_TOKEN = $null
         $env:WINGET_CREATE_GITHUB_TOKEN = 'value-before-the-test'
+        if (Test-Path -LiteralPath $env:LOCALAPPDATA) { Remove-Item -LiteralPath $env:LOCALAPPDATA -Recurse -Force }
     }
+    function Get-WingetCreateSettingsFile { Join-Path $env:LOCALAPPDATA 'Microsoft' 'WindowsPackageManagerManifestCreator' 'settings.json' }
     function Get-Calls { if (Test-Path -LiteralPath $script:Log) { @(Get-Content -LiteralPath $script:Log | Where-Object { $_ }) } else { @() } }
     function Get-TokenHash([string] $Value) { [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData([System.Text.Encoding]::UTF8.GetBytes($Value))) }
 
@@ -306,6 +329,80 @@ Describe 'Decisions (pure)' {
         Protect-WingetOutput -Line 'x gho_secret y gho_secret' -Secret 'gho_secret' | Should -BeExactly 'x *** y ***'
         Protect-WingetOutput -Line 'nothing' -Secret '' | Should -BeExactly 'nothing'
     }
+    It 'accepts gh tokens with repo or public_repo and refuses fine-grained, unscoped and rejected ones' {
+        @(Get-WingetTokenScopeProblems -Scopes ([pscustomobject]@{ Invalid = $false; HasScopes = $true; Scopes = @('gist', 'read:org', 'repo') })) | Should -BeNullOrEmpty
+        @(Get-WingetTokenScopeProblems -Scopes ([pscustomobject]@{ Invalid = $false; HasScopes = $true; Scopes = @('public_repo') })) | Should -BeNullOrEmpty
+        @(Get-WingetTokenScopeProblems -Scopes ([pscustomobject]@{ Invalid = $false; HasScopes = $false; Scopes = @() })) | Should -Match 'no OAuth scopes: it is a fine-grained personal access token.*gh auth login'
+        @(Get-WingetTokenScopeProblems -Scopes ([pscustomobject]@{ Invalid = $false; HasScopes = $true; Scopes = @('read:org', 'gist') })) | Should -Match 'lacks the public_repo scope .*\(scopes: read:org, gist\)'
+        @(Get-WingetTokenScopeProblems -Scopes ([pscustomobject]@{ Invalid = $false; HasScopes = $true; Scopes = @() })) | Should -Match '\(scopes: none\)'
+        # Scope names are exact (GitHub sends them in lower case); a look-alike is no scope.
+        @(Get-WingetTokenScopeProblems -Scopes ([pscustomobject]@{ Invalid = $false; HasScopes = $true; Scopes = @('repo:status', 'public_repo_x') })) | Should -Match 'lacks the public_repo'
+        @(Get-WingetTokenScopeProblems -Scopes ([pscustomobject]@{ Invalid = $true; HasScopes = $false; Scopes = @() })) | Should -Match 'HTTP 401'
+    }
+    It 'explains the temporary gh login: clear a set GH_TOKEN first, log in with OAuth, log out afterwards' {
+        $plain = @(Get-WingetLoginInstructions -Version '1.0.0')
+        $plain -join "`n" | Should -Not -Match 'Remove-Item'
+        $plain[1] | Should -Match '^  1\. gh auth login --hostname github\.com --web --git-protocol https$'
+        $plain -join "`n" | Should -Match 'repo covers the public_repo'
+        $plain -join "`n" | Should -Match 'Answer No to "Authenticate Git'
+        $plain | Should -Contain '  2. pwsh scripts/release-winget.ps1 -Version 1.0.0'
+        $plain[-1] | Should -Match '^  3\. gh auth logout --hostname github\.com .*GH_TOKEN'
+        $withToken = @(Get-WingetLoginInstructions -Version '1.0.1' -TokenVariables @('GH_TOKEN', 'GITHUB_TOKEN'))
+        $withToken[1] | Should -Match '^  1\. Remove-Item Env:GH_TOKEN '
+        $withToken[2] | Should -Match '^  2\. Remove-Item Env:GITHUB_TOKEN '
+        $withToken -join "`n" | Should -Match '  3\. gh auth login '
+        $withToken[-1] | Should -Match '^  5\. gh auth logout'
+    }
+    It 'finds the settings.json of a packaged and of an unpackaged wingetcreate' {
+        $root = Join-Path 'L' 'AppData' 'Local'
+        $packaged = Join-Path $root 'Packages' 'Microsoft.WindowsPackageManagerManifestCreator_8wekyb3d8bbwe' 'LocalState' 'settings.json'
+        $unpackaged = Join-Path $root 'Microsoft' 'WindowsPackageManagerManifestCreator' 'settings.json'
+        Get-WingetCreateSettingsPaths -LocalAppData $root -CommandPath 'C:\Users\u\AppData\Local\Microsoft\WindowsApps\wingetcreate.exe' -PackageFolderExists | Should -BeExactly @($packaged)
+        Get-WingetCreateSettingsPaths -LocalAppData $root -CommandPath 'C:\Users\u\AppData\Local\Microsoft\WinGet\Links\wingetcreate.exe' -PackageFolderExists | Should -BeExactly @($packaged, $unpackaged)
+        Get-WingetCreateSettingsPaths -LocalAppData $root -CommandPath 'C:\Users\u\AppData\Local\Microsoft\WindowsApps\wingetcreate.exe' | Should -BeExactly @($unpackaged)
+        Get-WingetCreateSettingsPaths -LocalAppData $root -CommandPath '' | Should -BeExactly @($unpackaged)
+    }
+    It 'switches the telemetry off in settings.json and keeps every other setting' {
+        $created = ConvertTo-WingetCreateSettingsWithoutTelemetry -Text '' | ConvertFrom-Json -AsHashtable
+        $created.Telemetry.disable | Should -BeTrue
+        $created['$schema'] | Should -BeExactly 'https://aka.ms/wingetcreate-settings.schema.0.1.json'
+        $existing = '{"$schema":"https://aka.ms/wingetcreate-settings.schema.0.1.json","Telemetry":{"disable":false},"CleanUp":{"intervalInDays":3,"disable":true},"WindowsPackageManagerRepository":{"owner":"someone","name":"winget-pkgs-test"},"PullRequest":{"openInBrowser":false}}'
+        $updated = ConvertTo-WingetCreateSettingsWithoutTelemetry -Text $existing | ConvertFrom-Json -AsHashtable
+        $updated.Telemetry.disable | Should -BeTrue
+        $updated.CleanUp.intervalInDays | Should -Be 3
+        $updated.CleanUp.disable | Should -BeTrue
+        $updated.WindowsPackageManagerRepository.owner | Should -BeExactly 'someone'
+        $updated.PullRequest.openInBrowser | Should -BeFalse
+        $updated['$schema'] | Should -BeExactly 'https://aka.ms/wingetcreate-settings.schema.0.1.json'
+        # The spelling of the file stays (Newtonsoft matches names case-insensitively); no second Telemetry key.
+        $lower = ConvertTo-WingetCreateSettingsWithoutTelemetry -Text '{"telemetry":{"Disable":false},"Visual":{"anonymizePaths":true}}' | ConvertFrom-Json -AsHashtable
+        @($lower.Keys | Sort-Object) | Should -BeExactly @('telemetry', 'Visual')
+        @($lower.telemetry.Keys) | Should -BeExactly @('Disable')
+        $lower.telemetry.Disable | Should -BeTrue
+        (ConvertTo-WingetCreateSettingsWithoutTelemetry -Text '{"Visual":{"anonymizePaths":false}}' | ConvertFrom-Json -AsHashtable).Telemetry.disable | Should -BeTrue
+        (ConvertTo-WingetCreateSettingsWithoutTelemetry -Text '{"Telemetry":null}' | ConvertFrom-Json -AsHashtable).Telemetry.disable | Should -BeTrue
+        (ConvertTo-WingetCreateSettingsWithoutTelemetry -Text '{"Telemetry":{"disable":"true"}}' | ConvertFrom-Json -AsHashtable).Telemetry.disable | Should -BeOfType [bool]
+        ConvertTo-WingetCreateSettingsWithoutTelemetry -Text '{"Telemetry":{"disable":true},"CleanUp":{"disable":false}}' | Should -BeNullOrEmpty
+        { ConvertTo-WingetCreateSettingsWithoutTelemetry -Text '{"Telemetry":' } | Should -Throw '*not valid JSON*'
+        { ConvertTo-WingetCreateSettingsWithoutTelemetry -Text '[1,2]' } | Should -Throw '*not a JSON object*'
+    }
+    It 'writes settings.json idempotently and never overwrites a file it cannot read' {
+        $path = Join-Path $script:TempRoot 'wc-settings' 'sub' 'settings.json'
+        Set-WingetCreateTelemetryDisabled -Path $path | Should -BeExactly 'created'
+        $first = [System.IO.File]::ReadAllText($path)
+        Set-WingetCreateTelemetryDisabled -Path $path | Should -BeExactly 'unchanged'
+        [System.IO.File]::ReadAllText($path) | Should -BeExactly $first
+        [System.IO.File]::WriteAllText($path, '{"Telemetry":{"disable":false},"CleanUp":{"intervalInDays":9}}')
+        Set-WingetCreateTelemetryDisabled -Path $path | Should -BeExactly 'updated'
+        $json = [System.IO.File]::ReadAllText($path) | ConvertFrom-Json -AsHashtable
+        $json.Telemetry.disable | Should -BeTrue
+        $json.CleanUp.intervalInDays | Should -Be 9
+        $bytes = [System.IO.File]::ReadAllBytes($path)
+        ($bytes[0] -eq 0xEF) | Should -BeFalse -Because 'UTF-8 without BOM'
+        [System.IO.File]::WriteAllText($path, '{ broken')
+        { Set-WingetCreateTelemetryDisabled -Path $path } | Should -Throw '*not valid JSON*'
+        [System.IO.File]::ReadAllText($path) | Should -BeExactly '{ broken'
+    }
     It 'offers the submission only on Windows for a stable version whose release has the installer' {
         $setup = @('LayerPeek-1.0.0-win-x64-Setup.exe', 'SHA256SUMS-windows.txt')
         (Get-WingetOffer -Version '1.0.0' -Repository 'pfoltynek/LayerPeek' -HostOs 'windows' -AssetNames $setup).Ask | Should -BeTrue
@@ -343,7 +440,62 @@ Describe 'Invoke-WingetRelease against fake gh, wingetcreate and winget' {
         $run.Output | Should -Match 'fake wingetcreate \(stderr\): token=\*\*\*'
         $run.Output | Should -Match 'update of the package in microsoft/winget-pkgs'
         @($calls | Where-Object { $_ -like 'winget *' }) | Should -BeNullOrEmpty
+        # The scopes were checked through gh (without reading the token) before the question.
+        @($calls | Where-Object { $_ -like 'gh api --include user *' }).Count | Should -Be 1
+        # Telemetry was off in wingetcreate's settings.json before wingetcreate ran.
+        $calls | Should -Contain '  telemetry-disabled True'
+        (Get-Content -LiteralPath (Get-WingetCreateSettingsFile) -Raw | ConvertFrom-Json).Telemetry.disable | Should -BeTrue
+        $run.Output | Should -Match 'wingetcreate telemetry: off \(created, '
+        $run.Output | Should -Match 'log out now: gh auth logout --hostname github\.com'
         Assert-NoTokenLeak $run.Output
+    }
+    It 'keeps the other wingetcreate settings and refuses a settings.json it cannot read, before wingetcreate runs' {
+        $file = Get-WingetCreateSettingsFile
+        $null = New-Item -ItemType Directory -Path (Split-Path -Parent $file) -Force
+        [System.IO.File]::WriteAllText($file, '{"Telemetry":{"disable":true},"PullRequest":{"openInBrowser":false}}')
+        $run = Invoke-Step @{}
+        $run.Result | Should -BeTrue -Because $run.Output
+        $run.Output | Should -Match 'wingetcreate telemetry: off \(unchanged, '
+        [System.IO.File]::ReadAllText($file) | Should -BeExactly '{"Telemetry":{"disable":true},"PullRequest":{"openInBrowser":false}}'
+
+        Reset-Fakes
+        $null = New-Item -ItemType Directory -Path (Split-Path -Parent $file) -Force
+        [System.IO.File]::WriteAllText($file, 'not json')
+        $broken = Invoke-Step @{}
+        $broken.Result | Should -BeFalse
+        $broken.Output | Should -Match 'telemetry could not be switched off: .*not valid JSON.* Nothing was submitted'
+        [System.IO.File]::ReadAllText($file) | Should -BeExactly 'not json'
+        @(Get-Calls | Where-Object { $_ -like 'wingetcreate *' }) | Should -BeNullOrEmpty
+        Assert-NoTokenLeak $broken.Output
+    }
+    It 'refuses a gh token without OAuth scopes before asking, and explains the temporary login' {
+        $env:LAYERPEEK_FAKE_GH_SCOPES = 'none'
+        $env:GH_TOKEN = 'github_pat_11FAKE_valueofghtoken'
+        $run = Invoke-Step @{} -Answer 'unexpected'
+        $run.Result | Should -BeFalse
+        $run.Output | Should -Match 'no OAuth scopes: it is a fine-grained personal access token'
+        $run.Output | Should -Match '1\. Remove-Item Env:GH_TOKEN'
+        $run.Output | Should -Match '2\. gh auth login --hostname github\.com --web'
+        $run.Output | Should -Match 'gh auth logout --hostname github\.com'
+        $run.Output | Should -Not -Match 'valueofghtoken'
+        $run.Output | Should -Not -Match 'log out now'
+        @(Get-Calls | Where-Object { $_ -like 'gh auth token*' -or $_ -like 'wingetcreate *' -or $_ -like 'winget *' }) | Should -BeNullOrEmpty
+        Test-Path -LiteralPath (Get-WingetCreateSettingsFile) | Should -BeFalse
+    }
+    It 'refuses a gh token without public_repo, and a rejected one, also in a dry run' {
+        $env:LAYERPEEK_FAKE_GH_SCOPES = 'read:org, gist'
+        $dry = Invoke-Step @{ DryRun = $true }
+        $dry.Result | Should -BeFalse
+        $dry.Output | Should -Match 'lacks the public_repo scope .*\(scopes: read:org, gist\)'
+        $dry.Output | Should -Not -Match 'Dry run: nothing was submitted'
+        $dry.Output | Should -Not -Match 'Remove-Item'
+
+        Reset-Fakes
+        $env:LAYERPEEK_FAKE_GH_SCOPES = '401'
+        $rejected = Invoke-Step @{}
+        $rejected.Result | Should -BeFalse
+        $rejected.Output | Should -Match 'HTTP 401'
+        @(Get-Calls | Where-Object { $_ -like 'gh auth token*' -or $_ -like 'wingetcreate *' }) | Should -BeNullOrEmpty
     }
     It 'submits the first version from the templates after winget validate, and deletes the temporary manifests' {
         $env:LAYERPEEK_FAKE_PACKAGE = 'missing'
@@ -382,6 +534,8 @@ Describe 'Invoke-WingetRelease against fake gh, wingetcreate and winget' {
         $run = Invoke-Step @{}
         $run.Result | Should -BeFalse
         $run.Output | Should -Match 'fine-grained personal access token'
+        $run.Output | Should -Match 'gh auth login --hostname github\.com --web'
+        $run.Output | Should -Not -Match 'log out now'
         $run.Output | Should -Not -Match 'finegrainedsecret'
         @(Get-Calls | Where-Object { $_ -like 'wingetcreate *' }) | Should -BeNullOrEmpty
         $env:WINGET_CREATE_GITHUB_TOKEN | Should -Be 'value-before-the-test'

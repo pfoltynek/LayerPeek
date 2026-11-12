@@ -21,6 +21,23 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 | *(volitelně, Windows)* **primární monitor se 150 %** | pro E2E testy ikon T-070 (hlavní panel, titulky, tray, tray menu při 100 a 150 %). Monitor musí měřítko 150 % nabízet (malé monitory ne), jinak se testy se 150 % přeskočí. Hlavní panel nesmí být automaticky skrytý. Ostrost ilustrace v tray menu při 150 % ověří test jen v relaci přihlášené při 150 % (systémové DPI se mění jen odhlášením). |
 | VS Code + rozšíření | C# Dev Kit, Avalonia for VS Code, EditorConfig (nabídnou se automaticky) |
 
+## Identita v gitu (e-mail autora commitů)
+
+Repozitář je veřejný, takže jméno a e-mail autora každého commitu vidí kdokoli. Bez `user.email` si git adresu odvodí
+ze jména počítače (`jmeno@pocitac.domena`) a prozradí tak jméno počítače a vnitřní doménu sítě (v historii 394 commitů,
+T-198 oddíl 3.1). Rozhodnutí uživatele 2026-11-11 (T-198 otázka 1): historie zůstává, jak je, a **od teď** se
+commituje s adresou GitHub noreply. Nastavuje se v **každém klonu** na **každém počítači** (Mac i Windows); platí pro
+klon i všechny jeho worktree (sdílený `.git/config`):
+
+```bash
+git config user.email 12541813+pfoltynek@users.noreply.github.com
+git config user.email      # kontrola
+git log -1 --format='%an <%ae> | %cn <%ce>'   # po prvním commitu: autor i committer s adresou noreply
+```
+
+Nový klon (nebo nový počítač) nastavení nemá, protože `.git/config` se neklonuje. Ostatní přispěvatelé si adresu
+volí sami (GitHub nabízí vlastní adresu noreply v *Settings → Emails*).
+
 ## Nativní knihovny FFmpeg (kamera)
 
 Projekt `LayerPeek.Camera.FFmpeg` potřebuje nativní knihovny FFmpeg 9.0.2 (LGPL verze 3 nebo novější, sdílené knihovny). Knihovny nejsou v repozitáři. Obstará je build (`build/FFmpeg.targets`), na každé platformě jinak:
@@ -214,10 +231,13 @@ Odeslání vydání do winget (`scripts/release-winget.ps1`, volitelný krok `re
 
 ```powershell
 winget install --id Microsoft.WingetCreate
-wingetcreate --version
+winget list --id Microsoft.WingetCreate      # kontrola instalace; wingetcreate samotný zatím nespouštět
+pwsh -NoProfile -Command "Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1; Disable-WingetCreateTelemetry"
 ```
 
-`wingetcreate` dostane token GitHubu od skriptu (`gh auth token`, jen po dobu běhu), vlastní přihlášení (`wingetcreate token --store`) netřeba a nemá se používat (token by zůstal uložený). Token `gh` musí být klasický nebo přihlášení OAuth z `gh auth login`; fine-grained token (`github_pat_…`) `wingetcreate` nepodporuje. Pro ruční ověření manifestu před prvním odesláním: `winget settings --enable LocalManifestFiles` (jednou, jako správce).
+**Telemetrie `wingetcreate` se vypíná** (rozhodnutí uživatele 2026-11-11): `"Telemetry": { "disable": true }` v jeho `settings.json`. První spuštění bez `settings.json` soubor zapíše se zapnutou telemetrií, proto se `wingetcreate` (ani `wingetcreate --version`) nespouští před jejím vypnutím. Skript vydání ji vypne sám před každým spuštěním `wingetcreate`; řádek výše to udělá hned po instalaci. Umístění souboru a podrobnosti: [release.md](release.md#telemetrie-wingetcreate).
+
+`wingetcreate` dostane token GitHubu od skriptu (`gh auth token`, jen po dobu běhu), vlastní přihlášení (`wingetcreate token --store`) netřeba a nemá se používat (token by zůstal uložený). Token `gh` musí mít scope `public_repo` (klasický token nebo přihlášení OAuth); fine-grained token (`github_pat_…`, např. `GH_TOKEN` podle T-180) `wingetcreate` nepodporuje. Pro odeslání se proto použije **dočasné `gh auth login --web`** a po něm `gh auth logout` (rozhodnutí uživatele 2026-11-11, postup v [release.md](release.md#token)); skript nevhodný token odmítne a postup vypíše. Pro ruční ověření manifestu před prvním odesláním: `winget settings --enable LocalManifestFiles` (jednou, jako správce).
 
 ## Pester (testy skriptů)
 

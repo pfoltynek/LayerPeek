@@ -358,6 +358,15 @@ A/B měření (2026-11-11, macOS Apple Silicon, simulátor se 3 tiskárnami) vý
 o 1,9 %. Doporučení je build neměnit. Hlavní náklad je zobrazení kamery (~20 % jádra), ne GC. Tabulky a postup jsou
 v [aot-gc-settings.md](aot-gc-settings.md).
 
+## Hardwarové dekódování kamery (T-192, průzkum)
+
+Měření (2026-11-11, macOS Apple Silicon, simulátor 720p a 1080p): softwarové dekódování H.264 je i po T-184 / T-185 /
+T-195 50–58 % instrukcí aplikace s otevřeným oknem kamery a 67–69 % u malého náhledu. VideoToolbox (`av_hwframe_map`,
+NV12 dál přes `BgraConverter` / `GrayscaleConverter`) by ušetřil 45–63 % instrukcí včetně systémového procesu
+`VTDecoderXPCService`. macOS build FFmpeg by potřeboval dva přepínače configure (LGPL zůstává), build BtbN pro Windows
+D3D11VA už obsahuje. Dnes se dekóduje jen softwarově. Implementace čeká na rozhodnutí uživatele. Čísla, rizika
+a doporučení jsou v [hw-decoding.md](hw-decoding.md).
+
 ## Logování
 
 Aplikace loguje přes `Microsoft.Extensions.Logging` a `[LoggerMessage]`; jediný provider je vlastní souborový `FileLogProvider` (T-024, `App/Logging`, bez NuGet balíčku, kompatibilní s Native AOT).

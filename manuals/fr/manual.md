@@ -48,8 +48,9 @@ Pour l'instant, seule la CORE One a été testée. Vous avez un autre modèle ? 
 Téléchargez la dernière version depuis la page [Releases](https://github.com/pfoltynek/LayerPeek/releases).
 
 > [!IMPORTANT]
-> Les versions 0.x sont des préversions et ne sont ni signées par Microsoft ni notariées par Apple. Votre système vous
-> avertit donc au premier démarrage ; les étapes ci-dessous expliquent comment passer outre.
+> Les mises à jour au sein des versions 1.x conservent vos paramètres ; les fichiers de paramètres des versions
+> antérieures se chargent toujours. Les versions ne sont ni signées par Microsoft ni notariées par Apple. Votre système
+> vous avertit donc au premier démarrage ; les étapes ci-dessous expliquent comment passer outre.
 
 ### 2.1 Windows
 
@@ -534,6 +535,9 @@ dans le menu de l'icône et une seule fois sous forme de notification.
 - **Windows, version installée :** l'élément de menu télécharge la mise à jour, quitte LayerPeek et lance la nouvelle
   version.
 - **Windows, version ZIP :** l'élément de menu ouvre la page de la version ; téléchargez le nouveau ZIP manuellement.
+- **Windows, installée avec winget :** utilisez aussi l'élément de menu. `winget upgrade` (y compris dans
+  `winget upgrade --all`) fonctionne également, mais il ferme brutalement LayerPeek s'il est en cours d'exécution, ne le
+  relance pas (lancez-le depuis le menu Démarrer) et supprime les fichiers journaux de `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS :** l'élément de menu télécharge la mise à jour et redémarre LayerPeek, mais seulement si l'app se trouve
   dans **Applications** (et non sur l'image disque ou dans Téléchargements).
 

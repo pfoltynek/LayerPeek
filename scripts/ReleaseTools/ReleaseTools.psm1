@@ -4337,12 +4337,189 @@ function Get-WingetTokenProblems {
         fork microsoft/winget-pkgs when they are limited to the LayerPeek repository (T-180).
     #>
     param([AllowNull()] [AllowEmptyString()] [string] $Token)
-    if ([string]::IsNullOrWhiteSpace($Token)) { return @('gh auth token returned no token. Log in with gh auth login (docs/release.md, "Publikace do winget").') }
+    if ([string]::IsNullOrWhiteSpace($Token)) { return @('gh auth token returned no token. Log in for the submission with gh auth login (steps below).') }
     if ($Token.StartsWith('github_pat_', [StringComparison]::Ordinal)) {
-        return @('The token of gh is a fine-grained personal access token (for example from GH_TOKEN, T-180). wingetcreate supports classic tokens and gh OAuth logins only, with access to public repositories (it forks microsoft/winget-pkgs). Log in for the submission with gh auth login, or set GH_TOKEN to such a token in this terminal only (docs/release.md, "Publikace do winget").')
+        return @('The token of gh is a fine-grained personal access token (for example from GH_TOKEN, T-180). wingetcreate supports gh OAuth logins and classic tokens only (it forks microsoft/winget-pkgs). Log in for the submission with gh auth login (steps below).')
     }
     if ($Token -match '\s') { return @('The token of gh contains white space; gh auth token returned something unexpected.') }
     @()
+}
+
+# The scopes wingetcreate needs (verified 2026-11-11): doc/token.md of winget-create asks for a classic token with
+# public_repo ("to allow access to public repositories"; delete_repo only optional, to delete a fork after a failed PR),
+# its own OAuth login (GitHubOAuth.cs) requests repo, which includes public_repo. Fine-grained tokens: not supported (#595).
+$script:WingetTokenScopes = @('public_repo', 'repo')
+
+function Get-WingetTokenScopeProblems {
+    <#
+    .SYNOPSIS
+        Pure: whether the scopes of the gh token (the X-OAuth-Scopes header GitHub sends for gh OAuth logins and classic
+        tokens) let wingetcreate fork microsoft/winget-pkgs and open the pull request. No header: a fine-grained or GitHub
+        App token, which wingetcreate does not support. Never gets or names the token itself.
+    #>
+    param([Parameter(Mandatory)] $Scopes)
+    if ($Scopes.Invalid) { return @('GitHub does not accept the token of gh (HTTP 401, expired or revoked). Log in for the submission with gh auth login (steps below).') }
+    if (-not $Scopes.HasScopes) {
+        return @('The token of gh has no OAuth scopes: it is a fine-grained personal access token or a GitHub App token (for example GH_TOKEN of T-180). wingetcreate supports gh OAuth logins and classic tokens only, with the public_repo scope (it forks microsoft/winget-pkgs). Log in for the submission with gh auth login (steps below).')
+    }
+    $granted = @($Scopes.Scopes | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+    if (-not @($granted | Where-Object { $script:WingetTokenScopes -ccontains $_ })) {
+        $list = if ($granted.Count -gt 0) { $granted -join ', ' } else { 'none' }
+        return @("The token of gh lacks the public_repo scope that wingetcreate needs to fork microsoft/winget-pkgs (scopes: $list). Log in for the submission with gh auth login (steps below).")
+    }
+    @()
+}
+
+function Get-GhTokenScopes {
+    <#
+    .SYNOPSIS
+        The OAuth scopes of the token gh uses, from the X-OAuth-Scopes header of GET /user (gh api --include). The token
+        itself is never read, printed or passed: gh sends it. HasScopes is $false when GitHub sends no such header
+        (fine-grained and GitHub App tokens); Invalid when GitHub answers 401. Throws on any other gh failure.
+    #>
+    $all = & gh api --include user 2>&1
+    $exitCode = $LASTEXITCODE
+    $lines = @($all | ForEach-Object { "$_" })
+    if ($exitCode -ne 0) {
+        $text = ($lines -join ' ').Trim()
+        if ($text -match 'HTTP 401|Bad credentials') { return [pscustomobject]@{ Invalid = $true; HasScopes = $false; Scopes = @() } }
+        throw "gh api user failed (exit code $exitCode): $text"
+    }
+    foreach ($line in $lines) {
+        if ($line -match '^\s*$') { break }
+        if ($line -match '^(?i:X-OAuth-Scopes):\s*(.*)$') {
+            return [pscustomobject]@{ Invalid = $false; HasScopes = $true; Scopes = @($Matches[1].Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
+        }
+    }
+    [pscustomobject]@{ Invalid = $false; HasScopes = $false; Scopes = @() }
+}
+
+function Get-WingetLoginInstructions {
+    <#
+    .SYNOPSIS
+        Pure: how to log in for the submission (user decision 2026-11-11): a temporary gh auth login (OAuth in the
+        browser) only for it, then gh auth logout and the usual authentication again (T-180: GH_TOKEN). gh prefers
+        GH_TOKEN / GITHUB_TOKEN over a login and gh auth login refuses to run while one is set, so a set variable is
+        cleared first, in this terminal only. -TokenVariables: the names of those variables that are set (never values).
+    #>
+    param([Parameter(Mandatory)] [string] $Version, [AllowEmptyCollection()] [string[]] $TokenVariables = @())
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('Log in to GitHub only for this submission (docs/release.md, "Publikace do winget", Token):')
+    $step = 1
+    foreach ($name in @($TokenVariables | Where-Object { $_ })) {
+        $lines.Add("  $step. Remove-Item Env:$name   # this terminal only; gh uses $name instead of a login")
+        $step++
+    }
+    $lines.Add("  $step. gh auth login --hostname github.com --web --git-protocol https")
+    $lines.Add('     OAuth in the browser. gh asks for its default scopes (repo, read:org, gist); repo covers the public_repo that')
+    $lines.Add('     wingetcreate needs. Answer No to "Authenticate Git with your GitHub credentials?".')
+    $step++
+    $lines.Add("  $step. pwsh scripts/release-winget.ps1 -Version $Version")
+    $step++
+    $lines.Add("  $step. gh auth logout --hostname github.com   # afterwards; then your usual login again (T-180: set GH_TOKEN as before)")
+    $lines.ToArray()
+}
+
+function Write-WingetLoginInstructions {
+    <# .SYNOPSIS Prints Get-WingetLoginInstructions for the token variables set in this process (names only). #>
+    param([Parameter(Mandatory)] [string] $Version)
+    $set = @('GH_TOKEN', 'GITHUB_TOKEN' | Where-Object { [Environment]::GetEnvironmentVariable($_) })
+    foreach ($line in (Get-WingetLoginInstructions -Version $Version -TokenVariables $set)) { Write-Host $line -ForegroundColor Yellow }
+}
+
+# wingetcreate's settings.json (verified in winget-create 2026-11-11, UserSettings.cs and Common.cs): in the app state
+# folder, which is the LocalState folder of the MSIX package when wingetcreate runs packaged and
+# %LOCALAPPDATA%\Microsoft\WindowsPackageManagerManifestCreator otherwise (the portable wingetcreate.exe). The winget
+# manifest of Microsoft.WingetCreate offers both (msix and portable), so both are handled. Telemetry is read at the start of every run (Program.cs) and is on by default; the first run
+# without settings.json writes it with telemetry on. User decision 2026-11-11: switch it off before wingetcreate runs.
+$script:WingetCreate = [pscustomobject]@{
+    PackageFamilyName = 'Microsoft.WindowsPackageManagerManifestCreator_8wekyb3d8bbwe'
+    ModuleName        = 'WindowsPackageManagerManifestCreator'
+    SettingsFileName  = 'settings.json'
+    SettingsSchema    = 'https://aka.ms/wingetcreate-settings.schema.0.1.json'
+}
+
+function Get-WingetCreateSettingsPaths {
+    <#
+    .SYNOPSIS
+        Pure: the settings.json files of wingetcreate to switch telemetry off in. The packaged one when the MSIX package
+        folder exists (-PackageFolderExists); the unpackaged one when wingetcreate is not the app execution alias of the
+        package (…\Microsoft\WindowsApps\wingetcreate.exe), or when there is no package folder. Both can apply.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $LocalAppData,
+        [AllowNull()] [AllowEmptyString()] [string] $CommandPath,
+        [switch] $PackageFolderExists
+    )
+    $paths = [System.Collections.Generic.List[string]]::new()
+    $c = $script:WingetCreate
+    if ($PackageFolderExists) { $paths.Add((Join-Path $LocalAppData 'Packages' $c.PackageFamilyName 'LocalState' $c.SettingsFileName)) }
+    $alias = "$CommandPath" -match '(?i)[\\/]Microsoft[\\/]WindowsApps[\\/]'
+    if (-not $PackageFolderExists -or -not $alias) { $paths.Add((Join-Path $LocalAppData 'Microsoft' $c.ModuleName $c.SettingsFileName)) }
+    $paths.ToArray()
+}
+
+function ConvertTo-WingetCreateSettingsWithoutTelemetry {
+    <#
+    .SYNOPSIS
+        Pure: the text of wingetcreate's settings.json with "Telemetry": { "disable": true }, every other setting kept.
+        $null when it is already switched off (nothing to write). Throws when the existing text is not a JSON object:
+        wingetcreate would ignore such a file (and run with telemetry on), and it is not ours to overwrite.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        $settings = [ordered]@{ '$schema' = $script:WingetCreate.SettingsSchema; Telemetry = [ordered]@{ disable = $true } }
+        return ($settings | ConvertTo-Json -Depth 10)
+    }
+    try { $settings = $Text | ConvertFrom-Json -AsHashtable -Depth 64 }
+    catch { throw "wingetcreate's settings.json is not valid JSON ($($_.Exception.Message)); fix or delete it (wingetcreate settings)." }
+    if ($settings -isnot [System.Collections.IDictionary]) { throw "wingetcreate's settings.json is not a JSON object; fix or delete it (wingetcreate settings)." }
+    # Newtonsoft (wingetcreate) matches property names case-insensitively; keep the spelling the file has.
+    $key = @($settings.Keys | Where-Object { "$_" -ieq 'Telemetry' }) | Select-Object -First 1
+    if (-not $key) { $key = 'Telemetry'; $settings[$key] = [ordered]@{} }
+    $telemetry = $settings[$key]
+    if ($telemetry -isnot [System.Collections.IDictionary]) { $telemetry = [ordered]@{}; $settings[$key] = $telemetry }
+    $disableKey = @($telemetry.Keys | Where-Object { "$_" -ieq 'disable' }) | Select-Object -First 1
+    if ($disableKey -and $telemetry[$disableKey] -is [bool] -and $telemetry[$disableKey]) { return $null }
+    if (-not $disableKey) { $disableKey = 'disable' }
+    $telemetry[$disableKey] = $true
+    $settings | ConvertTo-Json -Depth 64
+}
+
+function Set-WingetCreateTelemetryDisabled {
+    <#
+    .SYNOPSIS
+        Switches wingetcreate's telemetry off in one settings.json (created with its folder when missing), idempotently and
+        without touching other settings. Returns 'created', 'updated' or 'unchanged'. Throws when the file is no JSON object.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $exists = Test-Path -LiteralPath $Path -PathType Leaf
+    $text = if ($exists) { [System.IO.File]::ReadAllText($Path) } else { $null }
+    $new = ConvertTo-WingetCreateSettingsWithoutTelemetry -Text $text
+    if ($null -eq $new) { return 'unchanged' }
+    $null = New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force
+    [System.IO.File]::WriteAllText($Path, $new, [System.Text.UTF8Encoding]::new($false))
+    if ($exists -and -not [string]::IsNullOrWhiteSpace($text)) { 'updated' } else { 'created' }
+}
+
+function Disable-WingetCreateTelemetry {
+    <#
+    .SYNOPSIS
+        Switches wingetcreate's telemetry off in each of its settings.json files (Get-WingetCreateSettingsPaths for this
+        user) and prints what it did. Run before every wingetcreate call of the release scripts; can be run by hand right
+        after installing wingetcreate. -Paths overrides the files (tests). Throws when a file cannot be fixed.
+    #>
+    param([string[]] $Paths)
+    if (-not $Paths) {
+        $localAppData = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath('LocalApplicationData') }
+        $command = Get-Command wingetcreate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        $packageFolder = Join-Path $localAppData 'Packages' $script:WingetCreate.PackageFamilyName
+        $Paths = Get-WingetCreateSettingsPaths -LocalAppData $localAppData -CommandPath $(if ($command) { $command.Source } else { '' }) -PackageFolderExists:(Test-Path -LiteralPath $packageFolder -PathType Container)
+    }
+    foreach ($path in $Paths) {
+        $result = Set-WingetCreateTelemetryDisabled -Path $path
+        Write-Host "wingetcreate telemetry: off ($result, $path)"
+    }
 }
 
 function Protect-WingetOutput {
@@ -4481,7 +4658,10 @@ function Invoke-WingetRelease {
         (and for the first version winget) installed, the published release has the installer with its SHA256, no open
         pull request in the way. The first version (the package folder is not in microsoft/winget-pkgs yet) is made from
         the templates in build/winget, checked with winget validate and sent with wingetcreate submit; every later version
-        with wingetcreate update --submit. The token is read with gh auth token only after the confirmation.
+        with wingetcreate update --submit. Before the plan the scopes of the gh token are checked (gh api, the token itself
+        is not read): without public_repo (a fine-grained GH_TOKEN of T-180) it refuses and prints how to log in only for
+        the submission (gh auth login, afterwards gh auth logout). The token is read with gh auth token only after the
+        confirmation; wingetcreate's telemetry is switched off in its settings.json right before it runs.
         -OutputDirectory only writes the manifests of the version (for winget validate and winget install --manifest
         before the first submission, or for review on any OS); -DryRun only prints the plan.
     #>
@@ -4492,7 +4672,8 @@ function Invoke-WingetRelease {
         [string] $HostOs = (Get-HostOs),
         [string] $OutputDirectory,
         [switch] $DryRun,
-        [scriptblock] $Confirm = { param($Question) Read-Host $Question }
+        [scriptblock] $Confirm = { param($Question) Read-Host $Question },
+        [string[]] $WingetCreateSettingsPaths
     )
     $settings = $script:Winget
     $problems = [System.Collections.Generic.List[string]]::new()
@@ -4503,7 +4684,11 @@ function Invoke-WingetRelease {
     if (-not $OutputDirectory -and -not (Get-Command wingetcreate -ErrorAction SilentlyContinue)) {
         $problems.Add('wingetcreate is not installed. Install it: winget install --id Microsoft.WingetCreate (docs/prerequisites.md).')
     }
-    if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+    if ($problems.Count -gt 0) {
+        Write-Problems -Problems $problems -Action 'winget'
+        if (@($problems | Where-Object { $_ -match 'not logged in' })) { Write-WingetLoginInstructions -Version $Version }
+        return $false
+    }
 
     $tag = ConvertTo-ReleaseTag $Version
     $release = Get-GitHubRelease -Repository $settings.Repository -Tag $tag
@@ -4532,6 +4717,13 @@ function Invoke-WingetRelease {
     foreach ($p in @(Get-WingetPullRequestProblems -PullRequests @(Get-WingetOpenPullRequests) -Version $Version -Mode $mode)) { $problems.Add($p) }
     if ($mode -eq 'new' -and -not (Get-Command winget -ErrorAction SilentlyContinue)) { $problems.Add('winget is not installed (App Installer); it validates the first manifest before the submission.') }
     if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+    # Before the plan and the question: a token wingetcreate cannot use is refused at once (the token is not read here).
+    $scopeProblems = @(Get-WingetTokenScopeProblems -Scopes (Get-GhTokenScopes))
+    if ($scopeProblems.Count -gt 0) {
+        Write-Problems -Problems $scopeProblems -Action 'winget'
+        Write-WingetLoginInstructions -Version $Version
+        return $false
+    }
     $manifests = if ($mode -eq 'new') { & $newManifests } else { $null }
 
     $placeholder = if ($mode -eq 'new') { "<temporary folder>/$($settings.PackageIdentifier)/$Version" } else { $null }
@@ -4542,6 +4734,7 @@ function Invoke-WingetRelease {
     Write-Host "  SHA256    $sha256, release date $releaseDate"
     Write-Host "  wingetcreate $($shown -join ' ')"
     Write-Host '  The GitHub token of gh reaches wingetcreate through WINGET_CREATE_GITHUB_TOKEN only while it runs; it is never shown.'
+    Write-Host '  wingetcreate telemetry is switched off in its settings.json before it runs.'
     if ($DryRun) {
         Write-Host 'Dry run: nothing was submitted.' -ForegroundColor Green
         return $true
@@ -4553,12 +4746,23 @@ function Invoke-WingetRelease {
     }
 
     $token = $null
+    $tokenUsed = $false
     $tempDir = $null
     try {
         $token = (@(& gh auth token 2>$null) -join '').Trim()
         $tokenExit = $LASTEXITCODE
         $tokenProblems = @(Get-WingetTokenProblems -Token $(if ($tokenExit -eq 0) { $token } else { '' }))
-        if ($tokenProblems.Count -gt 0) { Write-Problems -Problems $tokenProblems -Action 'winget'; return $false }
+        if ($tokenProblems.Count -gt 0) {
+            Write-Problems -Problems $tokenProblems -Action 'winget'
+            Write-WingetLoginInstructions -Version $Version
+            return $false
+        }
+        $tokenUsed = $true
+        try { Disable-WingetCreateTelemetry -Paths $WingetCreateSettingsPaths }
+        catch {
+            Write-Problems -Problems @("wingetcreate telemetry could not be switched off: $($_.Exception.Message) Nothing was submitted.") -Action 'winget'
+            return $false
+        }
 
         $folder = $null
         if ($mode -eq 'new') {
@@ -4582,6 +4786,10 @@ function Invoke-WingetRelease {
         $true
     }
     finally {
+        if ($tokenUsed) {
+            Write-Host 'If you logged in with gh auth login only for this submission, log out now: gh auth logout --hostname github.com' -ForegroundColor Yellow
+            Write-Host '(then your usual login again, T-180: set GH_TOKEN as before).' -ForegroundColor Yellow
+        }
         $token = $null
         if ($tempDir -and (Test-Path -LiteralPath $tempDir)) { Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue }
     }

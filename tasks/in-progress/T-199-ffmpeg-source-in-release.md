@@ -110,7 +110,7 @@ Implementace 2026-11-11 (qa-reviewer, Mac, větev `feature/T-199-ffmpeg-source-i
   `ThirdPartyLicenses.FFmpeg.SourceArchiveUri(verze, macOS)` (`…/releases/download/v<verze>/ffmpeg-source-<verze>-<os>.tar.xz`);
   řetězce `AboutFFmpegNotice`, `AboutFFmpegSource` ve všech 8 `Strings.*.resx`. Okno: viz otázka 4. Pořadí tabulátoru
   Repozitář → Licence → Zdroj FFmpeg → podpora (test upravený o nový odkaz). Snímky `about-support*.png` sady macOS
-  přegenerované; sada Windows v T-125 (2aa).
+  přegenerované; sada Windows v T-125 (2ab).
 - **Testy:** Pester `FFmpeg source of a release (T-199)` (26 testů: piny, soulad s BtbN, fakta knihovny, cache se
   stahováním nahrazeným mockem, git z lokálních repozitářů, archiv obou OS, `release-build.ps1`), xUnit
   `AboutViewModelTests` (texty, věta ve všech jazycích s „FFmpeg“ a „LGPLv3“, odkaz Windows/macOS),
@@ -122,7 +122,7 @@ Implementace 2026-11-11 (qa-reviewer, Mac, větev `feature/T-199-ffmpeg-source-i
 - **Dokumentace:** `docs/release.md` (oddíl „Zdrojový kód FFmpeg (T-199)“, výstupy, kroky balení), `docs/prerequisites.md`
   (cache, ruční připnutí zdroje při nové verzi), `build/update-ffmpeg.ps1` (nápověda), `CHANGELOG.md`, README EN a CZ
   (věcná věta v oddílu komponent třetích stran). Příručky O aplikaci popisují jen kvůli podpoře, licence ne: beze změny.
-- **Zbývá na Windows → T-125 (2aa):** snímky sady Windows, `dotnet test` se Segoe UI (rezerva výšky), `tar.exe`
+- **Zbývá na Windows → T-125 (2ab):** snímky sady Windows, `dotnet test` se Segoe UI (rezerva výšky), `tar.exe`
   zapíše xz, Git for Windows zapíše `git archive` se stejným SHA-256, zkušební `release-build.ps1 -SkipFeedSignature`.
 - **Návrh na později (ne rozhodnutí):** `build/update-ffmpeg.ps1 -Platform windows` by mohl zdroj připnout sám (commit
   z API GitHubu, tag přes `git ls-remote`, SHA-256 `git archive`); dnes ručně podle `docs/prerequisites.md`.

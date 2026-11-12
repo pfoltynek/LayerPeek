@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release gets security fixes. Versions 0.x are previews.
+Only the latest release gets security fixes.
 
 ## Reporting a vulnerability
 

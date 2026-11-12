@@ -1,6 +1,6 @@
 ---
 id: T-198
-title: Připravenost vydání 1.0.0 (blokery, první podepsané vydání, zveřejnění repozitáře, plán dne vydání)
+title: Připravenost vydání 1.0.0 (blokery, první podepsané vydání, kontrola veřejného repozitáře, plán dne vydání)
 status: todo
 owner: architect
 priority: P1
@@ -9,30 +9,36 @@ depends_on: []
 ---
 
 ## Cíl
-Rozhodnutí uživatele 2026-11-11: příští vydání bude **1.0.0** (.NET 11 je GA, T-193) a s ním se repozitář
-`pfoltynek/LayerPeek` zveřejní. Tento úkol je **analýza a příprava**: kontrolní seznam, nálezy a návrh postupu. Sám nic
-nevydává.
+Rozhodnutí uživatele 2026-11-11: příští vydání bude **1.0.0** (.NET 11 je GA, T-193). Tento úkol je **analýza
+a příprava**: kontrolní seznam, nálezy a návrh postupu. Sám nic nevydává.
+
+**Repozitář `pfoltynek/LayerPeek` už je veřejný** (ověřeno 2026-11-11 hlavním agentem, `gh repo view`: visibility
+`PUBLIC`; podle `docs/velopack.md` a commitu 73cd0dbb veřejný od 2026-10-30). Body „před zveřejněním repozitáře“ jsou
+proto jen kontroly toho, co už je vidět (oddíl 3); otázky 2 a 10 odpadly.
 
 **Nikdy v rámci tohoto úkolu:** větev `release/1.0.0`, změna `<Version>` na `develop`, sloučení do `main`, tag, push,
-nahrání, zveřejnění vydání, zveřejnění repozitáře, odeslání do winget ani jiný zásah do externí služby. To udělá hlavní
+nahrání, zveřejnění vydání, změna nastavení GitHubu, odeslání do winget ani jiný zásah do externí služby. To udělá hlavní
 agent a uživatel později s výslovným souhlasem podle oddílu 5.
 
 Závislosti nejsou ve `depends_on` záměrně: blokery jsou body jiných úkolů (oddíl 1) a odškrtávají se tam. Tento úkol
 se uzavře, až budou odškrtnuté blokery a kritéria níže (vydání samotné kritériem není).
 
 ## Shrnutí
+- **Stav 2026-11-11 (po rozhodnutích uživatele):** z 9 blokerů jsou hotové B6 (CHANGELOG) a B7 (texty 1.x), B8 je
+  rozhodnutý (historie zůstává, adresa noreply; Windows zbývá v T-125 2aa) a B9 je jen kontrola už veřejného
+  repozitáře. Zbývají B1–B3 (Windows), B4 (generálka na obou OS) a B5 (Mac).
 - **Blokery: 9** (oddíl 1.1), mimo jiné na Windows: SDK GA + build vydání (T-193), snímky UI sady Windows (T-185), E2E ověření
   podpisu feedu (T-181). Na obou OS: generálka podepsaného buildu s produkčním klíčem bez GitHubu. Texty pro 1.0
-  (CHANGELOG, README, SECURITY, příručky v 8 jazycích). Rozhodnutí uživatele o e-mailech v historii gitu před
-  zveřejněním.
+  (CHANGELOG, README, SECURITY, příručky v 8 jazycích). Rozhodnutí uživatele o e-mailech v historii gitu.
 - **Sběrné úkoly:** neodškrtnutých bodů je **114** (T-124: 0, T-125: 42, T-126: 7, T-127: 65). Pro 1.0.0 je z nich
   blokujících 9 (automatické části, patří k B1–B3 a B5), doporučených 21 a 84 může počkat (oddíl 1.2).
-- **Podpis feedu (T-181):** cesta 0.5.0 → 1.0.0 funguje bez ověření (0.5.0 ověřovač nemá). Skutečně ověřená
-  aktualizace z GitHubu proběhne poprvé až 1.0.0 → 1.0.1. Zkušební vydání v testovacím repozitáři
-  **nemusí** být před 1.0.0 a přijetí aplikací stejně ověřit neumí (oddíl 2).
+- **Podpis feedu (T-181):** cesta 0.5.0 → 1.0.0 funguje bez ověření (0.5.0 ověřovač nemá). Skutečné stažení a ověření
+  podepsaného feedu z GitHubu ověří hned po zveřejnění 1.0.0 místní Release build 0.9.9 na obou OS (rozhodnutí
+  uživatele, otázka 3). Zkušební vydání v testovacím repozitáři se nedělá (oddíl 2).
 - **Sken historie:** žádné tokeny, hesla ani soukromé klíče kromě zdokumentovaného testovacího klíče T-181. Žádné
   absolutní cesty s uživatelským jménem. Nález: **394 commitů má e-mail autora `…@MacMini2.home-lab.cz`** (jméno
-  počítače + vnitřní doména) a 537 osobní adresu; obojí se zveřejněním repozitáře stane veřejným (oddíl 3.1).
+  počítače + vnitřní doména) a 537 osobní adresu; repozitář je veřejný od 2026-10-30, takže obojí už veřejné je.
+  Rozhodnuto: historie zůstává, nové commity s adresou noreply (oddíl 3.1, otázka 1).
 - **Nastavení 0.5.0 se v `develop` načte beze změny:** soubory zapsané kódem 0.5.0 `develop` načte bez varování
   a znovu je uloží bajtově stejně (oddíl 4.3).
 
@@ -50,10 +56,10 @@ Legenda: **W** = potřebuje Windows, **M** = potřebuje Mac, **U** = potřebuje 
 | B3 | **T-181** – `pwsh tools/run-e2e.ps1 -Class '*UpdateTests*'` na Windows (podepsaný feed přijat, nepodepsaný odmítnut) | T-125 2v (1. bod) | W, A | 1.0.0 je první verze s ověřením. Chyba v napojení na Velopack na Windows by všem instalacím 1.0.0 vzala aktualizace a pomohla by jen ruční přeinstalace |
 | B4 | **Generálka podepsaného buildu bez GitHubu** na Macu i na Windows (nový bod tohoto úkolu, kritérium níže) | T-198 | M, W, U | Celý `release-build.ps1` s produkčním klíčem (médium, heslo 2×, podpis, zpětné ověření `.sig`) ještě nikdy neproběhl; Pester ho bez `dotnet` nespouští. `release.ps1` pushne neměnný tag **před** buildem (kroky 3 → 7). Chyba až po pushi tagu = verze 1.0.0 propadne a vydá se 1.0.1 |
 | B5 | **T-170** – snímky macOS a celý `dotnet test` na Macu | T-127 1c (1. bod) | M, A | Nejspíš už splněno (a3ccb79b 2026-11-05, sada macOS znovu přegenerovaná v T-185 9e48dd59 2026-11-11), bod ale není odškrtnutý. Ověřit zeleným `dotnet test` na Macu a odškrtnout |
-| B6 | **CHANGELOG pro 1.0.0** (oddíl 3.3) | T-198 | A, U | Věta „Until 1.0.0, minor versions may contain breaking changes…“ po 1.0.0 neplatí. V `[Unreleased]` chybí uživatelsky viditelné změny T-188 / T-194 (čas do dalšího pokusu kamery, „Otestovat kameru“ zkrátí pauzu) a T-193 (runtime .NET 11 GA s opravami CVE). Text vydání se bere jen z této sekce |
-| B7 | **Texty „0.x = předběžné“** v README (EN/CZ), `SECURITY.md` a příručkách všech 8 jazyků (oddíl 4.4) | T-198 | A, U | Po vydání 1.0.0 by první veřejná stránka i příručka tvrdily, že jde o předběžnou verzi a že se nastavení může měnit. Znění rozhodne uživatel (otázka 5) |
-| B8 | **Rozhodnutí o identitě autorů v historii** (oddíl 3.1, otázka 1) | T-198 | U | Zveřejnění je nevratné (klony, archivy, cache GitHubu). Přepis historie po zveřejnění už nepomůže. Rozhodnout je nutné předem |
-| B9 | **Kontroly na GitHubu před zveřejněním** (oddíl 3.2) | T-198, T-180 | U | Agent nevidí obsah na GitHubu (vydání 0.x, issues, vzdálené větve, nastavení). Zveřejnění ho odhalí celý |
+| B6 | **CHANGELOG pro 1.0.0** (oddíl 3.3) – **hotovo 2026-11-11** | T-198 | A, U | Věta „Until 1.0.0, minor versions may contain breaking changes…“ po 1.0.0 neplatí. V `[Unreleased]` chyběly uživatelsky viditelné změny T-188 / T-194 a T-193. Stav: položky doplněné v `develop` (changelog catch-up), příslib 1.x a úvod textu vydání (otázky 5 a 7) na větvi `feature/T-198-decisions` |
+| B7 | **Texty „0.x = předběžné“** v README (EN/CZ), `SECURITY.md` a příručkách všech 8 jazyků (oddíl 4.4) – **hotovo 2026-11-11** | T-198 | A, U | Po vydání 1.0.0 by první veřejná stránka i příručka tvrdily, že jde o předběžnou verzi. Znění podle otázky 5 na větvi `feature/T-198-decisions` |
+| B8 | **Identita autorů v historii** (oddíl 3.1, otázka 1) – **rozhodnuto 2026-11-11:** historie zůstává, od teď adresa noreply | T-198, T-125 2aa | U | Repozitář je veřejný od 2026-10-30, adresy v historii už veřejné jsou; přepis by nepomohl. Zbývá `user.email` na Windows (T-125 2aa); na Macu nastavil hlavní agent |
+| B9 | **Kontrola veřejného repozitáře na GitHubu** (oddíl 3.2) | T-198, T-180 | U | Repozitář je už veřejný. Agent nevidí obsah na GitHubu (vydání 0.x, issues, vzdálené větve, nastavení); před 1.0.0 zkontrolovat, co je vidět, a upozornění secret scanningu. Nevratnost zveřejnění už nehraje roli, bod je doporučený, ne blokující |
 
 ### 1.2 Sběrné úkoly T-124–T-127: co je důležité pro 1.0.0
 
@@ -62,7 +68,7 @@ Počty neodškrtnutých bodů (2026-11-11): **T-124 0** (hotovo), **T-125 42**, 
 **Blokující (9, už v 1.1):** T-125 2r (B1); 2w oba body, 2x bod 1, 2u, 2p a 2n – jen automatický `dotnet test`
 a snímky, ruční části mohou počkat (B2); 2v bod 1 (B3); T-127 1c bod 1 (B5).
 
-**Doporučené před zveřejněním nebo hned po něm (21):**
+**Doporučené před vydáním 1.0.0 nebo hned po něm (21):**
 
 | Bod | Kde | Kdo | Důvod |
 |---|---|---|---|
@@ -80,13 +86,13 @@ a snímky, ruční části mohou počkat (B2); 2v bod 1 (B3); T-127 1c bod 1 (B5
 | T-026 – `.app` z `.dmg` na Macu / účtu bez Homebrew a .NET SDK | T-127 2 | M, U | Cizí uživatelé nemají vývojové prostředí; chybějící knihovna by vypnula kameru |
 | T-019 – Gatekeeper `.dmg` / `.tar.gz`, texty dialogů proti README | T-126 1 | M, U | Návod v README je první kontakt nového uživatele s aplikací |
 | T-020 – oznámení nainstalované `/Applications/LayerPeek.app` | T-126 2 bod 1 | M, U | Hlavní funkce aplikace v produkčním bundlu |
-| T-058 – Gatekeeper `.dmg` staženého z GitHubu, App Translocation | T-127 3 | M, U | Jde ověřit až s veřejným repozitářem (anonymní stažení), hned po zveřejnění |
-| T-058 – aktualizace `/Applications/LayerPeek.app` z GitHubu bez tokenu (správce i standardní účet) | T-127 3 | M, U | Ověří se přirozeně aktualizací 0.5.0 → 1.0.0 hned po zveřejnění |
+| T-058 – Gatekeeper `.dmg` staženého z GitHubu, App Translocation | T-127 3 | M, U | Anonymní stažení `.dmg` 1.0.0 hned po zveřejnění vydání (repozitář už je veřejný) |
+| T-058 – aktualizace `/Applications/LayerPeek.app` z GitHubu bez tokenu (správce i standardní účet) | T-127 3 | M, U | Ověří se přirozeně aktualizací 0.5.0 → 1.0.0 hned po zveřejnění vydání |
 | T-058 + T-021 + T-020 – Klíčenka, oznámení a Místní síť po aktualizaci | T-127 3 | M, U | Ad-hoc podpis mění cdhash každého buildu. Pokud se Klíčenka ptá po každé aktualizaci, patří to do README. Zapsat při 0.5.0 → 1.0.0 |
-| T-017 – varování SmartScreen / Edge při stažení `Setup.exe` z GitHubu | T-125 4 | W, U | Jde ověřit až po zveřejnění. Text patří do README a `docs/release.md` |
+| T-017 – varování SmartScreen / Edge při stažení `Setup.exe` z GitHubu | T-125 4 | W, U | Jde ověřit až po zveřejnění vydání 1.0.0. Text patří do README a `docs/release.md` |
 | T-055 – `release-upload.ps1 -DryRun` / `release.ps1 -DryRun` nic nezmění | T-127 3 bod 1 | M, U | Splní se v den vydání (oddíl 5, krok B3), stačí zapsat |
 | T-055 – příznak vydání | T-127 3 bod 4 | U | Kritérium se týká `0.x` (předběžné). U 1.0.0 naopak ověřit `isPrerelease = false` (oddíl 5, C1). Bod upravit nebo uzavřít |
-| T-181 – zkušební vydání v testovacím repozitáři | T-127 3 | M, U | Ne před 1.0.0 nutně. Nahrazuje ho B4 + `-DryRun` (oddíl 2.3, otázka 3) |
+| T-181 – zkušební vydání v testovacím repozitáři | T-127 3 | M, U | **Rozhodnuto (otázka 3):** nedělá se, nahrazuje ho B4 + `-DryRun` + kontrola buildem 0.9.9 po zveřejnění 1.0.0 (bod v T-127 3 přepsaný, zůstává krokem uživatele; Windows T-125 4) |
 
 **Může počkat** (zbylých 84 bodů): T-125 – T-105 interaktivní `windows-verify`, T-101 skutečné vypnutí upozornění,
 nepovinné T-117 / T-118 / T-124, T-151 (probuzení, celá obrazovka), T-143 ruční, T-145 OneDrive, T-162 prázdná cache,
@@ -106,12 +112,14 @@ funkcí (detekce, timelapse) mají v UI i v CHANGELOG štítek „Experimentáln
 
 | Úkol | Hodnocení | Kdo | Důvod |
 |---|---|---|---|
-| T-180 GitHub – účet (2FA klíčem, záchranné kódy, úklid tokenů a aplikací), stav rulesetů | **doporučeno před zveřejněním** | U | Od zveřejnění se z repozitáře aktualizují cizí instalace. T-181 chrání aktualizace, ale ne první stažení (`Setup.exe`, `.dmg`) |
-| T-180 – neměnná vydání (immutable releases) a zrušení `-AddToPublished` (část `qa-reviewer`) | může počkat, **ale ovlivní den vydání** | U, A | Když se neměnná vydání zapnou před 1.0.0, soubory po zveřejnění už nejde doplnit. 1.0.0 se pak musí zveřejnit až s oběma OS v konceptu, bez `-AllowIncomplete` (oddíl 5, otázka 4) |
+| T-180 GitHub – účet (2FA klíčem, záchranné kódy, úklid tokenů a aplikací), stav rulesetů | **doporučeno před 1.0.0** | U | Repozitář je veřejný a z jeho vydání se aktualizují cizí instalace. T-181 chrání aktualizace, ale ne první stažení (`Setup.exe`, `.dmg`) |
+| T-180 – neměnná vydání (immutable releases) | **před 1.0.0** (rozhodnuto, otázka 4) | U | Zapne uživatel před vydáním 1.0.0. 1.0.0 se zveřejní až s oběma OS v konceptu, bez `-AllowIncomplete` / `-AddToPublished` (oddíl 5, `docs/release.md` „Vydání od 1.0.0“) |
+| **T-200** – skripty odmítnou `-AddToPublished` a `-AllowIncomplete` (dříve část `qa-reviewer` v T-180) | **po 1.0.0** (rozhodnuto, otázka 4) | A | Nový úkol 2026-11-11 (`qa-reviewer`, P2, závisí na T-180). Do té doby přepínače existují, jen se nepoužívají |
 | T-180 – krátkodobý fine-grained PAT v `GH_TOKEN` | doporučeno | U | Kritérium „`-DryRun` projde s tokenem jen v `GH_TOKEN`“ zatím nikdo neověřil. Ověřit v den vydání, jinak záložně `gh auth login` |
 | T-183 dokumentace zabezpečení přístupu k PrusaLink | doporučeno | A | Jen dokumentace, hodí se k veřejnému repozitáři. Připravuje se souběžně |
 | T-182 varování u `http://` mimo místní síť | může počkat | A | Nová funkce s texty v 8 jazycích. Kdyby šla do 1.0.0, přidá body do T-125 / T-127 |
-| T-059 winget | po vydání | W, U | Potřebuje veřejné repozitář i vydání (validace stahuje instalátor). Připravuje se souběžně, odeslání je krok C5 |
+| T-059 winget | po vydání | W, U | Potřebuje zveřejněné vydání (validace stahuje instalátor; repozitář už je veřejný). Připravuje se souběžně, odeslání je krok C5 |
+| T-199 FFmpeg – zdroj u vydání a věta v okně O aplikaci (otázka 9) | připravuje se | A | Rozhodnutí uživatele 2026-11-11 (otázka 9). Úkol zakládá souběžně jiný agent (větev `feature/T-199-ffmpeg-source-in-release`); zda blokuje 1.0.0, určí ten úkol |
 | T-197 jen podepsat hotový `dist/` | může počkat | A | Zkrátí opakování po selhání podpisu; riziko dne vydání snižuje i B4 |
 | T-174 další modely tiskáren | může počkat | komunita | Šablona issue už existuje |
 | T-054 heslo přes UI Automation | může počkat | W | Měření; útočník by musel běžet pod stejným uživatelem |
@@ -126,8 +134,8 @@ funkcí (detekce, timelapse) mají v UI i v CHANGELOG štítek „Experimentáln
 - **0.5.0 → 1.0.0:** 0.5.0 ověřovač nemá a feed přijme bez podpisu (`.sig` ignoruje). 1.0.0 je nepředběžné (`major ≠ 0`,
   `Test-PrereleaseVersion`), takže ho najde Velopack v 0.5.0 i s vypnutými předběžnými verzemi. Instalace mimo
   Velopack (`.zip`, `.app` mimo Aplikace) dostanou jen odkaz na stránku vydání (`GitHubReleaseChecker` vyžaduje
-  nahraný `SHA256SUMS-<os>.txt` svého OS). **Dnes je repozitář soukromý, takže 0.5.0 vidí 404 = „žádná aktualizace“.**
-  Nabídku 1.0.0 tedy instalace 0.5.0 dostanou až po zveřejnění repozitáře i vydání.
+  nahraný `SHA256SUMS-<os>.txt` svého OS). Repozitář je veřejný (od 2026-10-30), takže instalace 0.5.0 dostanou
+  nabídku 1.0.0 hned po zveřejnění vydání. (Analýza původně tvrdila, že je repozitář soukromý; opraveno 2026-11-11.)
 - **Předběžné verze:** kdo volbu „Nabízet předběžné verze“ nikdy neměnil, má ji v 0.x zapnutou a od 1.0.0 vypnutou
   (`PrereleaseUpdates.IsDefaultFor`; nastavení ukládá volbu jen při změně, `SettingsViewModel.PrereleaseChoice`). To je
   rozhodnutí z 2026-10-24, žádná migrace není potřeba.
@@ -139,10 +147,17 @@ funkcí (detekce, timelapse) mají v UI i v CHANGELOG štítek „Experimentáln
   (`SignedUpdateSourceTests`: `TrustedKeyCount` = počet klíčů). `release-build.ps1` čte seznam klíčů přímo
   z `UpdateFeedKeys.cs` a každý zapsaný `.sig` hned ověří stejně jako aplikace. Sdílený testovací vektor kříží
   PowerShell a C#. E2E `UpdateTests` s testovacím klíčem prošel na Macu, na Windows chybí (B3). Zbytkové riziko je
-  stažení `.sig` ze skutečného GitHubu (adresy, přesměrování). Lokálně ho ověřit nejde, viz otázka 3.
+  stažení `.sig` ze skutečného GitHubu (adresy, přesměrování). Lokálně ho ověřit nejde. **Rozhodnuto (otázka 3):**
+  hned po zveřejnění 1.0.0 ho ověří místní Release build 0.9.9 z commitu 1.0.0 na Macu i na Windows (oddíl 5 C,
+  `docs/release.md`, „Kontrola aktualizace z GitHubu buildem 0.9.9“). Skripty verzi parametrem nepřepíší
+  (`release-build.ps1` čte jen `<Version>` z `Directory.Build.props`, `-p:Version` nepřebírá), proto se verze změní jen
+  v pracovním stromu dočasného worktree. Takový build `release-upload.ps1` odmítne třikrát (špinavý strom, tag `v1.0.0`
+  ≠ `<Version>` 0.9.9, `-SkipFeedSignature`).
 
 ### 2.2 Musí zkušební vydání (T-127 oddíl 3) předcházet 1.0.0?
-**Ne nutně.** Release build má adresu repozitáře napevno (`AppUpdates.RepositoryUrl`). Testovací zdroj
+**Rozhodnuto 2026-11-11 (otázka 3): zkušební vydání se nedělá.** Nahrazuje ho generálka B4, `-DryRun` v den vydání
+a kontrola buildem 0.9.9 po zveřejnění 1.0.0. Text bodu v T-127 oddíl 3 a věta v `docs/release.md` („Zkušební
+vydání“) jsou opravené. Původní rozbor: **ne nutně.** Release build má adresu repozitáře napevno (`AppUpdates.RepositoryUrl`). Testovací zdroj
 (`LAYERPEEK_TEST_UPDATE_SOURCE`) existuje jen v Debug a důvěřuje jen testovacímu klíči. V testovacím repozitáři proto jde
 ověřit **jen skripty** (podepsaný upload, pořadí `.sig` → feed, odmítnutí `-SkipFeedSignature`, odmítnutí zveřejnění
 bez `.sig`). Bod T-127 „nainstalovaná verze s ověřením podepsanou aktualizaci přijme“ ve zkušebním repozitáři
@@ -155,11 +170,14 @@ GitHubu ji pak ověří `-DryRun` a samotný upload 1.0.0, kde `release-publish.
 - [ ] Generálka B4 na **obou** počítačích: médium s klíčem se musí dostat i k počítači s Windows. Na Windows ověřit
       písmeno jednotky (`-FeedSigningKey E:\layerpeek-feed-key.pem`) a to, že čtečka/USB funguje.
 - [ ] Heslo klíče je dostupné ve správci hesel, ne u média. Při vydání se zadává **4×** (2× na každém OS).
-- [ ] Rozhodnout tok obou OS (otázka 4). S neměnnými vydáními nejde `-AllowIncomplete` + `-AddToPublished`.
-- [ ] Na Macu běží build asi 20 min a Mac usíná po 10 min nečinnosti: build spouštět pod `caffeinate -i` (v `tmux`
+- [x] Rozhodnout tok obou OS (otázka 4). S neměnnými vydáními nejde `-AllowIncomplete` + `-AddToPublished`.
+      → rozhodnuto 2026-11-11: neměnná vydání před 1.0.0, oba OS do konceptu, pak zveřejnit (`docs/release.md`,
+      „Vydání od 1.0.0“); změna skriptů T-200 po 1.0.0.
+- [x] Na Macu běží build asi 20 min a Mac usíná po 10 min nečinnosti: build spouštět pod `caffeinate -i` (v `tmux`
       při práci přes SSH). V `docs/release.md` to chybí (nález 3.5).
+      → doplněno 2026-11-11 (`docs/release.md`, „Vydání jedním příkazem“, „Běh na Macu“, „Vydání od 1.0.0“).
 
-## 3. Zveřejnění repozitáře
+## 3. Veřejný repozitář (veřejný od 2026-10-30)
 
 ### 3.1 Sken celé historie gitu (2026-11-11, lokálně, bez instalace nástrojů)
 Rozsah: `git log --all -p` = **931 commitů** ze všech lokálních refů (`develop`, `main`, tagy `v0.1.0`–`v0.5.0`,
@@ -181,7 +199,12 @@ ověří uživatel (3.2). Hodnoty tajných údajů se nikam nevypisují.
 | Soukromé IP adresy | 230 souborů, hlavně příklady `192.168.0.226`–`.230` a `192.168.1.x` v testech, zástupném textu adresy kamery v `Strings.*.resx` a úkolech. `192.168.0.227` je podle T-127 (relay `ncrelay.sh`) nejspíš skutečná kamera uživatele. Adresa RFC 1918 z internetu dostupná není, nízké riziko |
 | Osobní / interní obsah | `tests/LayerPeek.Detection.Tests/Fixtures/coreone/` = 10 skutečných snímků z kamery uživatele (jen vnitřek tiskárny, rozhodnutí 2026-11-03/04). `tasks/**`, `docs/**`, `CLAUDE.md`, `.claude/agents/*.md` obsahují interní rozhodnutí a pracovní postup s agenty, odkazy na `~/LayerPeek-samples` a domácí síť. Nic tajného, ale zveřejní se (otázka 2) |
 
-Možnosti k e-mailům autorů (rozhodne uživatel, otázka 1):
+**Rozhodnuto 2026-11-11 (otázka 1): varianta (a).** Historie zůstává. Od teď se commituje s adresou
+`12541813+pfoltynek@users.noreply.github.com` (v hlavním klonu na Macu nastavil hlavní agent `git config user.email`;
+postup pro každý klon a počítač v `docs/prerequisites.md`, „Identita v gitu“; Windows T-125 2aa). Repozitář je veřejný
+od 2026-10-30, adresy v historii proto už veřejné jsou a přepis by je neskryl.
+
+Možnosti k e-mailům autorů (původní rozbor):
 - **(a) Ponechat** a jen od teď nastavit `git config --global user.email <id>+pfoltynek@users.noreply.github.com` na
   obou počítačích (a „Block command line pushes that expose my email“ na GitHubu). Starých 931 commitů zůstane.
 - **(b) Přepsat historii** (`git filter-repo --mailmap`) před zveřejněním. Změní SHA **všech** commitů i tagů
@@ -192,52 +215,58 @@ Možnosti k e-mailům autorů (rozhodne uživatel, otázka 1):
 - **(c) `.mailmap`** jen sjednotí zobrazení v `git log`, surová adresa v commitu zůstane veřejná. Neskrývá nic.
 
 ### 3.2 Co zkontrolovat na GitHubu (uživatel, agent to nevidí)
+Repozitář už je veřejný, takže jde o kontrolu toho, co je **už vidět** (ne o přípravu na zveřejnění).
 - [ ] Vzdálené větve a tagy: `git ls-remote origin` (smazat zapomenuté `feature/*`, které nemají být veřejné).
-- [ ] Obsah, který se zveřejní s repozitářem: text a soubory vydání `v0.1.0`–`v0.5.0` (koncepty smazat nebo zkontrolovat),
+- [ ] Veřejný obsah: text a soubory vydání `v0.1.0`–`v0.5.0` (koncepty smazat nebo zkontrolovat),
       issues, PR, Discussions, popisy commitů v PR. **`v0.2.0` je jako jediné 0.x vydání označené jako „Latest“
       (rozhodnuto 2026-10-30 nechat), dokud nevyjde 1.0.0.**
-- [ ] Ponechat vydání 0.x veřejně? (otázka 6)
+- [x] Ponechat vydání 0.x veřejně? (otázka 6) → rozhodnuto 2026-11-11: vydání 0.1.0–0.5.0 zůstávají, jak jsou.
 - [ ] Nastavení repozitáře: popis, web, témata (topics), náhled pro sociální sítě, Discussions zapnuté (odkazuje na ně
       `CONTRIBUTING.md` a `.github/ISSUE_TEMPLATE/config.yml`), private vulnerability reporting (odkaz v `SECURITY.md`),
       wiki vypnutá, žádné webhooky, deploy klíče ani spolupracovníci navíc.
-- [ ] Rulesety 1–4 z T-180 ve stavu *Active* i po zveřejnění. Secret scanning, push protection a CodeQL jsou u veřejného
-      repozitáře zdarma, po přepnutí zkontrolovat, že zůstaly zapnuté. Upozornění secret scanningu (Security → Secret
-      scanning) projít ještě před zveřejněním: GitHub už historii skenoval.
+- [ ] Rulesety 1–4 z T-180 ve stavu *Active*. Secret scanning, push protection a CodeQL jsou u veřejného
+      repozitáře zdarma, zkontrolovat, že jsou zapnuté. Upozornění secret scanningu (Security → Secret
+      scanning) projít před 1.0.0: GitHub už historii skenoval.
 - [ ] Účet podle T-180 (2FA hardwarovým klíčem, záchranné kódy, úklid PAT / OAuth / SSH klíčů).
 
 ### 3.3 Texty v repozitáři
-- `CHANGELOG.md` (B6): nahradit větu „Until 1.0.0, minor versions may contain breaking changes (settings format,
-  behaviour).“ příslibem pro 1.x (otázka 5); doplnit T-188, T-194 a T-193 do `[Unreleased]`. Odkazy dole
+- `CHANGELOG.md` (B6, **hotovo**): věta „Until 1.0.0, minor versions may contain breaking changes (settings format,
+  behaviour).“ nahrazená příslibem „Updates within 1.x keep your settings; settings files of older versions always
+  load.“ (otázka 5); T-188, T-194 a T-193 jsou v `[Unreleased]` (doplnil changelog catch-up v `develop`). Odkazy dole
   (`[Unreleased]` → `v1.0.0...HEAD`, nový `[1.0.0]: …/compare/v0.5.0...v1.0.0`) a datum doplní `release.ps1` sám.
-  **Pozor:** `release.ps1` přesune do `[1.0.0]` jen podsekce s položkami, úvodní odstavec bez položek pod `[Unreleased]`
-  zůstane (`docs/release.md`, „CHANGELOG.md“). Pokud má mít text vydání 1.0.0 úvod (např. „první veřejné vydání“,
-  otázka 7), musí se předem připravit jako sekce `## [1.0.0] - unreleased` (`[Unreleased]` pak prázdná).
-- `README.md` / `README.cz.md`: upozornění „Versions 0.x are **previews**. Settings may change between versions.“
-  (ř. 359 / 355) a Roadmap „`winget install` as soon as the first release is public“ (ř. 447). Odznak
-  `include_prereleases` může zůstat.
-- `SECURITY.md`: „Versions 0.x are previews.“ → znění pro 1.x (podporovaná je jen poslední verze).
+  **Oprava rozboru:** úvodní odstavec **s textem** pod `## [Unreleased]` (před prvním `###`) `release.ps1` do `[1.0.0]`
+  přesune: `ConvertTo-ReleaseChangelog` ho počítá jako položku, pod `[Unreleased]` nechá jen úvod bez položek (jen
+  komentář). Ověřeno 2026-11-11 nad skutečným `CHANGELOG.md` (výsledek `Moved`, `Get-ChangelogSection 1.0.0` začíná
+  úvodem). Úvod textu vydání 1.0.0 (otázka 7) je proto přímo pod `## [Unreleased]`, sekce `## [1.0.0] - unreleased`
+  není potřeba a skripty se nemění. Nové položky jdou dál do `[Unreleased]` pod úvod (do příslušné podsekce `###`).
+- `README.md` / `README.cz.md` (**hotovo**): upozornění „Versions 0.x are **previews**. Settings may change between
+  versions.“ nahrazené příslibem 1.x. Roadmap „`winget install` as soon as the first release is public“ (ř. 447)
+  zůstává pro T-059 (po odeslání do winget). Odznak `include_prereleases` může zůstat.
+- `SECURITY.md` (**hotovo**): jen „Only the latest release gets security fixes.“
 - Šablony issue: zástupná verze `0.1.0` v `bug_report.yml` a `0.5.0` v `printer_compatibility.yml` (kosmetické).
-- `docs/release.md` ř. 535 a `docs/velopack.md`: „Dokud je repozitář soukromý, kontrola skončí chybou 404“ – po
-  zveřejnění upravit (může počkat).
+- `docs/release.md` („Instalátor pro Windows“): „Dokud je repozitář soukromý, kontrola skončí chybou 404“ –
+  **opraveno** (repozitář veřejný od 2026-10-30). `docs/velopack.md` to už uvádí správně.
 
 ### 3.4 Licence
 - `LICENSE` = úplný text GPL-3.0 (674 řádků, SHA-256 `3972dc97…`, shodný s textem z gnu.org). `Directory.Build.props`
   má `PackageLicenseExpression` `GPL-3.0-only`, README licenci a záruku popisuje. Hlavičky licence v jednotlivých souborech
-  projekt nepoužívá. GPL je nevyžaduje (jen doporučuje), může počkat (otázka 8).
+  projekt nepoužívá. GPL je nevyžaduje (jen doporučuje). **Rozhodnuto (otázka 8): hlavičky SPDX se nezavádějí.**
 - Ilustrace tiskáren jsou vlastní (T-039, žádné fotografie Prusa). Upozornění na ochranné známky je v README EN i CZ.
 - **FFmpeg (LGPL) při veřejné distribuci:** aplikace odkazuje na přesný zdroj (BtbN zip pro Windows, tarball ffmpeg.org
   pro macOS, `ThirdPartyLicenses.FFmpeg`) a obsahuje `FFmpeg-LICENSE.txt`. Kontrolní seznam FFmpeg
   (https://ffmpeg.org/legal.html, body 3–8 a 10) doporučuje zdroj **hostovat u binárky** a v okně O aplikaci mít větu
   „This software uses libraries from the FFmpeg project under the LGPLv2.1“. Build BtbN, na který se odkazuje, už
-  jednou zmizel (T-162, 404). Rozhodne uživatel (otázka 9).
+  jednou zmizel (T-162, 404). **Rozhodnuto 2026-11-11 (otázka 9):** archiv zdroje FFmpeg k vydání a věta v okně O aplikaci;
+  připravuje se v samostatném úkolu (T-199, zakládá jiný agent souběžně).
 
 ### 3.5 Nálezy v dokumentaci
 - Opraveno (mechanicky): README EN/CZ „preview versions are allowed“ / „povolené jsou i preview verze“ odporovalo
   `global.json` po T-193 (`allowPrerelease: false`). V `docs/release.md` byl ve zkušebním vydání starý příkaz
   `git switch feature/T-055-release-scripts`, teď `git switch develop`.
-- Neopraveno (není mechanické): `docs/release.md` popisuje jako běžný tok „Vydání na dvou počítačích“ s `-AddToPublished`,
-  který T-180 ruší (část `qa-reviewer`). Chybí upozornění na `caffeinate` na Macu. Věta o přijetí aktualizace ve
-  zkušebním vydání (2.2) neodpovídá tomu, co jde ověřit.
+- Opraveno 2026-11-11 po rozhodnutích: `docs/release.md` má nový oddíl „Vydání od 1.0.0: oba OS do konceptu, pak
+  zveřejnit“, poznámku u „Vydání na dvou počítačích“ (od 1.0.0 se nepoužívá, skripty T-200), `caffeinate`, opravenou
+  větu o zkušebním vydání (2.2), oddíl „Kontrola aktualizace z GitHubu buildem 0.9.9“ a upřesnění, že úvodní odstavec
+  s textem se z `[Unreleased]` přesouvá. `docs/prerequisites.md` má oddíl „Identita v gitu“.
 - T-127 1c bod 1 (T-170) je nejspíš splněný, ale neodškrtnutý (B5).
 
 ## 4. Verze 1.0.0
@@ -254,7 +283,8 @@ Možnosti k e-mailům autorů (rozhodne uživatel, otázka 1):
 
 ### 4.2 SemVer po 1.0.0
 - Od 1.0.0 platí SemVer bez výjimky pro 0.x: nekompatibilní změna (nastavení, chování) jen v nové hlavní verzi.
-  Návrh příslibu do CHANGELOG / README (rozhodne uživatel, otázka 5): soubory nastavení starších verzí 1.x (i 0.5.0)
+  Příslib v CHANGELOG / README / příručkách (rozhodnuto, otázka 5): „Updates within 1.x keep your settings; settings
+  files of older versions always load.“ Technicky: soubory nastavení starších verzí 1.x (i 0.5.0)
   se vždy načtou; formát nastavení se v 1.x mění jen přidáním volitelných položek (`SettingsDocument.CurrentVersion`
   zůstává 2); novější soubor (vyšší `version`) starší verze nepřepíše (už tak funguje, `…Writer`, „newer format“).
 - Aktualizace přes Velopack jdou jen nahoru. Návrat na starší verzi = ruční instalace (nastavení se načte, viz 4.3).
@@ -276,6 +306,9 @@ Možnosti k e-mailům autorů (rozhodne uživatel, otázka 1):
   také jen přidané.
 
 ### 4.4 Zmínky o 0.x / „předběžné“ v textech
+Stav 2026-11-11: README, `SECURITY.md`, příručky a `CHANGELOG.md` **opravené** (znění podle otázky 5); roadmap winget
+zůstává pro T-059; `docs/release.md` „Rozhodnutí“ a „Navazující úkoly“ doplněné (1.x předběžné není).
+
 | Soubor | Místo |
 |---|---|
 | `README.md` ř. 359, `README.cz.md` ř. 355 | „Versions 0.x are **previews**. Settings may change between versions.“ |
@@ -295,18 +328,18 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
    „Opakování a chyby“, řádek o zastaralých snímcích).
 2. **Mac (M):** B5 (`dotnet test` na Macu zelený, odškrtnout T-127 1c).
 3. **Texty (A, U):** B6, B7 podle odpovědí na otázky 5 a 7 (CHANGELOG, README EN/CZ, SECURITY, 8 příruček) na větvi
-   `feature/*`, sloučit do `develop`.
+   `feature/*`, sloučit do `develop`. **Hotovo** na větvi `feature/T-198-decisions` (sloučí hlavní agent).
 4. **Generálka B4 (M, W, U):** na každém OS v samostatném worktree dočasná místní větev z `develop` s
    `<Version>1.0.0</Version>` a datovanou sekcí `CHANGELOG.md` (nikdy nepushnout), čistý strom, LayerPeek ukončený
    (smoke test spouští aplikaci s tvými nastaveními). Spustit `pwsh scripts/release-build.ps1 -FeedSigningKey <médium>`
    (Mac pod `caffeinate -i`), heslo 2×. Výsledek: `build-info.json` se `Status` `signed` a otiskem `4cb047d1…`.
    Pak větev i `artifacts/release/1.0.0` smazat (`release.ps1` složku verze stejně přepíše) a médium odpojit.
    (`docs/release.md`, „Podpis feedu aktualizací“, „Podepisování při vydání“)
-5. **GitHub (U):** T-180 účet, oddíl 3.2, rozhodnutí o neměnných vydáních (otázka 4) a o e-mailech (otázka 1). Případně
-   vytvořit fine-grained PAT na 1–7 dní (T-180).
+5. **GitHub (U):** T-180 účet, oddíl 3.2, **zapnout neměnná vydání** (rozhodnuto, otázka 4). `user.email` s adresou
+   noreply na Windows (T-125 2aa, otázka 1). Případně vytvořit fine-grained PAT na 1–7 dní (T-180).
 6. Doporučené body z 1.2, na které zbude čas (nahrávání, kvalita kamery, Gatekeeper/oznámení z lokálního buildu).
 
-### B. Den vydání (oba OS do konceptu, pak zveřejnit)
+### B. Den vydání (oba OS do konceptu, pak zveřejnit; `docs/release.md`, „Vydání od 1.0.0“)
 1. Mac, `develop` čistý a stejný jako `origin/develop`: `git switch develop && git pull --ff-only`
    (`docs/release.md`, „Vydání jedním příkazem“).
 2. (U) `$env:GH_TOKEN = Read-Host -MaskInput` (T-180), nebo dočasné `gh auth login`.
@@ -314,27 +347,35 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 4. (U) Připojit médium, `$env:LAYERPEEK_FEED_SIGNING_KEY = '/Volumes/LP-KEY/layerpeek-feed-key.pem'`, pak
    `caffeinate -i pwsh scripts/release.ps1 -Version 1.0.0`. Potvrdit push `main` + `v1.0.0` (napsáním verze), push
    `develop`, heslo 2× během buildu, potvrdit upload do **konceptu**. Pak `Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY`
-   a médium odpojit (`docs/release.md`, kroky 1–8 tabulky a „Podpis feedu (T-181)“).
+   a médium odpojit (`docs/release.md`, kroky 1–8 tabulky a „Podpis feedu (T-181)“). Výpis na konci nabídne
+   `-AllowIncomplete` / `-AddToPublished`: **nepoužít** (neměnná vydání, T-200).
 5. Windows (W, U, s médiem): `git fetch origin --tags; git switch --detach v1.0.0`,
    `pwsh scripts/release-build.ps1 -FeedSigningKey E:\layerpeek-feed-key.pem` (heslo 2×),
    `pwsh scripts/release-upload.ps1 -DryRun`, `pwsh scripts/release-upload.ps1` **do konceptu** (bez
    `-AddToPublished`). (`docs/release.md`, „Postup“, krok 3)
-6. Kontrola konceptu na GitHubu (U): text = sekce `[1.0.0]`, **ne předběžné**, soubory obou OS včetně
-   `releases.win-x64.json.sig` a `releases.osx-arm64.json.sig`.
+6. Kontrola konceptu na GitHubu (U): text = sekce `[1.0.0]` (začíná úvodem „The first stable release…“), **ne
+   předběžné**, soubory obou OS včetně `releases.win-x64.json.sig` a `releases.osx-arm64.json.sig`.
 7. `pwsh scripts/release-publish.ps1 -DryRun`, pak `pwsh scripts/release-publish.ps1` **bez** `-AllowIncomplete`
-   (`docs/release.md`, „Kontrola a zveřejnění“). Pořadí kroku 7 a zveřejnění repozitáře rozhodne otázka 10.
-8. (U) Zveřejnit repozitář (Settings → General → Danger Zone → Change visibility), jen po oddíle 3.2.
-9. Úklid: `Remove-Item Env:GH_TOKEN`, PAT smazat nebo nechat vypršet, `git switch develop` na obou počítačích.
+   (`docs/release.md`, „Kontrola a zveřejnění“). Repozitář už je veřejný, vydání je vidět hned (otázka 10 odpadla).
+8. Úklid: `Remove-Item Env:GH_TOKEN`, PAT smazat nebo nechat vypršet, `git switch develop` na obou počítačích.
 
-### C. Hned po zveřejnění
+### C. Hned po zveřejnění vydání
 1. (U) `gh release view v1.0.0 --json isPrerelease,isDraft` = `false,false`. Stránka vydání a stažení **bez přihlášení**
    (anonymní okno prohlížeče).
 2. (M, U) Nainstalovaná 0.5.0 na Macu: aktualizace na 1.0.0 přes Velopack (T-127 3: T-058 aktualizace, Klíčenka,
    oznámení, Místní síť); `.dmg` z GitHubu přes Gatekeeper (T-058, T-126 1).
 3. (W, U) Nainstalovaná 0.5.0 na Windows: aktualizace na 1.0.0; stažení `Setup.exe` v Edge a SmartScreen (T-017 v T-125).
 4. (U) `shasum -a 256 -c SHA256SUMS-macos.txt` / `Get-FileHash` nad staženými soubory (`docs/release.md`, krok 6).
-5. (W, U) winget podle T-059 (připravuje se souběžně; `wingetcreate` s tokenem jen lokálně).
-6. Doplnit výsledky do T-125 / T-126 / T-127 a do tohoto úkolu. Každá chyba = nový úkol (případně `hotfix/1.0.1`).
+5. **(M, W, U) Kontrola aktualizace z GitHubu buildem 0.9.9** (rozhodnuto, otázka 3), až po C2 a C3: na každém OS
+   dočasný worktree z `v1.0.0`, `<Version>` 0.9.9 a sekce `## [0.9.9] - unreleased` jen v pracovním stromu,
+   `release-build.ps1 -SkipFeedSignature` (Mac pod `caffeinate -i`), instalace 0.9.9 (Windows po odinstalaci přes
+   `Setup.exe`, Mac `ditto` do `/Applications`), **Zkontrolovat teď** nabídne 1.0.0 bez „Aktualizace odmítnuta…“,
+   aktualizace proběhne, O aplikaci 1.0.0, v logu žádné odmítnutí feedu; pak worktree smazat
+   (`git worktree remove --force`). Build 0.9.9 se **nikdy nenahrává**. Postup `docs/release.md`, „Kontrola aktualizace
+   z GitHubu buildem 0.9.9“; body T-127 3 (T-181) a T-125 4. Při odmítnutí nic dalšího nezveřejňovat (ani winget)
+   a založit úkol.
+6. (W, U) winget podle T-059 (připravuje se souběžně; `wingetcreate` s tokenem jen lokálně), až po C5.
+7. Doplnit výsledky do T-125 / T-126 / T-127 a do tohoto úkolu. Každá chyba = nový úkol (případně `hotfix/1.0.1`).
 
 ## Akceptační kritéria
 - [ ] B1 (T-125 2r), B2 (T-125 2w a automatické body 2n, 2p, 2u, 2x), B3 (T-125 2v bod 1) odškrtnuté na Windows
@@ -342,48 +383,58 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 - [ ] B4: generálka podepsaného buildu 1.0.0 bez GitHubu prošla na Macu i na Windows (`build-info.json` `signed`,
       otisk `4cb047d1…7b91e26`), výsledek (datum, OS, doba buildu) zapsaný v Poznámkách. Žádná větev ani tag se
       nepushnuly
-- [ ] B6: `CHANGELOG.md` – věta o 0.x nahrazená podle otázky 5, `[Unreleased]` doplněná o T-188, T-194, T-193,
+- [x] B6: `CHANGELOG.md` – věta o 0.x nahrazená podle otázky 5, `[Unreleased]` doplněná o T-188, T-194, T-193,
       případný úvod jako `## [1.0.0] - unreleased` (otázka 7)
-- [ ] B7: README EN/CZ, `SECURITY.md` a všech 8 příruček bez tvrzení „0.x = předběžné“ (znění podle otázky 5),
+      → 2026-11-11: položky z changelog catch-up v `develop`; příslib 1.x a úvod přímo pod `## [Unreleased]` (skript ho
+      přesune do `[1.0.0]`, ověřeno, oddíl 3.3), sekce `## [1.0.0] - unreleased` proto není potřeba
+- [x] B7: README EN/CZ, `SECURITY.md` a všech 8 příruček bez tvrzení „0.x = předběžné“ (znění podle otázky 5),
       README EN a CZ ve shodě
-- [ ] B8: rozhodnutí o e-mailech autorů zapsané (otázka 1) a provedené; `user.email` nastavený na obou počítačích
+- [x] B8: rozhodnutí o e-mailech autorů zapsané (otázka 1) a provedené; `user.email` nastavený na obou počítačích
+      → Mac: nastavil hlavní agent 2026-11-11 (`git config user.email`); Windows → přesunuto do T-125 (2aa)
 - [ ] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný
-- [ ] Odpovědi na otázky 2–4 a 6–10 zapsané
-- [ ] `docs/release.md` po rozhodnutí o otázce 4 popisuje tok 1.0.0 (oba OS do konceptu), doplněný `caffeinate`
+- [x] Odpovědi na otázky 2–4 a 6–10 zapsané
+- [x] `docs/release.md` po rozhodnutí o otázce 4 popisuje tok 1.0.0 (oba OS do konceptu), doplněný `caffeinate`
       a oprava věty o zkušebním vydání (2.2)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování (jen pokud se v rámci úkolu změní něco mimo Markdown)
+- [x] `docs/release.md` popisuje kontrolu aktualizace z GitHubu buildem 0.9.9 (otázka 3) a je krokem C5 dne vydání
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (jen pokud se v rámci úkolu změní něco mimo Markdown)
+      → 2026-11-11 (Mac, větev `feature/T-198-decisions`, jen Markdown): build 0 varování, test 10160 prošlo, 267 přeskočeno, 0 selhalo
 
 ## Otevřené otázky
-1. **E-maily autorů v historii** (394 commitů `pfoltynek@MacMini2.home-lab.cz`, 537 `pfoltynek@outlook.cz`): (a)
-   ponechat a od teď používat adresu `…@users.noreply.github.com`, (b) přepsat historii před zveřejněním (mění SHA
-   všech commitů i tagů 0.x, force-push, dočasné vypnutí rulesetů), nebo (c) jen `.mailmap`? Doporučení architekta
-   je (a), rozhodne uživatel. Blokuje zveřejnění.
-2. **Zveřejnit i interní pracovní materiály** (`tasks/**`, `docs/**` s rozhodnutími, `CLAUDE.md`, `.claude/agents/*.md`,
-   snímky z kamery v `tests/LayerPeek.Detection.Tests/Fixtures/coreone/`, příklad `192.168.0.227`) tak, jak jsou?
-   README je už dnes zmiňuje jako veřejné („The whole process is public“).
-3. **Ověření přijetí podepsaného feedu aplikací před 1.0.0:** stačí dnešní pokrytí (oddíl 2.1) a první skutečná
-   ověřená aktualizace 1.0.0 → 1.0.1, nebo něco navíc? Varianty: (a) nic navíc, 1.0.1 brzy jako kontrola; (b) hned po
-   zveřejnění 1.0.0 nainstalovat místní Release build s nižší verzí (např. 0.9.9 z commitu 1.0.0) a nechat ho
-   aktualizovat na 1.0.0 z GitHubu (ověří skutečné stažení `.sig`, ale až po zveřejnění); (c) změna kódu, aby testovací
-   zdroj v Debug mohl důvěřovat i produkčnímu klíči (bezpečnostní rozhodnutí). A má se zkušební vydání v testovacím
-   repozitáři (T-127 oddíl 3) dělat před 1.0.0, nebo ho nahradí generálka B4 + `-DryRun`?
-4. **Neměnná vydání (T-180) před 1.0.0?** Když ano: 1.0.0 se zveřejní až s oběma OS v konceptu (oddíl 5 B). Část T-180
-   pro `qa-reviewer` (odmítnutí `-AddToPublished` a `-AllowIncomplete` ve skriptech, `docs/release.md`) může přijít
-   až po 1.0.0, nebo má být před ním? Když ne: zůstává i varianta Mac zveřejní, Windows doplní později.
-5. **Znění pro 1.x** místo „Versions 0.x are previews“ (README, SECURITY, příručky) a příslib kompatibility místo věty
-   „Until 1.0.0 …“ v CHANGELOG. Návrh: „Updates within 1.x keep your settings; settings files of older versions
-   always load“ a SECURITY „Only the latest release gets security fixes“.
-6. **Vydání 0.1.0–0.5.0** na GitHubu po zveřejnění ponechat (historie, `v0.2.0` přestane být „Latest“), nebo je
-   skrýt / smazat (smazání vydání je nevratné, tagy zůstanou)?
-7. **Úvod textu vydání 1.0.0** (např. „first public release“, odkaz na příručku, SmartScreen / Gatekeeper, kontrola
-   `SHA256SUMS`)? Text vydání se bere jen ze sekce CHANGELOG (pak `## [1.0.0] - unreleased`, oddíl 3.3).
-8. **Hlavičky licence (SPDX) v souborech** – zavést (velká mechanická změna), nebo ne?
-9. **FFmpeg LGPL:** stačí dnešní odkazy na zdroj (BtbN zip a tarball ffmpeg.org), nebo přikládat zdroj FFmpeg
-   (archiv přesně použité verze, configure) přímo k vydání na GitHubu a doplnit větu podle ffmpeg.org/legal.html,
-   bod 10, do okna O aplikaci? Licenční / balicí rozhodnutí.
-10. **Pořadí zveřejnění:** nejdřív zveřejnit vydání 1.0.0 v ještě soukromém repozitáři a pak repozitář (nikdo neuvidí
-    mezistav, `v0.2.0` jako „Latest“), nebo nejdřív zveřejnit repozitář a pak vydání? Anonymní ověření (C1–C3) a winget
-    jdou až po obojím.
+Rozhodnutí uživatele 2026-11-11 (zapsal architekt podle zadání hlavního agenta):
+
+1. ~~**E-maily autorů v historii**~~ – **rozhodnuto: (a)** historii ponechat; od teď commity s adresou GitHub noreply
+   `12541813+pfoltynek@users.noreply.github.com` (`git config user.email` v hlavním klonu na Macu nastavil hlavní agent).
+   Postup pro každý klon a počítač: `docs/prerequisites.md`, „Identita v gitu“; Windows: T-125 2aa.
+2. ~~**Zveřejnit i interní pracovní materiály**~~ – **odpadá:** repozitář už je veřejný (od 2026-10-30), materiály
+   jsou vidět.
+3. ~~**Ověření přijetí podepsaného feedu aplikací před 1.0.0**~~ – **rozhodnuto: (b)** po zveřejnění 1.0.0 nainstalovat
+   na Macu i na Windows místní Release build s verzí 0.9.9 (z commitu 1.0.0) a nechat ho aktualizovat na 1.0.0
+   z GitHubu. Postup `docs/release.md`, „Kontrola aktualizace z GitHubu buildem 0.9.9“, krok C5. Zkušební vydání
+   v testovacím repozitáři se nedělá; bod T-127 oddíl 3 (T-181) přepsaný: nahrazuje ho B4 + `-DryRun` + kontrola 0.9.9.
+4. ~~**Neměnná vydání (T-180) před 1.0.0?**~~ – **rozhodnuto: ano**, 1.0.0 se zveřejní až s oběma OS v konceptu.
+   Změna skriptů (odmítnutí `-AddToPublished` / `-AllowIncomplete`) až **po** 1.0.0: **T-200** (`qa-reviewer`, P2).
+   `docs/release.md`: „Vydání od 1.0.0: oba OS do konceptu, pak zveřejnit“.
+5. ~~**Znění pro 1.x**~~ – **rozhodnuto:** „Updates within 1.x keep your settings; settings files of older versions
+   always load.“ (README EN/CZ, příručky v 8 jazycích, přeloženo), SECURITY „Only the latest release gets security
+   fixes.“, v CHANGELOG příslib místo věty „Until 1.0.0 …“. Provedeno.
+6. ~~**Vydání 0.1.0–0.5.0**~~ – **rozhodnuto:** ponechat, jak jsou.
+7. ~~**Úvod textu vydání 1.0.0**~~ – **rozhodnuto:** krátký úvod („first stable release“, odkaz na příručku,
+   nepodepsané instalátory – SmartScreen / Gatekeeper, kontrola `SHA256SUMS`). Je přímo pod `## [Unreleased]`
+   v `CHANGELOG.md`; `release.ps1` ho přesune do `[1.0.0]` (ověřeno, oddíl 3.3), skripty se nemění.
+8. ~~**Hlavičky licence (SPDX)**~~ – **rozhodnuto:** ne.
+9. ~~**FFmpeg LGPL**~~ – **rozhodnuto:** přikládat zdroj FFmpeg k vydání a doplnit větu do okna O aplikaci; samostatný
+   úkol T-199 (připravuje se, zakládá jiný agent).
+10. ~~**Pořadí zveřejnění**~~ – **odpadá:** repozitář už je veřejný.
+
+Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
+11. **GitHub: „Keep my email addresses private“ a „Block command line pushes that expose my email“** (Settings →
+    Emails): zapnout? Druhá volba odmítne push commitu s osobní adresou. Historie obsahuje commity
+    s `pfoltynek@outlook.cz`; jestli by to ovlivnilo push větví, které je obsahují (např. `release.ps1`), architekt
+    neověřil, ověřit podle dokumentace GitHubu před zapnutím. Změna nastavení GitHubu, agent ji nedělá.
+12. **`git config user.useConfigOnly true`** (globálně na obou počítačích): git pak odmítne commit bez nastaveného
+    `user.email` místo odvození adresy ze jména počítače. Doporučuje se jako pojistka pro nové klony; zavést?
+13. **README Roadmap „`winget install` as soon as the first release is public“:** ponechat do odeslání do winget
+    (T-059 ho po přijetí balíčku přepíše), nebo upravit už teď (např. „after the 1.0.0 release“)?
 
 ## Poznámky k implementaci
 Analýza 2026-11-11 (architekt, Mac, větev `feature/T-198-release-1-0-0-readiness`):
@@ -398,3 +449,17 @@ Analýza 2026-11-11 (architekt, Mac, větev `feature/T-198-release-1-0-0-readine
   viz 4.1), App.UiTests 1374/0 (Mac, Inter).
 - Mechanické opravy: README EN/CZ (SDK bez preview po T-193), `docs/release.md` (zkušební vydání: `git switch develop`).
 - Zdroje: https://ffmpeg.org/legal.html (kontrolní seznam LGPL), immutable releases a PAT viz zdroje v T-180.
+
+Navazující úprava 2026-11-11 (architekt, Mac, větev `feature/T-198-decisions`, rozhodnutí uživatele k otázkám 1–10):
+- Repozitář je veřejný (hlavní agent, `gh repo view` = `PUBLIC`; podle `docs/velopack.md` / 73cd0dbb od 2026-10-30).
+  Opravené části rozboru, které počítaly se soukromým repozitářem (Cíl, Shrnutí, 1.1 B8/B9, 1.2, 1.3, 2.1, 3, 5 B).
+- Texty 1.x (otázka 5): README EN/CZ, `SECURITY.md`, `manuals/{en,cs,sk,de,es,fr,it,pl}/manual.md` (tykání / vykání
+  podle dosavadního textu příručky, ve francouzštině nezlomitelná mezera před středníkem), `CHANGELOG.md`.
+- Úvod textu vydání (otázka 7) pod `## [Unreleased]`: `ConvertTo-ReleaseChangelog -Version 1.0.0` nad skutečným
+  souborem dá `Moved` a `Get-ChangelogSection 1.0.0` začíná úvodem; odkazy `[Unreleased]`/`[1.0.0]` správně.
+- Build 0.9.9 (otázka 3): `release-build.ps1` nemá parametr verze a `-p:Version` nepřebírá (`Get-SourceVersion` čte
+  `Directory.Build.props`); Pester test `refuses the placeholder of the real CHANGELOG.md` a balení `vpk` vyžadují
+  sekci verze v `CHANGELOG.md`. Příkazy z `docs/release.md` (krok 2) ověřené v pwsh na kopii souborů ve scratchpadu:
+  `Get-SourceVersion` = 0.9.9, sekce 0.9.9 i 1.0.0 jdou přečíst.
+- Nový úkol T-200 (otázka 4); T-180 rozdělené kritérium; T-125 nový oddíl 2aa a bod 0.9.9 v oddíle 4; T-127 oddíl 3
+  bod T-181 přepsaný; `docs/release.md`, `docs/prerequisites.md`.

@@ -352,8 +352,8 @@ Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/Laye
 - **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: rozbal ho kamkoli a spusť `LayerPeek.exe`.
 
 > [!IMPORTANT]
-> Verze 0.x jsou **předběžné**. Nastavení se mezi verzemi může změnit. Sestavení nejsou podepsaná, takže Windows
-> SmartScreen zobrazí „Systém Windows ochránil váš počítač“ s „Neznámým vydavatelem“. Klikni na
+> Aktualizace v rámci verzí 1.x zachovají tvoje nastavení; soubory nastavení starších verzí se vždy načtou.
+> Sestavení nejsou podepsaná, takže Windows SmartScreen zobrazí „Systém Windows ochránil váš počítač“ s „Neznámým vydavatelem“. Klikni na
 > **Další informace → Přesto spustit**, nebo si [aplikaci sestav sám](#sestavení-ze-zdrojových-kódů).
 
 Odinstalace ponechá tvoje nastavení (`%APPDATA%\LayerPeek`) a hesla (Správce pověření Windows) a instalátor po sobě

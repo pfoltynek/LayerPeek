@@ -48,8 +48,9 @@ Zatím je otestovaná jen CORE One. Máte jiný model? Pošlete prosím krátké
 Nejnovější verzi stáhnete na stránce [Releases](https://github.com/pfoltynek/LayerPeek/releases).
 
 > [!IMPORTANT]
-> Verze 0.x jsou předběžné a sestavení nejsou podepsaná společností Microsoft ani notarizovaná společností Apple. Systém
-> vás proto při prvním spuštění varuje; postup níže ukazuje, jak varování obejít.
+> Aktualizace v rámci verzí 1.x zachovají vaše nastavení; soubory nastavení starších verzí se vždy načtou. Sestavení
+> nejsou podepsaná společností Microsoft ani notarizovaná společností Apple. Systém vás proto při prvním spuštění
+> varuje; postup níže ukazuje, jak varování obejít.
 
 ### 2.1 Windows
 
@@ -492,6 +493,9 @@ verze se objeví jako **Je dostupná nová verze X.Y.Z** v nabídce ikony a jedn
 
 - **Windows, nainstalovaná verze:** položka nabídky stáhne aktualizaci, ukončí LayerPeek a spustí novou verzi.
 - **Windows, verze ZIP:** položka nabídky otevře stránku s vydáním; nový ZIP stáhněte ručně.
+- **Windows, instalace přes winget:** i tady použijte položku nabídky. `winget upgrade` (i v rámci `winget upgrade --all`)
+  funguje také, ale běžící LayerPeek násilně ukončí, znovu ho nespustí (spusťte ho z nabídky Start) a smaže logy ve složce
+  `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS:** položka nabídky stáhne aktualizaci a LayerPeek restartuje, ale jen když je aplikace ve složce **Aplikace**
   (ne na obrazu disku nebo ve Stažených souborech).
 

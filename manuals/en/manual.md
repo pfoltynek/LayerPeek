@@ -48,8 +48,9 @@ Only the CORE One has been tested so far. Do you have another model? Please send
 Download the latest version from the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page.
 
 > [!IMPORTANT]
-> Versions 0.x are previews and the builds are not signed by Microsoft or notarized by Apple. Your system therefore
-> warns you on the first start; the steps below show how to get past it.
+> Updates within 1.x keep your settings; settings files of older versions always load. The builds are not signed by
+> Microsoft or notarized by Apple. Your system therefore warns you on the first start; the steps below show how to get
+> past it.
 
 ### 2.1 Windows
 
@@ -491,6 +492,9 @@ this off). A new version shows up as **New version X.Y.Z available** in the icon
 
 - **Windows, installed version:** the menu item downloads the update, quits LayerPeek and starts the new version.
 - **Windows, ZIP version:** the menu item opens the release page; download the new ZIP by hand.
+- **Windows, installed with winget:** use the menu item as well. `winget upgrade` (also as part of `winget upgrade --all`)
+  works too, but it closes a running LayerPeek abruptly, does not start it again (start it from the Start menu) and
+  deletes the log files in `%LOCALAPPDATA%\LayerPeek\logs`.
 - **macOS:** the menu item downloads the update and restarts LayerPeek, but only when the app is in **Applications**
   (not on the disk image or in Downloads).
 
