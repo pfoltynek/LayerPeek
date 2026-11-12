@@ -1,5 +1,10 @@
 # Hardwarové dekódování H.264 kamery – průzkum (spike T-192)
 
+> **Rozhodnutí uživatele 2026-11-12 (T-192, otázky 2–5):** implementovat, nejdřív macOS; volba v Nastavení > Kamera
+> „Hardwarové dekódování“ Automaticky / Vypnuto (výchozí Automaticky); Windows (D3D11VA) souběžně, ale výchozí
+> software do měření v T-125; rozšířená útočná plocha a paměť navíc přijaty. Podrobnosti v oddílu „Rozhodnutí
+> a implementační úkoly“. Text níže je průzkum z 2026-11-11.
+
 Stav 2026-11-11 (architekt, Mac mini M2 Pro, 10 jader, macOS 27.2, .NET SDK 11.0.100, Debug JIT). Rozhodnutí uživatele
 2026-11-11: **„ano, zkoumat – nejdřív měřit“**. Prototypy běžely jen mimo repozitář: benchmark v C a dočasná sonda
 v `FFmpegDecoder` v odděleném worktree, který byl po měření smazán. **Produktový kód ani build se nezměnily.** Windows
@@ -25,8 +30,8 @@ je jen rozbor, měření tam patří do T-125.
   D3D12VA, NVDEC, QSV i Vulkan obsahuje**, takže tam se build nemění. AOT: jen funkce FFmpeg, které vazby už mají, a jeden
   callback `[UnmanagedCallersOnly]`. Žádný nový balíček.
 - **Doporučení: vyplatí se, nejdřív na macOS** (VideoToolbox s `av_hwframe_map`), s automatickým návratem
-  k softwarovému dekódování. Windows (D3D11VA) až po měření na Windows. Implementace je otázka pro uživatele (oddíl
-  „Otevřené otázky“), úkol zatím nevznikl.
+  k softwarovému dekódování. Windows (D3D11VA) až po měření na Windows. Uživatel 2026-11-12 implementaci schválil,
+  úkoly T-203 až T-206 (oddíl „Rozhodnutí a implementační úkoly“).
 
 ## Postup měření
 
@@ -144,6 +149,9 @@ BtbN je `--enable-version3` (LGPL 3) bez `--disable-autodetect`, D3D11VA / DXVA2
 Pro LayerPeek dává smysl jen D3D11VA: funguje na každé GPU s ovladačem WDDM. NVDEC, QSV a AMF jsou vázané na výrobce
 GPU a `codec_whitelist` je dnes stejně vylučuje.
 
+Doplněno 2026-11-12: build BtbN nahradí T-202 (vlastní minimální LGPL build FFmpeg pro Windows). Ten musí
+D3D11VA (`h264_d3d11va`) obsahovat; ověří to T-206.
+
 ### AOT a interop
 
 Všechno potřebné je ve stávajících vazbách FFmpeg.AutoGen 9.0.1.1 (`[DllImport]`, už ověřené pro AOT):
@@ -172,7 +180,7 @@ varování. Žádný nový balíček, žádná reflexe.
 - **T-189 / T-153 (detekce):** šedotón z NV12 funguje stejně (rovina Y). Samostatné dekódování klíčového snímku (flush →
   IDR → drain → flush) se s VT **netestovalo**. U řídkých vzorků (bez okna) hardware nic neušetří a otevření relace VT
   stojí víc, proto doporučuji pro tuto cestu software ponechat.
-- **Bezpečnost (T-050):** s VT parsuje bitstream dál FFmpeg (hlavičky, `codec_whitelist` platí). Data řezů ale navíc
+- **Bezpečnost (T-050; přijato uživatelem 2026-11-12, viz „Bezpečnost a paměť – rozhodnutí“):** s VT parsuje bitstream dál FFmpeg (hlavičky, `codec_whitelist` platí). Data řezů ale navíc
   zpracuje systémový dekodér Apple (pomocný proces v sandboxu a ovladač v jádře). Útočná plocha se tak rozšíří
   o ovladač hardwarového dekodéru, v minulosti s aktivně zneužitými chybami (např. AppleAVD, CVE-2022-22675, opraveno
   v macOS 12.3.1). Proti tomu chrání hlavně aktualizace OS. Na Windows totéž platí pro ovladač GPU (DXVA).
@@ -203,4 +211,63 @@ Navrhuji:
 2. Windows: stejná abstrakce s D3D11VA, ale výchozí stav až podle měření v T-125. Do té doby software.
 3. `vtbgra` (převod barev ve VideoToolboxu) nepoužívat, vychází hůř.
 
-Implementační úkol(y) vzniknou až po rozhodnutí uživatele. Otázky jsou v `tasks/*/T-192-hardware-decoding-spike.md`.
+Rozhodnutí uživatele a implementační úkoly jsou v následujícím oddílu.
+
+## Rozhodnutí a implementační úkoly
+
+Uživatel 2026-11-12 rozhodl otázky 2–5 z T-192:
+
+| Otázka | Rozhodnutí |
+|---|---|
+| 2. Implementovat? | Ano, **nejdřív macOS**: VideoToolbox s `av_hwframe_map`, software jako fallback a pro samostatné klíčové snímky detekce. |
+| 3. Výchozí stav a volba | Zapnuto s volbou v Nastavení > Kamera: „Hardwarové dekódování“ **Automaticky** (výchozí) / **Vypnuto**. Texty v 8 jazycích a všechny příručky. |
+| 4. Windows | Souběžně (D3D11VA), ale na Windows výchozí **software**, dokud ho T-125 nezměří. Závisí na T-202 (vlastní LGPL build FFmpeg pro Windows místo BtbN, s D3D11VA). |
+| 5. Bezpečnost a paměť | Přijato: rozšířená útočná plocha (systémový hardwarový dekodér a ovladač GPU) a +10–25 MB na stream. Pojistkou je „Vypnuto“. |
+
+**Výchozí stav podle OS:** uložená hodnota je na obou OS stejná (`Automatic`, výchozí). Co „Automaticky“ znamená,
+určuje jediné pravidlo v `Camera.FFmpeg` (T-203): macOS → VideoToolbox, Windows → software. Po měření v T-125
+a rozhodnutí uživatele se na Windows změní jen toto pravidlo (D3D11VA), uložené nastavení se nemigruje. „Vypnuto“
+znamená vždy software. Pro měření na Windows zapne D3D11VA vývojový přepínač `LAYERPEEK_TEST_HW_DECODER=d3d11va`
+(jen Debug, testovací režim). Jestli se volba na Windows do přepnutí zobrazuje, je otázka 1 v T-204.
+
+| Úkol | Obsah | Platforma | Owner |
+|---|---|---|---|
+| T-203 | sdílený základ: model nastavení v Core, pravidlo podle OS, hwaccel v `FFmpegDecoder` (`get_format`, `av_hwframe_map`, jen splatné snímky, návrat k softwaru, klíčové snímky v SW), macOS build s VideoToolboxem, testy | all (doporučeno na Macu) | core-dev |
+| T-204 | volba v Nastavení > Kamera, 8 jazyků, příručky, snímky | all | ui-dev |
+| T-205 | macOS – měření a ověření produktového kódu (AOT, kvalita obrazu, zpoždění, spánek, dvě kamery) | macos | core-dev |
+| T-206 | Windows – D3D11VA nad T-202 a T-203, ztráta zařízení, příprava měření pro T-125 | windows | core-dev |
+
+Priorita P2, není to bloker vydání 1.0.0 (výchozí software je dnešní stav a funguje).
+
+### Bezpečnost a paměť – rozhodnutí
+
+- **Útočná plocha (doplněk k T-050):** bitstream z kamery je nedůvěryhodný. FFmpeg ho dál parsuje sám (hlavičky,
+  `protocol_whitelist` / `format_whitelist` / `codec_whitelist` z T-050 platí beze změny), data řezů ale při
+  hardwarovém dekódování zpracuje navíc systémový dekodér: na macOS `VTDecoderXPCService` (sandbox) a ovladač AVD
+  v jádře, na Windows uživatelská a jaderná část ovladače GPU (D3D11VA / DXVA). Chyby v nich se v minulosti zneužívaly
+  (např. AppleAVD, CVE-2022-22675). Ochranou jsou aktualizace OS a ovladačů; LayerPeek je neopravuje. Uživatel tuto
+  plochu 2026-11-12 přijal.
+- **Pojistka:** „Vypnuto“ vrátí stav před T-203 (jen software, žádný systémový dekodér). Samostatné klíčové snímky
+  detekce, test kamery a jednorázový snímek jdou vždy softwarem, takže bez otevřeného okna kamery se systémový dekodér
+  nepoužije vůbec.
+- **Paměť:** +10–25 MB na stream (macOS: pomocný proces 17–36 MB, aplikace o 3–12 MB méně); relace existuje jen
+  při plném dekódování a uvolní se po zavření okna. Mez pro ověření v T-205: ≤ 40 MB na stream.
+
+### Windows – měření pro přepnutí výchozího stavu
+
+Body přidá do T-125 úkol T-206 po svém dokončení. Měří se D3D11VA (`LAYERPEEK_TEST_HW_DECODER=d3d11va`, Debug) proti
+„Vypnuto“:
+
+- **Metriky:** cykly procesu (`QueryProcessCycleTime`; Windows nemá snadno dostupné instrukce procesu, uživatelská část
+  ovladače GPU ale běží v procesu aplikace), CPU % procesu, využití enginu GPU „Video Decode“
+  (`\GPU Engine(*engtype_VideoDecode)\Utilization Percentage`), paměť (private bytes, working set,
+  `\GPU Process Memory(*)\Dedicated Usage` a `Shared Usage`), dekódované a převedené snímky/s.
+- **Scénáře:** bez okna kamery, normální okno 720p a 1080p (100 % DPI, plné rozlišení), malý náhled 720p a 1080p
+  (10 fps); simulátor s klipy z T-192, 15 s zahřátí, 30 s měření, 2 kola se střídaným pořadím; integrovaná
+  i dedikovaná GPU, pokud jsou k dispozici; `av_hwframe_map` proti `av_hwframe_transfer_data`.
+- **Robustnost:** spánek / probuzení, `Win+Ctrl+Shift+B` (restart ovladače grafiky), vzdálená plocha, VM bez GPU –
+  vždy obraz, případně návrat k softwaru.
+- **Návrh meze pro přepnutí (rozhoduje uživatel):** cykly procesu −30 % a víc v normálním okně i malém náhledu na každé
+  změřené GPU, doba CPU nevzroste, paměť navíc ≤ 50 MB na stream, v robustních scénářích žádná trvalá chyba. Splněno →
+  uživatel rozhodne o přepnutí (nový úkol: pravidlo, příručky, případně zobrazení volby na Windows). Nesplněno →
+  na Windows zůstává software.

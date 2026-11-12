@@ -205,10 +205,12 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-197 | Vydání – jen podepsat hotový `dist/` (opakování podpisu feedu bez nového buildu; jen `dist/` z čistého tagu beze změny od buildu) (hotovo; `release-build.ps1 -SignOnly`) | all | qa-reviewer | P3 | T-181 |
 | T-190 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) (zamítnuto 2026-11-11) | all | ui-dev | P3 | – |
 | T-191 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) (hotovo, build beze změny) | all | qa-reviewer | P3 | – |
-| T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) (hotovo; implementace čeká na rozhodnutí) | all | architect | P3 | T-184, T-185 |
+| T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) (hotovo; rozhodnuto 2026-11-12, implementace T-203 až T-206) | all | architect | P3 | T-184, T-185 |
 | T-198 | Připravenost vydání 1.0.0 (blokery, první podepsané vydání, kontrola veřejného repozitáře, plán dne vydání) | all | architect | P1 | – |
 | T-199 | Vydání – zdrojový kód FFmpeg přiložený k vydání a věta o FFmpeg v okně O aplikaci (LGPL) (hotovo; ověření v T-125) | all | qa-reviewer | P1 | T-198 |
 | T-200 | Skripty vydání pro neměnná vydání – odmítnout `-AddToPublished` a `-AllowIncomplete` (až po vydání 1.0.0) | all | qa-reviewer | P2 | T-180 |
+| T-203 | Kamera – hardwarové dekódování H.264, sdílený základ a VideoToolbox (macOS) (doporučeno na Macu) | all | core-dev | P2 | T-192 |
+| T-204 | Nastavení > Kamera – volba „Hardwarové dekódování“ (Automaticky / Vypnuto) | all | ui-dev | P2 | T-203 |
 
 ### Windows (`windows`)
 
@@ -243,6 +245,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-186 | Kamera – pozastavení streamu při zamčení počítače a vypnutém displeji (výkon) | windows | ui-dev | P2 | – |
 | T-201 | Přeinstalace (`winget upgrade`) nemá znovu zapnout spouštění po přihlášení (hook instalace) | windows | ui-dev | P1 | T-059 |
 | T-202 | Windows – vlastní minimální LGPL build FFmpeg ze zdrojů (místo BtbN), s D3D11VA (blokuje 1.0.0) | windows | core-dev | P1 | T-199 |
+| T-206 | Windows – hardwarové dekódování D3D11VA (výchozí software do měření v T-125) | windows | core-dev | P2 | T-202, T-203, T-204 |
 
 ### macOS (`macos`) – jen na Macu, později
 
@@ -279,3 +282,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-142 | E2E test aktualizace na Macu selže se zapnutým displejem (hotovo; dřív T-133, přečíslováno 2026-11-02) | macos | qa-reviewer | P2 | T-058, T-099 |
 | T-147 | macOS – FFmpeg s muxerem pro nahrávání kamery (hotovo; QuickTime v T-127) | macos | ui-dev | P2 | T-144, T-026 |
 | T-187 | macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna (výkon) | macos | ui-dev | P3 | T-186 |
+| T-205 | macOS – hardwarové dekódování VideoToolbox, ověření a měření v aplikaci | macos | core-dev | P2 | T-203, T-204 |
