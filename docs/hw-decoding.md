@@ -13,6 +13,11 @@
 > se projeví od dalšího klíčového snímku (T-204, otázka 2). Popis v [architecture.md](architecture.md), oddíl
 > „Hardwarové dekódování kamery“, rychlá kontrola úspory v T-203 („Poznámky k implementaci“). Zbývá: UI volby (T-204),
 > podrobné měření a ověření na Macu (T-205), Windows D3D11VA (T-206).
+>
+> **Ověření na Macu (T-205, 2026-11-12):** Release Native AOT `LayerPeek.app` s hardened runtime, VideoToolbox funguje
+> bez nového entitlementu. Instrukce aplikace + `VTDecoderXPCService` klesnou o 50–67 %, doba CPU nevzroste, paměť
+> +13 / +22 MB na stream (720p / 1080p), obraz bit po bitu stejný jako ze softwaru, zpoždění paket → snímek nejvýš
+> +1,4 ms. Podrobně oddíl „Výsledky implementace (T-205)“ na konci.
 
 Stav 2026-11-11 (architekt, Mac mini M2 Pro, 10 jader, macOS 27.2, .NET SDK 11.0.100, Debug JIT). Rozhodnutí uživatele
 2026-11-11: **„ano, zkoumat – nejdřív měřit“**. Prototypy běžely jen mimo repozitář: benchmark v C a dočasná sonda
@@ -280,3 +285,156 @@ Body přidá do T-125 úkol T-206 po svém dokončení. Měří se D3D11VA (`LAY
   změřené GPU, doba CPU nevzroste, paměť navíc ≤ 50 MB na stream, v robustních scénářích žádná trvalá chyba. Splněno →
   uživatel rozhodne o přepnutí (nový úkol: pravidlo, příručky, případně zobrazení volby na Windows). Nesplněno →
   na Windows zůstává software.
+
+## Výsledky implementace (T-205)
+
+Stav 2026-11-12 (core-dev, Mac mini M2 Pro, 10 jader, macOS 27.2, .NET SDK 11.0.100). Měřil se **produktový kód**
+(T-203 / T-204) v **Release Native AOT** buildu, ne sonda jako v T-192.
+
+### Postup
+
+- **Build:** `dotnet publish src/LayerPeek.App -c Release -r osx-arm64` (bez varování trim / AOT), z něj `LayerPeek.app`
+  funkcemi vydání (`New-MacAppBundle`, `Invoke-MacAdHocSign`: ad-hoc podpis s hardened runtime a entitlementem
+  `disable-library-validation` z T-108). `Get-MacSignatureProblems` a `Get-MacHardenedRuntimeProblems` bez nálezu
+  (`flags=0x10002(adhoc,runtime)`). Spouštěl se `Contents/MacOS/LayerPeek` z bundlu s `--layerpeek-smoke-skip-notification-center`.
+- **Profil uživatele:** Release nemá testovací režim (`LAYERPEEK_TEST_DATA_DIR` a příkazy instance jsou jen v Debug).
+  Proto stejně jako T-191 a `scripts/aot-smoke.ps1`: profil aplikace se na dobu měření odsunul žurnálovanými funkcemi
+  `Backup-SmokeProfile` / `Restore-SmokeProfile`, každý běh zapsal vlastní `settings.json` a po běhu se smazal. Po
+  obnovení byl profil stejný jako před měřením (seznam souborů s velikostí a časem změny), registrace bundlu
+  v LaunchServices se zrušila (`lsregister -u`).
+- **Heslo bez Klíčenky:** jako v T-191 se aplikace připojuje přes proxy na `127.0.0.1`, která přidá `X-Api-Key`.
+- **Okno kamery bez testovacích příkazů:** automatika T-151 (`camera-windows.json` s `autoClosed`, okno se otevře, jakmile
+  je tiskárna online). Normální okno 640 × 360 DIP (720p) a 960 × 540 DIP (1080p), tj. plné rozlišení na Retina 2×,
+  malý náhled ve výchozí velikosti a 10 fps. Bez okna kamery = tiskárna s kamerou, okno zavřené.
+- **Simulátor a klipy jako T-192:** `tools/PrusaSimulator`, scénář `idle`, `--fps 25`, klipy 1280 × 720 (1,1 Mb/s)
+  a 1920 × 1080 (2,4 Mb/s) z `coreone-20261103-1905-60s.mp4` (libx264 Constrained Baseline, GOP 50, plný rozsah, BT.709).
+  Interval dotazování 2 s, notifikace a kontrola aktualizací vypnuté.
+- **Měření:** volba v `settings.json` (`"cameraHardwareDecoding": "Off"` / bez hodnoty = `Automatic`), 15 s zahřátí od
+  řádku logu „Camera video decoding“, 30 s měření, 2 kola se střídaným pořadím, zátěž před během 1,1–3,1 (mez ≤ 6).
+  `proc_pid_rusage` (`RUSAGE_INFO_V6`): `ri_instructions` (hlavní metrika), čas CPU, podíl P-jader, `ri_energy_nj`,
+  `phys_footprint` (medián za 30 s). `VTDecoderXPCService` se počítá jen tehdy, když má stejný odpovědný proces
+  (`responsibility_get_pid_responsible_for_pid`) a nespouštěl se před aplikací (proces tapety zamčené obrazovky ne).
+- **Obrazovka zamčená** (`CGSSessionScreenIsLocked`), displej probuzený (`caffeinate -d -u`), jako v T-191 a T-192.
+- **Kvalita, zpoždění, snímky/s, přepnutí za běhu:** pomocný program ve scratchpadu (mimo repozitář) nad veřejným API
+  `FFmpegCameraFeedFactory` / `ICameraFeed.ReadAsync` s poptávkou jako okno kamery (`DisplaySize`, bez plného
+  rozlišení; malý náhled s `RequestDisplay` po 100 ms), Release JIT. Že i tento program dekóduje v hardwaru, potvrdil
+  jeho `VTDecoderXPCService` (0,038 G instr./s jako v aplikaci).
+
+### A/B – aplikace (Release AOT, kolo 1 / kolo 2)
+
+Instrukce (G instr./s, aplikace + `VTDecoderXPCService`):
+
+| Scénář | Off | Automatic (aplikace + VT) | Automatic celkem | rozdíl |
+|---|---|---|---|---|
+| bez okna kamery (jen sledování) | 0,00101 / 0,00112 | 0,00110 / 0,00101 + 0 | 0,00110 / 0,00101 | −0,9 % |
+| normální okno 720p | 0,370 / 0,371 | 0,144 + 0,038 / 0,144 + 0,038 | **0,182 / 0,182** | **−50,9 %** |
+| malý náhled 720p (10 fps) | 0,320 / 0,322 | 0,096 + 0,038 / 0,096 + 0,038 | **0,134 / 0,134** | **−58,3 %** |
+| normální okno 1080p | 0,982 / 0,996 | 0,445 + 0,042 / 0,457 + 0,042 | **0,487 / 0,498** | **−50,2 %** |
+| malý náhled 1080p (10 fps) | 0,741 / 0,741 | 0,202 + 0,042 / 0,202 + 0,042 | **0,244 / 0,244** | **−67,1 %** |
+
+CPU (% jádra, aplikace + pomocný proces; podíl P-jader v závorce), odhad energie CPU (mW, aplikace + pomocný proces):
+
+| Scénář | CPU Off | CPU Automatic | energie Off | energie Automatic |
+|---|---|---|---|---|
+| bez okna kamery | 0,1 / 0,1 (14 / 7 %) | 0,1 / 0,1 (13 / 4 %) | 0,1 / 0,1 | 0,2 / 0,2 |
+| normální okno 720p | 18,1 / 18,7 (9 %) | 13,4 + 4,5 / 13,7 + 4,4 (7 %) | 53 / 51 | 28 + 7 / 29 + 7 (−32 %) |
+| malý náhled 720p | 12,3 / 12,6 (7–8 %) | 7,5 + 4,4 / 7,7 + 4,5 (6–7 %) | 38 / 38 | 17 + 7 / 17 + 7 (−37 %) |
+| normální okno 1080p | 36,3 / 37,5 (17–20 %) | 27,3 + 4,6 / 27,0 + 4,5 (9–10 %) | 138 / 133 | 66 + 7 / 68 + 8 (−45 %) |
+| malý náhled 1080p | 23,0 / 22,6 (10–11 %) | 9,1 + 4,6 / 9,8 + 4,7 (7–8 %) | 80 / 82 | 27 + 8 / 25 + 7 (−59 %) |
+
+Paměť (`phys_footprint`, MB, obě kola shodně ±0,2 MB):
+
+| Scénář | Off aplikace | Automatic aplikace | `VTDecoderXPCService` | součet Automatic | navíc |
+|---|---|---|---|---|---|
+| bez okna kamery | 26,2 | 26,2 | – (žádný proces) | 26,2 | 0 |
+| normální okno 720p | 98,0 | 93,4 | 17,4 | 110,8 | **+12,7** |
+| malý náhled 720p | 70,5 | 65,9 | 17,4 | 83,3 | **+12,7** |
+| normální okno 1080p | 145,0 | 133,9 | 32,8 | 166,7 | **+21,7** |
+| malý náhled 1080p | 80,6 | 69,1 | 32,9 | 102,0 | **+21,3** |
+
+Snímky/s (pomocný program, produktový dekodér, 30 s po 5 s zahřátí, simulátor; 2 kola):
+
+| Scénář | Off: dekódováno / převedeno | Automatic: dekódováno / převedeno |
+|---|---|---|
+| okno 720p (1280 × 720) | 25,03 / 25,03 | 25,00 / 25,00 |
+| malý náhled 720p (640 × 360) | 25,03 / 8,37 | 25,00–25,03 / 8,33–8,37 |
+| okno 1080p (1920 × 1080) | 25,00 / 25,00 | 25,00 / 25,00 |
+| malý náhled 1080p (640 × 360) | 25,00 / 8,33 | 25,00 / 8,33 |
+
+Malý náhled převádí jen splatné snímky: pomocný program žádá další snímek 100 ms po posledním převedeném, proto 8,3 místo
+10 za sekundu (hub aplikace plánuje po 100 ms od termínu). V aplikaci (AOT) to dokládá pomocný proces: 1,5 M instr. na
+snímek (720p) a 1,7 M (1080p) v okně i v malém náhledu, tj. 25 dekódovaných snímků/s v obou režimech, a instrukce
+malého náhledu o třetinu pod oknem.
+
+- **Úspora instrukcí** 50–51 % v normálním okně a 58 % / 67 % v malém náhledu (mez ≥ 40 %; T-192: −48 až −63 %).
+  Aplikace v AOT dělá méně práce než Debug JIT v T-192 (SW okno 720p 0,37 proti 0,41–0,45 G/s), poměr úspory je stejný.
+- **Doba CPU** (aplikace + pomocný proces) s VT není vyšší: 720p 18,0 proti 18,4 %, malý náhled 12,0 proti 12,5 %,
+  1080p 31,7 proti 36,9 %, malý náhled 1080p 14,1 proti 22,8 %. Pomocný proces stojí ~4,5 % jádra při malém počtu
+  instrukcí (čeká na hardware), jako v T-192.
+- **Paměť navíc** +12,7 MB (720p) a +21,5 MB (1080p) na stream, mez 40 MB platí. Pomocný proces 17,4 / 32,8 MB,
+  aplikace o 4,6 / 11 MB méně (bez softwarového poolu snímků).
+- **Bez okna kamery** se zařízení VT nevytvoří a `VTDecoderXPCService` aplikace nevznikne (0 procesů, žádný řádek
+  „Camera video decoding“). Při jen sledování aplikace ke kameře vůbec není připojená, cesta je pro obě volby stejná.
+  Instrukce samotného sledování jsou malé (0,5–1 M instr./s) a mezi procesy se liší víc než mezi volbami: 30 s (2 páry)
+  Off 1,01 / 1,12, Automatic 1,10 / 1,01 M/s (−0,9 %); 120 s (6 párů, pořadí ABBA) Off 0,65–0,76, Automatic 0,71–0,95
+  (+14,8 %); 300 s po 10 s úsecích (2 páry) Off 0,90 / 0,55, Automatic 0,53 / 0,60 (−22 %). Znaménko rozdílu se mezi
+  sériemi mění a rozptyl téže volby je až ±30 %, takže mez ±5 % tu měřením rozlišit nejde. Ustálená hladina po prvních
+  ~20 s (medián 10s úseků) je u obou voleb stejná: Off 0,49, Automatic 0,49 / 0,55 M/s; vyšší běhy mají jednotlivé
+  delší úseky okolo 1 M/s bez vazby na volbu. Rozhoduje proto detekce bez okna níže (skutečná práce s kamerou): +0,6 %.
+
+### Detekce bez okna, dvě kamery, zavření a znovuotevření okna (Release AOT)
+
+| Kontrola | Off | Automatic | Výsledek |
+|---|---|---|---|
+| detekce chyb tisku bez okna (scénář `printing`, detekce zapnutá, vzorek každé 2 s, 2 kola) | 15,51 / 15,42 M instr./s, 29,3 MB | 15,78 / 15,32 M instr./s, 29,3 MB | **+0,6 %**, 0 procesů `VTDecoderXPCService`, žádné plné dekódování |
+| dvě kamery (720p + 1080p, dvě okna, 2 kola) | 1,246 / 1,242 G/s, 45,0 / 48,0 % CPU, 177,8 / 175,0 MB | 0,476 + 0,079 / 0,477 + 0,079 G/s, 34,3 + 8,5 / 35,5 + 8,5 % CPU, 160,8 + 46,9 / 158,9 + 46,9 MB | **−55,4 %** instrukcí, paměť **+30,4 MB** za dva streamy; jeden pomocný proces pro obě relace (46,9 MB ≈ 17,4 + 32,8 − 3,3) |
+| zavření okna (tiskárna offline → T-151 okno zavře po 30 s) | – | pomocný proces 17,4 MB → **3,3 MB** po 10 s lhůtě hubu (relace uvolněná); proces zůstává, systém ho drží pro další relaci | splněno („skončí nebo jeho paměť klesne“) |
+| znovuotevření (tiskárna zase online → okno se otevře po 10 s) | – | nové spojení, „Camera video decoding: videotoolbox“, pomocný proces znovu 17,3 MB | splněno |
+
+Aplikace s dvěma okny drží jen jeden `VTDecoderXPCService`; jeho paměť roste s počtem relací (17,4 MB za relaci 720p,
+32,8 MB za 1080p, 3,3 MB základ).
+
+### Kvalita obrazu
+
+Pomocný program dekódoval týž klip (`file://`) jednou softwarově a jednou přes VideoToolbox a porovnal snímky 0
+(klíčový), 37, 149 a 500 v plném rozlišení (720p a 1080p, `BgraConverter` bez zmenšení) i zmenšené na 640 × 360
+(dvouprůchodové zmenšení malého náhledu). **Průměrná absolutní odchylka 0,000 ve všech kanálech, největší odchylka 0,
+průměrná znaménková odchylka 0** – snímky jsou bit po bitu stejné. H.264 je bitově přesný standard (VideoToolbox vrací
+stejné Y/Cb/Cr jako software) a swscale převádí NV12 stejně jako YUV 4:2:0 (plný rozsah, BT.709). Okem (snímek 149
+z 1080p obou cest vedle sebe): stejné barvy, oranžové díly a tmavá podložka bez posunu barev. Mez ≤ 2 úrovně platí s rezervou.
+Jak obraz vypadá v okně na obrazovce, je stejné pro obě cesty (dostává stejné BGRA); kontrola okem v okně → T-127.
+
+### Zpoždění
+
+Čas od paketu (položka `Packet` z `ReadAsync`, ještě před dekódováním) po převedený snímek (`Frame`), pomocný program,
+simulátor, 30 s, 2 kola; ms medián / p95 / p99 / max:
+
+| Scénář | Off | Automatic | rozdíl mediánu |
+|---|---|---|---|
+| okno 720p | 3,76–3,79 / 6,2–6,3 / 9,9–11,4 / 11,8–14,8 | 4,88–5,06 / 6,8–6,9 / 8,1–8,3 / 10,6–10,8 | +1,1 až +1,3 ms |
+| malý náhled 720p | 4,16–4,23 / 6,9–7,2 / 8,7–10,9 / 10,0–13,0 | 5,46–5,63 / 7,5–7,7 / 8,4–8,5 / 8,7–10,6 | +1,3 až +1,4 ms |
+| okno 1080p | 8,13–8,36 / 12,8–13,3 / 18,5–19,0 / 23,9–27,9 | 6,79–6,80 / 8,7–8,9 / 9,8–10,0 / 14,0–14,3 | −1,4 ms |
+| malý náhled 1080p | 9,32–9,57 / 14,1–14,7 / 18,4–19,6 / 21,9–24,8 | 8,30–8,34 / 11,1–11,6 / 12,0–12,3 / 12,1–12,9 | −1,1 ms |
+
+Žádný snímek navíc ve frontě (každý paket dá svůj snímek hned, `AV_CODEC_FLAG_LOW_DELAY`, rozdíl paketů a snímků 0).
+VideoToolbox přidá u 720p ~1 ms, u 1080p je rychlejší a má menší rozptyl. Mez „zhoršení o víc než jeden snímek (40 ms)“
+je daleko.
+
+### Přepnutí volby za běhu, robustnost
+
+- **Přepnutí za běhu** (pomocný program, simulátor 720p, Automatic → Off v 10 s → Automatic ve 20 s): 253 / 250 / 251
+  snímků, největší mezera 45 / 55 / 63 ms, řádky logu `videotoolbox` → `software (turned off in the settings)` →
+  `videotoolbox`. **Nalezená chyba (opraveno v T-205):** simulátor posílal u klipu MP4 SPS a PPS jen před prvním IDR
+  snímkem smyčky (MP4 je má jen v `avcC`), ačkoli `docs/simulator.md` slibuje „jako Buddy3D před každým IDR“. Dekodér, který
+  přepnutí otevře na dalším klíčovém snímku, pak neměl parametry a okno stálo až do konce smyčky klipu (14 s a 24 s
+  bez snímku). `H264Clip` teď dává SPS a PPS před každý IDR snímek (poslední předchozí v pořadí dekódování); testy
+  `RtspCameraTests.EveryIdrFrameGetsTheParameterSetsWhenTheClipHasThemOnlyOnce`, `…AnIdrFrameGetsTheLatestParameterSetsBeforeIt`
+  a `HardwareDecodingVideoToolboxTests.AChangedSettingKeepsTheSimulatedCameraRunningWhenItsClipHasTheParameterSetsOnlyOnce`
+  (bez opravy 50 ze 71 snímků). Skutečná Buddy3D posílá SPS a PPS před každým IDR (fixture `buddy3d.h264`,
+  `docs/timelapse-spike.md`) a navíc `sprop-parameter-sets` v SDP (T-014), takže produkt se jí to netýká.
+- **Hardened runtime:** VideoToolbox v podepsaném AOT bundlu funguje bez nového entitlementu (log `videotoolbox`,
+  pomocný proces vznikl, žádné varování).
+- **Zamčená obrazovka:** všechna měření běžela při zamčené obrazovce; dekódování VT běží (25 snímků/s, pomocný proces).
+- **Uspání a probuzení Macu** (`kVTInvalidSessionErr`) a pohled na okno kamery okem agent udělat nemůže (vzdálené
+  sezení, Mac by se sám neprobudil) → T-127. Automaticky je návrat k softwaru po chybě dekódování pokryt testy T-203
+  (`AFailureWhileDecodingContinuesInSoftwareFromTheNextKeyFrame` a další).

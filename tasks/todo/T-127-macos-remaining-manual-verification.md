@@ -304,6 +304,23 @@ a kritérium.
       že test spojení hlásí „Zabezpečené spojení (https) selhalo…“. Výsledek zapsat do poznámek T-183
       a `docs/api/prusalink.md`.
 
+### 1h. Hardwarové dekódování VideoToolbox (z T-205, změřeno na Macu 2026-11-12)
+- [ ] **T-205** (krit. „Uspání / probuzení, zamčení, dvě kamery a přepnutí volby za běhu bez černého okna a bez trvalé
+      chyby“, ruční části; automaticky změřeno v Release AOT, viz `docs/hw-decoding.md`, oddíl „Výsledky implementace
+      (T-205)“): `LayerPeek.app` (Release), Nastavení > Kamera > „Hardwarové dekódování“ **Automaticky**, simulátor
+      s klipem `--camera-clip ~/LayerPeek-samples/clips/coreone-20261103-1905-60s.mp4 --fps 25` nebo skutečná Buddy3D,
+      podrobné logování. (1) **Uspání a probuzení:** otevřené okno kamery, Mac uspat (menu Apple > Uspat) aspoň na 1 min
+      a probudit: obraz do několika sekund znovu běží, okno nezůstane černé; v logu dál „Camera video decoding:
+      videotoolbox“, nebo jedno `Warning` „Hardware video decoding (VideoToolbox) failed … continues in software“
+      a obraz běží softwarově. Totéž s malým náhledem. (2) **Zamčení:** okno otevřené, zamknout obrazovku (⌃⌘Q) na 1 min,
+      odemknout: obraz běží. (3) **Okem:** obraz v okně a v malém náhledu s Automaticky a s Vypnuto (přepnout v nastavení)
+      vypadá stejně – stejné barvy (oranžové díly, tmavá podložka), ostrý, bez kostiček. (4) **Přepnutí za běhu:** při
+      otevřeném okně přepnout volbu a Uložit (tam i zpět): obraz se zastaví nejvýš do dalšího klíčového snímku (~2 s),
+      pak běží dál bez „Bez signálu“; v logu řádek „Camera video decoding: …“ s novou cestou. (5) **Dvě kamery** (dva
+      simulátory, např. `--port 18080 --camera-port 8554` a `--port 18081 --camera-port 8555`, dvě tiskárny, dvě okna):
+      obě okna ukazují obraz, Monitor aktivit ukáže jeden `VTDecoderXPCService`.
+      Výsledek zapsat do poznámek T-205.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

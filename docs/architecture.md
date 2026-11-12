@@ -406,7 +406,14 @@ NV12 dál přes `BgraConverter` / `GrayscaleConverter`) ušetří 45–63 % inst
 - **Bezpečnost (doplněk T-050):** data řezů z nedůvěryhodné kamery zpracuje při hardwarovém dekódování i systémový
   dekodér a ovladač GPU (macOS `VTDecoderXPCService` a AppleAVD, Windows ovladač D3D11VA). Uživatel to 2026-11-12
   přijal, pojistkou je volba „Vypnuto“. Whitelisty T-050 platí beze změny. Paměť +10–25 MB na stream.
-- Dál: UI volby (Nastavení > Kamera, T-204), měření a ověření produktového kódu na Macu (T-205), D3D11VA (T-206).
+- **Ověřeno na Macu (T-205, Release Native AOT `LayerPeek.app` s hardened runtime):** VideoToolbox funguje bez nového
+  entitlementu. Instrukce aplikace + `VTDecoderXPCService` −50 až −51 % v okně kamery a −58 / −67 % v malém náhledu
+  (720p / 1080p), doba CPU nevzroste, paměť +13 / +22 MB na stream (jeden pomocný proces na aplikaci, po zavření okna jeho
+  paměť klesne na ~3 MB). Bez okna kamery (sledování, detekce) žádná relace VT. Snímky bit po bitu stejné jako ze
+  softwaru, zpoždění paket → snímek +1 ms (720p) až −1,4 ms (1080p). Simulátor posílá SPS a PPS před každým IDR snímkem
+  i u klipů MP4 (jinak by dekodér otevřený na klíčovém snímku po přepnutí neměl parametry). Tabulky v
+  [hw-decoding.md](hw-decoding.md), oddíl „Výsledky implementace (T-205)“; uspání a probuzení a pohled na okno → T-127.
+- Dál: D3D11VA na Windows (T-206).
 
 ## Logování
 

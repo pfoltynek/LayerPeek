@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.Core.Cameras;
+using LayerPeek.Simulator.Camera;
 
 using static LayerPeek.Camera.FFmpeg.Tests.HardwareDecodingFallbackTests;
 
@@ -262,6 +263,44 @@ public sealed class HardwareDecodingVideoToolboxTests
             ["Camera video decoding: videotoolbox.", "Camera video decoding: software (turned off in the settings)."],
             log.At(LogLevel.Information));
         Assert.Empty(log.At(LogLevel.Warning));
+    }
+
+    [HardwareDecodingFact]
+    public async Task AChangedSettingKeepsTheSimulatedCameraRunningWhenItsClipHasTheParameterSetsOnlyOnce()
+    {
+        // T-205: the simulator played an MP4 clip (SPS and PPS only in avcC) with the parameter sets before the first IDR
+        // frame only; the decoder that the switch opens at the next key frame then had none and the window stood still
+        // until the clip looped. Now the simulator sends them before every IDR frame, like the Buddy3D.
+        using MemoryStream annexB = new();
+        for (int f = 0; f < TestFixtures.Buddy3DClip.Frames.Count; f++)
+        {
+            foreach (byte[] nal in TestFixtures.Buddy3DClip.Frames[f])
+            {
+                if (f == 0 || (nal[0] & 0x1F) is not (7 or 8))
+                {
+                    annexB.Write([0, 0, 0, 1]);
+                    annexB.Write(nal);
+                }
+            }
+        }
+
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = H264Clip.Parse(annexB.ToArray()), Loop = false, RealTime = false });
+        (FFmpegCameraFeedFactory factory, ListLogger log) = CreateFactory(CameraHardwareDecoding.Automatic);
+        await using FFmpegCameraFeed feed = (FFmpegCameraFeed)factory.Create(camera.StreamUri);
+        int frames = 0;
+
+        await foreach (CameraStreamItem item in feed.ReadAsync(Window(), Ct))
+        {
+            if (item.Kind == CameraStreamItemKind.Frame && ++frames == 5)
+            {
+                factory.HardwareDecoding = CameraHardwareDecoding.Off;
+            }
+        }
+
+        Assert.Equal(TestFixtures.Buddy3DFrameCount, frames);
+        Assert.Equal(
+            ["Camera video decoding: videotoolbox.", "Camera video decoding: software (turned off in the settings)."],
+            log.At(LogLevel.Information));
     }
 
     [HardwareDecodingFact]

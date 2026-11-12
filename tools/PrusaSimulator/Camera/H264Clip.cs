@@ -2,9 +2,9 @@ namespace LayerPeek.Simulator.Camera;
 
 /// <summary>
 /// A raw H.264 elementary stream (Annex B) split into access units (frames) of NAL units without start codes, prepared
-/// for seamless looping: <see cref="LoopStart"/> is the first frame with an IDR slice, and that frame always carries SPS
-/// and PPS (copied from elsewhere in the clip when the recording has them only once), so that a decoder can restart at
-/// every loop without a gap.
+/// for seamless looping: <see cref="LoopStart"/> is the first frame with an IDR slice, and every frame with an IDR slice
+/// carries SPS and PPS (copied from elsewhere in the clip when the recording has them only once), so that a decoder can
+/// restart at every loop and at every key frame without a gap.
 /// </summary>
 public sealed class H264Clip
 {
@@ -77,15 +77,32 @@ public sealed class H264Clip
             throw new InvalidDataException("The clip is not an H.264 Annex B stream with SPS, PPS and an IDR frame.");
         }
 
-        List<byte[]> first = frames[loopStart];
-        if (!first.Exists(static n => (n[0] & 0x1F) == NalPps))
+        // Like the Buddy3D (T-205): SPS and PPS in front of every IDR frame, not only at the loop start, so that a client
+        // which opens a new decoder at a later key frame (LayerPeek switching between hardware and software decoding,
+        // T-203) can decode it; an MP4 clip has them only once (avcC). A frame without them gets the latest ones before it
+        // in decoding order (at the loop start: the first ones of the clip).
+        for (int i = loopStart; i < frames.Count; i++)
         {
-            first.Insert(0, pps);
-        }
+            List<byte[]> frame = frames[i];
+            byte[]? ownSps = frame.Find(static n => (n[0] & 0x1F) == NalSps);
+            byte[]? ownPps = frame.Find(static n => (n[0] & 0x1F) == NalPps);
+            sps = ownSps ?? sps;
+            pps = ownPps ?? pps;
+            if (!frame.Exists(static n => (n[0] & 0x1F) == NalIdr))
+            {
+                continue;
+            }
 
-        if (!first.Exists(static n => (n[0] & 0x1F) == NalSps))
-        {
-            first.Insert(0, sps);
+            if (ownPps is null)
+            {
+                // After the SPS it refers to.
+                frame.Insert(ownSps is null ? 0 : frame.IndexOf(ownSps) + 1, pps);
+            }
+
+            if (ownSps is null)
+            {
+                frame.Insert(0, sps);
+            }
         }
 
         return new H264Clip(frames.ConvertAll(static f => (IReadOnlyList<byte[]>)f.AsReadOnly()).AsReadOnly(), loopStart);
