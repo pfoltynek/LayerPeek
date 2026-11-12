@@ -41,6 +41,52 @@ public sealed class RtspCameraTests
     }
 
     [Fact]
+    public void EveryIdrFrameGetsTheParameterSetsWhenTheClipHasThemOnlyOnce()
+    {
+        // T-205: like an MP4 clip (SPS and PPS only in avcC), but the Buddy3D sends them before every IDR frame; a client
+        // that opens a new decoder at a later key frame needs them there.
+        H264Clip clip = H264Clip.Parse(
+        [
+            0, 0, 0, 1, 0x67, 0x42, 0xC0, 0x1F,
+            0, 0, 0, 1, 0x68, 0xCE, 0x3C, 0x80,
+            0, 0, 0, 1, 0x65, 0x80, 0x22,
+            0, 0, 0, 1, 0x41, 0x80, 0x33,
+            0, 0, 0, 1, 0x65, 0x80, 0x44,
+            0, 0, 0, 1, 0x41, 0x80, 0x55,
+        ]);
+
+        Assert.Equal(4, clip.Frames.Count);
+        Assert.Equal([7, 8, 5], clip.Frames[0].Select(static n => n[0] & 0x1F));
+        Assert.Equal([1], clip.Frames[1].Select(static n => n[0] & 0x1F));
+        Assert.Equal([7, 8, 5], clip.Frames[2].Select(static n => n[0] & 0x1F));
+        Assert.Equal(clip.Frames[0][0], clip.Frames[2][0]);
+        Assert.Equal(clip.Frames[0][1], clip.Frames[2][1]);
+        Assert.Equal([1], clip.Frames[3].Select(static n => n[0] & 0x1F));
+    }
+
+    [Fact]
+    public void AnIdrFrameGetsTheLatestParameterSetsBeforeIt()
+    {
+        byte[] secondSps = [0x67, 0x42, 0xC0, 0x28];
+        H264Clip clip = H264Clip.Parse(
+        [
+            0, 0, 0, 1, 0x67, 0x42, 0xC0, 0x1F,
+            0, 0, 0, 1, 0x68, 0xCE, 0x3C, 0x80,
+            0, 0, 0, 1, 0x65, 0x80, 0x22,
+            0, 0, 0, 1, .. secondSps,
+            0, 0, 0, 1, 0x65, 0x80, 0x33,
+            0, 0, 0, 1, 0x65, 0x80, 0x44,
+        ]);
+
+        Assert.Equal(3, clip.Frames.Count);
+        // The frame that brings its own SPS keeps it and gets the PPS; the next one gets that SPS, not the first one.
+        Assert.Equal([7, 8, 5], clip.Frames[1].Select(static n => n[0] & 0x1F));
+        Assert.Equal(secondSps, clip.Frames[1][0]);
+        Assert.Equal(secondSps, clip.Frames[2][0]);
+        Assert.Equal(clip.Frames[0][1], clip.Frames[2][1]);
+    }
+
+    [Fact]
     public void DataWithoutAnIdrFrameIsRejected()
     {
         Assert.Throws<InvalidDataException>(() => H264Clip.Parse([0, 0, 1, 0x41, 0x80, 0, 0, 1, 0x41, 0x80]));
