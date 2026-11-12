@@ -38,13 +38,33 @@ Otázky z průzkumu (architekt, 2026-11-11). Dokončení průzkumu neblokují, r
    jako fallback a pro samostatné klíčové snímky detekce). Instrukce aplikace s kamerou klesnou o 45–63 %, odhad energie
    CPU o 20–50 %, doba CPU jen o 0–35 % a paměť naroste o 10–25 MB (systémový proces `VTDecoderXPCService`). Pokud ano,
    architekt založí implementační úkol(y) podle `docs/hw-decoding.md` (oddíl „Odhad pracnosti“).
+
+   Rozhodnuto uživatelem 2026-11-12: **ano, implementovat, nejdřív macOS.** VideoToolbox s `av_hwframe_map`, software
+   jako automatický návrat (fallback) a dál pro samostatné klíčové snímky detekce. Úkoly T-203 (sdílený základ
+   a VideoToolbox), T-204 (volba v nastavení), T-205 (macOS – ověření a měření) a T-206 (Windows – D3D11VA).
 3. **Výchozí stav a nastavení:** zapnuto automaticky bez volby, zapnuto s volbou v Nastavení > Kamera (např.
    „Hardwarové dekódování“: Automaticky / Vypnuto), nebo vypnuto s volbou? Volba znamená texty v 8 jazycích a manuály.
+
+   Rozhodnuto uživatelem 2026-11-12: **zapnuto s volbou** v Nastavení > Kamera: „Hardwarové dekódování“ Automaticky /
+   Vypnuto, výchozí Automaticky. Nové texty ve všech 8 `Strings.*.resx` a ve všech příručkách (T-204).
 4. **Windows:** implementovat D3D11VA hned ve stejném úkolu s výchozím softwarem, dokud ho T-125 nezměří, nebo
    Windows odložit a udělat zatím jen macOS? Build BtbN už D3D11VA obsahuje, úspora na Windows je neověřená.
+
+   Rozhodnuto uživatelem 2026-11-12: **obě OS v jednom záměru** – D3D11VA vzniká souběžně (T-206), na Windows ale
+   zůstává výchozí software, dokud ho T-125 nezměří. D3D11VA na Windows závisí na T-202 (vlastní minimální LGPL build
+   FFmpeg pro Windows místo BtbN, s D3D11VA). Výchozí stav podle OS: volba je na obou OS výchozí Automaticky,
+   „Automaticky“ ale znamená na macOS VideoToolbox a na Windows software, dokud uživatel po měření v T-125 nerozhodne
+   o přepnutí (pak jen změna pravidla v kódu, uložené nastavení se nemigruje). Pro měření na Windows zapne D3D11VA
+   vývojový přepínač (jen Debug, T-203). Co přesně T-125 měří: [docs/hw-decoding.md](../../docs/hw-decoding.md),
+   oddíl „Windows – měření pro přepnutí výchozího stavu“.
 5. **Bezpečnost a paměť:** souhlasíte, že data řezů H.264 z kamery (nedůvěryhodná síť) zpracuje navíc systémový
    hardwarový dekodér a jeho ovladač (rozšíření útočné plochy z T-050, chráněno aktualizacemi OS), a s +10–25 MB paměti
    na stream?
+
+   Rozhodnuto uživatelem 2026-11-12: **souhlasí** s rozšířenou útočnou plochou (systémový hardwarový dekodér a ovladač
+   GPU, chráněno aktualizacemi OS) i s +10–25 MB paměti na stream. Pojistkou je volba „Vypnuto“ (vždy software).
+   Zapsáno v [docs/hw-decoding.md](../../docs/hw-decoding.md) (oddíl „Bezpečnost a paměť – rozhodnutí“) a
+   v `docs/architecture.md`.
 
 ## Poznámky k implementaci
 
@@ -72,3 +92,5 @@ worktree, smazaném po měření) a knihovny FFmpeg s VideoToolboxem byly jen ve
 - Doporučení: vyplatí se, nejdřív macOS, Windows po změření v T-125. Implementační úkoly zatím nevznikly (otázky 2–5).
 - Pokud se bude implementovat Windows, má T-125 dostat měření D3D11VA (instrukce nebo CPU, iGPU i dedikovaná GPU).
   Tento bod nevznikl, protože implementace zatím není rozhodnutá.
+- Doplněno 2026-11-12 (architekt, po rozhodnutí otázek 2–5): vznikly T-203 až T-206. Měření D3D11VA přidá do T-125
+  úkol T-206 po svém dokončení (postup v `docs/hw-decoding.md`).
