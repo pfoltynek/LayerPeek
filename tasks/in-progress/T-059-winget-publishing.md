@@ -15,7 +15,7 @@ Aplikaci jde nainstalovat a aktualizovat příkazem `winget install` z oficiáln
 
 ## Rozsah
 - Identifikátor balíčku (rozhodnuto: `3DPrint.LayerPeek`) a první manifest: revidované šablony v `build/winget` (vstup místo interaktivního `wingetcreate new`), z nichž `scripts/release-winget.ps1` vytvoří manifest verze s SHA256 instalátoru z GitHubu a odešle ho `wingetcreate submit`.
-- Typ instalátoru a přepínač tiché instalace podle instalátoru z T-017 / doporučení T-056 (Velopack `Setup.exe` → typ `exe`, `--silent`); `Scope: user`; architektura jen `x64` (Windows ARM64 se nepodporuje, rozhodnutí uživatele 2026-11-01, T-130).
+- Typ instalátoru a přepínač tiché instalace podle instalátoru z T-017 / doporučení T-056 (Velopack `Setup.exe` → typ `exe`, `--silent`); `Scope: user`; architektura zatím jen `x64` (Windows ARM64 se od 2026-11-01 nepodporovalo, T-130; **rozhodnutí uživatele 2026-11-12: `win-arm64` se bude vydávat** – uzel `arm64` v šabloně, skriptu a testech přidává T-209, kdy se `arm64` poprvé odešle, je otázka 3 v T-209).
 - Licence v manifestu: `GPL-3.0-only`, odkaz na `LICENSE`.
 - **Bez CI** (T-016 odložený): aktualizace manifestu z lokálního postupu vydání – po zveřejnění vydání skriptem T-055 volitelný krok `wingetcreate update <id> --version X.Y.Z --urls <url> … --submit`. Postup v `docs/release.md`. Token pro `wingetcreate` jen lokálně (`gh auth token` za běhu, z dočasného `gh auth login`, rozhodnutí 2026-11-11), nikdy v repozitáři ani v logu; telemetrie `wingetcreate` vypnutá.
 - Ověření manifestu `winget validate` a lokální instalace `winget install --manifest <složka>` před odesláním.
