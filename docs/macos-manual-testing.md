@@ -65,8 +65,8 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release -Skip mac.aot-sm
 **Bez vás (T-140, rozhodnutí uživatele 2026-11-02):** `-Allow` spustí vyjmenované kontroly s oprávněním bez otázky,
 i s `-Unattended`; otázky na posouzení nahrazuje Accessibility (záložka Nastavení, tooltip ikony v menu baru). Jednou
 připravit:
-- **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.camera-pin`,
-  `mac.update-check`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
+- **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.menu-items`,
+  `mac.camera-pin`, `mac.update-check`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
   okna jako důkaz, že je text výsledku opravdu vykreslený).
 - **Oznámení** „LayerPeek E2E“ povolená (Nastavení systému → Oznámení, nebo jednou interaktivně `-Only mac.notifications`)
   – `mac.notifications` a oznámení během spánku v `mac.display-sleep`.
@@ -91,7 +91,7 @@ připravit:
   Klíčenky s prefixem `LayerPeek.Tests`, dočasné složky. Řízené ruční kroky s `/Applications/LayerPeek.app` nabídnou
   dočasné odsunutí profilu LayerPeek (žurnál `scripts/aot-smoke.ps1`, obnova i `pwsh scripts/aot-smoke.ps1 -RestoreOnly`).
 - **Známé pozůstatky:** položka „LayerPeek E2E“ v Nastavení systému → Oznámení; Terminál v Soukromí a zabezpečení →
-  Zpřístupnění, pokud jste ho povolili pro `mac.keys` nebo `mac.update-check` (po běhu vypněte).
+  Zpřístupnění, pokud jste ho povolili pro `mac.keys`, `mac.menu-items` nebo `mac.update-check` (po běhu vypněte).
 
 | Kontrola | Druh | Uzavírá | Sezení níže |
 |---|---|---|---|
@@ -101,6 +101,7 @@ připravit:
 | `mac.keychain` | automaticky | T-021 krit. 1–5 a 8 (přeskočený test = `FAIL`), krit. 7 s `mac.profile-unchanged` | 3.1 |
 | `mac.dock` | automaticky | T-019 krit. 7 (bez Docku, `lsappinfo` typ `UIElement`) | 2.1 |
 | `mac.menubar` | automaticky | T-019 krit. 7 (ikona v menu baru), T-018 krit. 3 (část: Ukončit) | 2.1, 2.3 |
+| `mac.menu-items` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-018 krit. 3 (menu se zobrazí a aktualizuje: skutečné menu stavové položky přes helper `menu` ve stavech idle, printing, paused, finished, error, offline se simulátorem `--speed 20`, tooltip ikony; kamera přes `menupress`; „Ukončit“ z menu), T-209; zapíše AXHelp zakázaných položek (`disabled-items-help.txt`) | 2.3 |
 | `mac.settings-front` | automaticky | T-019 krit. 8 (Nastavení, O aplikaci, Diagnostika a další spuštění nad Finderem, `lsappinfo front`) | 2.4 |
 | `mac.plist-localnetwork` | automaticky | T-097 krit. 3 (podklad: text každého jazyka, jak ho vybere NSBundle) | 4.1 |
 | `mac.gatekeeper` | automaticky | T-019 krit. 12 (část: `spctl` odmítne kopii z `.dmg` s karanténou; potřebuje `release-build.ps1`) | 1.4 |

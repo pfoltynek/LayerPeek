@@ -1040,6 +1040,137 @@ function Get-VerifyUpdateCheckVerdict {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
+# The status item menu (T-209, mac.menu-items)
+# ---------------------------------------------------------------------------------------------------------------------
+
+function Get-VerifyResxStrings {
+    <# .SYNOPSIS The values of a .resx file by name (ordinal), e.g. src/LayerPeek.App/Resources/Strings.resx. #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $table = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+    $xml = [xml] (Get-Content -LiteralPath $Path -Raw)
+    foreach ($data in $xml.root.data) { $table[$data.name] = [string] $data.value }
+    $table
+}
+
+function ConvertFrom-VerifyAccessText {
+    <#
+    .SYNOPSIS
+        The text a menu item shows for a resource text with an access key: the first single "_" (the marker) removed and
+        "__" shown as "_", like Avalonia gives it to NSMenu (NativeMenuText.DisplayTextOf in the app).
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Text)
+    $marker = -1
+    for ($i = 0; $i -lt $Text.Length - 1; $i++) {
+        if ($Text[$i] -ne '_') { continue }
+        if ($Text[$i + 1] -ne '_') { $marker = $i; break }
+        $i++
+    }
+    $shown = if ($marker -ge 0) { $Text.Remove($marker, 1) } else { $Text }
+    $shown.Replace('__', '_').Replace([string] [char] 0x2060, '')
+}
+
+function Get-VerifyMenuEntries {
+    <# .SYNOPSIS The items of the helper's 'menu' JSON (or of a submenu) without the separators. #>
+    param([AllowNull()] [AllowEmptyCollection()] [object[]] $Items)
+    @($Items | Where-Object { $_ -and -not $_.separator })
+}
+
+function Get-VerifyMenuHelps {
+    <#
+    .SYNOPSIS
+        "path: disabled, help 'text'" for every disabled item of the helper's 'menu' JSON, submenus included: whether the
+        app's tooltip of a disabled item (its reason) reaches NSMenu as AXHelp (the open question of T-146 / T-148 / T-161).
+    #>
+    param([AllowNull()] [AllowEmptyCollection()] [object[]] $Items, [string] $Path = '')
+    foreach ($item in Get-VerifyMenuEntries $Items) {
+        $here = if ($Path) { "$Path>$($item.title)" } else { $item.title }
+        if (-not $item.enabled) { "${here}: disabled, help $(if ($item.help) { "'$($item.help)'" } else { 'none' })" }
+        if ($item.submenu) { Get-VerifyMenuHelps -Items $item.submenu -Path $here }
+    }
+}
+
+function Get-VerifyMenuHeaderPattern {
+    <#
+    .SYNOPSIS
+        The regular expression of the printer item "Name: State" (with " – 42%" when -Progress), built from the resource
+        formats MenuPrinter, ToolTipStateWithProgress and ToolTipProgress (texts: Get-VerifyResxStrings).
+    #>
+    param([Parameter(Mandatory)] $Texts, [Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $State, [switch] $Progress)
+    $percent = [char] 0xE000
+    $plain = [regex]::Escape(($Texts['MenuPrinter'] -f $Name, $State))
+    if (-not $Progress) { return "^$plain$" }
+    $withProgress = $Texts['MenuPrinter'] -f $Name, ($Texts['ToolTipStateWithProgress'] -f $State, ($Texts['ToolTipProgress'] -f $percent))
+    "^($plain|$([regex]::Escape($withProgress).Replace([string] $percent, '\d+')))$"
+}
+
+function Get-VerifyMenuProblems {
+    <#
+    .SYNOPSIS
+        What is wrong with the menu of the test app with one printer in one state (empty = fine), from the helper's 'menu'
+        JSON: the printer item "Name: State" with its submenu (T-042: "Open PrusaLink" first; with -Camera the camera and
+        recording items of T-014 / T-146 / T-161, "Play last …" disabled without a file), then "Diagnostics…" and
+        "Settings…" (enabled), "User manual", "About" and "Quit" as the last item. Texts: Get-VerifyResxStrings.
+    #>
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Items,
+        [Parameter(Mandatory)] $Texts,
+        [Parameter(Mandatory)] [string] $Name,
+        [Parameter(Mandatory)] [string] $State,
+        [switch] $Progress,
+        [switch] $Camera
+    )
+    $text = { param($Key) ConvertFrom-VerifyAccessText $Texts[$Key] }
+    $entries = @(Get-VerifyMenuEntries $Items)
+    if ($entries.Count -eq 0) { return @('the menu has no items') }
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $printer = $entries[0]
+    $pattern = Get-VerifyMenuHeaderPattern -Texts $Texts -Name $Name -State $State -Progress:$Progress
+    if ($printer.title -cnotmatch $pattern) { $problems.Add("the printer item is '$($printer.title)', expected '$(($Texts['MenuPrinter'] -f $Name, $State))'$(if ($Progress) { ' (with or without progress)' })") }
+    $sub = @(Get-VerifyMenuEntries $printer.submenu)
+    if ($sub.Count -eq 0) { $problems.Add("the printer item '$($printer.title)' has no submenu items") }
+    else {
+        if ($sub[0].title -cne (& $text 'MenuOpenPrusaLink') -or -not $sub[0].enabled) { $problems.Add("the first submenu item is '$($sub[0].title)' (enabled: $($sub[0].enabled)), expected '$(& $text 'MenuOpenPrusaLink')' enabled") }
+        $titles = @($sub.title)
+        if ($Camera) {
+            $cameraTitles = @((& $text 'MenuShowCamera'), (& $text 'MenuHideCamera'))
+            if (-not ($sub | Where-Object { $cameraTitles -ccontains $_.title -and $_.enabled })) { $problems.Add("no enabled '$($cameraTitles[0])' in the submenu ($($titles -join ', '))") }
+            foreach ($key in 'MenuStartRecording', 'MenuStartTimelapse', 'MenuPlayLastRecording', 'MenuPlayLastTimelapse', 'MenuOpenRecordingsFolder') {
+                if ($titles -cnotcontains (& $text $key)) { $problems.Add("no '$(& $text $key)' in the submenu ($($titles -join ', '))") }
+            }
+            foreach ($key in 'MenuPlayLastRecording', 'MenuPlayLastTimelapse') {
+                if ($sub | Where-Object { $_.title -ceq (& $text $key) -and $_.enabled }) { $problems.Add("'$(& $text $key)' is enabled without any file") }
+            }
+            if (-not @($printer.submenu | Where-Object { $_.separator })) { $problems.Add('no separator before the recording items in the submenu') }
+        }
+        elseif ($sub.Count -ne 1) { $problems.Add("a printer without a camera has submenu items $($titles -join ', '), expected only '$(& $text 'MenuOpenPrusaLink')'") }
+    }
+    $fixed = @($entries | Select-Object -Skip 1 | ForEach-Object title)
+    $expected = @('MenuDiagnostics', 'MenuSettings', 'MenuManual', 'MenuAbout', 'MenuQuit' | ForEach-Object { & $text $_ })
+    if (($fixed -join "`n") -cne ($expected -join "`n")) { $problems.Add("the items after the printer are '$($fixed -join "', '")', expected '$($expected -join "', '")'") }
+    foreach ($key in 'MenuDiagnostics', 'MenuSettings', 'MenuQuit') {
+        if ($entries | Where-Object { $_.title -ceq (& $text $key) -and -not $_.enabled }) { $problems.Add("'$(& $text $key)' is disabled") }
+    }
+    $problems.ToArray()
+}
+
+function Get-VerifyToolTipProblem {
+    <#
+    .SYNOPSIS
+        Why the tooltip of the status item (AXHelp from the helper's 'statusitems') does not show the printer in the state,
+        or $null: "[E2E] Name" on the first line, the state (with " – 42%" when -Progress) at the start of the second.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $ToolTip, [Parameter(Mandatory)] $Texts, [Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $State, [switch] $Progress)
+    $lines = @("$ToolTip" -split "`n")
+    $percent = [char] 0xE000
+    $stateText = [regex]::Escape($State)
+    if ($Progress) { $stateText = "($stateText|$([regex]::Escape(($Texts['ToolTipStateWithProgress'] -f $State, ($Texts['ToolTipProgress'] -f $percent))).Replace([string] $percent, '\d+')))" }
+    if ($lines.Count -lt 2 -or $lines[0] -cne "[E2E] $Name" -or $lines[1] -cnotmatch "^$stateText$") {
+        return "the tooltip is '$($ToolTip -replace "`n", ' | ')', expected '[E2E] $Name | $State$(if ($Progress) { ' (– N%)' })'"
+    }
+    $null
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------
 

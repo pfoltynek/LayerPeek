@@ -385,6 +385,19 @@ a kritérium.
       `artifacts/verify/latest/report.md` má v hlavičce všechny podmínky „met“. Do poznámek T-208 zapsat dobu běhu (cíl
       ~30 min) a tři nejpomalejší kontroly (sloupec Seconds); každý `FAIL` = nový úkol.
 
+### 1j. Menu stavové položky přes Accessibility (z T-209, připraveno na Macu 2026-11-13)
+- [ ] **T-209** (krit. 1–4: `helper menu`, `helper menupress`, `mac.menu-items` = `PASS`, zjištění AXHelp; agent měl
+      zamčenou obrazovku a Terminál bez Zpřístupnění, kontrola skončila `SKIP` na předběžné podmínce): po přípravě z
+      `docs/macos-manual-testing.md` („Regresní běh před vydáním“) spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `pwsh tools/macos-verify.ps1 -Unattended -Only mac.menu-items -Allow mac.menu-items`). `mac.menu-items` = `PASS`
+      uzavře krit. 1–3 (JSON menu ve všech šesti stavech v `evidence/mac.menu-items/menu-*.json`, „Zobrazit kameru“ →
+      „Přenést kameru do popředí“ → „Skrýt kameru“ přes `menupress`, neznámá položka = exit 1 s titulky
+      `menupress-unknown.txt`, „Ukončit“ z menu). Krit. 4: obsah `evidence/mac.menu-items/disabled-items-help.txt` (AXHelp
+      zakázaných položek, „help none“ = Avalonia tip do NSMenu nepropsala) opsat do poznámek T-209 a k bodům T-146 / T-148
+      / T-161 výše („tip se ukáže?“). Do poznámek zapsat složku běhu, commit a řádek zprávy. `FAIL` = nový úkol (např.
+      menu se přes AXPress neotevře nebo ho Esc nezavře).
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)
