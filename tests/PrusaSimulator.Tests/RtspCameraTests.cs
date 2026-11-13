@@ -65,6 +65,26 @@ public sealed class RtspCameraTests
     }
 
     [Fact]
+    public void WithoutRepeatingTheParameterSetsTheFramesStayAsRecorded()
+    {
+        // T-207, for tests of a camera that sends SPS and PPS only at the start of the connection.
+        H264Clip clip = H264Clip.Parse(
+        [
+            0, 0, 0, 1, 0x67, 0x42, 0xC0, 0x1F,
+            0, 0, 0, 1, 0x68, 0xCE, 0x3C, 0x80,
+            0, 0, 0, 1, 0x65, 0x80, 0x22,
+            0, 0, 0, 1, 0x41, 0x80, 0x33,
+            0, 0, 0, 1, 0x65, 0x80, 0x44,
+        ],
+        repeatParameterSets: false);
+
+        Assert.Equal(3, clip.Frames.Count);
+        Assert.Equal([7, 8, 5], clip.Frames[0].Select(static n => n[0] & 0x1F));
+        Assert.Equal([1], clip.Frames[1].Select(static n => n[0] & 0x1F));
+        Assert.Equal([5], clip.Frames[2].Select(static n => n[0] & 0x1F));
+    }
+
+    [Fact]
     public void AnIdrFrameGetsTheLatestParameterSetsBeforeIt()
     {
         byte[] secondSps = [0x67, 0x42, 0xC0, 0x28];

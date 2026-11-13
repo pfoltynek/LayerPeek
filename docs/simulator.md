@@ -109,7 +109,8 @@ dashcam z LayerPeek (fragmentovaný MP4, T-144 / T-148), libovolné MP4 s H.264 
 podle obsahu, ne podle přípony. Z MP4 se vezme první stopa H.264 (`avc1` / `avc3`) se svými SPS a PPS a snímky v pořadí
 dekódování; zvuk, časování ani editační seznamy se nečtou. SPS a PPS jdou jako u Buddy3D před každým IDR snímkem, i když
 je klip má jen jednou (MP4 v `avcC`, T-205), aby dekodér otevřený na pozdějším klíčovém snímku (přepnutí hardwarového
-dekódování, T-203) obraz hned dekódoval. Snímková frekvence je dál `--fps` (Buddy3D nahrává ~21,8 fps).
+dekódování, T-203) obraz hned dekódoval. Testy T-207 to vypínají (`H264Clip.Parse(…, repeatParameterSets: false)`,
+jen v kódu, bez volby příkazové řádky) a hrají tak kameru, která je pošle jen na začátku spojení. Snímková frekvence je dál `--fps` (Buddy3D nahrává ~21,8 fps).
 Hodí se k ověření detekce chyb tisku (T-155) na záznamu skutečného nebo inscenovaného selhání:
 
 ```bash

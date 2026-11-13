@@ -432,6 +432,9 @@ je daleko.
   a `HardwareDecodingVideoToolboxTests.AChangedSettingKeepsTheSimulatedCameraRunningWhenItsClipHasTheParameterSetsOnlyOnce`
   (bez opravy 50 ze 71 snímků). Skutečná Buddy3D posílá SPS a PPS před každým IDR (fixture `buddy3d.h264`,
   `docs/timelapse-spike.md`) a navíc `sprop-parameter-sets` v SDP (T-014), takže produkt se jí to netýká.
+  Pojistka pro jiné kamery (T-207): dekodér si u proudu bez SPS / PPS v SDP pamatuje poslední SPS a PPS z paketů
+  a dá je novému kontextu kodeku jako extradata (testy `ParameterSetsOnceTests`, simulátor s
+  `H264Clip.Parse(…, repeatParameterSets: false)`).
 - **Hardened runtime:** VideoToolbox v podepsaném AOT bundlu funguje bez nového entitlementu (log `videotoolbox`,
   pomocný proces vznikl, žádné varování).
 - **Zamčená obrazovka:** všechna měření běžela při zamčené obrazovce; dekódování VT běží (25 snímků/s, pomocný proces).
