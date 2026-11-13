@@ -449,7 +449,7 @@ LayerPeek releases, without any account or token, and the download of an update 
 
 ## Roadmap
 
-- `winget install` as soon as the first release is public
+- `winget install` after the 1.0.0 release
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
 

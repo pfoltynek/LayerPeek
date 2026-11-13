@@ -35,6 +35,14 @@ git config user.email      # kontrola
 git log -1 --format='%an <%ae> | %cn <%ce>'   # po prvním commitu: autor i committer s adresou noreply
 ```
 
+Pojistka pro nové klony (rozhodnutí uživatele 2026-11-13, T-198 otázka 12), jednou **globálně** na každém počítači:
+git pak commit bez nastaveného `user.email` odmítne, místo aby adresu odvodil ze jména počítače.
+
+```bash
+git config --global user.name "Petr Foltýnek"   # s useConfigOnly se ani jméno už neodvozuje ze systému
+git config --global user.useConfigOnly true
+```
+
 Nový klon (nebo nový počítač) nastavení nemá, protože `.git/config` se neklonuje. Ostatní přispěvatelé si adresu
 volí sami (GitHub nabízí vlastní adresu noreply v *Settings → Emails*).
 

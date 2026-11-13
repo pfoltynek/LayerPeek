@@ -442,7 +442,7 @@ LayerPeeku, bez účtu a tokenu, a stažení aktualizace, kterou spustíš).
 
 ## Plán
 
-- `winget install` hned po zveřejnění prvního vydání
+- `winget install` po vydání 1.0.0
 - Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
   podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory
   projektu přibudou později.

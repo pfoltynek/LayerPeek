@@ -457,6 +457,8 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `git config user.email 12541813+pfoltynek@users.noreply.github.com` (`docs/prerequisites.md`, „Identita v gitu“),
       kontrola `git config user.email`; po prvním commitu na Windows `git log -1 --format='%an <%ae> | %cn <%ce>'`
       ukazuje autora i committera s adresou noreply. Výsledek zapsat do T-198 (Poznámky).
+- [ ] **T-198** (otázka 12): globálně `git config --global user.name "Petr Foltýnek"` a `git config --global user.useConfigOnly true` (`docs/prerequisites.md`), kontrola
+      `git config --global --get user.useConfigOnly` vypíše `true`.
 
 ### 2ab. Zdroj FFmpeg u vydání a věta o FFmpeg v okně O aplikaci (z T-199, implementováno na Macu 2026-11-11)
 > Doplněno 2026-11-12: balení zdroje Windows z commitu FFmpeg a skriptů BtbN (`git archive`, 3. bod) je přechodný stav,
