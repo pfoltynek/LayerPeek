@@ -72,6 +72,11 @@ Vlastní minimální build:
 - **CI (T-218, doplněno architektem 2026-11-13):** pokud už bude workflow `.github/workflows/ci.yml` hotový, upravit
   klíč cache FFmpeg pro Windows (hash nového skriptu buildu + tarball) a instalaci toolchainu na runneru `windows-*`;
   pokud ne, T-218 to převezme podle tohoto úkolu.
+  *Stav 2026-11-13 (T-218):* workflow existuje. Klíč cache FFmpeg pro Windows (job `Build and test (Windows)`, krok
+  `Restore FFmpeg`) = obraz + RID + hash `build/FFmpeg.targets` a vzoru `build/windows/build-ffmpeg.*` (položka matice
+  `ffmpeg-script`). Skript s tímto názvem se do klíče dostane sám; jiný název = upravit `ffmpeg-script`. T-202 doplní
+  do jobu Windows instalaci toolchainu (krok před `Build (Release)`, akce připnutá na SHA s komentářem verze, test
+  `CiWorkflowTests`) a v `docs/prerequisites.md`, oddíl „CI (GitHub Actions)“, větu o Windows zipu BtbN.
 
 ## Akceptační kritéria
 - [ ] První `dotnet build` na Windows přeloží FFmpeg z připnutého oficiálního tarballu (ověřený SHA-256, stejný jako
