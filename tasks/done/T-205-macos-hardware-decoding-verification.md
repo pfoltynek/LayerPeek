@@ -65,6 +65,11 @@ Neblokují uzavření úkolu (všechny meze platí):
    malá: dekodér si pamatuje poslední SPS / PPS z paketů a dá je novému kontextu jako extradata. Založit úkol
    (P3), nebo nechat, dokud se taková kamera neobjeví? Doporučení: P3 úkol, levné a bez vlivu na Buddy3D.
 
+   Rozhodnuto uživatelem 2026-11-13: **ano**, založen **T-207**.
+
+2. Vyhodnocení kritéria 4 podle detekce (±5 % u samotného sledování nejde měřením rozlišit, šum ±30 %).
+   Rozhodnuto uživatelem 2026-11-13: **souhlasí**.
+
 ## Poznámky k implementaci
 Hotovo 2026-11-12 na Macu (core-dev; Mac mini M2 Pro, 10 jader, macOS 27.2, .NET SDK 11.0.100). Celé tabulky
 a postup: [docs/hw-decoding.md](../../docs/hw-decoding.md), oddíl „Výsledky implementace (T-205)“; krátce
