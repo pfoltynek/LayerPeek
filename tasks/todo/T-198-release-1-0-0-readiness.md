@@ -398,6 +398,8 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 - [ ] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný
 - [ ] B10: T-202 hotový (vlastní minimální LGPL build FFmpeg na Windows s D3D11VA, zdroj Windows u vydání bez BtbN)
 - [ ] B11: T-201 hotový (přeinstalace respektuje vypnutý autostart)
+- [ ] Uživatel zapnul v GitHubu (Settings → Emails) „Keep my email addresses private“ a „Block command line pushes
+      that expose my email“ (otázka 11); první push po zapnutí projde
 - [x] Odpovědi na otázky 2–4 a 6–10 zapsané
 - [x] `docs/release.md` po rozhodnutí o otázce 4 popisuje tok 1.0.0 (oba OS do konceptu), doplněný `caffeinate`
       a oprava věty o zkušebním vydání (2.2)
@@ -437,10 +439,22 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     Emails): zapnout? Druhá volba odmítne push commitu s osobní adresou. Historie obsahuje commity
     s `pfoltynek@outlook.cz`; jestli by to ovlivnilo push větví, které je obsahují (např. `release.ps1`), architekt
     neověřil, ověřit podle dokumentace GitHubu před zapnutím. Změna nastavení GitHubu, agent ji nedělá.
+
+    Rozhodnuto uživatelem 2026-11-13: **zapnout obě, po ověření.** Ověřeno (hlavní agent 2026-11-13,
+    https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-email-preferences/blocking-command-line-pushes-that-expose-your-personal-email-address):
+    GitHub při pushi kontroluje jen **nejnovější commit** („we'll check the most recent commit“), staré commity
+    s osobní adresou v historii push neblokují, pokud špička větve má adresu noreply. Obě volby zapne **uživatel**
+    v Settings → Emails (krit. níže).
 12. **`git config user.useConfigOnly true`** (globálně na obou počítačích): git pak odmítne commit bez nastaveného
     `user.email` místo odvození adresy ze jména počítače. Doporučuje se jako pojistka pro nové klony; zavést?
+
+    Rozhodnuto uživatelem 2026-11-13: **ano.** Mac: nastavil hlavní agent 2026-11-13; Windows → T-125 (2aa);
+    postup v `docs/prerequisites.md`.
 13. **README Roadmap „`winget install` as soon as the first release is public“:** ponechat do odeslání do winget
     (T-059 ho po přijetí balíčku přepíše), nebo upravit už teď (např. „after the 1.0.0 release“)?
+
+    Rozhodnuto uživatelem 2026-11-13: **upravit teď** – „`winget install` after the 1.0.0 release“ (README EN/CZ),
+    provedeno; T-059 řádek po přijetí balíčku přepíše.
 
 ## Poznámky k implementaci
 Analýza 2026-11-11 (architekt, Mac, větev `feature/T-198-release-1-0-0-readiness`):
