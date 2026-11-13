@@ -80,5 +80,7 @@ Sada menších kontrol, které uzavřou jednotlivé body T-127. Každá je samos
    z `release-build.ps1`? Release nemá testovací režim, kontrola by musela dočasně odsunout profil jako
    `aot-smoke.ps1`.
 
+Rozhodnuto uživatelem 2026-11-13: 1 **smí** otevřít odkaz ve výchozím prohlížeči; 2 **stačí testovací Debug bundle** (Release AOT změřil T-205).
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

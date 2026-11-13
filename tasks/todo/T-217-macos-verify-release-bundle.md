@@ -58,5 +58,8 @@ vývojáře (`DOTNET_ROOT`, Homebrew v `PATH`). Bod T-127 „Podepsaný bundle s
 2. Stačí start na tomtéž Macu s vyčištěným prostředím jako náhrada „čistého Macu / účtu bez Homebrew a .NET SDK“
    (T-026, bod v T-127), nebo zůstane ruční ověření na jiném účtu?
 
+Rozhodnuto uživatelem 2026-11-13: 1 stačí start a načtení nativních knihoven bez chyby (**stream kamery v Release se nekontroluje**);
+2 **ano**, start s vyčištěným prostředím na tomto Macu nahrazuje „čistý Mac / účet bez Homebrew“.
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

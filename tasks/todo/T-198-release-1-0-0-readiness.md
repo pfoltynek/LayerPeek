@@ -222,8 +222,8 @@ Možnosti k e-mailům autorů (původní rozbor):
 Repozitář už je veřejný, takže jde o kontrolu toho, co je **už vidět** (ne o přípravu na zveřejnění).
 - [ ] Vzdálené větve a tagy: `git ls-remote origin` (smazat zapomenuté `feature/*`, které nemají být veřejné).
 - [ ] Veřejný obsah: text a soubory vydání `v0.1.0`–`v0.5.0` (koncepty smazat nebo zkontrolovat),
-      issues, PR, Discussions, popisy commitů v PR. **`v0.2.0` je jako jediné 0.x vydání označené jako „Latest“
-      (rozhodnuto 2026-10-30 nechat), dokud nevyjde 1.0.0.**
+      issues, PR, Discussions, popisy commitů v PR. **Opraveno 2026-11-13:** příznak předběžného vydání u 0.2.0–0.5.0
+      byl změněn mimo skripty, „Latest“ je dnes `v0.5.0`; uživatel 2026-11-13 rozhodl nechat, jak je (1.0.0 bude Latest).
 - [x] Ponechat vydání 0.x veřejně? (otázka 6) → rozhodnuto 2026-11-11: vydání 0.1.0–0.5.0 zůstávají, jak jsou.
 - [ ] Nastavení repozitáře: popis, web, témata (topics), náhled pro sociální sítě, Discussions zapnuté (odkazuje na ně
       `CONTRIBUTING.md` a `.github/ISSUE_TEMPLATE/config.yml`), private vulnerability reporting (odkaz v `SECURITY.md`),
