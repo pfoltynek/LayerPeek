@@ -21,6 +21,8 @@
 
 BeforeAll {
     Import-Module (Join-Path $PSScriptRoot '..' 'scripts' 'ReleaseTools' 'ReleaseTools.psm1') -Force
+    # Hide-VerifyHomePath: what the report writes for a path.
+    Import-Module (Join-Path $PSScriptRoot 'VerifyTools.psm1') -Force
 
     $base = if ($env:LAYERPEEK_PESTER_TESTS_TEMP) { $env:LAYERPEEK_PESTER_TESTS_TEMP } else { [System.IO.Path]::GetTempPath() }
     $script:TempRoot = Join-Path $base "layerpeek-wv-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
@@ -224,8 +226,10 @@ Describe 'windows-verify.ps1 interactive run (stand-in checks)' -Skip:(-not $IsW
         $report.Json.Run.Mode | Should -Be 'interactive'
         $report.Json.Run.Script | Should -Be 'tools/windows-verify.ps1'
         # The report says that this was a test run with stand-ins.
-        $report.Json.Run.StandIns | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $sandbox 'standins.ps1')))
-        $report.Markdown | Should -Match ([regex]::Escape("- **Stand-ins:** ``$([System.IO.Path]::GetFullPath((Join-Path $sandbox 'standins.ps1')))`` (test run with stand-in checks, not a real verification)"))
+        # With the home folder as ~ like every path of the report (T-208); the sandbox lies in %TEMP%, inside the profile.
+        $standIns = Hide-VerifyHomePath ([System.IO.Path]::GetFullPath((Join-Path $sandbox 'standins.ps1')))
+        $report.Json.Run.StandIns | Should -Be $standIns
+        $report.Markdown | Should -Match ([regex]::Escape("- **Stand-ins:** ``$standIns`` (test run with stand-in checks, not a real verification)"))
         @($report.Json.Run.Selected) | Should -Be @('win.fake-auto', 'win.fake-permission', 'win.fake-declined', 'win.fake-install', 'win.fake-manual', 'win.fake-uninstall')
         @($report.Json.Results | ForEach-Object { "$($_.Id)=$($_.Status)" }) | Should -Be @('win.fake-auto=PASS', 'win.fake-permission=PASS', 'win.fake-declined=SKIP', 'win.fake-install=PASS', 'win.fake-manual=FAIL', 'win.fake-uninstall=PASS')
         $report.Json.Summary.PASS | Should -Be 4
@@ -247,7 +251,8 @@ Describe 'windows-verify.ps1 interactive run (stand-in checks)' -Skip:(-not $IsW
 
         $run.ExitCode | Should -Be 0 -Because $run.Text
         $run.Text | Should -Match ([regex]::Escape('Summary: PASS 1, FAIL 0, SKIP 0, MANUAL 1'))
-        (Read-Report $run.RunFolder).Markdown | Should -Match ([regex]::Escape('| `win.fake-manual` | Manual | **MANUAL** | T-129 stand-in | stand-in toast seen |'))
+        # The Seconds column (T-208) between result and criterion.
+        (Read-Report $run.RunFolder).Markdown | Should -Match ([regex]::Escape('| `win.fake-manual` | Manual | **MANUAL** | ') + '[\d.,]+' + [regex]::Escape(' | T-129 stand-in | stand-in toast seen |'))
     }
 
     It 'never asks and never runs Permission or Manual checks with -Unattended' {

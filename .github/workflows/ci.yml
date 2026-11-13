@@ -61,12 +61,13 @@ jobs:
             files=$(git diff --name-only "$BEFORE" HEAD)
           fi
           # Docs-only means: every changed file is one that no build or test reads. Tests do read manuals/*/manual.md
-          # (UserManualTests: the anchors of the manual) and docs/troubleshooting.md, so those always count as code.
+          # (UserManualTests: the anchors of the manual), docs/troubleshooting.md and CHANGELOG.md (the release notes
+          # of the version, ReleaseOrchestrator.Tests.ps1), so those always count as code.
           if [ -n "$files" ]; then
             code=false
             while IFS= read -r file; do
               case "$file" in
-                docs/troubleshooting.md) code=true ;;
+                docs/troubleshooting.md|CHANGELOG.md) code=true ;;
                 tasks/*|docs/*) ;;
                 */*) code=true ;;
                 *.md) ;;
@@ -107,23 +108,35 @@ jobs:
       run:
         shell: pwsh
     steps:
+      # The tags too (a few refs, no history): the release tests skip the real CHANGELOG.md check once v<version> exists.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-tags: true
 
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
 
       # Outside the checkout: the build and the tests never see the cache or the test results as repository files.
-      # Join-Path gives native separators (FFmpeg.targets runs cmd's move with this path on Windows).
+      # Join-Path gives native separators (FFmpeg.targets runs cmd's move with this path on Windows). CI_SYSTEM_TEMP is
+      # the temp folder of the test processes (not changed), where the UI tests leave the images of failed snapshots.
       - name: Point the FFmpeg cache and the test results to the runner's temp folder
         run: |
           "LayerPeekFFmpegCacheRoot=$(Join-Path $env:RUNNER_TEMP ffmpeg)" >> $env:GITHUB_ENV
           "TEST_RESULTS=$(Join-Path $env:RUNNER_TEMP TestResults)" >> $env:GITHUB_ENV
+          "CI_SYSTEM_TEMP=$([System.IO.Path]::GetTempPath())" >> $env:GITHUB_ENV
 
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # What the tests depend on, for reading a failed run (rendering and macOS security differ between machines).
+      - name: Describe the runner
+        run: |
+          "OS: $([System.Runtime.InteropServices.RuntimeInformation]::OSDescription) ($([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)), $([Environment]::ProcessorCount) CPUs, image $env:ImageOS $env:ImageVersion"
+          if ($IsMacOS) { & /usr/bin/csrutil status; & /usr/bin/sw_vers }
+
+      # Restore and save apart (as FFmpeg): the combined action saves only after a green job.
+      - name: Restore NuGet packages
+        id: nuget
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
@@ -148,7 +161,15 @@ jobs:
       - name: Build (Release)
         run: dotnet build LayerPeek.slnx -c Release
 
-      # Right after the first build (it downloads / builds FFmpeg), so a failing test does not throw the cache away.
+      # Right after the first build (it restores the packages and downloads / builds FFmpeg), so a failing test does not
+      # throw the caches away.
+      - name: Save NuGet packages
+        if: steps.nuget.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget.outputs.cache-primary-key }}
+
       - name: Save FFmpeg
         if: steps.ffmpeg.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -184,6 +205,16 @@ jobs:
         with:
           name: test-results-${{ matrix.rid }}
           path: ${{ runner.temp }}/TestResults
+          retention-days: 3
+          if-no-files-found: ignore
+
+      # Apart from the TRX: another folder (on Windows another drive) than the test results.
+      - name: Upload the images of failed UI snapshots
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: snapshot-failures-${{ matrix.rid }}
+          path: ${{ env.CI_SYSTEM_TEMP }}/LayerPeek.App.UiTests*/*.png
           retention-days: 3
           if-no-files-found: ignore
 
