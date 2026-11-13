@@ -13,6 +13,13 @@
 //   statusitems <pid>                the status items of a process from the Accessibility API (AXExtrasMenuBar): frame
 //                                    (points, top left), title, description, help (the tooltip); macOS 27 draws them in no window of the
 //                                    process, so CGWindowList cannot see them (needs Accessibility; exit code 3 without it)
+//   menu <pid>                       opens the menu of the process's status item (AXPress in AXExtrasMenuBar), prints it as
+//                                    JSON (title, enabled, checked, mark, shortcut, help = the item's tooltip, separator,
+//                                    submenu, recursively; submenus are opened for reading only) and closes it again (T-209;
+//                                    needs Accessibility; exit code 1 when the menu does not open or stays open)
+//   menupress <pid> <path>           opens the menu, follows a path of exact titles separated by ">" (e.g.
+//                                    "Printer 1>Show camera") and presses the last item; an unknown or disabled item is
+//                                    exit code 1 with the titles of that level on stderr; the menu is always closed (T-209)
 //   trusted                          "true" / "false": whether this process (i.e. the terminal that started it) has the
 //                                    Accessibility permission; never asks for it
 //   key <combo>                      posts a key press, e.g. ctrl+cmd+f, cmd+w, cmd+period, cmd+shift+], escape
@@ -572,14 +579,177 @@ func regionDiff(_ before: String, _ after: String, _ windowWidth: Double, _ x: D
     printJSON(["pixels": total, "changed": changed, "share": total > 0 ? Double(changed) / Double(total) : 0, "mean": total > 0 ? sum / Double(total) : 0, "scale": scale])
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// The status item menu (T-209)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// How long one menu level may take to open.
+let menuLevelTimeout = 2.0
+
+/// The first visible status item of a process (its AXMenuBarItem in AXExtrasMenuBar), or nil.
+func statusItem(_ pid: Int32) -> AXUIElement? {
+    guard let bar = attribute(AXUIElementCreateApplication(pid), "AXExtrasMenuBar") else { return nil }
+    return children(bar as! AXUIElement).first { let size = frame($0); return size["width"]! > 0 && size["height"]! > 0 }
+}
+
+/// The on-screen windows of a process on the pop-up menu level: an open NSMenu (and each open submenu) is one of them.
+func menuWindowCount(_ pid: Int32) -> Int {
+    let level = Int(CGWindowLevelForKey(.popUpMenuWindow))
+    let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+    return list.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? NSNumber)?.intValue == level }.count
+}
+
+func submenu(_ element: AXUIElement) -> AXUIElement? { children(element).first { text($0, kAXRoleAttribute) == kAXMenuRole } }
+
+func waitFor<T>(_ seconds: Double, _ probe: () -> T?) -> T? {
+    let deadline = Date().addingTimeInterval(seconds)
+    repeat {
+        if let value = probe() { return value }
+        usleep(50_000)
+    } while Date() < deadline
+    return nil
+}
+
+/// Opens the menu of an element (a status item, or a menu item with a submenu) and returns it once it has items. AXPress
+/// runs the app's menu tracking inside the action, so its answer only comes when the menu closes: a short messaging
+/// timeout lets the helper go on, and "cannot complete" means the menu is open. A menu item whose submenu items are
+/// readable already is not pressed (-always: the status item, whose menu has to be really shown); AXShowMenu is the
+/// second try.
+func openMenu(_ element: AXUIElement, always: Bool = false) -> AXUIElement? {
+    if !always, let menu = submenu(element), !children(menu).isEmpty { return menu }
+    AXUIElementSetMessagingTimeout(element, 0.25)
+    for action in [kAXPressAction, kAXShowMenuAction] {
+        let status = AXUIElementPerformAction(element, action as CFString)
+        guard status == .success || status == .cannotComplete else { continue }
+        let menu = waitFor(menuLevelTimeout) { () -> AXUIElement? in
+            guard let menu = submenu(element), !children(menu).isEmpty else { return nil }
+            return menu
+        }
+        if let menu { return menu }
+    }
+    return nil
+}
+
+/// Closes every open menu of the process: AXCancel on the top menu, then Esc while a menu window is still on screen. When
+/// no menu window was ever seen (a macOS that draws the menu in another process), the window list cannot tell, so one Esc
+/// is sent blindly unless the pressed item closed the menu itself. An open menu blocks all input, so this runs on every
+/// way out. Returns whether no menu window is left.
+func closeMenus(_ pid: Int32, _ top: AXUIElement?, windowsSeen: Bool, pressed: Bool = false) -> Bool {
+    if let top { _ = AXUIElementPerformAction(top, kAXCancelAction as CFString) }
+    let closed = { waitFor(0.5) { menuWindowCount(pid) == 0 ? true : nil } != nil }
+    guard windowsSeen else {
+        if !pressed { key("escape") }
+        return true
+    }
+    for _ in 0..<3 {
+        if closed() { return true }
+        key("escape")
+    }
+    return closed()
+}
+
+/// "ctrl+opt+shift+cmd+q" from AXMenuItemCmdChar and AXMenuItemCmdModifiers (bits: shift 1, option 2, control 4, no command 8).
+func shortcut(_ item: AXUIElement) -> String {
+    let character = text(item, "AXMenuItemCmdChar")
+    guard !character.isEmpty else { return "" }
+    let modifiers = (attribute(item, "AXMenuItemCmdModifiers") as? NSNumber)?.intValue ?? 0
+    var parts: [String] = []
+    if modifiers & 4 != 0 { parts.append("ctrl") }
+    if modifiers & 2 != 0 { parts.append("opt") }
+    if modifiers & 1 != 0 { parts.append("shift") }
+    if modifiers & 8 == 0 { parts.append("cmd") }
+    return (parts + [character.lowercased()]).joined(separator: "+")
+}
+
+func isEnabled(_ item: AXUIElement) -> Bool { (attribute(item, kAXEnabledAttribute) as? NSNumber)?.boolValue ?? false }
+
+/// The items of an open menu as JSON objects; a submenu is opened (for reading only) when its items are not readable yet.
+func menuItems(_ menu: AXUIElement, _ depth: Int) -> [[String: Any]] {
+    children(menu).filter { text($0, kAXRoleAttribute) == kAXMenuItemRole }.map { item in
+        let title = text(item, kAXTitleAttribute)
+        let mark = text(item, "AXMenuItemMarkChar")
+        let keys = shortcut(item)
+        let enabled = isEnabled(item)
+        var result: [String: Any] = [
+            "title": title, "enabled": enabled, "checked": !mark.isEmpty, "mark": mark, "shortcut": keys,
+            "help": text(item, kAXHelpAttribute), "separator": false, "submenu": NSNull(),
+        ]
+        if let sub = submenu(item) {
+            let open = depth < 4 ? (children(sub).isEmpty ? openMenu(item) : sub) : nil
+            result["submenu"] = open.map { menuItems($0, depth + 1) } ?? []
+        } else if title.isEmpty && keys.isEmpty && !enabled {
+            // NSMenuItem.separatorItem: an untitled, disabled item without a submenu.
+            result["separator"] = true
+        }
+        return result
+    }
+}
+
+/// Opens the status item menu, runs <body> with it (returns whether it pressed an item, which closes the menu itself) and
+/// closes the menu on every way out; exit code 1 when it does not open or stays open.
+func withStatusMenu(_ pid: Int32, _ body: (AXUIElement) -> Bool) {
+    requireTrusted()
+    // Every Accessibility call of the helper gives up after a second instead of the default 6 s.
+    AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
+    guard let item = statusItem(pid) else { fail("no status item of process \(pid) in the menu bar (AXExtrasMenuBar)") }
+    guard let menu = openMenu(item, always: true) else {
+        _ = closeMenus(pid, nil, windowsSeen: menuWindowCount(pid) > 0)
+        fail("the menu of the status item did not open within \(menuLevelTimeout) s")
+    }
+    let windowsSeen = menuWindowCount(pid) > 0
+    let pressed = body(menu)
+    if !closeMenus(pid, menu, windowsSeen: windowsSeen, pressed: pressed) { fail("the menu is still open after AXCancel and Esc") }
+}
+
+func menuJSON(_ pid: Int32) {
+    withStatusMenu(pid) { menu in
+        // menuWindows: the open menu windows of the app while it was read (0 = this macOS draws menus elsewhere).
+        printJSON(["items": menuItems(menu, 0), "menuWindows": menuWindowCount(pid)])
+        return false
+    }
+}
+
+func menuPress(_ pid: Int32, _ path: String) {
+    let titles = path.components(separatedBy: ">")
+    var problem: String?
+    withStatusMenu(pid) { top in
+        var menu = top
+        for (index, title) in titles.enumerated() {
+            let items = children(menu).filter { text($0, kAXRoleAttribute) == kAXMenuItemRole }
+            let level = titles[..<index].joined(separator: ">")
+            guard let item = items.first(where: { text($0, kAXTitleAttribute) == title }) else {
+                let available = items.map { "'\(text($0, kAXTitleAttribute))'" }.filter { $0 != "''" }
+                problem = "no item '\(title)' in the menu\(level.isEmpty ? "" : " '\(level)'"); its items: \(available.joined(separator: ", "))"
+                return false
+            }
+            guard isEnabled(item) else { problem = "the item '\(title)' is disabled (help: '\(text(item, kAXHelpAttribute))')"; return false }
+            if index < titles.count - 1 {
+                guard let next = openMenu(item) else { problem = "the submenu '\(title)' did not open within \(menuLevelTimeout) s"; return false }
+                menu = next
+                continue
+            }
+            AXUIElementSetMessagingTimeout(item, 0.25)
+            let status = AXUIElementPerformAction(item, kAXPressAction as CFString)
+            if status != .success && status != .cannotComplete { problem = "AXPress on '\(title)' failed: \(status.rawValue)"; return false }
+            // The pressed item closes the menu itself; closeMenus only cleans up what is left.
+            _ = waitFor(1.0) { menuWindowCount(pid) == 0 ? true : nil }
+            return true
+        }
+        return false
+    }
+    if let problem { fail(problem) }
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|trusted|key|click|localized|icons ...") }
+guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|click|localized|icons ...") }
 switch command {
 case "screens": screens()
 case "windows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; windows(pid)
 case "menubar": menuBarWindows()
 case "session": session()
 case "statusitems" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; statusItems(pid)
+case "menu" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; menuJSON(pid)
+case "menupress" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; menuPress(pid, arguments[2])
 case "trusted": print(AXIsProcessTrusted() ? "true" : "false")
 case "key" where arguments.count == 2: key(arguments[1])
 case "click" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; click(x, y)

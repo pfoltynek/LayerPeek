@@ -18,8 +18,8 @@
     the test apps, the notifications of the test bundle (--layerpeek-e2e-clear-toasts), the stand-in Login Items of the
     test data folders (--layerpeek-e2e-clear-autostart), the LaunchServices registration, Preferences and caches of the
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
-    tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys or mac.update-check)
-    Terminal in Privacy & Security > Accessibility (switch it off there yourself).
+    tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items or
+    mac.update-check) Terminal in Privacy & Security > Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
     when any check failed, 2 when the script could not run. The checks that need a visible desktop (mac.menubar,
@@ -34,7 +34,8 @@
 .PARAMETER Allow
     Ids or wildcards of Permission checks you allow in advance (T-140): they run without the question, also with
     -Unattended, e.g. -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user. What they need once:
-    mac.keys - Accessibility for the terminal; mac.update-check - Accessibility for the terminal and an unlocked screen
+    mac.keys - Accessibility for the terminal; mac.menu-items - Accessibility for the terminal and an unlocked screen;
+    mac.update-check - Accessibility for the terminal and an unlocked screen
     (Screen Recording optional, for window captures); mac.socket-other-user - the sudoers rule of
     tools/macos-verify-sudoers.ps1; mac.display-sleep - a password delay after the display sleeps longer than a minute
     (System Settings > Lock Screen), otherwise the locked screen ends it with SKIP.
@@ -150,6 +151,22 @@ function Test-StatusItem($Context, [int] $ProcessId) {
     #>
     if (Test-VerifyMenuBarItem @(Get-ProcessWindows $Context $ProcessId)) { return $true }
     [bool] (@(Get-StatusItems $Context $ProcessId) | Where-Object { $_ -and $_.width -gt 0 -and $_.height -gt 0 })
+}
+
+function Get-StatusMenu($Context, [int] $ProcessId) {
+    <# .SYNOPSIS The menu of the process's status item (helper 'menu': opened, read with its submenus, closed again; T-209). #>
+    (Invoke-Helper $Context @('menu', "$ProcessId")) -join "`n" | ConvertFrom-Json -Depth 30
+}
+
+function Invoke-MenuPress($Context, [int] $ProcessId, [string] $Path) {
+    <# .SYNOPSIS Chooses a menu item by its path of titles (helper 'menupress'); ExitCode and Output (the titles of the level on a miss). #>
+    $output = @(& (Get-Helper $Context) 'menupress' "$ProcessId" $Path 2>&1 | ForEach-Object { "$_" })
+    [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+}
+
+function Get-OpenMenuWindows($Context, [int] $ProcessId) {
+    <# .SYNOPSIS The process's on-screen windows on the pop-up menu level (101): an open menu. #>
+    @(Get-ProcessWindows $Context $ProcessId | Where-Object { $_.onscreen -and $_.layer -eq 101 })
 }
 
 function Get-SessionLimitation($Context) {
@@ -298,15 +315,20 @@ function Remove-TestBundle($Bundle) {
     if ((Test-Path -LiteralPath $parent) -and -not (Get-ChildItem -LiteralPath $parent -Force)) { Remove-Item -LiteralPath $parent -Force }
 }
 
-function Get-Simulator($Context) {
-    <# .SYNOPSIS The PrusaSimulator (one printer, camera) on 127.0.0.1 with free ports, started once per run. #>
-    if ($Context.Shared.ContainsKey('Simulator')) { return $Context.Shared.Simulator }
+function Get-Simulator($Context, [double] $Speed = 1) {
+    <#
+    .SYNOPSIS
+        The PrusaSimulator (one printer, camera) on 127.0.0.1 with free ports, started once per run and time speed-up
+        (-Speed, e.g. 20 for a print that moves in seconds, T-209).
+    #>
+    $key = if ($Speed -eq 1) { 'Simulator' } else { "Simulator-x$Speed" }
+    if ($Context.Shared.ContainsKey($key)) { return $Context.Shared[$key] }
     $dll = Get-SimulatorDll $Context
     $folder = Join-Path $Context.RunFolder 'tmp' "simulator-$(New-ShortId)"
     $null = New-Item -ItemType Directory -Force -Path $folder
     $out = Join-Path $folder 'stdout.txt'
     $start = [System.Diagnostics.ProcessStartInfo]::new('/bin/sh')
-    foreach ($argument in @('-c', 'exec dotnet "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', $dll, '--port', '0', '--camera-port', '0', '--scenario', 'printing')) { $start.ArgumentList.Add($argument) }
+    foreach ($argument in @('-c', 'exec dotnet "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', $dll, '--port', '0', '--camera-port', '0', '--scenario', 'printing', '--speed', "$Speed")) { $start.ArgumentList.Add($argument) }
     $start.Environment['LPV_OUT'] = $out
     $start.UseShellExecute = $false
     $process = [System.Diagnostics.Process]::Start($start)
@@ -323,7 +345,7 @@ function Get-Simulator($Context) {
     }
     $simulator | Add-Member -NotePropertyName Address -NotePropertyValue (([uri] $simulator.BaseUri).Authority)
     $simulator | Add-Member -NotePropertyName CameraPort -NotePropertyValue (([uri] $simulator.Camera).Port)
-    $Context.Shared.Simulator = $simulator
+    $Context.Shared[$key] = $simulator
     $simulator
 }
 
@@ -1140,6 +1162,84 @@ $checks = @(
         }
     }
 
+    New-VerifyCheck -Id 'mac.menu-items' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to open the menu of the status item and choose its items, and an unlocked screen' `
+        -Title 'the real menu of the status item through the Accessibility API: items and tooltip in six printer states, camera items, an unknown item, Quit from the menu (simulator x20)' `
+        -Closes 'T-018 kritérium 3 (menu se zobrazí, aktualizuje, „Ukončit“ z menu; ruční část mac.menu mimo vzhled ikon)', 'T-209 kritérium 3 (mac.menu-items)' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            # The texts of the language the test data sets (en: the neutral resources), never written into the check.
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $label = { param($Key) ConvertFrom-VerifyAccessText $texts[$Key] }
+            $simulator = Get-Simulator $c -Speed 20
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            Set-SimulatorScenario $simulator 'idle'
+            $app = Start-TestApp -Context $c -TestData $data
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $helps = [System.Collections.Generic.List[string]]::new()
+            $readTip = { @(Get-StatusItems $c $app.Id | Where-Object { $_.width -gt 0 }) | Select-Object -First 1 | ForEach-Object help }
+            # Waits until the tooltip shows the state (the app polls every 5 s; offline needs a failed request first).
+            $waitState = {
+                param($Key, [switch] $Progress)
+                $state = $texts[$Key]
+                $ok = Wait-VerifyCondition -TimeoutSeconds 60 -IntervalMilliseconds 1000 -Condition { -not (Get-VerifyToolTipProblem -ToolTip (& $readTip) -Texts $texts -Name $name -State $state -Progress:$Progress) }
+                if ($ok) { $null } else { Get-VerifyToolTipProblem -ToolTip (& $readTip) -Texts $texts -Name $name -State $state -Progress:$Progress }
+            }
+            try {
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -IntervalMilliseconds 1000 -Condition { $null -ne (& $readTip) })) {
+                    return New-VerifyResult FAIL "no status item of the app (pid $($app.Id)) in AXExtrasMenuBar within 20 s."
+                }
+                $states = [ordered]@{ idle = 'StateIdle'; printing = 'StatePrinting'; paused = 'StatePaused'; finished = 'StateFinished'; error = 'StateError'; offline = 'StateOffline' }
+                foreach ($scenario in $states.Keys) {
+                    $progress = $scenario -in 'printing', 'paused'
+                    if ($scenario -ne 'idle') { Set-SimulatorScenario $simulator $scenario }
+                    $tipProblem = & $waitState $states[$scenario] -Progress:$progress
+                    if ($tipProblem) { $problems.Add("${scenario}: $tipProblem"); continue }
+                    $menu = Get-StatusMenu $c $app.Id
+                    $null = Save-VerifyEvidence -Context $c -Name "menu-$scenario.json" -Content ($menu | ConvertTo-Json -Depth 30)
+                    foreach ($problem in Get-VerifyMenuProblems -Items @($menu.items) -Texts $texts -Name $name -State $texts[$states[$scenario]] -Progress:$progress -Camera) { $problems.Add("${scenario}: $problem") }
+                    foreach ($help in Get-VerifyMenuHelps -Items @($menu.items)) { if (-not $helps.Contains($help)) { $helps.Add($help) } }
+                    if (@(Get-OpenMenuWindows $c $app.Id).Count -gt 0) { $problems.Add("${scenario}: a menu window is still open after the helper closed the menu") }
+                }
+                $null = Save-VerifyEvidence -Context $c -Name 'disabled-items-help.txt' -Content $helps
+
+                # The camera items through menupress, from a printer state whose item title does not change (no progress).
+                Set-SimulatorScenario $simulator 'idle'
+                $tipProblem = & $waitState 'StateIdle'
+                if ($tipProblem) { $problems.Add("idle again: $tipProblem") }
+                $printer = $texts['MenuPrinter'] -f $name, $texts['StateIdle']
+                $miss = Invoke-MenuPress $c $app.Id "$printer>No such item"
+                $null = Save-VerifyEvidence -Context $c -Name 'menupress-unknown.txt' -Content $miss.Output
+                if ($miss.ExitCode -ne 1 -or -not ($miss.Output -join ' ').Contains("'$(& $label 'MenuOpenPrusaLink')'")) { $problems.Add("menupress of an unknown item: exit code $($miss.ExitCode), expected 1 with the titles of the submenu ($($miss.Output -join ' '))") }
+                if (@(Get-OpenMenuWindows $c $app.Id).Count -gt 0) { $problems.Add('the menu stayed open after menupress of an unknown item') }
+                $show = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuShowCamera')"
+                if ($show.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuShowCamera')': $($show.Output -join ' ')") }
+                elseif (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add("'$(& $label 'MenuShowCamera')' from the menu opened no camera window within 15 s") }
+                else {
+                    $finder = Invoke-FinderToFront
+                    $front = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuCameraToFront')"
+                    if ($front.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuCameraToFront')': $($front.Output -join ' ')") }
+                    elseif (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $app.Id -and $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add("'$(& $label 'MenuCameraToFront')' did not bring the camera window to the front (Finder was in front: $finder; front app $(Get-FrontAppText))") }
+                    $hide = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuHideCamera')"
+                    if ($hide.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuHideCamera')': $($hide.Output -join ' ')") }
+                    elseif (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $null -eq (Get-CameraWindow $c $app.Id) })) { $problems.Add("'$(& $label 'MenuHideCamera')' left the camera window open") }
+                }
+
+                $quit = Invoke-MenuPress $c $app.Id (& $label 'MenuQuit')
+                if ($quit.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuQuit')': $($quit.Output -join ' ')") }
+                elseif (-not $app.WaitForExit(20000)) { $problems.Add("'$(& $label 'MenuQuit')' from the menu did not end the app within 20 s") }
+                elseif ($app.ExitCode -ne 0) { $problems.Add("'$(& $label 'MenuQuit')' from the menu ended the app with exit code $($app.ExitCode)") }
+                elseif (Test-StatusItem $c $app.Id) { $problems.Add('the status item is still in the menu bar after Quit') }
+            }
+            finally { $null = Stop-TestApp $data $app }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            $withHelp = @($helps | Where-Object { $_ -notlike '*help none' }).Count
+            New-VerifyResult PASS "menu items and tooltip followed idle, printing, paused, finished, error and offline (menu-*.json); Show camera, Bring camera to front and Hide camera through menupress, an unknown item gave exit code 1 with the titles and a closed menu; Quit from the menu ended the app with 0 and removed the status item. Disabled items: $withHelp of $($helps.Count) with AXHelp (disabled-items-help.txt)."
+        }
+    }
+
     New-VerifyCheck -Id 'mac.settings-front' -Needs Session -Kind Auto -Title 'Settings, About, Diagnostics and a later start come to the front with focus over another app' `
         -Closes 'T-019 kritérium 8 (okno Nastavení v popředí s fokusem)' -Action {
         param($c)
@@ -1819,7 +1919,7 @@ $checks = @(
 # are made once). release: everything that runs without a human; later tasks (T-209 to T-217) add their checks here.
 $presets = [ordered]@{
     release = @(
-        'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.settings-front',
+        'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
         'mac.plist-localnetwork', 'mac.gatekeeper', 'mac.notifications', 'mac.display-wait', 'mac.camera',
         'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.keys', 'mac.update-check',
         'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
@@ -1975,5 +2075,5 @@ $latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
 Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys or mac.update-check.'
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items or mac.update-check.'
 exit (Get-VerifyExitCode -Results $results)
