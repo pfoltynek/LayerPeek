@@ -98,5 +98,18 @@ po sloučení (viz sběrné úkoly T-125 / T-127). CI spustí totéž na obou OS
 7. Dependabot pro `github-actions` (`.github/dependabot.yml`), aby se připnuté SHA aktualizovaly? T-180 má Dependabot
    security updates bez `dependabot.yml`.
 
+Rozhodnuto uživatelem 2026-11-13:
+1. **Pushovat z Macu** (token `gh` má scope `workflow`); na Windows `gh auth refresh -s workflow` až tehdy, kdyby se
+   workflow měnilo odtud.
+2. **Ano, povinná kontrola** v rulesetu (změnu rulesetu dělá uživatel nebo agent s jeho výslovným souhlasem; úkol
+   připraví přesný postup). Proto **bez `paths-ignore`**: místo toho job, který při změně jen dokumentace / úkolů
+   hned projde, aby povinná kontrola nikdy nečekala.
+3. **Ano**, i PR do `main` a push do `release/*` / `hotfix/*`.
+4. Neodpovězeno – neblokuje; implementace navrhne (doporučeno připnuté obrazy kvůli předvídatelnosti, Dependabot
+   je neaktualizuje – zapsat do poznámek) a zeptá se při review.
+5. **Ano**, odznak CI v README (EN i CZ).
+6. **Ano**, Pester testy v CI.
+7. **Ano**, `.github/dependabot.yml` pro `github-actions`.
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

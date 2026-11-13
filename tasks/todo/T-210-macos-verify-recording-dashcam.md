@@ -78,5 +78,8 @@ Automatizovat simulátorové části bodů T-146 (ruční nahrávání) a T-148 
    Buddy3D (`--camera-clip ~/LayerPeek-samples/clips/coreone-20261103-1905-60s.mp4`), dekódovaná přes `decode`?
    Bitstream je skutečné kamery, síť a kamera ne.
 
+Rozhodnuto uživatelem 2026-11-13: 1 **stačí ověřit předání cesty systému** (bez spouštění QuickTime); 2 **ano**, nahrávka simulátoru se
+skutečným klipem Buddy3D nahrazuje skutečnou kameru.
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

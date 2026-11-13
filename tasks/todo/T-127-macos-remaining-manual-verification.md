@@ -465,11 +465,11 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       Ověřeno ostře (rozhodnuto uživatelem 2026-11-13): `gh release view` 2026-11-13 ukazuje u `v0.3.1`, `v0.4.0` i
       `v0.5.0` soubory obou OS (`SHA256SUMS-macos.txt`, `SHA256SUMS-windows.txt`, `.dmg`, `.tar.gz`, `Setup.exe`,
       `.zip`, balíčky a feedy Velopacku). Zkušební vydání odpadá (T-198 otázka 3).
-- [ ] **T-055** (krit. „Vydání verze `0.x` je na GitHubu označené jako předběžné“): po příštím vydání
+- [x] **T-055** (krit. „Vydání verze `0.x` je na GitHubu označené jako předběžné“): po příštím vydání
       `gh release view vX.Y.Z --json isPrerelease` = `true`. Pozor: stav 2026-10-30 – `v0.1.0` a `v0.3.0` jsou
       předběžné, **`v0.2.0` ne** (označené „Latest“); **rozhodnuto 2026-10-30 (uživatel): `v0.2.0` nechat beze změny**; bod se týká jen nových vydání.
-      **Zjištění 2026-11-13 (architekt, jen čtení):** skript chybu nemá. Podrobnosti v poznámkách níže. Bod zatím
-      neodškrtnutý, viz otázka 1.
+      **Zjištění 2026-11-13 (architekt, jen čtení):** skript chybu nemá. Podrobnosti v poznámkách níže. Rozhodnuto uživatelem 2026-11-13: odškrtnuto podle chování
+      skriptu (otázka 1); příznaky 0.x zůstávají, jak jsou.
 - [ ] **T-058** (krit. „macOS: … ruční body“, Gatekeeper): první spuštění `.dmg` staženého prohlížečem z GitHub vydání
       (Gatekeeper, „Přesto otevřít“) a App Translocation (spuštění přímo z `.dmg`: záložka Spuštění a aktualizace ukáže
       „Přesuňte LayerPeek do složky Aplikace…“, klik na novou verzi otevře jen stránku vydání).
@@ -514,6 +514,9 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
    proto „Latest“. Změna přišla mimo skripty vydání (viz poznámky). Odškrtnout bod podle chování skriptu? A nechat
    příznaky vydání 0.3.1–0.5.0, jak jsou (od 1.0.0 vydání předběžná nejsou, `Test-PrereleaseVersion`)? Nebo je vrátit
    (`gh release edit vX --prerelease`; to by vrátilo „Latest“ na `v0.2.0`)?
+
+   Rozhodnuto uživatelem 2026-11-13: **nechat, jak je**; bod odškrtnut podle chování skriptu (0.5.0 bylo po zveřejnění předběžné),
+   „Latest“ je do 1.0.0 `v0.5.0`.
 
 ## Poznámky k implementaci
 - **2026-11-13, architekt – příznak předběžného vydání (T-055), jen čtení:**
