@@ -2059,6 +2059,12 @@ Describe 'macOS packaging (T-019)' {
             (& /usr/bin/codesign -dv (Join-Path $macOS 'libavformat.63.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
         }
         It 'loads the ad-hoc signed libraries of the bundle under the hardened runtime and ignores DYLD_INSERT_LIBRARIES (T-108)' {
+            # The hardened runtime keeps DYLD_INSERT_LIBRARIES out only with System Integrity Protection on; GitHub's macOS
+            # runners have it off (T-218), where dyld honours the variable for every process and the check proves nothing.
+            if ((& /usr/bin/csrutil status 2>&1) -join ' ' -match 'disabled') {
+                Set-ItResult -Skipped -Because 'System Integrity Protection is off (csrutil status), so dyld ignores the hardened runtime'
+                return
+            }
             # A real executable and library (clang of the Xcode Command Line Tools, which the Native AOT build needs anyway):
             # the executable dlopens the library next to it, like the app loads Avalonia, Skia, HarfBuzz and FFmpeg.
             $destination = Join-Path $script:TempRoot "mac-runtime-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
@@ -3013,7 +3019,14 @@ Describe 'FFmpeg source of a release (T-199)' {
             try { $path = Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache }
             finally { [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, '') }
             Get-FileSha256 $path | Should -BeExactly $script:Source.Sha256
-            (& (Get-TarCommand) -xOf $path 'ffmpeg-n1.0-1-gabc/configure' | Out-String) | Should -Not -Match "`r"
+            # The bytes of the extracted file: PowerShell's pipeline would split the lines and Out-String join them with CRLF
+            # on Windows (T-218: failed on the Windows runner although the archive has LF).
+            $extracted = Join-Path $script:Cache 'x'
+            $null = New-Item -ItemType Directory -Path $extracted
+            & (Get-TarCommand) -xf $path -C $extracted 'ffmpeg-n1.0-1-gabc/configure'
+            $LASTEXITCODE | Should -Be 0
+            [System.IO.File]::ReadAllBytes((Join-Path $extracted 'ffmpeg-n1.0-1-gabc' 'configure')) | Should -Not -Contain ([byte] 13)
+            Remove-Item -LiteralPath $extracted -Recurse -Force
             @(& (Get-TarCommand) -tf $path) | Should -Contain 'ffmpeg-n1.0-1-gabc/libavutil/avutil.h'
             @(Get-ChildItem -LiteralPath $script:Cache -Force | ForEach-Object Name) | Should -Be @('ffmpeg-n1.0-1-gabc.tar')
             Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache | Should -BeExactly $path

@@ -221,8 +221,10 @@ Describe 'Report' {
         $standIns = Join-Path $script:TempRoot 'standins.ps1'
         $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/x.ps1' -StandIns $standIns -Git { param($Arguments) $null }
         $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
-        (Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json).Run.StandIns | Should -Be $standIns
-        Get-Content -LiteralPath $report.Markdown -Raw | Should -Match ([regex]::Escape("- **Stand-ins:** ``$standIns`` (test run with stand-in checks, not a real verification)"))
+        # As every path of the report, with the home folder as ~ (T-208): on Windows the temp folder lies in the profile.
+        $shown = Hide-VerifyHomePath $standIns
+        (Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json).Run.StandIns | Should -Be $shown
+        Get-Content -LiteralPath $report.Markdown -Raw | Should -Match ([regex]::Escape("- **Stand-ins:** ``$shown`` (test run with stand-in checks, not a real verification)"))
     }
 
     It 'loads a stand-in file only from inside an allowed root' {
@@ -376,6 +378,8 @@ Describe 'Report of a preset run (T-208)' {
         $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
         foreach ($file in $report.Markdown, $report.Json) {
             $text = Get-Content -LiteralPath $file -Raw
+            # JSON writes \ for every \ of a Windows path; compared as the text it encodes.
+            if ($file -eq $report.Json) { $text = [regex]::Unescape($text) }
             $text | Should -Not -Match ([regex]::Escape($homePath) + '(?=[/\\])')
             $text | Should -Match ([regex]::Escape("~${sep}Movies"))
         }
