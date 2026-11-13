@@ -69,6 +69,9 @@ Vlastní minimální build:
   `CHANGELOG.md`, T-125 oddíl 2ab (body o `git archive` / BtbN nahradit).
 - **Ověření:** kamera se simulátorem (RTSP, nahrávání MP4, export timelapse do JPEG), E2E testy kamery, AOT publish,
   porovnání velikosti DLL a doby prvního buildu s BtbN.
+- **CI (T-218, doplněno architektem 2026-11-13):** pokud už bude workflow `.github/workflows/ci.yml` hotový, upravit
+  klíč cache FFmpeg pro Windows (hash nového skriptu buildu + tarball) a instalaci toolchainu na runneru `windows-*`;
+  pokud ne, T-218 to převezme podle tohoto úkolu.
 
 ## Akceptační kritéria
 - [ ] První `dotnet build` na Windows přeloží FFmpeg z připnutého oficiálního tarballu (ověřený SHA-256, stejný jako

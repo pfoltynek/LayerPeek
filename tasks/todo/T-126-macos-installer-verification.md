@@ -8,6 +8,16 @@ platform: macos
 depends_on: [T-019, T-020, T-115]
 ---
 
+## Automatizace (rozhodnuto uživatelem 2026-11-13)
+- **Pravidlo odškrtávání (T-208):** část bodu s automatickou kontrolou (`mac.gatekeeper`, `mac.notifications`) se
+  odškrtne, když je kontrola `PASS` ve zprávě `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` na
+  commitu s ověřovaným kódem. Do poznámek se zapíše složka běhu, commit a řádek zprávy.
+- T-217 (`mac.release-bundle`) před instalací zkontroluje aplikaci z `.dmg` i `.tar.gz`: podpis `--deep --strict`,
+  knihovny bez Homebrew a start bez `DOTNET_ROOT`. T-212 (`mac.notifications-content`) ověří obsah notifikací
+  testovacího bundlu (titulek, příznak zvuku, klik).
+- Ruční zůstává: dialogy Gatekeeperu po stažení prohlížečem, notifikace **produkční** `/Applications/LayerPeek.app`
+  (banner, ikona, klik, když aplikace neběží, vypnutá oznámení), „Otevřít při přihlášení“ s odhlášením a odinstalace.
+
 ## Cíl
 Sběrný úkol jen pro skutečnou instalaci na Macu: stažená `.dmg` / `.tar.gz` s Gatekeeperem a přetažení do Aplikací,
 oznámení nainstalované `/Applications/LayerPeek.app` (včetně kliknutí, když aplikace neběží, a vypnutých oznámení),
@@ -37,11 +47,14 @@ Gatekeeper), 5 (oznámení), 7 (Otevřít při přihlášení) a 12 (úklid), a 
       `mac.gatekeeper` = `PASS` a `mac.gatekeeper-dialog` potvrzeno (stažení přes Safari z lokálního serveru, spuštění
       z `.dmg`, přetažení do Aplikací, „Přesto otevřít“, totéž s `.tar.gz`); přesné texty dialogů zapsat a porovnat
       s `docs/release.md`, „Co uživatel uvidí na Macu“ (sezení 1.2–1.4).
+      **Automatizace:** `mac.gatekeeper` v presetu `release` (T-208); dialogy zůstávají ruční.
 
 ### 2. Oznámení nainstalované aplikace (z T-115, oddíl 2)
 - [ ] **T-020** (krit. „Notifikace fungují na macOS ze sestavené `.app`“): `mac.notifications` = `PASS` (testovací bundle)
       a `mac.notifications-production` potvrzeno (`/Applications/LayerPeek.app`, banner s názvem tiskárny, zvuk podle
       nastavení, ikona LayerPeeku) (sezení 5.1, 5.3).
+      **Automatizace:** `mac.notifications` v presetu `release` (T-208), obsah notifikací testovacího bundlu T-212;
+      produkční aplikace zůstává ruční.
 - [ ] **T-020** (krit. „Kliknutí na notifikaci otevře detail / web tiskárny“): `mac.notification-click` potvrzeno
       (aplikace běží); navíc ručně klik na oznámení v Centru oznámení, když produkční aplikace neběží – macOS ji spustí
       a otevře web tiskárny (sezení 5.2, rozhodnutí T-105 otázka 3).
