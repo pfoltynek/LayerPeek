@@ -36,6 +36,32 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notificat
 caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user
 ```
 
+### Regresní běh před vydáním (T-208)
+
+Jeden příkaz spustí bez dozoru všechny kontroly, které nepotřebují člověka (preset `release`: kontroly `Auto`
+a `Permission` z tabulky `$presets` ve skriptu; seznam ukáže `pwsh tools/macos-verify.ps1 -ListChecks -Preset release`).
+Nic se neptá: preset v sobě má `-Unattended` a `-Allow` pro své kontroly s oprávněním. Opakuje se před každým vydáním.
+
+```bash
+cd -P /cesta/k/LayerPeek
+caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release
+caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release -Skip mac.aot-smoke   # -Skip jde, -Only ne
+```
+
+- **Jednorázová příprava:** viz „Bez vás“ níže – Zpřístupnění pro Terminál, volitelně Nahrávání obrazovky, povolená
+  oznámení „LayerPeek E2E“, pravidlo sudoers (`sudo bash tools/macos-verify-sudoers.sh`) a delší prodleva hesla po
+  vypnutí displeje. Spouštět u Macu z Terminálu s odemčenou obrazovkou, bez Sdílení obrazovky.
+- **Předběžné podmínky** se zkontrolují jednou na začátku: odemčená obrazovka na konzoli (`Session`), Zpřístupnění
+  (`Accessibility`), Nahrávání obrazovky (`ScreenRecording`), žádné Sdílení obrazovky (`NoScreenSharing`). Co chybí, se
+  vypíše jednou se seznamem dotčených kontrol; ty skončí `SKIP` s důvodem, ne `FAIL`, a vůbec se nespustí. Bez
+  `caffeinate` v rodičovských procesech si skript drží Mac i displej vzhůru sám (`caffeinate -d -i -u -w`).
+- **Zpráva:** `artifacts/verify/<čas>/report.md` a `report.json` (id, výsledek, důvod, uzavíraná kritéria, doba trvání);
+  hlavička: commit, čistý strom ano / ne, verze aplikace, macOS (`sw_vers`), model Macu, datum, doba běhu, preset
+  a stav předběžných podmínek. `artifacts/verify/latest` ukazuje na poslední běh. Domovská složka je ve zprávě jako `~`.
+- **Odškrtávání v T-127 / T-126:** bod s kontrolou `mac.X` se odškrtne, když je `mac.X` `PASS` ve zprávě
+  `-Preset release` na commitu, který obsahuje ověřovaný kód; do poznámek úkolu se zapíše složka běhu, commit a řádek
+  zprávy (pravidlo v `tasks/README.md`).
+
 **Bez vás (T-140, rozhodnutí uživatele 2026-11-02):** `-Allow` spustí vyjmenované kontroly s oprávněním bez otázky,
 i s `-Unattended`; otázky na posouzení nahrazuje Accessibility (záložka Nastavení, tooltip ikony v menu baru). Jednou
 připravit:

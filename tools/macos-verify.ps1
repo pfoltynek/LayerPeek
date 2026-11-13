@@ -39,6 +39,16 @@
     tools/macos-verify-sudoers.ps1; mac.display-sleep - a password delay after the display sleeps longer than a minute
     (System Settings > Lock Screen), otherwise the locked screen ends it with SKIP.
 
+.PARAMETER Preset
+    A fixed list of checks (T-208), e.g. release: every Auto and Permission check that runs without a human, before each
+    release. Implies -Unattended and -Allow for the Permission checks of the preset; -Skip still applies, -Only does not.
+    The preconditions (unlocked screen on the console, Accessibility, Screen Recording, no Screen Sharing) are checked
+    once at the start: each one that is missing is printed once with the checks it ends with SKIP. Without a caffeinate
+    parent the script keeps the Mac and the display awake itself (caffeinate -d -i -u -w). With -ListChecks it lists the checks of the
+    preset. What it needs once: Accessibility for the terminal, optionally Screen Recording, the sudoers rule of
+    tools/macos-verify-sudoers.sh, the allowed notifications of "LayerPeek E2E" and a password delay after the display
+    sleeps (docs/macos-manual-testing.md, "Regresní běh před vydáním").
+
 .PARAMETER Only
     Check ids or wildcards to run (comma-separated or an array), e.g. -Only mac.keychain,mac.camera*.
 
@@ -62,6 +72,8 @@
     pwsh tools/macos-verify.ps1 -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user
     pwsh tools/macos-verify.ps1 -Unattended -Only mac.update-check -Allow mac.update-check
     pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notifications
+    pwsh tools/macos-verify.ps1 -ListChecks -Preset release
+    caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release   # the regression run before a release (T-208)
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
@@ -70,6 +82,7 @@ param(
     [string[]] $Allow,
     [string[]] $Only,
     [string[]] $Skip,
+    [string] $Preset,
     [switch] $ListChecks,
     [switch] $SelfTest,
     [string] $OutputRoot
@@ -1100,7 +1113,7 @@ $checks = @(
         finally { $null = Stop-TestApp $data $app }
     }
 
-    New-VerifyCheck -Id 'mac.menubar' -Kind Auto -Title 'status item in the menu bar; Quit ends the app and removes it' `
+    New-VerifyCheck -Id 'mac.menubar' -Needs Session -Kind Auto -Title 'status item in the menu bar; Quit ends the app and removes it' `
         -Closes 'T-019 kritérium 7 (ikona jen v menu baru)', 'T-018 kritérium 3 (část: „Ukončit“ ukončí aplikaci)' -Action {
         param($c)
         Invoke-SessionCheck $c {
@@ -1127,7 +1140,7 @@ $checks = @(
         }
     }
 
-    New-VerifyCheck -Id 'mac.settings-front' -Kind Auto -Title 'Settings, About, Diagnostics and a later start come to the front with focus over another app' `
+    New-VerifyCheck -Id 'mac.settings-front' -Needs Session -Kind Auto -Title 'Settings, About, Diagnostics and a later start come to the front with focus over another app' `
         -Closes 'T-019 kritérium 8 (okno Nastavení v popředí s fokusem)' -Action {
         param($c)
         Invoke-SessionCheck $c {
@@ -1256,7 +1269,7 @@ $checks = @(
         New-VerifyResult PASS (Format-Totals $run.Totals)
     }
 
-    New-VerifyCheck -Id 'mac.camera' -Kind Auto -Title 'camera window in normal, mini and full-screen mode with a lasting RTSP stream (simulator)' `
+    New-VerifyCheck -Id 'mac.camera' -Needs Session -Kind Auto -Title 'camera window in normal, mini and full-screen mode with a lasting RTSP stream (simulator)' `
         -Closes 'T-026 kritérium 1 (automatická část: všechny režimy se simulátorem)' -Action {
         param($c)
         Invoke-SessionCheck $c {
@@ -1266,7 +1279,7 @@ $checks = @(
         }
     }
 
-    New-VerifyCheck -Id 'mac.camera-placement' -Kind Auto -Title 'camera window corners and centre on every connected monitor (normal and mini, 16 pt from the usable area)' `
+    New-VerifyCheck -Id 'mac.camera-placement' -Needs Session -Kind Auto -Title 'camera window corners and centre on every connected monitor (normal and mini, 16 pt from the usable area)' `
         -Closes 'T-038 kritérium 1 (automatická část: J2 rohy a střed, D1 zvolený monitor)' -Action {
         param($c)
         $simulator = Get-Simulator $c
@@ -1304,7 +1317,7 @@ $checks = @(
         New-VerifyResult PASS "$($rows.Count) placements on $($screens.Count) monitor(s) ($(($screens.name) -join ', ')) are 16 pt from the usable area, never under the menu bar or the Dock."
     }
 
-    New-VerifyCheck -Id 'mac.camera-pin' -Kind Auto -Title 'camera window pin (always on top) with real mouse and key events and the Accessibility API, normal window and mini preview' `
+    New-VerifyCheck -Id 'mac.camera-pin' -Needs Session, Accessibility -Kind Auto -Title 'camera window pin (always on top) with real mouse and key events and the Accessibility API, normal window and mini preview' `
         -Closes 'T-122 (klik na špendlík a odjetí myši, přepnutí aplikace, Tab / mezerník / Enter, Tab po kliku na obraz, aktivace přes Accessibility jako VoiceOver)', 'T-117 kritéria „Tlačítko na hlavním panelu / ikona v Docku“, „Přístupnost“ a ruční část (klik přepne hned, Dock a ⌘Tab, kontextové menu pravým tlačítkem i ⌃-klikem, volba přežije restart)' -Action {
         param($c)
         if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (real mouse and key events, the Accessibility tree of the camera window).' }
@@ -1321,7 +1334,7 @@ $checks = @(
         }
     }
 
-    New-VerifyCheck -Id 'mac.camera-outline' -Kind Auto -Title 'outline of the mini preview in a capture of the real window: at every edge and corner, brighter while the pointer is over it, none in the normal window' `
+    New-VerifyCheck -Id 'mac.camera-outline' -Needs Session, Accessibility, ScreenRecording -Kind Auto -Title 'outline of the mini preview in a capture of the real window: at every edge and corner, brighter while the pointer is over it, none in the normal window' `
         -Closes 'T-118 kritéria „Obrys kolem malého náhledu v obou OS“ a „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS (obrys vidět, ostré rohy, zesvětlí při najetí, v normálním okně není)' -Action {
         param($c)
         if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (moving the pointer, the Accessibility tree).' }
@@ -1444,7 +1457,7 @@ $checks = @(
         New-VerifyResult MANUAL "Buddy3D stream confirmed in every mode: $($result.Notes -join '; ')"
     }
 
-    New-VerifyCheck -Id 'mac.keys' -Kind Permission -Permission 'Accessibility for Terminal (System Settings > Privacy & Security > Accessibility), to post real key events' `
+    New-VerifyCheck -Id 'mac.keys' -Needs Session, Accessibility -Kind Permission -Permission 'Accessibility for Terminal (System Settings > Privacy & Security > Accessibility), to post real key events' `
         -Title 'keyboard shortcuts as real key events: Ctrl-Cmd-F, Esc, Cmd-., Cmd-W, Cmd-Shift-]' `
         -Closes 'T-100 kritérium 4 (část: zkratky jako skutečné události klávesnice)' -Action {
         param($c)
@@ -1541,7 +1554,7 @@ $checks = @(
         New-VerifyResult PASS "Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-] twice ($tabMove), Cmd-W and Cmd-. in Settings (no change saved; Cmd-. $listCheck); Cmd-W in About and Diagnostics."
     }
 
-    New-VerifyCheck -Id 'mac.update-check' -Kind Permission -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) for real mouse clicks and the Accessibility tree, and an unlocked screen; Screen Recording optional (window captures)' `
+    New-VerifyCheck -Id 'mac.update-check' -Needs Session, Accessibility -Kind Permission -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) for real mouse clicks and the Accessibility tree, and an unlocked screen; Screen Recording optional (window captures)' `
         -Title '"Check now" in Settings > Startup and updates shows its result after a real click into the active and into an inactive window and after AXPress (stand-in GitHub API on 127.0.0.1)' `
         -Closes 'T-127 položka „Kontrola aktualizací: text výsledku po skutečném kliknutí (macOS, hlášeno uživatelem 2026-11-05)“' -Action {
         param($c)
@@ -1613,7 +1626,7 @@ $checks = @(
         finally { $null = Stop-TestApp $data $app }
     }
 
-    New-VerifyCheck -Id 'mac.display-sleep' -Kind Permission -Permission 'putting the display to sleep (pmset displaysleepnow) and waking it (caffeinate -u); you may have to unlock the screen' `
+    New-VerifyCheck -Id 'mac.display-sleep' -Needs Session, NoScreenSharing -Kind Permission -Permission 'putting the display to sleep (pmset displaysleepnow) and waking it (caffeinate -u); you may have to unlock the screen' `
         -Title 'real start while every display sleeps: monitoring runs and notifies, the menu bar item appears after wake-up' `
         -Closes 'T-096 kritérium 1 (skutečný start s uspaným displejem)', 'T-099 kritérium 1 (ikona po probuzení se stavem)', 'T-099 kritérium 3 (skutečný start se zhasnutým displejem)', 'T-099 kritéria 2 a 4 (sezení 8.2: oznámení události tisku ještě se zhasnutým displejem; potřebuje povolená oznámení z mac.notifications)' -Action {
         param($c)
@@ -1799,10 +1812,70 @@ $checks = @(
 )
 
 # ---------------------------------------------------------------------------------------------------------------------
+# Presets and preconditions (T-208)
+# ---------------------------------------------------------------------------------------------------------------------
+
+# The checks of each preset; they run in definition order (builds and tests first, the shared test bundle and simulator
+# are made once). release: everything that runs without a human; later tasks (T-209 to T-217) add their checks here.
+$presets = [ordered]@{
+    release = @(
+        'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.settings-front',
+        'mac.plist-localnetwork', 'mac.gatekeeper', 'mac.notifications', 'mac.display-wait', 'mac.camera',
+        'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.keys', 'mac.update-check',
+        'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
+    )
+}
+
+# What each precondition name of -Needs means: { param($Context) } returns $null when it is met, otherwise the reason.
+$preconditions = [ordered]@{
+    Session         = { param($c) Get-SessionLimitation $c }
+    Accessibility   = { param($c) if (-not (Test-Accessibility $c)) { 'the terminal has no Accessibility permission (System Settings > Privacy & Security > Accessibility; then restart the terminal)' } }
+    ScreenRecording = { param($c) if ((Invoke-Helper $c @('screenrecording')) -notcontains 'true') { 'the terminal has no Screen Recording permission (System Settings > Privacy & Security > Screen & System Audio Recording; then restart the terminal)' } }
+    NoScreenSharing = { param($c) if (@(& /usr/bin/pmset -g assertions 2>$null) -match 'Remote user active') { 'Screen Sharing is connected and keeps the display awake (pmset -g assertions: "Remote user active")' } }
+}
+
+function Get-MacPreconditionState($Context, [string[]] $Needs) {
+    <# .SYNOPSIS Checks the preconditions once: name -> $null (met) or the reason; all unmet when the helper does not compile. #>
+    $state = [ordered]@{}
+    $helperProblem = $null
+    try { $null = Get-Helper $Context } catch { $helperProblem = "the helper could not be built: $($_.Exception.Message)" }
+    foreach ($need in $Needs) {
+        if ($helperProblem -and $need -ne 'NoScreenSharing') { $state[$need] = $helperProblem; continue }
+        try { $state[$need] = & $preconditions[$need] $Context }
+        catch { $state[$need] = "could not be checked: $($_.Exception.Message)" }
+    }
+    $state
+}
+
+function Test-CaffeinateParent {
+    <# .SYNOPSIS Whether this script runs under caffeinate (a parent process of any level). #>
+    $process = Get-Process -Id $PID
+    while ($process) {
+        if ($process.ProcessName -eq 'caffeinate') { return $true }
+        $process = $process.Parent
+    }
+    $false
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------------------------------------------------
 
+$presetIds = $null
+if ($Preset) {
+    if (-not $presets.Contains($Preset)) { Write-Host "Unknown preset '$Preset' (presets: $($presets.Keys -join ', '))." -ForegroundColor Red; exit 2 }
+    if ($Only) { Write-Host '-Preset and -Only do not go together (use -Skip to leave out checks of the preset).' -ForegroundColor Red; exit 2 }
+    $presetIds = [string[]] $presets[$Preset]
+}
+
 if ($ListChecks) {
+    if ($presetIds) {
+        try { $listed = @(Select-VerifyPreset -Checks $checks -Name $Preset -Ids $presetIds) }
+        catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 2 }
+        Write-Output "Preset ${Preset}: $($listed.Count) checks, unattended; allowed in advance: $((@($listed | Where-Object Kind -EQ 'Permission').Id) -join ', ')"
+        Format-VerifyCheckList -Checks $listed | Write-Output
+        exit 0
+    }
     Format-VerifyCheckList -Checks $checks | Write-Output
     exit 0
 }
@@ -1810,12 +1883,14 @@ if ($ListChecks) {
 if ($SelfTest) {
     $problems = @(Invoke-VerifySelfTest -TempRoot ([System.IO.Path]::GetTempPath())) + @(Test-VerifyCheckDefinitions -Checks $checks -TasksRoot (Join-Path $script:Repo 'tasks'))
     foreach ($check in $checks) { if ($check.Id -notlike 'mac.*') { $problems += "The check $($check.Id) is not a mac.* check." } }
+    foreach ($name in $presets.Keys) { $problems += @(Test-VerifyPreset -Checks $checks -Name $name -Ids $presets[$name]) }
+    foreach ($need in Get-VerifyNeeds $checks) { if (-not $preconditions.Contains($need)) { $problems += "A check needs the precondition $need, which the script does not know." } }
     if ($problems.Count -gt 0) {
         Write-Output 'SELF-TEST FAILED:'
         $problems | ForEach-Object { Write-Output "  $_" }
         exit 1
     }
-    Write-Output "SELF-TEST PASSED: engine, both modes and $($checks.Count) check definitions."
+    Write-Output "SELF-TEST PASSED: engine, both modes, $($checks.Count) check definitions and the presets $($presets.Keys -join ', ')."
     exit 0
 }
 
@@ -1824,9 +1899,14 @@ if (-not $IsMacOS) {
     exit 2
 }
 
-try { $selected = @(Select-VerifyChecks -Checks $checks -Only $Only -Skip $Skip) }
+try { $selected = if ($presetIds) { @(Select-VerifyPreset -Checks $checks -Name $Preset -Ids $presetIds -Skip $Skip) } else { @(Select-VerifyChecks -Checks $checks -Only $Only -Skip $Skip) } }
 catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 2 }
 $Allow = @($Allow | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+if ($presetIds) {
+    # A preset never asks: unattended, with its Permission checks allowed in advance.
+    $Unattended = [switch] $true
+    $Allow = @(@($Allow) + @($selected | Where-Object Kind -EQ 'Permission' | ForEach-Object Id) | Select-Object -Unique)
+}
 foreach ($pattern in $Allow) {
     if (-not ($checks | Where-Object { $_.Kind -eq 'Permission' -and $_.Id -like $pattern })) {
         Write-Host "-Allow '$pattern' matches no Permission check (see -ListChecks)." -ForegroundColor Red
@@ -1842,7 +1922,30 @@ $root = if ($OutputRoot) { $OutputRoot } else { Join-Path $script:Repo 'artifact
 $runFolder = New-VerifyRunFolder -Root $root
 $context = New-VerifyContext -RunFolder $runFolder -Unattended:$Unattended -Allow $Allow
 $context.Shared.ProductionProfileUsed = @()
-Write-Host "LayerPeek macOS verification ($($context.Unattended ? 'unattended' : 'interactive')), $($selected.Count) check(s); report in $runFolder"
+$started = [DateTimeOffset]::Now
+Write-Host "LayerPeek macOS verification ($($context.Unattended ? 'unattended' : 'interactive')$(if ($Preset) { ", preset $Preset" })), $($selected.Count) check(s); report in $runFolder"
+
+# T-208: in an unattended run nobody can fix a missing precondition, so it is checked once here and the checks that need
+# it end with SKIP and the reason, unrun (an interactive run lets each check ask for its permission itself).
+$preconditionState = [ordered]@{}
+if ($presetIds) {
+    $preconditionState.Awake = if (Test-CaffeinateParent) { 'met (runs under caffeinate)' }
+    else {
+        $null = Start-Process -FilePath '/usr/bin/caffeinate' -ArgumentList @('-d', '-i', '-u', '-w', "$PID")
+        'met (caffeinate -d -i -u started by the script)'
+    }
+}
+$needs = @(Get-VerifyNeeds $selected)
+if ($context.Unattended -and $needs.Count -gt 0) {
+    $state = Get-MacPreconditionState $context $needs
+    foreach ($need in $needs) {
+        if ($state[$need]) { $context.Unmet[$need] = $state[$need]; $preconditionState[$need] = "not met: $($state[$need])" }
+        else { $preconditionState[$need] = 'met' }
+    }
+    $unmetLines = @(Format-VerifyUnmetNeeds -Checks $selected -Unmet $context.Unmet)
+    if ($unmetLines.Count -gt 0) { $unmetLines | ForEach-Object { Write-Host $_ -ForegroundColor Yellow } }
+    else { Write-Host "Preconditions met: $($needs -join ', ')." }
+}
 
 # Leftovers of an interrupted run: test bundles of earlier runs (and their LaunchServices registrations).
 $bundleRoot = Join-Path $script:Repo 'artifacts' 'verify-bundle'
@@ -1865,10 +1968,12 @@ if ($selected | Where-Object Id -EQ 'mac.profile-unchanged') {
 }
 
 $results = Invoke-VerifyRun -Checks $selected -Context $context
-$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/macos-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id) -Allow $Allow
+$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/macos-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id) -Allow $Allow -Preset $Preset -Preconditions $preconditionState -Started $started
+$info.Seconds = [math]::Round(([DateTimeOffset]::Now - $started).TotalSeconds)
 $report = Write-VerifyReport -Folder $runFolder -Info $info -Results $results
+$latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
-Write-Host "Report: $($report.Markdown)"
+Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
 Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys or mac.update-check.'
 exit (Get-VerifyExitCode -Results $results)

@@ -34,6 +34,8 @@ function New-VerifyCheck {
     .SYNOPSIS A check definition. -Closes lists the task criteria it closes, each starting with the task id ("T-021 kritérium 1 ...").
     .PARAMETER Permission What the user is asked to allow before a Permission check runs (shown in the question and the report).
     .PARAMETER Final Runs after the cleanup of the run (the before/after comparison of the profile).
+    .PARAMETER Needs Names of the preconditions the check needs (T-208, e.g. Session, Accessibility). The script checks
+        them once at the start of an unattended run; a check whose need is not met ends with SKIP and the reason, unrun.
     #>
     param(
         [Parameter(Mandatory)] [string] $Id,
@@ -42,12 +44,16 @@ function New-VerifyCheck {
         [Parameter(Mandatory)] [ValidateSet('Auto', 'Permission', 'Manual')] [string] $Kind,
         [string] $Permission,
         [switch] $Final,
+        [string[]] $Needs = @(),
         [Parameter(Mandatory)] [scriptblock] $Action
     )
     if ($Id -cnotmatch '^[a-z]+(\.[a-z0-9]+(-[a-z0-9]+)*)+$') { throw "Invalid check id '$Id' (lower case, e.g. mac.keychain)." }
     if ($Kind -eq 'Permission' -and [string]::IsNullOrWhiteSpace($Permission)) { throw "The Permission check $Id must say what it needs (-Permission)." }
     foreach ($criterion in $Closes) {
         if ($criterion -cnotmatch '^T-\d{3}\b') { throw "The check $Id closes '$criterion', which does not start with a task id (T-XXX)." }
+    }
+    foreach ($need in $Needs) {
+        if ($need -cnotmatch '^[A-Z][A-Za-z]+$') { throw "The check $Id needs '$need', which is not a precondition name (e.g. Session)." }
     }
     [pscustomobject]@{
         PSTypeName = 'LayerPeek.VerifyCheck'
@@ -57,6 +63,7 @@ function New-VerifyCheck {
         Kind       = $Kind
         Permission = $Permission
         Final      = [bool] $Final
+        Needs      = [string[]] @($Needs)
         Action     = $Action
     }
 }
@@ -130,7 +137,83 @@ function Format-VerifyCheckList {
         "$($check.Id)  [$kind]  $($check.Title)"
         foreach ($criterion in $check.Closes) { "    closes: $criterion" }
         if ($check.Permission) { "    needs:  $($check.Permission)" }
+        if (@($check.Needs).Count -gt 0) { "    requires: $($check.Needs -join ', ')" }
     }
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Presets and preconditions (T-208)
+# ---------------------------------------------------------------------------------------------------------------------
+
+function Test-VerifyPreset {
+    <#
+    .SYNOPSIS
+        Problems of a preset (empty = fine): an id twice, an id without a check, a Manual check (a preset runs without a
+        human) and a check without the criteria it closes.
+    #>
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Checks,
+        [Parameter(Mandatory)] [string] $Name,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $Ids
+    )
+    if ($Ids.Count -eq 0) { "The preset $Name lists no check." }
+    $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($id in $Ids) {
+        if (-not $seen.Add($id)) { "The preset $Name lists $id twice."; continue }
+        $check = $Checks | Where-Object { $_.Id -ceq $id } | Select-Object -First 1
+        if (-not $check) { "The preset $Name lists $id, which is no check."; continue }
+        if ($check.Kind -notin 'Auto', 'Permission') { "The preset $Name lists the $($check.Kind) check $id; a preset runs only Auto and Permission checks." }
+        if (@($check.Closes | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) { "The preset $Name lists $id, which closes no criterion." }
+    }
+}
+
+function Select-VerifyPreset {
+    <#
+    .SYNOPSIS
+        The checks of a preset in definition order (the order of the script, e.g. builds first), minus those matching
+        -Skip. An unknown id or a -Skip pattern that matches no check of the preset throws.
+    #>
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Checks,
+        [Parameter(Mandatory)] [string] $Name,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $Ids,
+        [string[]] $Skip
+    )
+    $problems = @(Test-VerifyPreset -Checks $Checks -Name $Name -Ids $Ids)
+    if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+    $inPreset = @($Checks | Where-Object { $Ids -ccontains $_.Id })
+    @(Select-VerifyChecks -Checks $inPreset -Skip $Skip)
+}
+
+function Get-VerifyNeeds {
+    <# .SYNOPSIS The distinct precondition names the checks need, sorted. #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Checks)
+    @($Checks | ForEach-Object { @($_.Needs) } | Where-Object { $_ } | Sort-Object -Unique -CaseSensitive)
+}
+
+function Format-VerifyUnmetNeeds {
+    <#
+    .SYNOPSIS
+        The lines printed once at the start of a run: every precondition that is not met, its reason and the checks it
+        ends with SKIP. Nothing when all are met.
+    .PARAMETER Unmet Precondition name -> reason.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Checks, [Parameter(Mandatory)] [System.Collections.IDictionary] $Unmet)
+    foreach ($need in @($Unmet.Keys | Sort-Object -CaseSensitive)) {
+        $affected = @($Checks | Where-Object { @($_.Needs) -ccontains $need } | ForEach-Object Id)
+        if ($affected.Count -eq 0) { continue }
+        "Not met: $need - $($Unmet[$need])"
+        "    SKIP: $($affected -join ', ')"
+    }
+}
+
+function Get-VerifyUnmetReason {
+    <# .SYNOPSIS The SKIP reason of a check with an unmet precondition, or $null when all its needs are met. #>
+    param([Parameter(Mandatory)] $Check, [AllowNull()] [System.Collections.IDictionary] $Unmet)
+    if (-not $Unmet) { return $null }
+    $reasons = @(@($Check.Needs) | Where-Object { $Unmet.Contains($_) } | ForEach-Object { "$_ ($($Unmet[$_]))" })
+    if ($reasons.Count -eq 0) { return $null }
+    "precondition not met at the start of the run: $($reasons -join '; ')."
 }
 
 function New-VerifyResult {
@@ -175,6 +258,8 @@ function New-VerifyContext {
         Prompt     = $Prompt
         Writer     = $Writer
         Shared     = @{}
+        # T-208: precondition name -> reason, filled once at the start of an unattended run.
+        Unmet      = [ordered]@{}
         Cleanup    = [System.Collections.Generic.List[object]]::new()
         CheckId    = $null
         Log        = [System.Collections.Generic.List[string]]::new()
@@ -287,7 +372,9 @@ function Invoke-VerifyCheck {
     & $Context.Writer '' $null
     & $Context.Writer "== $($Check.Id): $($Check.Title)" 'Cyan'
     $allowed = @($Context.Allow | Where-Object { $Check.Id -like $_ }).Count -gt 0
-    if ($Check.Kind -eq 'Permission' -and $allowed) {
+    $unmet = Get-VerifyUnmetReason -Check $Check -Unmet $Context.Unmet
+    if ($unmet) { $result = New-VerifyResult SKIP $unmet }
+    elseif ($Check.Kind -eq 'Permission' -and $allowed) {
         & $Context.Writer "   Allowed in advance (-Allow): $($Check.Permission)." $null
     }
     elseif ($Check.Kind -eq 'Permission') {
@@ -389,6 +476,10 @@ function Get-VerifyRunInfo {
         [string[]] $Allow = @(),
         # T-129: the stand-in file of a test run (LAYERPEEK_VERIFY_STANDINS); only then the report gets a StandIns field.
         [string] $StandIns,
+        # T-208: the preset of the run (-Preset), the state of its preconditions (name -> 'met' or the reason) and the start.
+        [string] $Preset,
+        [System.Collections.IDictionary] $Preconditions,
+        [DateTimeOffset] $Started = [DateTimeOffset]::Now,
         [scriptblock] $Git = { param($Arguments) $output = & git -C $RepoRoot @Arguments 2>$null; if ($LASTEXITCODE -eq 0) { $output } else { $null } }
     )
     $commit = & $Git @('rev-parse', 'HEAD')
@@ -401,20 +492,27 @@ function Get-VerifyRunInfo {
         $node = $xml.SelectSingleNode('/Project/PropertyGroup/Version')
         if ($node) { $version = $node.InnerText.Trim() }
     }
-    $os = if ($IsMacOS) { "macOS $((& /usr/bin/sw_vers -productVersion 2>$null) -join '') ($([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))" }
+    $machine = $null
+    $os = if ($IsMacOS) {
+        $machine = "$((& /usr/sbin/sysctl -n hw.model 2>$null) -join '')".Trim()
+        "macOS $((& /usr/bin/sw_vers -productVersion 2>$null) -join '') $((& /usr/bin/sw_vers -buildVersion 2>$null) -join '') ($([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))"
+    }
     else { "$([System.Runtime.InteropServices.RuntimeInformation]::OSDescription) ($([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))" }
     $info = [ordered]@{
         Script     = $Script
-        Started    = [DateTimeOffset]::Now.ToString('o')
+        Started    = $Started.ToString('o')
         Commit     = if ($commit) { "$commit".Trim() } else { 'unknown' }
         Branch     = if ($branch) { "$branch".Trim() } else { 'unknown' }
         Dirty      = [bool] (@($status | Where-Object { $_ }).Count -gt 0)
         AppVersion = $version ?? 'unknown'
         Os         = $os
+        Machine    = if ($machine) { $machine } else { 'unknown' }
         PowerShell = $PSVersionTable.PSVersion.ToString()
         Mode       = if ($Unattended) { 'unattended' } else { 'interactive' }
+        Preset     = if ($Preset) { $Preset } else { $null }
         Selected   = [string[]] $Selected
     }
+    if ($Preconditions -and $Preconditions.Count -gt 0) { $info.Preconditions = $Preconditions }
     if ($Allow.Count -gt 0) { $info.Allowed = [string[]] $Allow }
     if ($StandIns) { $info.StandIns = $StandIns }
     $info
@@ -460,19 +558,26 @@ function ConvertTo-VerifyMarkdown {
     $lines.Add("# LayerPeek verification report ($($Info.Script))")
     $lines.Add('')
     $lines.Add("- Started: $($Info.Started)")
+    if ($Info.Contains('Seconds')) { $lines.Add("- Duration: $(Format-VerifyDuration $Info.Seconds)") }
     $lines.Add("- Commit: ``$($Info.Commit)`` on ``$($Info.Branch)``$(if ($Info.Dirty) { ' (with local changes)' })")
+    $lines.Add("- Clean tree: $(if ($Info.Dirty) { 'no' } else { 'yes' })")
     $lines.Add("- App version: $($Info.AppVersion)")
     $lines.Add("- OS: $($Info.Os), PowerShell $($Info.PowerShell)")
+    if ($Info.Contains('Machine')) { $lines.Add("- Machine: $($Info.Machine)") }
     $lines.Add("- Mode: $($Info.Mode)")
+    if ($Info.Contains('Preset')) { $lines.Add("- Preset: $(if ($Info.Preset) { $Info.Preset } else { 'none' })") }
+    if ($Info.Contains('Preconditions')) {
+        $lines.Add('- Preconditions: ' + (($Info.Preconditions.Keys | ForEach-Object { "$_ $($Info.Preconditions[$_])" }) -join '; '))
+    }
     if ($Info.Contains('StandIns') -and $Info.StandIns) { $lines.Add("- **Stand-ins:** ``$($Info.StandIns)`` (test run with stand-in checks, not a real verification)") }
     $lines.Add("- Result: " + (($summary.Keys | ForEach-Object { "$_ $($summary[$_])" }) -join ', '))
     $lines.Add('')
-    $lines.Add('| Check | Kind | Result | Closes | Detail |')
-    $lines.Add('|---|---|---|---|---|')
+    $lines.Add('| Check | Kind | Result | Seconds | Closes | Detail |')
+    $lines.Add('|---|---|---|---|---|---|')
     foreach ($result in $Results) {
         $detail = ($result.Detail -replace '\|', '\|' -replace "`r?`n", ' ')
         $closes = (@($result.Closes) -join '<br>') -replace '\|', '\|'
-        $lines.Add("| ``$($result.Id)`` | $($result.Kind) | **$($result.Status)** | $closes | $detail |")
+        $lines.Add("| ``$($result.Id)`` | $($result.Kind) | **$($result.Status)** | $($result.Seconds) | $closes | $detail |")
     }
     $lines.Add('')
     $lines.Add('## Evidence')
@@ -489,9 +594,61 @@ function ConvertTo-VerifyMarkdown {
     $lines.ToArray()
 }
 
+function Format-VerifyDuration {
+    <# .SYNOPSIS '12 min 5 s' (or '42 s') of a number of seconds. #>
+    param([Parameter(Mandatory)] [double] $Seconds)
+    $total = [int] [math]::Round($Seconds)
+    if ($total -lt 60) { return "$total s" }
+    "$([math]::Floor($total / 60)) min $($total % 60) s"
+}
+
+function Hide-VerifyHomePath {
+    <#
+    .SYNOPSIS
+        T-208: the text with the user's home folder written as ~ (the report names no profile path), also inside arrays
+        and dictionaries; other values unchanged. /Users/me2 is not /Users/me.
+    #>
+    param([AllowNull()] $Value, [string] $HomePath = [Environment]::GetFolderPath('UserProfile'))
+    if ($null -eq $Value -or [string]::IsNullOrEmpty($HomePath)) { return , $Value }
+    $trimmed = [System.IO.Path]::TrimEndingDirectorySeparator($HomePath)
+    if ($trimmed.Length -lt 2) { return , $Value }
+    if ($Value -is [string]) {
+        $options = if ($IsWindows) { 'IgnoreCase' } else { 'None' }
+        return [regex]::Replace($Value, [regex]::Escape($trimmed) + '(?=[/\\]|$|[^\w.-])', '~', $options)
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        $copy = [ordered]@{}
+        foreach ($key in $Value.Keys) { $copy[$key] = Hide-VerifyHomePath -Value $Value[$key] -HomePath $HomePath }
+        return $copy
+    }
+    if ($Value -is [System.Collections.IEnumerable]) { return , [object[]] @($Value | ForEach-Object { Hide-VerifyHomePath -Value $_ -HomePath $HomePath }) }
+    , $Value
+}
+
+function Set-VerifyLatestLink {
+    <#
+    .SYNOPSIS
+        T-208: <Root>/latest as a relative symbolic link to the run folder (replaces an older link; a real folder named
+        latest is never touched). Returns the link path, or $null when the link could not be made (e.g. Windows without
+        the privilege for symbolic links).
+    #>
+    param([Parameter(Mandatory)] [string] $Root, [Parameter(Mandatory)] [string] $RunFolder)
+    $link = Join-Path $Root 'latest'
+    $existing = Get-Item -LiteralPath $link -Force -ErrorAction SilentlyContinue
+    if ($existing -and -not $existing.LinkType) { return $null }
+    try {
+        if ($existing) { $existing.Delete() }
+        $null = New-Item -ItemType SymbolicLink -Path $link -Target (Split-Path -Leaf $RunFolder) -ErrorAction Stop
+        $link
+    }
+    catch { Write-Verbose "No latest link: $($_.Exception.Message)"; $null }
+}
+
 function Write-VerifyReport {
-    <# .SYNOPSIS report.md and report.json in -Folder; returns both paths. #>
+    <# .SYNOPSIS report.md and report.json in -Folder, the home folder written as ~ (T-208); returns both paths. #>
     param([Parameter(Mandatory)] [string] $Folder, [Parameter(Mandatory)] [System.Collections.IDictionary] $Info, [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Results)
+    $Info = Hide-VerifyHomePath $Info
+    $Results = @($Results | ForEach-Object { $r = $_.PSObject.Copy(); $r.Title = Hide-VerifyHomePath $r.Title; $r.Detail = Hide-VerifyHomePath $r.Detail; $r })
     $utf8 = [System.Text.UTF8Encoding]::new($false)
     $markdown = Join-Path $Folder 'report.md'
     $json = Join-Path $Folder 'report.json'
@@ -567,19 +724,23 @@ function Get-VerifyTestTotals {
     .SYNOPSIS
         Totals of a 'dotnet test' run (Microsoft.Testing.Platform) from its output, language independent: the sum of the
         per-assembly lines "<assembly> ... [+passed/xfailed/?skipped]". $null when there is none (the build failed).
+        Each assembly counts once (T-208): a solution run prints its line again in the closing summary.
     #>
     param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $Output)
-    $passed = 0; $failed = 0; $skipped = 0; $assemblies = 0
+    $perAssembly = [ordered]@{}
+    $index = 0
     foreach ($line in $Output) {
+        $index++
         foreach ($match in [regex]::Matches($line, '\[\+(?<p>\d+)/x(?<f>\d+)/\?(?<s>\d+)\]')) {
-            $passed += [int] $match.Groups['p'].Value
-            $failed += [int] $match.Groups['f'].Value
-            $skipped += [int] $match.Groups['s'].Value
-            $assemblies++
+            # "<path> (<tfm>|<arch>)" names the assembly; a line without it counts on its own.
+            $key = if ($line -match '^\s*(?<key>\S.*?\([^)]*\))\s') { $Matches.key } else { "line $index" }
+            $perAssembly[$key] = [int[]] @($match.Groups['p'].Value, $match.Groups['f'].Value, $match.Groups['s'].Value)
         }
     }
-    if ($assemblies -eq 0) { return $null }
-    [pscustomobject]@{ Total = $passed + $failed + $skipped; Passed = $passed; Failed = $failed; Skipped = $skipped; Assemblies = $assemblies }
+    if ($perAssembly.Count -eq 0) { return $null }
+    $passed = 0; $failed = 0; $skipped = 0
+    foreach ($counts in $perAssembly.Values) { $passed += $counts[0]; $failed += $counts[1]; $skipped += $counts[2] }
+    [pscustomobject]@{ Total = $passed + $failed + $skipped; Passed = $passed; Failed = $failed; Skipped = $skipped; Assemblies = $perAssembly.Count }
 }
 
 function Get-VerifyRunE2ETotals {
@@ -903,11 +1064,12 @@ function Invoke-VerifySelfTest {
             New-VerifyCheck -Id 'self.ask' -Title 'auto with a question' -Closes 'T-105 self-test' -Kind Auto -Action { param($c) if (Confirm-VerifyStep $c 'ok?') { New-VerifyResult MANUAL 'confirmed' } else { New-VerifyResult FAIL 'user: no' } }
             New-VerifyCheck -Id 'self.permission' -Title 'permission' -Closes 'T-105 self-test' -Kind Permission -Permission 'a stand-in permission' -Action { param($c) Add-VerifyCleanup $c 'stand-in' { param($list) $list.Add('x') } -State $cleaned; New-VerifyResult PASS 'ran' }
             New-VerifyCheck -Id 'self.manual' -Title 'manual' -Closes 'T-105 self-test' -Kind Manual -Action { param($c) if (Confirm-VerifyStep $c 'seen?') { New-VerifyResult MANUAL 'seen' } else { New-VerifyResult FAIL 'not seen' } }
+            New-VerifyCheck -Id 'self.needs' -Title 'unmet precondition' -Closes 'T-208 self-test' -Kind Auto -Needs 'Standin' -Action { New-VerifyResult FAIL 'ran despite the unmet precondition' }
             New-VerifyCheck -Id 'self.final' -Title 'final' -Closes 'T-105 self-test' -Kind Auto -Final -Action { param($c) New-VerifyResult PASS "cleaned $($cleaned.Count)" }
         )
         $expected = @{
-            Interactive = [ordered]@{ 'self.pass' = 'PASS'; 'self.fail' = 'FAIL'; 'self.throw' = 'FAIL'; 'self.skip' = 'SKIP'; 'self.noresult' = 'FAIL'; 'self.ask' = 'MANUAL'; 'self.permission' = 'PASS'; 'self.manual' = 'FAIL'; 'self.final' = 'PASS' }
-            Unattended  = [ordered]@{ 'self.pass' = 'PASS'; 'self.fail' = 'FAIL'; 'self.throw' = 'FAIL'; 'self.skip' = 'SKIP'; 'self.noresult' = 'FAIL'; 'self.ask' = 'SKIP'; 'self.permission' = 'SKIP'; 'self.manual' = 'SKIP'; 'self.final' = 'PASS' }
+            Interactive = [ordered]@{ 'self.pass' = 'PASS'; 'self.fail' = 'FAIL'; 'self.throw' = 'FAIL'; 'self.skip' = 'SKIP'; 'self.noresult' = 'FAIL'; 'self.ask' = 'MANUAL'; 'self.permission' = 'PASS'; 'self.manual' = 'FAIL'; 'self.needs' = 'SKIP'; 'self.final' = 'PASS' }
+            Unattended  = [ordered]@{ 'self.pass' = 'PASS'; 'self.fail' = 'FAIL'; 'self.throw' = 'FAIL'; 'self.skip' = 'SKIP'; 'self.noresult' = 'FAIL'; 'self.ask' = 'SKIP'; 'self.permission' = 'SKIP'; 'self.manual' = 'SKIP'; 'self.needs' = 'SKIP'; 'self.final' = 'PASS' }
         }
         foreach ($mode in 'Interactive', 'Unattended') {
             # Stand-in answers: y (self.ask), y (permission), n (manual). Unattended must never ask.
@@ -919,6 +1081,7 @@ function Invoke-VerifySelfTest {
             $cleaned.Clear()
             $folder = New-VerifyRunFolder -Root (Join-Path $root $mode)
             $context = New-VerifyContext -RunFolder $folder -Unattended:($mode -eq 'Unattended') -Prompt $prompt -Writer $writer
+            $context.Unmet['Standin'] = 'a stand-in precondition'
             $results = Invoke-VerifyRun -Checks $checks -Context $context
             foreach ($id in $expected[$mode].Keys) {
                 $result = $results | Where-Object Id -EQ $id

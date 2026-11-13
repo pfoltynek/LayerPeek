@@ -375,6 +375,16 @@ a kritérium.
       Výsledek zapsat do poznámek T-205.
       **Automatizace:** (4) a (5) T-216 `mac.hw-decoding-switch`. (1)–(3) zůstávají ruční.
 
+### 1i. Regresní běh `-Preset release` (z T-208, připraveno na Macu 2026-11-13)
+- [ ] **T-208** (krit. „Doba celého běhu změřená a zapsaná v poznámkách“, část s odemčenou obrazovkou; agent měl
+      zamčenou obrazovku, bez Zpřístupnění a se Sdílením obrazovky, 10 z 20 kontrol skončilo `SKIP` na předběžné
+      podmínce): po jednorázové přípravě z `docs/macos-manual-testing.md` („Regresní běh před vydáním“: Zpřístupnění
+      a Nahrávání obrazovky pro Terminál, oznámení „LayerPeek E2E“ povolená, `sudo bash tools/macos-verify-sudoers.sh`,
+      delší prodleva hesla po vypnutí displeje) u Macu bez Sdílení obrazovky spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release`. Ověřit: žádná otázka, na začátku žádné „Not met:“,
+      `artifacts/verify/latest/report.md` má v hlavičce všechny podmínky „met“. Do poznámek T-208 zapsat dobu běhu (cíl
+      ~30 min) a tři nejpomalejší kontroly (sloupec Seconds); každý `FAIL` = nový úkol.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)
