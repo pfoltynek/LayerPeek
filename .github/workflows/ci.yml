@@ -1,0 +1,208 @@
+# CI (T-218): build (Debug + Release), tests without the end-to-end tests and the Native AOT publish on Windows and
+# macOS for every push to develop / release/* / hotfix/* and every pull request into develop / main.
+#
+# The required status check of the ruleset is the job "CI result" (docs/prerequisites.md, section CI). It always
+# reports: a change that touches only files no build or test reads (task notes, most docs) passes it at once without
+# the expensive jobs, so a required check never waits for a run that does not start (no paths-ignore on purpose).
+#
+# Security: read-only token, no secrets, pull_request (never pull_request_target), every action pinned to the commit
+# of its release tag (the comment names the tag; .github/dependabot.yml proposes updates).
+
+name: CI
+
+on:
+  push:
+    branches: [develop, 'release/**', 'hotfix/**']
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  # No XML documentation files in the NuGet folder: smaller package cache, nothing reads them in CI.
+  NUGET_XMLDOC_MODE: skip
+
+jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      # Two commits: a pull request is checked out as its merge commit, whose first parent is the target branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Classify the changed files
+        id: classify
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          code=true
+          files=""
+          if [ "$EVENT" = pull_request ]; then
+            files=$(git diff --name-only HEAD^1 HEAD)
+          elif [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] \
+            && git fetch --quiet --no-tags --depth=1 origin "$BEFORE"; then
+            files=$(git diff --name-only "$BEFORE" HEAD)
+          fi
+          # Docs-only means: every changed file is one that no build or test reads. Tests do read manuals/*/manual.md
+          # (UserManualTests: the anchors of the manual) and docs/troubleshooting.md, so those always count as code.
+          if [ -n "$files" ]; then
+            code=false
+            while IFS= read -r file; do
+              case "$file" in
+                docs/troubleshooting.md) code=true ;;
+                tasks/*|docs/*) ;;
+                */*) code=true ;;
+                *.md) ;;
+                *) code=true ;;
+              esac
+            done <<< "$files"
+          fi
+          # A new branch, a force push, workflow_dispatch or an empty diff: run everything.
+          echo "Changed files:"
+          echo "${files:-(unknown, full run)}"
+          echo "code=$code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and test (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-2025
+            rid: win-x64
+            timeout: 60
+            # The inputs of the FFmpeg cache folder in build/FFmpeg.targets. Today Windows downloads the pinned BtbN zip
+            # (URL and SHA-256 in FFmpeg.targets); T-202 adds build/windows/build-ffmpeg.*, which the pattern already
+            # covers (a pattern without a match adds nothing to the hash).
+            ffmpeg-script: build/windows/build-ffmpeg.*
+          - name: macOS
+            os: macos-26
+            rid: osx-arm64
+            timeout: 60
+            ffmpeg-script: build/macos/build-ffmpeg.sh
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      # Outside the checkout: the build and the tests never see the cache or the test results as repository files.
+      # Join-Path gives native separators (FFmpeg.targets runs cmd's move with this path on Windows).
+      - name: Point the FFmpeg cache and the test results to the runner's temp folder
+        run: |
+          "LayerPeekFFmpegCacheRoot=$(Join-Path $env:RUNNER_TEMP ffmpeg)" >> $env:GITHUB_ENV
+          "TEST_RESULTS=$(Join-Path $env:RUNNER_TEMP TestResults)" >> $env:GITHUB_ENV
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Exact key only (no restore-keys): another recipe would only add an unused folder to the cache. The image is part
+      # of the key because the macOS libraries are compiled with its Xcode.
+      - name: Restore FFmpeg
+        id: ffmpeg
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg
+          key: ffmpeg-v1-${{ matrix.os }}-${{ matrix.rid }}-${{ hashFiles('build/FFmpeg.targets', matrix.ffmpeg-script) }}
+
+      # Pester 5+ is on both images; without it ScriptPesterTestsPass would be skipped instead of failing.
+      - name: Check PowerShell and Pester
+        run: |
+          $pester = Get-Module -ListAvailable Pester | Where-Object Version -ge ([version]'5.0.0') | Sort-Object Version -Descending | Select-Object -First 1
+          if (-not $pester) { throw 'Pester 5 or newer is not installed on the runner; the Pester tests would be skipped.' }
+          "PowerShell $($PSVersionTable.PSVersion), Pester $($pester.Version)"
+
+      - name: Build (Release)
+        run: dotnet build LayerPeek.slnx -c Release
+
+      # Right after the first build (it downloads / builds FFmpeg), so a failing test does not throw the cache away.
+      - name: Save FFmpeg
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg
+          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
+
+      - name: Build (Debug)
+        run: dotnet build LayerPeek.slnx -c Debug
+
+      # Every test project except tests/LayerPeek.E2E.Tests: the Windows image has Edge, so its browser tests would run
+      # instead of skipping. The other end-to-end and interactive tests stay off by themselves (LAYERPEEK_E2E and the
+      # other on-demand variables are never set here, see docs/prerequisites.md).
+      - name: Test (Debug, without the browser end-to-end tests)
+        run: |
+          $all = @(dotnet sln LayerPeek.slnx list | Where-Object { $_ -like '*.csproj' })
+          $projects = @($all | Where-Object { (Split-Path $_ -Leaf) -ne 'LayerPeek.E2E.Tests.csproj' })
+          if ($LASTEXITCODE -ne 0 -or $all.Count -eq 0 -or $all.Count - $projects.Count -ne 1) {
+            throw "Expected exactly one LayerPeek.E2E.Tests.csproj among the $($all.Count) projects of LayerPeek.slnx."
+          }
+          $filter = Join-Path $env:RUNNER_TEMP 'ci-tests.slnf'
+          @{ solution = @{ path = (Resolve-Path LayerPeek.slnx).Path; projects = $projects } } | ConvertTo-Json -Depth 3 | Set-Content $filter
+          dotnet test --solution $filter -c Debug --no-build --no-progress --results-directory $env:TEST_RESULTS --results-directory-layout per-module --report-xunit-trx
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Native AOT, without starting the app (scripts/aot-smoke.ps1 changes the profile and needs a display).
+      - name: Publish Native AOT (${{ matrix.rid }})
+        run: dotnet publish src/LayerPeek.App -c Release -r ${{ matrix.rid }}
+
+      - name: Upload the test results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-${{ matrix.rid }}
+          path: ${{ runner.temp }}/TestResults
+          retention-days: 3
+          if-no-files-found: ignore
+
+  # The single required status check: green when the build jobs passed, or when they were not needed (docs only).
+  result:
+    name: CI result
+    needs: [changes, build]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate
+        shell: bash
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          echo "changes=$CHANGES code=$CODE build=$BUILD"
+          if [ "$CHANGES" != success ]; then echo "::error::Classifying the changes failed ($CHANGES)."; exit 1; fi
+          if [ "$CODE" = true ] && [ "$BUILD" != success ]; then echo "::error::Build and test: $BUILD."; exit 1; fi
+          if [ "$CODE" != true ]; then echo "Only files no build or test reads changed: build and test skipped."; fi
