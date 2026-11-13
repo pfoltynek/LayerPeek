@@ -88,6 +88,9 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     private CameraTimeBase _timeBase;
     private byte[] _packetBuffer = [];
 
+    // T-207: without SPS/PPS in the session description, the latest ones from the packets for a codec context opened later.
+    private H264ParameterSetMemory? _parameterSets;
+
     // _packet holds a packet that was handed out as a packet item and still goes to the decoder.
     private bool _packetPending;
 
@@ -281,6 +284,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         byte[] extradata = parameters->extradata is not null && parameters->extradata_size > 0
             ? new ReadOnlySpan<byte>(parameters->extradata, parameters->extradata_size).ToArray()
             : [];
+        _parameterSets = extradata.Length == 0 ? new H264ParameterSetMemory() : null;
         _info = new CameraStreamInfo(CameraVideoCodec.H264, Math.Max(parameters->width, 0), Math.Max(parameters->height, 0), _timeBase, extradata);
     }
 
@@ -306,6 +310,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
 
         const string DecoderStage = "Starting the video decoder failed";
         Check(ffmpeg.avcodec_parameters_to_context(_codec, _format->streams[_streamIndex]->codecpar), DecoderStage);
+        SetRememberedParameterSets();
         // Every frame leaves the decoder as soon as it is complete: no frame threading (it delays output by one frame
         // per thread), low-delay mode. A 720p Baseline stream decodes easily on one thread.
         _codec->flags |= ffmpeg.AV_CODEC_FLAG_LOW_DELAY;
@@ -347,6 +352,30 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         {
             HardwareDecodingLog.Decoding(_policy.Logger, _codecDevice, softwareReason);
         }
+    }
+
+    /// <summary>
+    /// T-207: gives the new codec context the SPS and PPS seen in the packets as extradata when the stream description had
+    /// none, so that it can decode the key frame it starts at even if the camera sends them only at the start of the
+    /// connection. One small native allocation per opened context; the context frees it.
+    /// </summary>
+    private void SetRememberedParameterSets()
+    {
+        if (_codec->extradata is not null || _parameterSets is not { IsComplete: true } sets)
+        {
+            return;
+        }
+
+        int length = sets.AnnexBLength;
+        byte* extradata = (byte*)ffmpeg.av_mallocz((ulong)(length + ffmpeg.AV_INPUT_BUFFER_PADDING_SIZE));
+        if (extradata is null)
+        {
+            throw new CameraFeedException("Out of memory while opening the camera stream.");
+        }
+
+        sets.WriteAnnexB(new Span<byte>(extradata, length));
+        _codec->extradata = extradata;
+        _codec->extradata_size = length;
     }
 
     /// <summary>
@@ -637,6 +666,12 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             {
                 ffmpeg.av_packet_unref(_packet);
                 continue;
+            }
+
+            if (_parameterSets is not null && _packet->data is not null && _packet->size > 0)
+            {
+                // Looks only into packets that do not start with a slice, and only up to their first slice.
+                _parameterSets.Observe(new ReadOnlySpan<byte>(_packet->data, _packet->size));
             }
 
             if (frames && !_decoding)

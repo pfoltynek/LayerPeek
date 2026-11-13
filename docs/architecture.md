@@ -411,7 +411,11 @@ NV12 dál přes `BgraConverter` / `GrayscaleConverter`) ušetří 45–63 % inst
   (720p / 1080p), doba CPU nevzroste, paměť +13 / +22 MB na stream (jeden pomocný proces na aplikaci, po zavření okna jeho
   paměť klesne na ~3 MB). Bez okna kamery (sledování, detekce) žádná relace VT. Snímky bit po bitu stejné jako ze
   softwaru, zpoždění paket → snímek +1 ms (720p) až −1,4 ms (1080p). Simulátor posílá SPS a PPS před každým IDR snímkem
-  i u klipů MP4 (jinak by dekodér otevřený na klíčovém snímku po přepnutí neměl parametry). Tabulky v
+  i u klipů MP4 (jinak by dekodér otevřený na klíčovém snímku po přepnutí neměl parametry). Od T-207 si `FFmpegDecoder`
+  u proudu bez SPS / PPS v popisu relace pamatuje poslední SPS a PPS z paketů (`H264ParameterSetMemory`, každý nejvýš
+  1 KiB, paket se prohlíží jen do prvního řezu) a dá je každému nově otevřenému kontextu kodeku jako extradata; kamera,
+  která je pošle jen na začátku spojení, tak po přepnutí, po návratu k softwaru i u klíčových snímků detekce po hardwarové
+  relaci obraz neztratí. U Buddy3D (`sprop-parameter-sets`) se nic nemění. Tabulky v
   [hw-decoding.md](hw-decoding.md), oddíl „Výsledky implementace (T-205)“; uspání a probuzení a pohled na okno → T-127.
 - Dál: D3D11VA na Windows (T-206).
 

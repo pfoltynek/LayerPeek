@@ -40,8 +40,14 @@ public sealed class H264Clip
         return Parse(Mp4H264Reader.IsMp4(data) ? Mp4H264Reader.ToAnnexB(data) : data);
     }
 
+    /// <param name="annexB">The stream.</param>
+    /// <param name="repeatParameterSets">
+    /// Put SPS and PPS in front of every IDR frame (default, like the Buddy3D). Off only for tests (T-207): the frames stay
+    /// as recorded, e.g. a camera that sends the parameter sets once at the start of the connection; then a client cannot
+    /// start at a later key frame (or at a loop) on its own.
+    /// </param>
     /// <exception cref="InvalidDataException">The data is not an H.264 Annex B stream with SPS, PPS and an IDR frame.</exception>
-    public static H264Clip Parse(ReadOnlySpan<byte> annexB)
+    public static H264Clip Parse(ReadOnlySpan<byte> annexB, bool repeatParameterSets = true)
     {
         List<byte[]> nals = SplitAnnexB(annexB);
         List<List<byte[]>> frames = [];
@@ -81,7 +87,7 @@ public sealed class H264Clip
         // which opens a new decoder at a later key frame (LayerPeek switching between hardware and software decoding,
         // T-203) can decode it; an MP4 clip has them only once (avcC). A frame without them gets the latest ones before it
         // in decoding order (at the loop start: the first ones of the clip).
-        for (int i = loopStart; i < frames.Count; i++)
+        for (int i = repeatParameterSets ? loopStart : frames.Count; i < frames.Count; i++)
         {
             List<byte[]> frame = frames[i];
             byte[]? ownSps = frame.Find(static n => (n[0] & 0x1F) == NalSps);
