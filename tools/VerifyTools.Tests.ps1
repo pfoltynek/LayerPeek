@@ -238,6 +238,176 @@ Describe 'Report' {
     }
 }
 
+Describe 'Presets and preconditions (T-208)' {
+    BeforeAll {
+        $script:PresetChecks = @(
+            New-VerifyCheck -Id 'pre.one' -Title 'one' -Closes 'T-208 a' -Kind Auto -Action { New-VerifyResult PASS 'one' }
+            New-VerifyCheck -Id 'pre.ask' -Title 'ask' -Closes 'T-208 b' -Kind Permission -Permission 'stand-in' -Needs Session -Action { New-VerifyResult PASS 'ask' }
+            New-VerifyCheck -Id 'pre.human' -Title 'human' -Closes 'T-208 c' -Kind Manual -Action { New-VerifyResult MANUAL 'human' }
+            New-VerifyCheck -Id 'pre.two' -Title 'two' -Closes 'T-208 d' -Kind Auto -Needs Session, Accessibility -Action { New-VerifyResult PASS 'two' }
+        )
+    }
+
+    It 'validates a preset: known ids, no Manual check, no id twice, criteria filled' {
+        @(Test-VerifyPreset -Checks $script:PresetChecks -Name 'ok' -Ids 'pre.two', 'pre.one', 'pre.ask') | Should -HaveCount 0
+        $problems = @(Test-VerifyPreset -Checks $script:PresetChecks -Name 'bad' -Ids 'pre.one', 'pre.one', 'pre.human', 'pre.nothing')
+        $problems | Should -HaveCount 3
+        $problems -join "`n" | Should -Match 'lists pre.one twice'
+        $problems -join "`n" | Should -Match 'the Manual check pre.human'
+        $problems -join "`n" | Should -Match 'pre.nothing, which is no check'
+        @(Test-VerifyPreset -Checks $script:PresetChecks -Name 'empty' -Ids @()) | Should -Match 'lists no check'
+        $noCriteria = New-VerifyCheck -Id 'pre.bare' -Title 'bare' -Closes 'T-208 x' -Kind Auto -Action { }
+        $noCriteria.Closes = [string[]] @()
+        @(Test-VerifyPreset -Checks @($noCriteria) -Name 'bare' -Ids 'pre.bare') | Should -Match 'closes no criterion'
+    }
+
+    It 'selects a preset in definition order, honours -Skip and refuses a broken preset' {
+        (@(Select-VerifyPreset -Checks $script:PresetChecks -Name 'p' -Ids 'pre.two', 'pre.one').Id -join ',') | Should -Be 'pre.one,pre.two'
+        (@(Select-VerifyPreset -Checks $script:PresetChecks -Name 'p' -Ids 'pre.two', 'pre.one' -Skip 'pre.one').Id -join ',') | Should -Be 'pre.two'
+        { Select-VerifyPreset -Checks $script:PresetChecks -Name 'p' -Ids 'pre.human' } | Should -Throw '*Manual check pre.human*'
+        { Select-VerifyPreset -Checks $script:PresetChecks -Name 'p' -Ids 'pre.one' -Skip 'pre.two' } | Should -Throw "*No check matches 'pre.two'*"
+    }
+
+    It 'refuses a precondition name that is not a word starting upper case' {
+        { New-VerifyCheck -Id 'pre.x' -Title 'x' -Closes 'T-208 x' -Kind Auto -Needs 'screen locked' -Action { } } | Should -Throw '*not a precondition name*'
+        (Get-VerifyNeeds $script:PresetChecks) -join ',' | Should -Be 'Accessibility,Session'
+    }
+
+    It 'skips a check whose precondition is not met with the reason, without running or asking, also an allowed Permission check' {
+        $context = New-TestContext -Answers 'y', 'y' -Allow 'pre.ask'
+        $context.Unmet['Session'] = 'the screen is locked'
+        $ran = [System.Collections.Generic.List[string]]::new()
+        $check = New-VerifyCheck -Id 'pre.run' -Title 'run' -Closes 'T-208 e' -Kind Auto -Needs Session -Action { $ran.Add('ran'); New-VerifyResult FAIL 'ran' }.GetNewClosure()
+        $results = Invoke-VerifyRun -Checks @($script:PresetChecks[1], $check, $script:PresetChecks[0]) -Context $context
+        ($results | ForEach-Object Status) -join ',' | Should -Be 'SKIP,SKIP,PASS'
+        $results[0].Detail | Should -Be 'precondition not met at the start of the run: Session (the screen is locked).'
+        $ran | Should -HaveCount 0
+        $context.Asked | Should -HaveCount 0
+    }
+
+    It 'names every unmet precondition once with the checks it skips, and none without checks' {
+        $lines = @(Format-VerifyUnmetNeeds -Checks $script:PresetChecks -Unmet ([ordered]@{ Session = 'locked'; Accessibility = 'no permission'; Unused = 'nothing needs it' }))
+        $lines | Should -Be @(
+            'Not met: Accessibility - no permission'
+            '    SKIP: pre.two'
+            'Not met: Session - locked'
+            '    SKIP: pre.ask, pre.two'
+        )
+        @(Format-VerifyUnmetNeeds -Checks $script:PresetChecks -Unmet @{}) | Should -HaveCount 0
+        Get-VerifyUnmetReason -Check $script:PresetChecks[0] -Unmet ([ordered]@{ Session = 'locked' }) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Report of a preset run (T-208)' {
+    It 'writes report.json in its documented shape with the run header' {
+        $context = New-TestContext -Unattended
+        $context.Unmet['Session'] = 'the screen is locked'
+        $checks = @(
+            New-VerifyCheck -Id 'rep.pass' -Title 'passes' -Closes 'T-208 a', 'T-127 b' -Kind Auto -Action { New-VerifyResult PASS 'fine' }
+            New-VerifyCheck -Id 'rep.locked' -Title 'locked' -Closes 'T-208 c' -Kind Auto -Needs Session -Action { New-VerifyResult PASS 'never' }
+        )
+        $started = [DateTimeOffset]::new(2026, 11, 13, 20, 0, 0, [TimeSpan]::FromHours(1))
+        $results = Invoke-VerifyRun -Checks $checks -Context $context
+        $git = { param($Arguments) switch ($Arguments[0]) { 'rev-parse' { if ($Arguments[1] -eq 'HEAD') { '0123abc' } else { 'feature/T-208' } } 'status' { @() } } }
+        $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/macos-verify.ps1' -Unattended -Selected $checks.Id -Allow 'rep.none' -Preset 'release' `
+            -Preconditions ([ordered]@{ Awake = 'met'; Session = 'not met: the screen is locked' }) -Started $started -Git $git
+        $info.Seconds = 1830
+        $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
+        $json = Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json
+
+        @($json.PSObject.Properties.Name) | Should -Be @('Format', 'Run', 'Summary', 'Results')
+        $json.Format | Should -Be 1
+        foreach ($field in 'Script', 'Started', 'Commit', 'Branch', 'Dirty', 'AppVersion', 'Os', 'Machine', 'PowerShell', 'Mode', 'Preset', 'Selected', 'Allowed', 'Preconditions', 'Seconds') {
+            $json.Run.PSObject.Properties.Name | Should -Contain $field
+        }
+        $json.Run.Commit | Should -Be '0123abc'
+        $json.Run.Dirty | Should -BeFalse
+        $json.Run.Preset | Should -Be 'release'
+        $json.Run.Mode | Should -Be 'unattended'
+        $json.Run.Seconds | Should -Be 1830
+        $json.Run.Preconditions.Session | Should -Be 'not met: the screen is locked'
+        ([DateTimeOffset]::Parse($json.Run.Started)) | Should -Be $started
+        if ($IsMacOS) {
+            $json.Run.Os | Should -Match '^macOS \d+(\.\d+)* \S+ \('
+            $json.Run.Machine | Should -Not -Be 'unknown'
+        }
+        @($json.Summary.PSObject.Properties.Name) | Should -Be @('PASS', 'FAIL', 'SKIP', 'MANUAL')
+        $json.Summary.SKIP | Should -Be 1
+        $json.Results | Should -HaveCount 2
+        foreach ($entry in $json.Results) { @($entry.PSObject.Properties.Name) | Should -Be @('Id', 'Title', 'Kind', 'Closes', 'Status', 'Detail', 'Seconds', 'Evidence') }
+        $json.Results[0].Closes | Should -Be @('T-208 a', 'T-127 b')
+        $json.Results[1].Status | Should -Be 'SKIP'
+        $json.Results[1].Detail | Should -Match 'Session \(the screen is locked\)'
+        $json.Results[1].Seconds | Should -BeOfType [double]
+
+        $markdown = Get-Content -LiteralPath $report.Markdown -Raw
+        foreach ($line in '- Duration: 30 min 30 s', '- Commit: `0123abc` on `feature/T-208`', '- Clean tree: yes', '- Preset: release', '- Mode: unattended', '- Preconditions: Awake met; Session not met: the screen is locked') {
+            $markdown | Should -Match ([regex]::Escape($line))
+        }
+        $markdown | Should -Match '- Machine: '
+        $markdown | Should -Match ([regex]::Escape('| `rep.locked` | Auto | **SKIP** |'))
+    }
+
+    It 'says "Clean tree: no" with local changes and "Preset: none" without a preset' {
+        $context = New-TestContext
+        $results = @(Invoke-VerifyCheck -Check (New-VerifyCheck -Id 'rep.x' -Title 'x' -Closes 'T-208 x' -Kind Auto -Action { New-VerifyResult PASS 'x' }) -Context $context)
+        $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/x.ps1' -Git { param($Arguments) if ($Arguments[0] -eq 'status') { '?? new.txt' } }
+        $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
+        $markdown = Get-Content -LiteralPath $report.Markdown -Raw
+        $markdown | Should -Match '- Clean tree: no'
+        $markdown | Should -Match '- Preset: none'
+        (Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json).Run.Preset | Should -BeNullOrEmpty
+    }
+
+    It 'writes the home folder as ~ in the report, but not a longer folder name' {
+        $homePath = [Environment]::GetFolderPath('UserProfile')
+        $sep = [System.IO.Path]::DirectorySeparatorChar
+        Hide-VerifyHomePath "at $homePath${sep}Movies and $homePath" | Should -Be "at ~${sep}Movies and ~"
+        Hide-VerifyHomePath "${homePath}2${sep}x" | Should -Be "${homePath}2${sep}x"
+        Hide-VerifyHomePath "/Users/me/a, '/Users/me'" -HomePath '/Users/me/' | Should -Be "~/a, '~'"
+        $nested = Hide-VerifyHomePath ([ordered]@{ A = @('/Users/me/x', 3); B = [ordered]@{ C = '/Users/me' }; D = $true }) -HomePath '/Users/me'
+        $nested.A | Should -Be @('~/x', 3)
+        $nested.B.C | Should -Be '~'
+        $nested.D | Should -BeTrue
+
+        $context = New-TestContext
+        $results = @(Invoke-VerifyCheck -Check (New-VerifyCheck -Id 'rep.home' -Title "in $homePath" -Closes 'T-208 x' -Kind Auto -Action { New-VerifyResult PASS "file $([System.IO.Path]::Combine([Environment]::GetFolderPath('UserProfile'), 'Movies', 'a.mp4'))" }) -Context $context)
+        $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/x.ps1' -StandIns (Join-Path $homePath 'standins.ps1') -Git { param($Arguments) $null }
+        $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
+        foreach ($file in $report.Markdown, $report.Json) {
+            $text = Get-Content -LiteralPath $file -Raw
+            $text | Should -Not -Match ([regex]::Escape($homePath) + '(?=[/\\])')
+            $text | Should -Match ([regex]::Escape("~${sep}Movies"))
+        }
+        $results[0].Detail | Should -Match ([regex]::Escape($homePath)) -Because 'the results of the run stay unchanged'
+    }
+
+    It 'points latest at the last run folder and never replaces a real folder' -Skip:$IsWindows {
+        $root = Join-Path $script:TempRoot 'latest-root'
+        $first = New-VerifyRunFolder -Root $root -Now ([DateTime]::new(2026, 11, 13, 20, 0, 0))
+        $second = New-VerifyRunFolder -Root $root -Now ([DateTime]::new(2026, 11, 13, 21, 0, 0))
+        $link = Set-VerifyLatestLink -Root $root -RunFolder $first
+        $link | Should -Be (Join-Path $root 'latest')
+        (Get-Item -LiteralPath $link).Target | Should -Be (Split-Path -Leaf $first)
+        Set-VerifyLatestLink -Root $root -RunFolder $second | Should -Be $link
+        (Get-Item -LiteralPath $link).Target | Should -Be (Split-Path -Leaf $second)
+        Test-Path -LiteralPath $first | Should -BeTrue -Because 'replacing the link keeps the older run'
+        Test-Path -LiteralPath (Join-Path $link 'report.md') | Should -BeFalse
+        $null = New-Item -ItemType File -Path (Join-Path $second 'report.md')
+        Test-Path -LiteralPath (Join-Path $link 'report.md') | Should -BeTrue
+
+        $other = Join-Path $script:TempRoot 'latest-real'
+        $null = New-Item -ItemType Directory -Path (Join-Path $other 'latest')
+        Set-VerifyLatestLink -Root $other -RunFolder (Join-Path $other 'run') | Should -BeNullOrEmpty
+        (Get-Item -LiteralPath (Join-Path $other 'latest')).LinkType | Should -BeNullOrEmpty
+    }
+
+    It 'formats a duration' {
+        Format-VerifyDuration 42.4 | Should -Be '42 s'
+        Format-VerifyDuration 1805 | Should -Be '30 min 5 s'
+    }
+}
+
 Describe 'Parsers' {
     It 'sums the per-assembly totals of dotnet test in any UI language' {
         $czech = @('x.dll (net11.0|arm64) úspěch [+14/x0/?11] (4s 477ms)', 'Souhrn testovacího běhu: Úspěšné!', '  celkem: 25')
@@ -250,6 +420,22 @@ Describe 'Parsers' {
         $totals.Failed | Should -Be 2
         $totals.Assemblies | Should -Be 2
         Get-VerifyTestTotals @('error CS1002: ; expected') | Should -BeNullOrEmpty
+    }
+
+    It 'counts an assembly once although the summary of a solution run repeats its line (T-208)' {
+        $solution = @(
+            '/r/a/bin/A.Tests.dll (net11.0|arm64) failed with 1 error(s) [+3342/x1/?8] (42s)'
+            '/r/b/bin/B.Tests.dll (net11.0|arm64) passed [+10/x0/?2] (3s)'
+            ''
+            'Test run summary: Failed!'
+            '  /r/b/bin/B.Tests.dll (net11.0|arm64) passed [+10/x0/?2] (3s)'
+            '  /r/a/bin/A.Tests.dll (net11.0|arm64) failed with 1 error(s) [+3342/x1/?8] (42s)'
+            '  total: 3363'
+        )
+        $totals = Get-VerifyTestTotals $solution
+        $totals.Total | Should -Be 3363
+        $totals.Failed | Should -Be 1
+        $totals.Assemblies | Should -Be 2
     }
 
     It 'sums the passes of tools/run-e2e.ps1' {
@@ -530,6 +716,29 @@ Describe 'The verification scripts' {
         $run = Invoke-Script $Name @('-Unattended', '-SelfTest')
         $run.ExitCode | Should -Be 0 -Because $run.Text
         $run.Text | Should -Match 'SELF-TEST PASSED'
+    }
+
+    It 'macos-verify.ps1 -ListChecks -Preset release lists only Auto and Permission checks with their criteria (T-208)' {
+        $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run.ExitCode | Should -Be 0 -Because $run.Text
+        $run.Output[0] | Should -Match '^Preset release: \d+ checks, unattended; allowed in advance: mac\.'
+        $listed = @($run.Output | Where-Object { $_ -match '^\S+  \[(auto|permission|manual)\]' })
+        $listed.Count | Should -BeGreaterThan 10
+        $listed | ForEach-Object { $_ | Should -Match '^mac\.\S+  \[(auto|permission)\]' }
+        @($run.Output | Where-Object { $_ -match '^    closes: T-\d{3}' }).Count | Should -BeGreaterOrEqual $listed.Count
+        $all = Invoke-Script 'macos-verify.ps1' @('-ListChecks')
+        @($all.Output | Where-Object { $_ -match '^\S+  \[' }).Count | Should -BeGreaterThan $listed.Count
+    }
+
+    It 'macos-verify.ps1 refuses an unknown preset and -Preset with -Only before it creates anything' {
+        $out = Join-Path $script:TempRoot 'out-preset'
+        $unknown = Invoke-Script 'macos-verify.ps1' @('-Preset', 'nothing', '-OutputRoot', $out)
+        $unknown.ExitCode | Should -Be 2
+        $unknown.Text | Should -Match "Unknown preset 'nothing' \(presets: release\)"
+        $both = Invoke-Script 'macos-verify.ps1' @('-Preset', 'release', '-Only', 'mac.dock', '-OutputRoot', $out)
+        $both.ExitCode | Should -Be 2
+        $both.Text | Should -Match '-Preset and -Only do not go together'
+        Test-Path -LiteralPath $out | Should -BeFalse
     }
 
     It 'macos-verify.ps1 refuses an unknown check id before it creates anything' -Skip:(-not $IsMacOS) {

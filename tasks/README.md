@@ -47,6 +47,12 @@ Mac → **T-115** (sezení s agentem na Macu), **T-126** (instalátor) nebo **T-
   `docs/windows-manual-testing.md`). U přegenerování snímků UI seznam souborů podle původního úkolu.
 - Přesunout nejde nedokončená práce (kód, dokumentace, rozhodnutí) ani kritérium úkolu, který blokuje nezodpovězená
   otevřená otázka – takový úkol zůstává v `in-progress/`. Chyba nalezená při ověření = nový úkol.
+- **Pravidlo odškrtávání automatických kontrol (rozhodnutí uživatele 2026-11-13, T-208):** bod sběrného úkolu, u kterého
+  je uvedená kontrola `tools/macos-verify.ps1` (`mac.X`), se odškrtne, když je kontrola `PASS` ve zprávě
+  `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` na commitu, který obsahuje ověřovaný kód. Do
+  `## Poznámky k implementaci` sběrného úkolu se zapíše složka běhu (`artifacts/verify/<čas>/`), commit a výňatek řádku
+  zprávy. Ruční zbytek bodu (je-li) zůstává jako samostatný podbod a odškrtne se zvlášť. `SKIP` ani `FAIL` bod
+  neodškrtnou; `FAIL` = nový úkol.
 - Rozdělení 2026-11-01 (rozhodnutí uživatele): T-114 je uzavřený, jeho zbytek je v **T-124** (Windows – instalátor:
   instalace, upozornění po instalaci, autostart, odinstalace) a **T-125** (Windows – zbývající ruční ověření: celý
   interaktivní `tools/windows-verify.ps1`, tiskárna, vydání). Z T-115 se stejně oddělily **T-126** (macOS – instalátor)
@@ -213,6 +219,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-204 | Nastavení > Kamera – volba „Hardwarové dekódování“ (Automaticky / Vypnuto) (hotovo; sada snímků Windows v T-125) | all | ui-dev | P2 | T-203 |
 | T-207 | Kamera – dekodér si pamatuje poslední SPS/PPS pro nově otevřený kontext kodeku | all | core-dev | P3 | T-205 |
 | T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR | all | qa-reviewer | P2 | – |
+| T-219 | Nestabilní test `CameraStreamHubKeyFrameTests.WithoutDueSubscribersNoKeyFrameIsWanted` při plném `dotnet test` | all | core-dev | P2 | – |
 
 ### Windows (`windows`)
 
@@ -285,7 +292,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-147 | macOS – FFmpeg s muxerem pro nahrávání kamery (hotovo; QuickTime v T-127) | macos | ui-dev | P2 | T-144, T-026 |
 | T-187 | macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna (výkon) | macos | ui-dev | P3 | T-186 |
 | T-205 | macOS – hardwarové dekódování VideoToolbox, ověření a měření v aplikaci (hotovo; uspání a pohled okem v T-127) | macos | core-dev | P2 | T-203, T-204 |
-| T-208 | macOS ověření – jeden regresní příkaz `macos-verify.ps1 -Preset release` s jednou zprávou | macos | qa-reviewer | P2 | T-105, T-140 |
+| T-208 | macOS ověření – jeden regresní příkaz `macos-verify.ps1 -Preset release` s jednou zprávou (hotovo; běh s odemčenou obrazovkou v T-127) | macos | qa-reviewer | P2 | T-105, T-140 |
 | T-209 | macOS ověření – ovládání menu v menu baru přes Accessibility (`menu` / `menupress`), `mac.menu-items` | macos | qa-reviewer | P2 | T-208 |
 | T-210 | macOS ověření – nahrávání a dashcam na testovacím bundlu, dekódování přes AVFoundation (`decode`) | macos | qa-reviewer | P2 | T-208, T-209 |
 | T-211 | macOS ověření – timelapse na testovacím bundlu (ruční start / stop, po vrstvách, indikátor) | macos | qa-reviewer | P2 | T-210 |
