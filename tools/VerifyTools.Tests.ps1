@@ -634,6 +634,95 @@ Describe 'macOS helpers (pure)' {
             (Get-VerifyUpdateCheckVerdict -Timeline @() -Requests 0 -Expected $script:Expected).Detail | Should -BeLike 'the Accessibility watch recorded nothing*'
         }
     }
+
+    Context 'the menu of the status item (mac.menu-items, T-209)' {
+        BeforeAll {
+            $script:Texts = Get-VerifyResxStrings (Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $script:Name = 'LP verify 1a2b3c4d'
+            function New-MenuItem([string] $Title, [bool] $Enabled = $true, [string] $Help = '', $Submenu = $null) {
+                [pscustomobject]@{ title = $Title; enabled = $Enabled; checked = $false; mark = ''; shortcut = ''; help = $Help; separator = $false; submenu = $Submenu }
+            }
+            $script:Separator = [pscustomobject]@{ title = ''; enabled = $false; checked = $false; mark = ''; shortcut = ''; help = ''; separator = $true; submenu = $null }
+            # The menu as the helper prints it for one printer with a camera (titles as NSMenu shows them).
+            function New-Menu([string] $Header, [switch] $NoCamera, [string[]] $Fixed = @('Diagnostics…', 'Settings…', 'User manual', 'About', 'Quit')) {
+                $sub = @(New-MenuItem 'Open PrusaLink')
+                if (-not $NoCamera) {
+                    $sub += @(
+                        (New-MenuItem 'Show camera'), $script:Separator, (New-MenuItem 'Start recording'),
+                        (New-MenuItem 'Start timelapse (experimental)' $false 'The camera is not connected.'),
+                        (New-MenuItem 'Play last recording' $false 'No recording yet'), (New-MenuItem 'Play last timelapse' $false ''),
+                        (New-MenuItem 'Open recordings folder'))
+                }
+                $items = @((New-MenuItem $Header $true '' $sub), $script:Separator)
+                foreach ($title in $Fixed) { $items += New-MenuItem $title; if ($title -eq 'Settings…') { $items += $script:Separator } }
+                # Through JSON, like the check reads the helper's output.
+                @((ConvertTo-Json -InputObject ([pscustomobject]@{ items = $items }) -Depth 10 | ConvertFrom-Json -Depth 10).items)
+            }
+        }
+
+        It 'reads the resources and shows their menu texts like NSMenu' {
+            $script:Texts['MenuQuit'] | Should -BeExactly '_Quit'
+            ConvertFrom-VerifyAccessText $script:Texts['MenuQuit'] | Should -BeExactly 'Quit'
+            ConvertFrom-VerifyAccessText 'Add _printer…' | Should -BeExactly 'Add printer…'
+            ConvertFrom-VerifyAccessText "MK4_$([char] 0x2060)__lab" | Should -BeExactly 'MK4_lab'
+            ConvertFrom-VerifyAccessText 'a__b_c' | Should -BeExactly 'a_bc'
+            ConvertFrom-VerifyAccessText 'plain' | Should -BeExactly 'plain'
+            ConvertFrom-VerifyAccessText '' | Should -BeExactly ''
+        }
+
+        It 'accepts the menu of every state, with progress only where it may be shown' {
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Ready") -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera) | Should -HaveCount 0
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Printing – 42%") -Texts $script:Texts -Name $script:Name -State 'Printing' -Progress -Camera) | Should -HaveCount 0
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Printing") -Texts $script:Texts -Name $script:Name -State 'Printing' -Progress -Camera) | Should -HaveCount 0
+            $problems = @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Ready – 42%") -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera)
+            $problems | Should -HaveCount 1
+            $problems[0] | Should -BeLike "the printer item is '*Ready – 42%', expected '$($script:Name): Ready'"
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Error") -Texts $script:Texts -Name $script:Name -State 'Offline' -Camera) | Should -HaveCount 1
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Ready" -NoCamera) -Texts $script:Texts -Name $script:Name -State 'Ready') | Should -HaveCount 0
+        }
+
+        It 'names missing camera items, an enabled "Play last …" and a wrong order of the fixed items' {
+            $problems = @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Ready" -NoCamera) -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera)
+            $problems | Should -Contain "no enabled 'Show camera' in the submenu (Open PrusaLink)"
+            $problems | Should -Contain "no 'Start recording' in the submenu (Open PrusaLink)"
+            $problems | Should -Contain 'no separator before the recording items in the submenu'
+            $menu = New-Menu "$($script:Name): Ready"
+            ($menu[0].submenu | Where-Object title -EQ 'Play last recording').enabled = $true
+            @(Get-VerifyMenuProblems -Items $menu -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera) | Should -Be @("'Play last recording' is enabled without any file")
+            $moved = New-Menu "$($script:Name): Ready" -Fixed 'Diagnostics…', 'Settings…', 'User manual', 'Quit', 'About'
+            @(Get-VerifyMenuProblems -Items $moved -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera) | Should -BeLike "the items after the printer are 'Diagnostics…', 'Settings…', 'User manual', 'Quit', 'About', expected*'About', 'Quit'"
+            $disabled = New-Menu "$($script:Name): Ready"
+            ($disabled | Where-Object title -EQ 'Settings…').enabled = $false
+            @(Get-VerifyMenuProblems -Items $disabled -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera) | Should -Be @("'Settings…' is disabled")
+            @(Get-VerifyMenuProblems -Items @() -Texts $script:Texts -Name $script:Name -State 'Ready') | Should -Be @('the menu has no items')
+        }
+
+        It 'lists the help (AXHelp) of every disabled item with its path' {
+            $helps = @(Get-VerifyMenuHelps -Items (New-Menu "$($script:Name): Ready"))
+            $helps | Should -Be @(
+                "$($script:Name): Ready>Start timelapse (experimental): disabled, help 'The camera is not connected.'"
+                "$($script:Name): Ready>Play last recording: disabled, help 'No recording yet'"
+                "$($script:Name): Ready>Play last timelapse: disabled, help none"
+            )
+        }
+
+        It 'checks the tooltip of the status item: [E2E] name, then the state' {
+            Get-VerifyToolTipProblem -ToolTip "[E2E] $($script:Name)`nReady" -Texts $script:Texts -Name $script:Name -State 'Ready' | Should -BeNullOrEmpty
+            Get-VerifyToolTipProblem -ToolTip "[E2E] $($script:Name)`nPrinting – 7%`n28 min remaining`nbox.bgcode" -Texts $script:Texts -Name $script:Name -State 'Printing' -Progress | Should -BeNullOrEmpty
+            Get-VerifyToolTipProblem -ToolTip "[E2E] $($script:Name)`nPrinting – 7%" -Texts $script:Texts -Name $script:Name -State 'Printing' | Should -BeLike "the tooltip is '* | Printing – 7%', expected '* | Printing'"
+            Get-VerifyToolTipProblem -ToolTip "$($script:Name)`nReady" -Texts $script:Texts -Name $script:Name -State 'Ready' | Should -Not -BeNullOrEmpty
+            Get-VerifyToolTipProblem -ToolTip $null -Texts $script:Texts -Name $script:Name -State 'Ready' | Should -Not -BeNullOrEmpty
+        }
+
+        It 'puts mac.menu-items into the release preset with its preconditions' {
+            $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+            $run.ExitCode | Should -Be 0 -Because $run.Text
+            $run.Output[0] | Should -BeLike '*allowed in advance:*mac.menu-items*'
+            $line = @($run.Output | Where-Object { $_ -like 'mac.menu-items  *' })
+            $line | Should -HaveCount 1
+            $line[0] | Should -BeLike '*`[permission`]*'
+        }
+    }
 }
 
 Describe 'The stand-in GitHub API (tools/fake-github-releases.ps1)' {

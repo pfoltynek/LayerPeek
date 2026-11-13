@@ -293,7 +293,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-187 | macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna (výkon) | macos | ui-dev | P3 | T-186 |
 | T-205 | macOS – hardwarové dekódování VideoToolbox, ověření a měření v aplikaci (hotovo; uspání a pohled okem v T-127) | macos | core-dev | P2 | T-203, T-204 |
 | T-208 | macOS ověření – jeden regresní příkaz `macos-verify.ps1 -Preset release` s jednou zprávou (hotovo; běh s odemčenou obrazovkou v T-127) | macos | qa-reviewer | P2 | T-105, T-140 |
-| T-209 | macOS ověření – ovládání menu v menu baru přes Accessibility (`menu` / `menupress`), `mac.menu-items` | macos | qa-reviewer | P2 | T-208 |
+| T-209 | macOS ověření – ovládání menu v menu baru přes Accessibility (`menu` / `menupress`), `mac.menu-items` (hotovo) | macos | qa-reviewer | P2 | T-208 |
 | T-210 | macOS ověření – nahrávání a dashcam na testovacím bundlu, dekódování přes AVFoundation (`decode`) | macos | qa-reviewer | P2 | T-208, T-209 |
 | T-211 | macOS ověření – timelapse na testovacím bundlu (ruční start / stop, po vrstvách, indikátor) | macos | qa-reviewer | P2 | T-210 |
 | T-212 | macOS ověření – čtení doručených notifikací testovacího bundlu a kontroly jejich obsahu | macos | ui-dev | P2 | T-208, T-209, T-210, T-211 |
