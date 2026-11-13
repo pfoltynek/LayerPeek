@@ -212,6 +212,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-203 | Kamera – hardwarové dekódování H.264, sdílený základ a VideoToolbox (macOS) (hotovo; Windows D3D11VA v T-206) | all | core-dev | P2 | T-192 |
 | T-204 | Nastavení > Kamera – volba „Hardwarové dekódování“ (Automaticky / Vypnuto) (hotovo; sada snímků Windows v T-125) | all | ui-dev | P2 | T-203 |
 | T-207 | Kamera – dekodér si pamatuje poslední SPS/PPS pro nově otevřený kontext kodeku | all | core-dev | P3 | T-205 |
+| T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR | all | qa-reviewer | P2 | – |
 
 ### Windows (`windows`)
 
@@ -271,7 +272,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-115 | Ruční ověření na Macu (sběrný úkol: snímky, build a testy, `tools/macos-verify.ps1`, T-117 / T-118 / T-122; instalátor v T-126, zbytek v T-127) (hotovo 2026-11-02; zbytek v T-127) | macos | qa-reviewer | P1 | T-020, T-021, T-026, T-053, T-096, T-098, T-099, T-105, T-116–T-118, T-122 |
 | T-116 | macOS – obrázky tiskáren v menu v menu baru (hotovo; ruční ověření v T-115 / T-127) | macos | ui-dev | P3 | T-018, T-039, T-042 |
 | T-126 | macOS – ověření instalátoru (Gatekeeper, upozornění, Otevřít při přihlášení, odinstalace) (sběrný úkol, z T-115) | macos | qa-reviewer | P1 | T-019, T-020, T-115 |
-| T-127 | macOS – zbývající ruční ověření (Dock, monitory, skutečná tiskárna, vydání) (sběrný úkol, z T-115) | macos | qa-reviewer | P1 | T-019, T-020, T-021, T-026, T-038, T-053, T-055, T-058, T-097, T-101, T-102, T-106, T-107, T-115 |
+| T-127 | macOS – zbývající ruční ověření (Dock, monitory, skutečná tiskárna, vydání) (sběrný úkol, z T-115; automatizace v T-208 až T-217) | macos | qa-reviewer | P1 | T-019, T-020, T-021, T-026, T-038, T-053, T-055, T-058, T-097, T-101, T-102, T-106, T-107, T-115 |
 | T-134 | Úklid testů Klíčenky na macOS 27 smaže jen jednu položku služby (hotovo) | macos | qa-reviewer | P2 | T-021 |
 | T-135 | Kontrola `mac.menubar` na macOS 27 nenajde stavovou položku (hotovo) | macos | qa-reviewer | P2 | T-105 |
 | T-136 | Automatické kontroly okna kamery na Macu místo ručních bodů T-115 (T-122, T-117, T-118) (hotovo) | macos | qa-reviewer | P1 | T-115, T-117, T-118, T-122, T-135 |
@@ -284,3 +285,13 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-147 | macOS – FFmpeg s muxerem pro nahrávání kamery (hotovo; QuickTime v T-127) | macos | ui-dev | P2 | T-144, T-026 |
 | T-187 | macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna (výkon) | macos | ui-dev | P3 | T-186 |
 | T-205 | macOS – hardwarové dekódování VideoToolbox, ověření a měření v aplikaci (hotovo; uspání a pohled okem v T-127) | macos | core-dev | P2 | T-203, T-204 |
+| T-208 | macOS ověření – jeden regresní příkaz `macos-verify.ps1 -Preset release` s jednou zprávou | macos | qa-reviewer | P2 | T-105, T-140 |
+| T-209 | macOS ověření – ovládání menu v menu baru přes Accessibility (`menu` / `menupress`), `mac.menu-items` | macos | qa-reviewer | P2 | T-208 |
+| T-210 | macOS ověření – nahrávání a dashcam na testovacím bundlu, dekódování přes AVFoundation (`decode`) | macos | qa-reviewer | P2 | T-208, T-209 |
+| T-211 | macOS ověření – timelapse na testovacím bundlu (ruční start / stop, po vrstvách, indikátor) | macos | qa-reviewer | P2 | T-210 |
+| T-212 | macOS ověření – čtení doručených notifikací testovacího bundlu a kontroly jejich obsahu | macos | ui-dev | P2 | T-208, T-209, T-210, T-211 |
+| T-213 | macOS ověření – systémové dialogy souborů (`mac.file-dialogs`, NSOpenPanel přes Accessibility) | macos | qa-reviewer | P3 | T-209, T-211, T-212 |
+| T-214 | Headless testy rozložení se systémovým písmem San Francisco (macOS) ve všech jazycích | macos | qa-reviewer | P3 | T-031 |
+| T-215 | macOS ověření – okna, Dock a ⌘Tab (T-151, T-102, T-038 otázka 2, T-184, T-026, T-188) | macos | qa-reviewer | P3 | T-209, T-210 |
+| T-216 | macOS ověření – drobné kontroly (autoclose, špendlík a editor výřezu přes AX, jazyk AppKitu, falešné `open`, HW dekódování, české rozložení) | macos | qa-reviewer | P3 | T-209, T-213 |
+| T-217 | macOS ověření – kontrola release bundlu z `.dmg` a `.tar.gz` (`mac.release-bundle`) | macos | qa-reviewer | P3 | T-208 |

@@ -165,3 +165,8 @@ Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně (bui
 
 **Po závěrečné revizi orchestrátoru (2026-10-24)**
 - Test nastavuje `LAYERPEEK_PESTER_TESTS_TEMP` na vlastní jedinečnou složku (`layerpeek-ro-<guid>`), ne na `%TEMP%`. Po přerušeném samostatném běhu `Invoke-Pester` by se testovací přeskočení kontroly nástrojů jinak vztahovalo i na zkušební klon v `%TEMP%`. Pester 232/232, `dotnet build` 0 varování, `dotnet test` 5502 (0 selhalo, 116 přeskočeno).
+- 2026-11-13 (architekt, rozhodnuto uživatelem 2026-11-13): v T-127 zrušen bod „Orchestrátor ve zkušebním vydání“
+  (T-198 otázka 3, zkušební vydání se nedělá). Odškrtnut bod „přidání souborů druhým během“: `v0.3.1`, `v0.4.0`
+  a `v0.5.0` mají soubory obou OS (`gh release view`). Příznak předběžného vydání: skript ho nastavuje správně
+  (`isPrerelease = true` hned po zveřejnění 0.5.0). Dnešní `false` u 0.3.1–0.5.0 přišel mimo skripty; zjištění
+  a otázka jsou v T-127.
