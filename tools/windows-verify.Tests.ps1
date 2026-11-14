@@ -236,7 +236,7 @@ Describe 'windows-verify.ps1 interactive run (stand-in checks)' -Skip:(-not $IsW
         $report.Json.Summary.FAIL | Should -Be 1
         $report.Markdown | Should -Match '- Mode: interactive'
         $report.Markdown | Should -Match ([regex]::Escape('- Result: PASS 4, FAIL 1, SKIP 1, MANUAL 0'))
-        $report.Markdown | Should -Match ([regex]::Escape('| `win.fake-declined` | Permission | **SKIP** | T-129 stand-in | declined by the user (needs: a stand-in to decline). |'))
+        $report.Markdown | Should -Match ([regex]::Escape('| `win.fake-declined` | Permission | **SKIP** | ') + '[\d.,]+' + [regex]::Escape(' | T-129 stand-in | declined by the user (needs: a stand-in to decline). |'))
         $report.Markdown | Should -Match ([regex]::Escape('[evidence/win.fake-auto/auto.txt](evidence/win.fake-auto/auto.txt)'))
         # The answers are kept with the questions.
         Get-Content -LiteralPath (Join-Path $run.RunFolder 'evidence' 'win.fake-manual' 'steps.txt') | Should -Contain '? Did the stand-in toast appear? -> no'

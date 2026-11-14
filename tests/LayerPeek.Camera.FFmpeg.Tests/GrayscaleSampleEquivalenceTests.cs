@@ -4,6 +4,7 @@ using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Detection;
 using LayerPeek.Detection;
 using LayerPeek.Tests.Detection;
+using LayerPeek.Tests.Shared;
 
 namespace LayerPeek.Camera.FFmpeg.Tests;
 
@@ -30,6 +31,7 @@ public sealed class GrayscaleSampleEquivalenceTests
     [FFmpegFact]
     public async Task TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture()
     {
+        Assert.SkipWhen(ContinuousIntegration.IsWindowsRunner, "The Windows FFmpeg build exceeds the T-189 limits (1.72 / +1.44 on the CI runner), open in T-221; runs everywhere else.");
         List<(byte[] Bgra, byte[] Luma)> samples = await DecodeBothAsync(TestFixtures.Buddy3D, keyFramesOnly: false);
 
         Assert.Equal(TestFixtures.Buddy3DFrameCount, samples.Count);

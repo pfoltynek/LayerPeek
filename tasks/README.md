@@ -255,6 +255,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-201 | Přeinstalace (`winget upgrade`) nemá znovu zapnout spouštění po přihlášení (hook instalace) | windows | ui-dev | P1 | – |
 | T-202 | Windows – vlastní minimální LGPL build FFmpeg ze zdrojů (místo BtbN), s D3D11VA (blokuje 1.0.0) | windows | core-dev | P1 | T-199 |
 | T-206 | Windows – hardwarové dekódování D3D11VA (výchozí software do měření v T-125) | windows | core-dev | P2 | T-202, T-203, T-204 |
+| T-220 | Alokační testy `ASampleDoesNotAllocate` a `SteadyStateTimelapseDoesNotAllocate` nestabilní na 4jádrovém runneru Windows (v CI přeskočené) | windows | qa-reviewer | P2 | – |
+| T-221 | Windows – vzorky z roviny Y se liší od BGRA víc, než dovolují meze T-189 (1,72 / +1,44; v CI přeskočené) | windows | core-dev | P2 | – |
 
 ### macOS (`macos`) – jen na Macu, později
 

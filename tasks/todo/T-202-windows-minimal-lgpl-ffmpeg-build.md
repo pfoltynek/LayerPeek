@@ -77,6 +77,8 @@ Vlastní minimální build:
   `ffmpeg-script`). Skript s tímto názvem se do klíče dostane sám; jiný název = upravit `ffmpeg-script`. T-202 doplní
   do jobu Windows instalaci toolchainu (krok před `Build (Release)`, akce připnutá na SHA s komentářem verze, test
   `CiWorkflowTests`) a v `docs/prerequisites.md`, oddíl „CI (GitHub Actions)“, větu o Windows zipu BtbN.
+- **T-221 (2026-11-14):** s buildem BtbN dává rovina Y na Windows větší rozdíl proti BGRA než meze T-189 (1,72 / +1,44).
+  Po přechodu na vlastní build změřit `GrayscaleSampleEquivalenceTests` znovu (zapsat do T-221).
 
 ## Akceptační kritéria
 - [ ] První `dotnet build` na Windows přeloží FFmpeg z připnutého oficiálního tarballu (ověřený SHA-256, stejný jako

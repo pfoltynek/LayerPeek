@@ -290,7 +290,7 @@ Workflow `.github/workflows/ci.yml` (T-218) běží při pushi do `develop`, `re
 |---|---|---|
 | `Changes` | `ubuntu-24.04` | zjistí změněné soubory (u PR proti cílové větvi, u pushe proti předchozímu stavu větve) |
 | `Build and test (Windows)` | `windows-2025` (VS 2026 s workloadem *Desktop development with C++*, Edge, PowerShell 7, Pester 5) | kroky 1–3, `win-x64` |
-| `Build and test (macOS)` | `macos-26` (Apple Silicon, Xcode Command Line Tools, PowerShell 7, Pester 5) | kroky 1–3, `osx-arm64` |
+| `Build and test (macOS)` | `xcode-27` (macOS 27, Apple Silicon, zatím *preview* obraz GitHubu; Xcode Command Line Tools, PowerShell 7, Pester 5) | kroky 1–3, `osx-arm64` |
 | `CI result` | `ubuntu-24.04` | jediná povinná kontrola: projde, když oba buildy prošly, nebo když nebyly potřeba |
 
 - **Změna jen dokumentace / úkolů:** buildy se přeskočí a `CI result` hned projde (žádné `paths-ignore`, povinná kontrola tak nikdy nečeká). Za takovou změnu se počítá, když je **každý** změněný soubor v `tasks/`, v `docs/` nebo je to `*.md` v kořeni repozitáře. **Výjimky:** `manuals/**`, `docs/troubleshooting.md` a `CHANGELOG.md` čtou testy (`UserManualTests`, `NotificationAndUpdateInfrastructureTests`, `ReleaseOrchestrator.Tests.ps1`), proto se vždy buildí a testuje. **Kdo přidá test, který čte soubor v `docs/` nebo `*.md` v kořeni, doplní ho do výjimek v kroku `Classify the changed files`.** Nový branch, vynucený push (předchozí commit nejde stáhnout) a ruční spuštění vždy spustí všechno.
@@ -313,6 +313,9 @@ Workflow `.github/workflows/ci.yml` (T-218) běží při pushi do `develop`, `re
 | `LAYERPEEK_DETECTION_SWEEP=1` | dlouhé sweepy detektorů (`*SeedSweep*`, `BedChangeDarkSweep`) |
 | `LAYERPEEK_README_SCREENSHOTS=1`, `LAYERPEEK_UPDATE_SNAPSHOTS=1` | přegenerování snímků README / referenčních snímků UI testů (zapisují do repozitáře) |
 | `LAYERPEEK_SAMPLES` | složka lokálních vzorků kamery (bez ní a bez `~/LayerPeek-samples` se testy vzorků přeskočí) |
+| `LAYERPEEK_CI=1` | **opak přepínače:** nastavuje ho jen workflow CI. Na runneru Windows přeskočí testy se známou příčinou selhání, každý s důvodem a úkolem: `ASampleDoesNotAllocate`, `SteadyStateTimelapseDoesNotAllocate` (T-220) a `TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture` (T-221). Na počítači vývojáře se nenastavuje. |
+
+**Snímky UI na macOS** (rozhodnutí uživatele 2026-11-14): Skia kreslí glyfy přes Core Graphics systému, takže jiná hlavní verze macOS dá jiné okrajové pixely písmen (rozvržení stejné; ověřeno na obrázcích rozdílů z runneru macOS 26). Sada `Snapshots/macOS/` proto v `rendered-on.txt` zapisuje hlavní verzi macOS, na které vznikla (`LAYERPEEK_UPDATE_SNAPSHOTS=1` ho přepíše). Na jiné hlavní verzi se porovnání pixelů **přeskočí s důvodem** (test skončí v místě snímku). CI proto běží na macOS 27 (`xcode-27`). Sada Windows soubor nemá a porovnává se vždy; dokud ji uživatel nepřegeneruje na Windows (T-125), snímky Nastavení a O aplikaci v CI na Windows selhávají (bez přeskočení, rozhodnutí 2026-11-14).
 
 Testy prohlížeče (`tests/LayerPeek.E2E.Tests`) se v CI vynechávají celé (viz výše). Headless UI testy (`LayerPeek.App.UiTests`) běží. Testy Klíčenky se přeskočí s důvodem, když je výchozí klíčenka runneru zamčená.
 

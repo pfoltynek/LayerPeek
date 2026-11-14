@@ -4,6 +4,7 @@ using LayerPeek.Core.Cameras.Timelapse;
 using LayerPeek.Core.Tests.Cameras.Recording;
 using LayerPeek.Core.Tests.Monitoring;
 using LayerPeek.Tests.Allocation;
+using LayerPeek.Tests.Shared;
 
 namespace LayerPeek.Core.Tests.Cameras.Timelapse;
 
@@ -22,6 +23,7 @@ public sealed class CameraTimelapseAllocationTests : IDisposable
     [Fact]
     public async Task SteadyStateTimelapseDoesNotAllocate()
     {
+        Assert.SkipWhen(ContinuousIntegration.IsWindowsRunner, "Unstable on the 4-CPU Windows runner of the CI (T-220); runs everywhere else.");
         // The timelapse reads on the thread pool: all threads are counted. Stray allocations elsewhere in the process (seen
         // on Windows: 56, 784, 4176 B in three passes in a row) differ from pass to pass and some pass sees none; a
         // per-packet allocation (200 key frames and as many P-frames) would show in every pass, so it never reaches 0.

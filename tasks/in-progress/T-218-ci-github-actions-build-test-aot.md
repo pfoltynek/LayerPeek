@@ -158,6 +158,18 @@ nejsou rozhodnuté 10 a 11, zůstane CI červené na snímcích UI:
     může posunout prahy detekce na Windows. **Doporučení: nový úkol pro core-dev (změřit na Windows vývojáře, rozhodnout
     mez nebo opravu převodu; navazuje na T-202 s vlastním buildem FFmpeg pro Windows).**
 
+Rozhodnuto uživatelem 2026-11-14:
+10. **Snímky macOS:** vyzkoušet runner s macOS 27 (štítek `xcode-27`, ověřeno v README `actions/runner-images`:
+    macOS 27.0.1 arm64, *preview*) a příčinu potvrdit z obrázků rozdílů. Když se snímky ani na macOS 27 neshodnou,
+    porovnání pixelů se přeskočí s důvodem, pokud se hlavní verze macOS runneru liší od verze referencí (verze referencí
+    zapsaná deterministicky). → Implementováno obojí: CI na `xcode-27`, sada `Snapshots/macOS/rendered-on.txt`
+    („macOS 27“) a přeskočení při jiné hlavní verzi.
+11. **Snímky Windows:** reference **ne** z CI; uživatel je přegeneruje na Windows v T-125. Do té doby CI na Windows
+    pro tyto snímky červené (nepřeskakovat).
+12. + 13. Založeny úkoly **T-220** (alokační testy na runneru Windows, qa-reviewer) a **T-221** (luma Windows proti
+    mezím T-189, core-dev, vazba na T-202). Do opravy se tyto testy přeskočí **jen v CI** (`LAYERPEEK_CI=1` z workflow,
+    důvod s číslem úkolu), lokálně běží.
+
 ## Poznámky k implementaci
 Stav 2026-11-13 (qa-reviewer, na Macu): workflow, Dependabot, test pravidel a dokumentace hotové a lokálně ověřené.
 Úkol zůstává v `in-progress/`: zelený běh na GitHubu, cache při druhém běhu, červený běh s rozbitým testem a počty
@@ -280,3 +292,28 @@ proto nespustil. Doby: macOS build Release 144 s / Debug 78 s / testy 819 s, Win
   je proto zatím úvaha, viz otázka 10), krok `Describe the runner` (OS, CPU, obraz, `csrutil status`, `sw_vers`).
 - **Neopraveno, rozhodnutí v otázkách 10–13:** snímky UI macOS (verze macOS runneru), snímky UI Windows (zastaralá
   sada, T-125), dva alokační testy na Windows (zátěž), luma T-189 na Windows (jiný FFmpeg).
+
+**Druhý běh (2026-11-13, běh 43513903970, commit `334403bd`) a rozhodnutí 2026-11-14 (qa-reviewer)**
+- Opravy z prvního běhu zabraly: na macOS zbyly jen snímky UI (54), na Windows snímky (44, zastaralá sada), alokační
+  test, luma a dvě Pester sady. `Describe the runner`: macOS 26.7.2, 3 CPU, obraz `macos26 20261102.0473.1`, **SIP
+  vypnutý** (potvrzuje příčinu oprav 1 a 2 z prvního běhu); Windows 4 CPU, `win25-vs2026 20261103.298.1`.
+- **Příčina snímků macOS potvrzená** z artefaktu `snapshot-failures-osx-arm64` (`*.diff.png`): rozdíly jsou jen
+  izolované pixely na okrajích některých glyfů (t, i, f, d, číslice…), rozvržení, barvy i velikosti stejné. Tedy
+  rasterizace písma Core Graphics jiné hlavní verze macOS, ne chyba UI.
+- **Nově opraveno:**
+  - CI: job macOS na `xcode-27`; `LAYERPEEK_CI=1` pro celý workflow.
+  - `SnapshotAssert`: `RenderingOrigin` – sada macOS má `rendered-on.txt` („macOS <hlavní verze>“), zapisuje ho každé
+    `LAYERPEEK_UPDATE_SNAPSHOTS=1` na macOS; na jiné hlavní verzi `Assert.Skip` s důvodem (verze referencí, verze stroje).
+    Ověřeno lokálně podvržením „macOS 26“: 3 snímky O aplikaci přeskočené s důvodem, 0 selhání; vráceno na „macOS 27“.
+    Testy `SnapshotAssertTests` (rozhodnutí podle verzí, formát souboru, sada Windows soubor nemá).
+  - `tests/Shared/ContinuousIntegration.cs` + `Assert.SkipWhen(ContinuousIntegration.IsWindowsRunner, …)` u
+    `ASampleDoesNotAllocate`, `SteadyStateTimelapseDoesNotAllocate` (T-220) a
+    `TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture` (T-221).
+  - `windows-verify.Tests.ps1`: druhý řádek tabulky reportu bez sloupce Seconds (T-208; v prvním běhu ho skryla první
+    chyba v témže testu).
+  - `PesterScriptTests`: `ReleaseTools.Tests.ps1` na runneru Windows přesáhl 5 min a úklid po zabití pwsh pak spadl na
+    `UnauthorizedAccessException` (soubory objektů gitu jen pro čtení), což skrylo skutečnou chybu. Úklid na Windows
+    při odepření smaže atribut jen pro čtení a zkusí znovu; limit pro `ReleaseTools.Tests.ps1` 10 min (pojistka proti
+    zaseknutí, ne měření rychlosti; lokálně 200 s).
+- Zbývá po pushi: běh na `xcode-27` (shodují se snímky macOS 27.0 s referencemi z 27.2? když ne, rozhodnutí o
+  vedlejších verzích je nové – zapsat), Windows červené jen na snímcích do T-125.
