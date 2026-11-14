@@ -10,6 +10,7 @@
     <Project Path="tests/LayerPeek.App.Tests/LayerPeek.App.Tests.csproj" />
     <Project Path="tests/LayerPeek.App.E2E.Tests/LayerPeek.App.E2E.Tests.csproj" />
     <Project Path="tests/LayerPeek.App.UiTests/LayerPeek.App.UiTests.csproj" />
+    <Project Path="tests/LayerPeek.App.UiTests.SystemFont/LayerPeek.App.UiTests.SystemFont.csproj" />
     <Project Path="tests/LayerPeek.Camera.FFmpeg.Tests/LayerPeek.Camera.FFmpeg.Tests.csproj" />
     <Project Path="tests/LayerPeek.Core.Tests/LayerPeek.Core.Tests.csproj" />
     <Project Path="tests/LayerPeek.Detection.Tests/LayerPeek.Detection.Tests.csproj" />

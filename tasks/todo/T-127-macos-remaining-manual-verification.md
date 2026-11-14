@@ -30,7 +30,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 | T-211 | `mac.timelapse`, `mac.timelapse-layers` | T-161, T-159 (UI), T-160 (přehrání) |
 | T-212 | `mac.notifications-content` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101 |
 | T-213 | `mac.file-dialogs` | T-146 („Změnit…“), T-165, T-164 |
-| T-214 | headless testy se San Francisco | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188 |
+| T-214 | headless testy se San Francisco (hotovo 2026-11-14) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k |
 | T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188 |
 | T-216 | `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`, `mac.open-fake`, `mac.hw-decoding-switch`, `mac.keys-czech-layout` | T-151 (fokus), T-122, T-117 (VoiceOver), T-154 (editor), T-097 otázka 5, T-053, T-205 (4)(5), T-100 otázka 1 |
 | T-217 | `mac.release-bundle` | T-026 „čistý Mac“ (částečně) |
@@ -94,12 +94,15 @@ a kritérium.
       jinde**, nahlásit výsledek J5: oprava je schválená (na macOS zopakovat umístění náhledu až po skončení animace, např.
       po první změně velikosti okna, nejpozději po 1 s) a založí se na ni nový úkol. Když je náhled v pořádku, nic.
       **Automatizace:** T-215 `mac.mini-after-fullscreen` (velikost, roh a rámeček po animaci).
-- [ ] **T-038** (otázka 3, rozhodovací bod; u kroku J7): Nastavení na MacBooku 13" se systémovým písmem (San
+- [x] **T-038** (otázka 3, rozhodovací bod; u kroku J7): Nastavení na MacBooku 13" se systémovým písmem (San
       Francisco) – když se v některém jazyce něco uřízne nebo se objeví posuvník, rozhodnout: přizpůsobit texty /
       rozložení (ui-designer), nebo dodávat písmo Inter i na macOS (rozhodnutí produktu); výsledek a rozhodnutí zapsat
       a založit úkol. Když se nic neuřízne, otázka odpadá (zapsat).
       **Rozhodnuto uživatelem 2026-11-13:** prohlídku Nastavení na MacBooku 13" nahrazuje headless test rozložení se
       San Francisco ve všech jazycích (T-214). Bod se odškrtne podle výsledku T-214.
+      **Výsledek T-214 (2026-11-14):** Nastavení v navržené velikosti 780 × 532 ve všech jazycích, stavech, záložkách
+      a podzáložkách bez posuvníku a bez uříznutí, záhlaví na jednom řádku. Otázka odpadá. Potvrzení šířky písma
+      v běžící aplikaci je bod T-214 v oddílu 1k.
 
 - [ ] **T-146** (krit. „Ruční nahrávání jde spustit a zastavit … stav je vidět“, ruční část macOS; v sezení agenta nebyl
       aktivní displej, UI se nespustilo): simulátor s kamerou; v menu baru v podmenu tiskárny je za oddělovačem „Nahrávat“,
@@ -115,6 +118,8 @@ a kritérium.
       T-213 `mac.file-dialogs` (a), záhlaví a uříznutí se systémovým písmem T-214, tip zakázané položky přes AXHelp
       (T-209). Přehrání v QuickTime nahrazuje úplné dekódování přes AVFoundation `helper decode` (rozhodnuto
       uživatelem 2026-11-13).
+      - [x] Část se systémovým písmem (pět záhlaví na jednom řádku i ve francouzštině, záložka Nahrávání): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 
 - [ ] **T-148** (krit. „Uložení po spouštěči vytvoří přehratelný soubor …“, ruční část macOS; sezení agenta nemělo
       aktivní displej): simulátor s kamerou (`--speed 20`), tiskárna se zapnutým „Uchovávat poslední minuty (dashcam)“ (podzáložka
@@ -128,6 +133,8 @@ a kritérium.
       **Automatizace:** simulátorová část T-210 `mac.dashcam`, uříznutí T-214. Přehrání v QuickTime nahrazuje úplné
       dekódování přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). Se skutečnou Buddy3D (~2 min
       před / ~30 s po, paměť +~17 MB) zůstává ruční.
+      - [x] Část se systémovým písmem (sekce „Poslední minuty tisku (dashcam)“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 
 - [ ] **T-154** (krit. „Poplach zobrazí notifikaci podle návrhu (macOS)“ a „Falešný poplach funguje“, ruční část macOS;
       sezení agenta nemělo aktivní displej): aplikace v `LayerPeek.app` (notifikace jen v bundlu), simulátor s kamerou,
@@ -144,6 +151,8 @@ a kritérium.
       editor výřezu T-216 `mac.detection-region`, záhlaví podzáložek T-214. Poslech VoiceOveru nahrazuje kontrola
       popisků a stavů přes Accessibility (rozhodnuto uživatelem 2026-11-13). Vzhled banneru (náhled přílohy) zůstává
       ruční.
+      - [x] Část se systémovým písmem (záhlaví čtyř podzáložek na jednom řádku): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 - [ ] **T-154** (krit. „Design spec schválený uživatelem“): uživatel prohlédne `docs/design/print-failure-detection-ui.md`
       a snímky `tests/LayerPeek.App.UiTests/Snapshots/macOS/settings-detection.png`, `settings-detection-camera-off-fr.png`,
       `settings-recording.png` (odpovědi 2026-11-04 jsou v T-154, neblokující otázky 11–15 tamtéž); změny = nový úkol.
@@ -177,6 +186,8 @@ a kritérium.
       **Automatizace:** T-211 `mac.timelapse`, notifikace „Timelapse selhal“ T-212 (b), uříznutí T-214. Přehrání v
       QuickTime nahrazuje úplné dekódování přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13).
       Poslech VoiceOveru nahrazuje kontrola popisků a stavů přes Accessibility (rozhodnuto uživatelem 2026-11-13).
+      - [x] Část se systémovým písmem (štítky „Experimentální“, sekce Timelapse a „Pořizovat timelapse tisku“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 - [ ] **T-159** (krit. „volba je v UI a uloží se“, ruční část macOS; sezení agenta nemělo displej): na záložce Nahrávání
       v řádku „Timelapse“ pole „Každých N sekund“ / „Každou N. vrstvu (odhad)“ se systémovým písmem nic neuřízne (ve všech
       jazycích to hlídá headless test), přepnutí vymění číslo vedle (interval ↔ počet vrstev), tip vysvětlí odhad z osy Z;
@@ -184,6 +195,8 @@ a kritérium.
       `tests/LayerPeek.App.UiTests/Snapshots/macOS/` prohlédnout spolu s T-161.
       **Automatizace:** T-211 `mac.timelapse-layers`, uříznutí T-214. Poslech VoiceOveru nahrazuje kontrola popisků a
       stavů přes Accessibility (rozhodnuto uživatelem 2026-11-13).
+      - [x] Část se systémovým písmem (pole „Každých N sekund“ / „Každou N. vrstvu (odhad)“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 - [ ] **T-161** (návrh): uživatel prohlédne `docs/design/timelapse-ui.md` a snímky `settings-recording.png` (zhuštěná sekce
       dashcamu, nová sekce Timelapse), `settings-camera.png`, `camera-timelapse.png`, `camera-mini-timelapse-buttons.png`
       v `tests/LayerPeek.App.UiTests/Snapshots/macOS/`; neblokující otázky v T-161; změny = nový úkol.
@@ -344,6 +357,8 @@ a kritérium.
       „Otestovat kameru“: test hned zkusí nové připojení (s `camera online` uspěje bez čekání na pauzu). Po `camera online` a dalším pokusu obraz
       běží a řádek zmizí. Aspoň v češtině a v nejdelším jazyce (es / fr) se text vejde.
       **Automatizace:** T-215 `mac.camera-next-attempt`, délka textu ve všech jazycích T-214.
+      - [x] Část se systémovým písmem (řádek „Další pokus asi za …“ v okně 960 × 540 až 320 × 180, nejdelší es / fr): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 
 ### 1g. HTTPS přes reverzní proxy s CA v Klíčence (z T-183, připraveno na Macu 2026-11-11)
 - [ ] **T-183** (krit. „Ověřeno … s `https://` a certifikátem soukromé CA v úložišti OS“, část macOS; mění Klíčenku,
@@ -397,6 +412,17 @@ a kritérium.
       zakázaných položek, „help none“ = Avalonia tip do NSMenu nepropsala) opsat do poznámek T-209 a k bodům T-146 / T-148
       / T-161 výše („tip se ukáže?“). Do poznámek zapsat složku běhu, commit a řádek zprávy. `FAIL` = nový úkol (např.
       menu se přes AXPress neotevře nebo ho Esc nezavře).
+
+### 1k. Šířka písma v běžící aplikaci (z T-214, 2026-11-14)
+- [ ] **T-214** (předpoklad kalibrace, rozhodnutí uživatele 2026-11-14): headless testy se San Francisco kalibruje
+      systémové písmo Avalonie, ne AppKit (Avalonia kreslí výchozí instanci proměnného písma, o 7–21 % užší než AppKit).
+      Ověřit, že běžící aplikace rozvrhuje text stejně: spustit aplikaci (Debug nebo `LayerPeek.app`) v angličtině,
+      otevřít Nastavení a přes `helper ax <pid>` (Zpřístupnění pro Terminál, `docs/macos-manual-testing.md`) přečíst šířku
+      rámečků záložek `SettingsTabStartupUpdates` a `SettingsTabRecording`. Očekáváno (headless, 2026-11-14): 177 a 101 pt
+      (± 1 pt); aktuální hodnoty vypíše test `SystemFontCalibrationTests.MainTabWidthsForTheCheckInTheRunningApp`
+      (`tests/LayerPeek.App.UiTests.SystemFont`, výstup v TRX: `dotnet test --project tests/LayerPeek.App.UiTests.SystemFont
+      -- --filter-class "*SystemFontCalibrationTests" --report-xunit-trx`). S šířkami podle AppKitu by „Startup and updates“
+      byla o ~13 pt širší. Výsledek zapsat do T-214 a T-222; jiná šířka = nový úkol (výsledky T-214 pak neplatí).
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

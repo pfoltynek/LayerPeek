@@ -1,0 +1,34 @@
+<Project>
+  <!--
+    Fakes and helpers of other test projects linked into the headless UI tests (no copies that could diverge). Imported by
+    LayerPeek.App.UiTests and by LayerPeek.App.UiTests.SystemFont (T-214), which run the same layout checks with Inter
+    and with San Francisco.
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+    <!-- The fakes of the view model tests, linked (no copy that could diverge). -->
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Settings\SettingsFakes.cs" Link="Shared\SettingsFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Tray\TrayFakes.cs" Link="Shared\TrayFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Tray\Menu\MenuFakes.cs" Link="Shared\MenuFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Tray\Menu\FakeWebGateway.cs" Link="Shared\FakeWebGateway.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Cameras\CameraFakes.cs" Link="Shared\CameraFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Cameras\Recording\RecordingFakes.cs" Link="Shared\RecordingFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Cameras\FakeScreenCatalog.cs" Link="Shared\FakeScreenCatalog.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Cameras\Overlay\TestOverlayWidget.cs" Link="Shared\TestOverlayWidget.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Cameras\Layout\LayoutFakes.cs" Link="Shared\LayoutFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Settings\WidgetSettingsFakes.cs" Link="Shared\WidgetSettingsFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Printers\ImageFakes.cs" Link="Shared\ImageFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Diagnostics\DiagnosticsFakes.cs" Link="Shared\DiagnosticsFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Platform\FakeLocalNetworkPrivacy.cs" Link="Shared\FakeLocalNetworkPrivacy.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Settings\NotificationSettingsFakes.cs" Link="Shared\NotificationSettingsFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Settings\DetectionFakes.cs" Link="Shared\DetectionFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Updates\UpdateFakes.cs" Link="Shared\UpdateFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Platform\RecordingAppPresence.cs" Link="Shared\RecordingAppPresence.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Platform\Windows\FakeForegroundWindowApi.cs" Link="Shared\FakeForegroundWindowApi.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Previews\PreviewFakes.cs" Link="Shared\PreviewFakes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\LayerPeek.App.Tests\Platform\MacOS\BlockingKeychainItems.cs" Link="Shared\BlockingKeychainItems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\Shared\TestPng.cs" Link="Shared\TestPng.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\Shared\CultureTime.cs" Link="Shared\CultureTime.cs" />
+  </ItemGroup>
+</Project>

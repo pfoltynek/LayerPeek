@@ -298,7 +298,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-211 | macOS ověření – timelapse na testovacím bundlu (ruční start / stop, po vrstvách, indikátor) | macos | qa-reviewer | P2 | T-210 |
 | T-212 | macOS ověření – čtení doručených notifikací testovacího bundlu a kontroly jejich obsahu | macos | ui-dev | P2 | T-208, T-209, T-210, T-211 |
 | T-213 | macOS ověření – systémové dialogy souborů (`mac.file-dialogs`, NSOpenPanel přes Accessibility) | macos | qa-reviewer | P3 | T-209, T-211, T-212 |
-| T-214 | Headless testy rozložení se systémovým písmem San Francisco (macOS) ve všech jazycích | macos | qa-reviewer | P3 | T-031 |
+| T-214 | Headless testy rozložení se systémovým písmem San Francisco (macOS) ve všech jazycích (hotovo; potvrzení v běžící aplikaci v T-127) | macos | qa-reviewer | P3 | T-031 |
 | T-215 | macOS ověření – okna, Dock a ⌘Tab (T-151, T-102, T-038 otázka 2, T-184, T-026, T-188) | macos | qa-reviewer | P3 | T-209, T-210 |
 | T-216 | macOS ověření – drobné kontroly (autoclose, špendlík a editor výřezu přes AX, jazyk AppKitu, falešné `open`, HW dekódování, české rozložení) | macos | qa-reviewer | P3 | T-209, T-213 |
 | T-217 | macOS ověření – kontrola release bundlu z `.dmg` a `.tar.gz` (`mac.release-bundle`) | macos | qa-reviewer | P3 | T-208 |
+| T-222 | Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (užší tvary, umělé tučné; bez změny UI bez schválení) | macos | ui-designer | P3 | T-214 |
