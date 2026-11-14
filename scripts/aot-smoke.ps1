@@ -26,6 +26,9 @@
     Toasts the app shows during the run are cleared afterwards only when the notification center provably held no
     toasts of the app before the run and no other instance started meanwhile; otherwise they are left there (the
     user's own toasts are never removed) and a warning is printed. Refuses to run while LayerPeek is already running.
+    With -CleanEnvironment (macOS, T-217) the exe starts without the developer's environment (env -i: only HOME, the
+    system PATH and TMPDIR; no DOTNET_ROOT, DOTNET_*, DYLD_* or Homebrew), and its output and log must report no native
+    library that failed to load (FFmpeg, Avalonia, SkiaSharp).
     macOS: run it with an awake display (e.g. under caffeinate -d -u, which only keeps the display awake). While every
     display sleeps the app waits for one before its UI starts (T-096), so the run would check only that wait, not the UI.
 
@@ -39,6 +42,11 @@
 
 .PARAMETER Seconds
     How long the app must stay alive after start. Default 10.
+
+.PARAMETER CleanEnvironment
+    macOS only (T-217): starts the exe through /usr/bin/env -i with only HOME, PATH=/usr/bin:/bin:/usr/sbin:/sbin and
+    TMPDIR, as on a Mac without Homebrew and the .NET SDK, and fails when its output or the log it wrote reports a native
+    library that failed to load. Used by tools/macos-verify.ps1 (mac.release-bundle) on the app copied from the .dmg.
 
 .PARAMETER SkipShellIntegration
     For automated tests of this script only (scripts/ReleaseTools/ReleaseTools.Tests.ps1): skips the running-instance
@@ -57,6 +65,7 @@
     pwsh scripts/aot-smoke.ps1
     pwsh scripts/aot-smoke.ps1 -Runtime osx-arm64 -Seconds 15
     pwsh scripts/aot-smoke.ps1 -PublishDir artifacts/release/0.1.0/publish/win-x64
+    pwsh scripts/aot-smoke.ps1 -PublishDir /tmp/copy/LayerPeek.app/Contents/MacOS -CleanEnvironment
     pwsh scripts/aot-smoke.ps1 -RestoreOnly
 #>
 #Requires -Version 7.2
@@ -65,6 +74,7 @@ param(
     [string] $Runtime,
     [string] $PublishDir,
     [ValidateRange(1, 600)] [int] $Seconds = 10,
+    [switch] $CleanEnvironment,
     [switch] $SkipShellIntegration,
     [switch] $RestoreOnly,
     [string] $ProfileRoot
@@ -84,6 +94,10 @@ if (-not $Runtime) {
 # notification history with the smoke run, and its toasts could be cleared below: refuse instead.
 if (-not $SkipShellIntegration -and (Get-Process -Name 'LayerPeek' -ErrorAction SilentlyContinue)) {
     Write-Host 'AOT smoke check NOT RUN: LayerPeek is already running. Quit it and run the check again.' -ForegroundColor Red
+    exit 1
+}
+if ($CleanEnvironment -and -not $IsMacOS) {
+    Write-Host 'AOT smoke check NOT RUN: -CleanEnvironment is for macOS only.' -ForegroundColor Red
     exit 1
 }
 # The tests of this script must never move the real data of the app.
@@ -168,7 +182,8 @@ $bundleWasRegistered = $true
 if ($IsMacOS -and -not $SkipShellIntegration -and -not $ownsPublishDir) {
     $contents = Split-Path -Parent (Resolve-Path -LiteralPath $PublishDir -ErrorAction SilentlyContinue).ProviderPath
     if ((Split-Path -Leaf $PublishDir) -ceq 'MacOS' -and $contents -and (Split-Path -Leaf $contents) -ceq 'Contents' -and (Split-Path -Parent $contents).EndsWith('.app')) {
-        $bundle = Split-Path -Parent $contents
+        # LaunchServices records the physical path (e.g. /private/var/folders for a bundle in the temp folder, T-217).
+        $bundle = Resolve-PhysicalPath (Split-Path -Parent $contents)
         $bundleWasRegistered = Get-LaunchServicesRegistration -DumpOutput @(& $lsregister -dump 2>$null) -BundlePath $bundle
     }
 }
@@ -197,7 +212,17 @@ try {
     Backup-SmokeProfile -SmokeProfile $smokeProfile
     # T-020 (user decision 2026-10-29): the run never opens the notification center of macOS, so nothing lands in the
     # notification settings of the developer (AppEnvironment.SkipNotificationCenterArgument; ignored on Windows).
-    $process = Start-Process -FilePath $exe -ArgumentList $SmokeAppArguments -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    if ($CleanEnvironment) {
+        # T-217: env -i execs the exe in place (same process id), with nothing of this shell's environment. Start-Process
+        # joins the arguments into one command line, so arguments with spaces are quoted.
+        $envArguments = Get-SmokeCleanEnvironmentArguments -Executable $exe -Arguments $SmokeAppArguments -HomePath ([Environment]::GetFolderPath('UserProfile')) -TempPath ([System.IO.Path]::GetTempPath())
+        $quoted = @($envArguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ } })
+        Write-Host 'Clean environment: env -i HOME, PATH=/usr/bin:/bin:/usr/sbin:/sbin and TMPDIR only.'
+        $process = Start-Process -FilePath '/usr/bin/env' -ArgumentList $quoted -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    }
+    else {
+        $process = Start-Process -FilePath $exe -ArgumentList $SmokeAppArguments -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    }
 
     if ($process.WaitForExit($Seconds * 1000)) {
         $output = (Get-Content $stdout, $stderr -Raw -ErrorAction SilentlyContinue) -join [Environment]::NewLine
@@ -209,6 +234,17 @@ try {
         $type = Get-LaunchServicesAppType -ListOutput @(& /usr/bin/lsappinfo list 2>$null) -ProcessId $process.Id
         if ($type -cne 'UIElement') { throw "The app is not an agent app without a Dock icon: LaunchServices type '$type', expected 'UIElement'." }
         Write-Host 'The app runs without a Dock icon (LaunchServices type UIElement).'
+    }
+
+    if ($CleanEnvironment) {
+        # T-217: stopped first, so that the output and the log are complete; read before the restore deletes the log.
+        $process.Kill($true)
+        $process.WaitForExit()
+        $logFiles = @(Get-ChildItem -LiteralPath $smokeProfile.Folders[1] -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object FullName)
+        $lines = @(@($stdout, $stderr) + $logFiles | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Get-Content -LiteralPath $_ })
+        $loadErrors = @(Get-SmokeNativeLoadErrors $lines)
+        if ($loadErrors.Count -gt 0) { throw "A native library failed to load: $($loadErrors[0])" }
+        Write-Host "No native library failed to load (output and $($logFiles.Count) log file(s) of the app checked)."
     }
 
     if ($shortcut) {
