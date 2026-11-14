@@ -1,31 +1,34 @@
 using System.Globalization;
 using System.Text;
 
+using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 
+using LayerPeek.App.Tests.Settings;
 using LayerPeek.App.UiTests.Infrastructure;
+using LayerPeek.App.UiTests.Settings;
+
+using static LayerPeek.App.Tests.Settings.SettingsTestData;
 
 namespace LayerPeek.App.UiTests.SystemFont;
 
 /// <summary>
 /// T-214 calibration: the layout tests of this assembly only mean something if they lay San Francisco out as wide as
-/// the app does on macOS. SFNS.ttf is a variable font; the widths of sample texts in the weights the UI uses (regular,
-/// semibold, bold) at the common UI sizes are compared with AppKit's (<see cref="CoreTextWidth"/>, the reference of the
-/// task) and with the system font that Avalonia's own Skia font manager picks on macOS (<c>.AppleSystemUIFont</c>
-/// through CoreText, what the app's default font resolves to).
+/// the app does on macOS. The reference is the system font that Avalonia's own font manager picks on macOS
+/// (<c>.AppleSystemUIFont</c> through CoreText, what the app's default font resolves to; user decision 2026-11-14):
+/// sample texts in the weights the UI uses (regular, semibold, bold) at the common UI sizes must be exactly as wide.
 /// </summary>
 /// <remarks>
-/// Measured on macOS 27.2.1 (2026-11-14): Avalonia 12.1.4 uses neither the weight nor the optical size axis of the
-/// variable font (always the default instance: wght 400, opsz 28; semibold and bold only emboldened, same advances), so
-/// it lays every text out 7 to 13 % (regular) and 14 to 21 % (semibold, bold) narrower than AppKit, while it matches the
-/// platform system font of Avalonia exactly. Whether the AppKit tolerance or the Avalonia reference applies is open in
-/// T-214 (Otevřené otázky); until then <see cref="WidthsMatchAppKitWithinTolerance"/> stays red.
+/// AppKit lays the same texts out wider (macOS 27.2.1, 2026-11-14: 7 to 13 % regular, 14 to 21 % semibold and bold):
+/// Avalonia 12.1.4 uses neither the weight nor the optical size axis of the variable font (always the default instance,
+/// wght 400 / opsz 28; semibold and bold only emboldened). <see cref="AppKitWidthsForInformation"/> reports the
+/// difference without failing (T-222 evaluates it).
 /// </remarks>
 public sealed class SystemFontCalibrationTests(HeadlessSession session)
 {
-    /// <summary>The largest relative difference of a width from AppKit's that still counts as the same layout.</summary>
-    private const double Tolerance = 0.02;
+    /// <summary>The family name of the macOS system font in CoreText (and in Avalonia's platform font manager).</summary>
+    private const string PlatformSystemFamily = ".AppleSystemUIFont";
 
     /// <summary>Texts of the UI in several languages (Latin with diacritics, as in every language of the app).</summary>
     private static readonly string[] Samples =
@@ -51,6 +54,10 @@ public sealed class SystemFontCalibrationTests(HeadlessSession session)
         ("bold", FontWeight.Bold, 0.4),
     ];
 
+    /// <summary>The main tabs of the settings window, whose widths the check in the running app compares (T-127).</summary>
+    private static readonly string[] MainTabs =
+        ["SettingsTabPrinters", "SettingsTabWidgets", "SettingsTabGeneral", "SettingsTabStartupUpdates", "SettingsTabRecording", "SettingsTabCamera"];
+
     [Fact]
     public Task DefaultFontOfTheTestsIsSanFrancisco() =>
         session.RunAsync(static _ =>
@@ -58,38 +65,6 @@ public sealed class SystemFontCalibrationTests(HeadlessSession session)
             Assert.True(FontManager.Current.TryGetGlyphTypeface(new Typeface(HeadlessTestApp.FontFamilyName), out GlyphTypeface? typeface));
             Assert.Equal("System Font", typeface.FamilyName);
             Assert.Equal(SystemFontCollection.FamilyName, FontManager.Current.DefaultFontFamily.Name);
-            return Task.CompletedTask;
-        });
-
-    [Fact]
-    public Task WidthsMatchAppKitWithinTolerance() =>
-        session.RunAsync(static _ =>
-        {
-            StringBuilder report = new();
-            List<string> problems = [];
-            foreach ((string name, FontWeight avaloniaWeight, double appKitWeight) in Weights)
-            {
-                double worst = 0;
-                foreach (double size in Sizes)
-                {
-                    foreach (string sample in Samples)
-                    {
-                        double avalonia = AvaloniaWidth(sample, size, avaloniaWeight);
-                        double appKit = CoreTextWidth.Measure(sample, size, appKitWeight);
-                        double difference = (avalonia - appKit) / appKit;
-                        worst = Math.Abs(difference) > Math.Abs(worst) ? difference : worst;
-                        if (Math.Abs(difference) > Tolerance)
-                        {
-                            problems.Add(string.Create(CultureInfo.InvariantCulture, $"{name} {size} pt '{sample}': Avalonia {avalonia:0.00}, AppKit {appKit:0.00} ({difference:+0.0%;-0.0%})"));
-                        }
-                    }
-                }
-
-                report.AppendLine(CultureInfo.InvariantCulture, $"{name}: largest difference {worst:+0.00%;-0.00%}");
-            }
-
-            TestContext.Current.SendDiagnosticMessage(report.ToString());
-            Assert.True(problems.Count == 0, report + string.Join(Environment.NewLine, problems));
             return Task.CompletedTask;
         });
 
@@ -120,8 +95,63 @@ public sealed class SystemFontCalibrationTests(HeadlessSession session)
             return Task.CompletedTask;
         });
 
-    /// <summary>The family name of the macOS system font in CoreText (and in Avalonia's platform font manager).</summary>
-    private const string PlatformSystemFamily = ".AppleSystemUIFont";
+    /// <summary>
+    /// Information only (never fails): how much narrower than AppKit Avalonia lays San Francisco out, per weight. Shown
+    /// with <c>--output detailed</c> (standard output of the test).
+    /// </summary>
+    [Fact]
+    public Task AppKitWidthsForInformation()
+    {
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+        return session.RunAsync(_ =>
+        {
+            StringBuilder report = new("Avalonia width relative to AppKit (NSFont.systemFont):");
+            report.AppendLine();
+            foreach ((string name, FontWeight avaloniaWeight, double appKitWeight) in Weights)
+            {
+                double smallest = double.MaxValue;
+                double largest = double.MinValue;
+                foreach (double size in Sizes)
+                {
+                    foreach (string sample in Samples)
+                    {
+                        double difference = (AvaloniaWidth(sample, size, avaloniaWeight) / CoreTextWidth.Measure(sample, size, appKitWeight)) - 1;
+                        smallest = Math.Min(smallest, difference);
+                        largest = Math.Max(largest, difference);
+                    }
+                }
+
+                report.AppendLine(CultureInfo.InvariantCulture, $"  {name}: {smallest:+0.0%;-0.0%} to {largest:+0.0%;-0.0%}");
+            }
+
+            output.WriteLine(report.ToString());
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>
+    /// Information only: the widths of the main tab headers of the settings window in English, which the check in the
+    /// running app (T-127, item T-214) compares with the Accessibility frames of the same tabs.
+    /// </summary>
+    [Fact]
+    public Task MainTabWidthsForTheCheckInTheRunningApp()
+    {
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+        return session.RunAsync(async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")));
+            StringBuilder report = new("Main tab headers of the settings window (English, DIP = points):");
+            report.AppendLine();
+            foreach (string id in MainTabs)
+            {
+                TabItem tab = ui.Window.Find<TabItem>(id);
+                Assert.True(tab.Bounds.Width > 0, id);
+                report.AppendLine(CultureInfo.InvariantCulture, $"  {id}: {tab.Bounds.Width:0.00} × {tab.Bounds.Height:0.00}");
+            }
+
+            output.WriteLine(report.ToString());
+        });
+    }
 
     private static double AvaloniaWidth(string text, double size, FontWeight weight, string family = HeadlessTestApp.FontFamilyName)
     {
