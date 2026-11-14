@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!--
+      T-214: the layout tests of LayerPeek.App.UiTests once more with the macOS system font San Francisco (Avalonia is
+      initialized once per process, so a second assembly). The linked HeadlessSession / HeadlessTestApp switch on this
+      constant: SFNS.ttf is read from /System/Library/Fonts at test time (never committed or shipped, Apple licence),
+      without it every test is skipped with the reason, and no snapshot is ever written.
+    -->
+    <DefineConstants>$(DefineConstants);LAYERPEEK_SYSTEM_FONT</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- No Avalonia.Fonts.Inter: San Francisco is the only font. All test-only, not AOT relevant. -->
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Skia" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <Import Project="..\LayerPeek.App.UiTests\LinkedTestFiles.props" />
+  <ItemGroup>
+    <!-- The infrastructure and the layout tests of the Inter run, linked (no copies). -->
+    <Compile Include="..\LayerPeek.App.UiTests\Infrastructure\HeadlessSession.cs" Link="Linked\Infrastructure\HeadlessSession.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\Infrastructure\Ui.cs" Link="Linked\Infrastructure\Ui.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\Infrastructure\UiTestScope.cs" Link="Linked\Infrastructure\UiTestScope.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\Settings\SettingsWindowHarness.cs" Link="Linked\Settings\SettingsWindowHarness.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\Settings\SettingsWindowLayoutTests.cs" Link="Linked\Settings\SettingsWindowLayoutTests.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\About\AboutWindowLayoutTests.cs" Link="Linked\About\AboutWindowLayoutTests.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\Diagnostics\DiagnosticsWindowHarness.cs" Link="Linked\Diagnostics\DiagnosticsWindowHarness.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\Diagnostics\DiagnosticsWindowLayoutTests.cs" Link="Linked\Diagnostics\DiagnosticsWindowLayoutTests.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\Cameras\CameraHarness.cs" Link="Linked\Cameras\CameraHarness.cs" />
+    <Compile Include="..\LayerPeek.App.UiTests\Cameras\CameraWindowNextAttemptUiTests.cs" Link="Linked\Cameras\CameraWindowNextAttemptUiTests.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LayerPeek.App\LayerPeek.App.csproj" />
+  </ItemGroup>
+</Project>

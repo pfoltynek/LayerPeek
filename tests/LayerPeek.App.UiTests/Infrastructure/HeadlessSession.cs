@@ -1,9 +1,7 @@
 using System.Globalization;
 using System.Runtime.ExceptionServices;
 
-using Avalonia;
 using Avalonia.Headless;
-using Avalonia.Media;
 using Avalonia.Threading;
 
 using LayerPeek.App.Resources;
@@ -19,30 +17,6 @@ using LayerPeek.App.UiTests.Infrastructure;
 [assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]
 
 namespace LayerPeek.App.UiTests.Infrastructure;
-
-/// <summary>
-/// Entry point of the headless application: the real <see cref="App"/> (App.axaml: Fluent theme, the tray icon with its
-/// empty menu) on the headless platform. No window is ever shown on screen. Frames are rendered by Skia in memory so that
-/// snapshot tests can capture them; the only font is the bundled Inter (default family, no fallbacks), so rendering never
-/// depends on fonts installed on the machine (characters outside Inter would fall back to system fonts, which
-/// <c>SnapshotTests</c> rules out). <see cref="App.OnFrameworkInitializationCompleted"/> starts nothing: there is no
-/// desktop lifetime headless, so no settings file, credential store, printer client or local proxy is touched.
-/// Popups (context menus, flyouts) open in their own top level (<see cref="Avalonia.Controls.Primitives.PopupRoot"/>), as on
-/// Windows and macOS, not in the overlay layer of the window that headless uses by default (T-121): keys for an open popup
-/// go to its top level, and the key routing and access keys of a popup behave as in the app.
-/// </summary>
-public static class HeadlessTestApp
-{
-    /// <summary>The only font family of the UI tests.</summary>
-    public const string FontFamilyName = "fonts:Inter#Inter";
-
-    public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>()
-            .UseSkia()
-            .WithInterFont()
-            .With(new FontManagerOptions { DefaultFamilyName = FontFamilyName, FontFallbacks = [] })
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false, OverlayPopups = false });
-}
 
 /// <summary>
 /// xUnit v3 assembly fixture owning the <see cref="HeadlessUnitTestSession"/>. Tests run their body on the Avalonia UI
@@ -70,11 +44,23 @@ public sealed class HeadlessSession : IAsyncLifetime
     private static readonly CultureInfo SystemCulture = CultureInfo.GetCultureInfo("en-US");
 
     private HeadlessUnitTestSession? _session;
+#if !LAYERPEEK_SYSTEM_FONT
     private TestRunLock? _runLock;
+#endif
     private volatile StuckBody? _stuckBody;
 
     public async ValueTask InitializeAsync()
     {
+#if LAYERPEEK_SYSTEM_FONT
+        // T-214: no snapshots with the system font, so no snapshot folder; without the font every test is skipped
+        // (RunAsync), so no session is started either.
+        if (SystemFont.MissingReason is null)
+        {
+            _session = HeadlessUnitTestSession.StartNew(typeof(HeadlessTestApp), AvaloniaTestIsolationLevel.PerTest);
+        }
+
+        await Task.CompletedTask.ConfigureAwait(false);
+#else
         // Another run of this assembly in this worktree (IDE and CLI) must not sweep the snapshot output of a running one.
         _runLock = await SnapshotAssert.Reserved.AcquireLockAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
         try
@@ -90,6 +76,7 @@ public sealed class HeadlessSession : IAsyncLifetime
             _runLock = null;
             throw;
         }
+#endif
     }
 
     public async ValueTask DisposeAsync()
@@ -100,6 +87,7 @@ public sealed class HeadlessSession : IAsyncLifetime
         }
         finally
         {
+#if !LAYERPEEK_SYSTEM_FONT
             // Nothing stays behind unless a snapshot failed (then its images do, until the next run). Without the lock
             // (not initialized) the folder may belong to another run of this worktree and is not touched.
             if (_runLock is not null)
@@ -109,6 +97,7 @@ public sealed class HeadlessSession : IAsyncLifetime
 
             _runLock?.Dispose();
             _runLock = null;
+#endif
         }
     }
 
@@ -177,6 +166,13 @@ public sealed class HeadlessSession : IAsyncLifetime
     internal async Task<T> RunAsync<T>(Func<UiTestScope, Task<T>> body, TimeSpan testTimeout)
     {
         ArgumentNullException.ThrowIfNull(body);
+#if LAYERPEEK_SYSTEM_FONT
+        // T-214: without San Francisco (Windows, another macOS) the test is skipped with the reason, never failed.
+        if (SystemFont.MissingReason is { } missing)
+        {
+            Assert.Skip(missing);
+        }
+#endif
         HeadlessUnitTestSession session = _session ?? throw new InvalidOperationException("The headless session is not running.");
 
         // A body that timed out without observing its token keeps the session's only UI thread: everything queued after
