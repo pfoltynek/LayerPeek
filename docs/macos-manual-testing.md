@@ -52,7 +52,10 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release -Skip mac.aot-sm
   oznámení „LayerPeek E2E“, pravidlo sudoers (`sudo bash tools/macos-verify-sudoers.sh`) a delší prodleva hesla po
   vypnutí displeje. Spouštět u Macu z Terminálu s odemčenou obrazovkou, bez Sdílení obrazovky.
 - **Předběžné podmínky** se zkontrolují jednou na začátku: odemčená obrazovka na konzoli (`Session`), Zpřístupnění
-  (`Accessibility`), Nahrávání obrazovky (`ScreenRecording`), žádné Sdílení obrazovky (`NoScreenSharing`). Co chybí, se
+  (`Accessibility`), Nahrávání obrazovky (`ScreenRecording`), žádné Sdílení obrazovky (`NoScreenSharing`), výstup
+  `scripts/release-build.ps1` pro verzi z `Directory.Build.props` (`ReleaseBuild`: `.dmg`, `.tar.gz`
+  a `SHA256SUMS-macos.txt` v `artifacts/release/<verze>/dist`; sestavení `caffeinate -d -u -i pwsh
+  scripts/release-build.ps1 -SkipFeedSignature`, asi 20 min) a žádná spuštěná LayerPeek (`AppNotRunning`). Co chybí, se
   vypíše jednou se seznamem dotčených kontrol; ty skončí `SKIP` s důvodem, ne `FAIL`, a vůbec se nespustí. Bez
   `caffeinate` v rodičovských procesech si skript drží Mac i displej vzhůru sám (`caffeinate -d -i -u -w`).
 - **Zpráva:** `artifacts/verify/<čas>/report.md` a `report.json` (id, výsledek, důvod, uzavíraná kritéria, doba trvání);
@@ -105,6 +108,7 @@ připravit:
 | `mac.settings-front` | automaticky | T-019 krit. 8 (Nastavení, O aplikaci, Diagnostika a další spuštění nad Finderem, `lsappinfo front`) | 2.4 |
 | `mac.plist-localnetwork` | automaticky | T-097 krit. 3 (podklad: text každého jazyka, jak ho vybere NSBundle) | 4.1 |
 | `mac.gatekeeper` | automaticky | T-019 krit. 12 (část: `spctl` odmítne kopii z `.dmg` s karanténou; potřebuje `release-build.ps1`) | 1.4 |
+| `mac.release-bundle` | automaticky (`ReleaseBuild`, `AppNotRunning`) | T-217 krit. 1 a 2; T-026 „čistý Mac“ v T-127 (rozhodnutí 2026-11-13: start s vyčištěným prostředím na tomto Macu stačí, stream v Release se nekontroluje). Kopie aplikace z `.dmg` (`hdiutil attach -readonly -nobrowse`, `ditto` do dočasné složky, vždy `detach`) a z `.tar.gz`: `codesign --verify --deep --strict`, hardened runtime a entitlements, `otool -L` jen cesty bundlu a systému (ne Homebrew, `/usr/local`, `/opt`, `artifacts/`, `LayerPeek.Build`), `LC_RPATH` jen `@executable_path` / `@loader_path`, `Info.plist` (verze, identifikátor, `LSUIElement`), SHA-256 proti `SHA256SUMS-macos.txt`; pak start kopie z `.dmg` přes `aot-smoke.ps1 -CleanEnvironment` (`env -i`: jen `HOME`, systémový `PATH`, `TMPDIR`) ≥ 10 s, typ `UIElement`, v logu žádná chyba načtení nativní knihovny | 1.4 |
 | `mac.notifications` | automaticky* | T-020 krit. 1 a 5 (E2E test bundlu) | 5.1 |
 | `mac.display-wait` | automaticky | T-096 krit. 1 a T-099 krit. 1 (podklad: simulované čekání) | – |
 | `mac.camera` | automaticky | T-026 krit. 1 (část: okno a trvalé RTSP spojení v normálním, malém a celoobrazovkovém režimu) | 6.1 |

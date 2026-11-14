@@ -33,7 +33,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 | T-214 | headless testy se San Francisco (hotovo 2026-11-14) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k |
 | T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188 |
 | T-216 | `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`, `mac.open-fake`, `mac.hw-decoding-switch`, `mac.keys-czech-layout` | T-151 (fokus), T-122, T-117 (VoiceOver), T-154 (editor), T-097 otázka 5, T-053, T-205 (4)(5), T-100 otázka 1 |
-| T-217 | `mac.release-bundle` | T-026 „čistý Mac“ (částečně) |
+| T-217 | `mac.release-bundle` (hotovo 2026-11-14) | T-026 „čistý Mac“ (rozhodnutí 2026-11-13: vyčištěné prostředí stačí) |
 
 Ruční zůstává: skutečná tiskárna a Buddy3D (oddíl 2), vydání (oddíl 3), vzhled (ikony, obrysy, ostrost), fyzické
 klávesnice, monitory a plochy, uspání Macu, Klíčenka (T-183) a schválení návrhů.
@@ -440,8 +440,11 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       stavu tisku (sezení 6.1).
 - [ ] **T-026** (krit. „Podepsaný bundle (T-019) se spustí a stream funguje na čistém Macu“): `LayerPeek.app` z `.dmg`
       na účtu nebo Macu bez Homebrew a bez .NET SDK se spustí a stream Buddy3D běží (sezení 1.4 a 6.1).
-      **Automatizace (částečně):** T-217 `mac.release-bundle` (start z `.dmg` bez `DOTNET_ROOT` a Homebrew v
-      prostředí). Zda stačí místo čistého Macu, viz T-217 otázka 2.
+      **Automatizace:** T-217 `mac.release-bundle` (start kopie z `.dmg` přes `env -i` bez `DOTNET_ROOT` a Homebrew
+      v prostředí, ≥ 10 s, typ `UIElement`, žádná chyba načtení nativních knihoven). **Rozhodnuto uživatelem
+      2026-11-13 (T-217 otázky 1 a 2):** start s vyčištěným prostředím na tomto Macu nahrazuje „čistý Mac / účet bez
+      Homebrew“ a stream kamery se v Release bundlu nekontroluje (stream Buddy3D ověřuje bod výše). Bod se odškrtne,
+      když je `mac.release-bundle` `PASS` ve zprávě `-Preset release` (pravidlo v `tasks/README.md`).
 - [ ] **T-143** (krit. „Okno kamery, malý náhled a překryv fungují jako dřív“, ruční část se skutečnou kamerou): okno
       kamery Buddy3D ve všech třech režimech jako dřív; s otevřeným oknem „Otestovat kameru“ u uložené adresy v Nastavení
       vrátí snímek bez druhého spojení (s podrobným logováním žádné nové „Opening camera stream“ / připojení v logu),

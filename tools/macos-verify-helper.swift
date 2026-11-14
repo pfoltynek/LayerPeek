@@ -49,6 +49,9 @@
 //                                    each corner (for an outline drawn at the edge of a window capture)
 //   localized <bundle> <key> <lang>...  for each language the localization macOS picks for a user with that language
 //                                    (Bundle.preferredLocalizations) and the value of <key> in its InfoPlist.strings
+//   dlopen <library>...              loads each library with dlopen (RTLD_NOW: every dependency resolved at once) and
+//                                    prints "loaded <path>"; the first failure is exit code 1 with the dyld error (T-217:
+//                                    the FFmpeg libraries of a release bundle, which the app loads only for a camera)
 //   icons <out.png> <menu bar icon dir> <app icon or bundle> <system app>...
 //                                    a contact sheet PNG: the menu bar template icons on a light and a dark menu bar at
 //                                    1x and 2x, and the app icon next to the system app icons at 16 to 128 points
@@ -353,6 +356,13 @@ func ring(_ path: String, _ offset: Int, _ thickness: Int) {
         "left": mean(band, inner..<(height - inner)), "right": mean((width - offset - thickness)..<(width - offset), inner..<(height - inner)),
         "corners": [mean(0..<2, 0..<2), mean((width - 2)..<width, 0..<2), mean(0..<2, (height - 2)..<height), mean((width - 2)..<width, (height - 2)..<height)],
     ])
+}
+
+func load(_ libraries: [String]) {
+    for library in libraries {
+        guard dlopen(library, RTLD_NOW) != nil else { fail("dlopen \(library): \(dlerror().map { String(cString: $0) } ?? "unknown error")") }
+        print("loaded \(library)")
+    }
 }
 
 func localized(_ path: String, _ key: String, _ languages: [String]) {
@@ -741,7 +751,7 @@ func menuPress(_ pid: Int32, _ path: String) {
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|click|localized|icons ...") }
+guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|click|dlopen|localized|icons ...") }
 switch command {
 case "screens": screens()
 case "windows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; windows(pid)
@@ -772,6 +782,7 @@ case "regiondiff" where arguments.count == 8:
     regionDiff(arguments[1], arguments[2], numbers[0], numbers[1], numbers[2], numbers[3], numbers[4])
 case "screenrecording": print(CGPreflightScreenCaptureAccess() ? "true" : "false")
 case "ring" where arguments.count == 4: guard let offset = Int(arguments[2]), let thickness = Int(arguments[3]) else { fail("not a number") }; ring(arguments[1], offset, thickness)
+case "dlopen" where arguments.count >= 2: load(Array(arguments[1...]))
 case "localized" where arguments.count >= 4: localized(arguments[1], arguments[2], Array(arguments[3...]))
 case "icons" where arguments.count >= 4: icons(arguments[1], arguments[2], arguments[3], Array(arguments[4...]))
 default: fail("unknown command or arguments: \(arguments.joined(separator: " "))")

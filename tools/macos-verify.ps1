@@ -43,7 +43,8 @@
 .PARAMETER Preset
     A fixed list of checks (T-208), e.g. release: every Auto and Permission check that runs without a human, before each
     release. Implies -Unattended and -Allow for the Permission checks of the preset; -Skip still applies, -Only does not.
-    The preconditions (unlocked screen on the console, Accessibility, Screen Recording, no Screen Sharing) are checked
+    The preconditions (unlocked screen on the console, Accessibility, Screen Recording, no Screen Sharing, the output of
+    scripts/release-build.ps1 for this version, no running LayerPeek) are checked
     once at the start: each one that is missing is printed once with the checks it ends with SKIP. Without a caffeinate
     parent the script keeps the Mac and the display awake itself (caffeinate -d -i -u -w). With -ListChecks it lists the checks of the
     preset. What it needs once: Accessibility for the terminal, optionally Screen Recording, the sudoers rule of
@@ -113,6 +114,52 @@ function Get-ReleaseApp {
     <# .SYNOPSIS The release bundle of scripts/release-build.ps1 for this version, or $null. #>
     $app = Join-Path $script:Repo 'artifacts' 'release' (Get-AppVersion) 'app' 'osx-arm64' 'LayerPeek.app'
     if (Test-Path -LiteralPath $app) { $app } else { $null }
+}
+
+function Get-ReleaseBuildFiles {
+    <#
+    .SYNOPSIS
+        The macOS downloads of scripts/release-build.ps1 for this version (T-217): the .dmg, the .tar.gz and
+        SHA256SUMS-macos.txt in artifacts/release/<version>/dist, the commit of build-info.json, and Missing (the names of
+        the absent files).
+    #>
+    $version = Get-AppVersion
+    $names = Get-MacReleaseFileNames -Version $version -Runtime 'osx-arm64'
+    $folder = Join-Path $script:Repo 'artifacts' 'release' $version
+    $dist = Join-Path $folder 'dist'
+    $files = [pscustomobject]@{
+        Version   = $version
+        DiskImage = Join-Path $dist $names.DiskImage
+        Archive   = Join-Path $dist $names.Archive
+        Sums      = Join-Path $dist (Get-ChecksumFileName 'macos')
+        Commit    = 'unknown commit'
+        Missing   = @()
+    }
+    $files.Missing = @($files.DiskImage, $files.Archive, $files.Sums | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) } | ForEach-Object { Split-Path -Leaf $_ })
+    try {
+        $info = Get-Content -LiteralPath (Join-Path $folder 'build-info.json') -Raw | ConvertFrom-Json
+        $files.Commit = "commit $("$($info.Commit)".Substring(0, [Math]::Min(12, "$($info.Commit)".Length)))$(if ($info.Dirty) { ', dirty tree' })"
+    }
+    catch { }
+    $files
+}
+
+function Get-ReleaseBuildProblem {
+    <# .SYNOPSIS Why the release downloads cannot be checked (with how to build them), or $null. #>
+    $files = Get-ReleaseBuildFiles
+    if ($files.Missing.Count -gt 0) { "no $($files.Missing -join ', ') in artifacts/release/$($files.Version)/dist; build it first: caffeinate -d -u -i pwsh scripts/release-build.ps1 -SkipFeedSignature (about 20 min)" }
+}
+
+function Get-RunningAppProblem {
+    <# .SYNOPSIS Why the release app cannot be started now (scripts/aot-smoke.ps1 refuses beside a running LayerPeek), or $null. #>
+    if (Get-Process -Name 'LayerPeek' -ErrorAction SilentlyContinue) { 'LayerPeek is running; quit it first (the release app is never started beside another instance)' }
+}
+
+function Dismount-VerifyImage([string] $MountPoint) {
+    <# .SYNOPSIS Detaches the disk image attached at the mount point, if any (forced when the normal detach fails). #>
+    if (-not (@(& /usr/bin/hdiutil info 2>$null) -match [regex]::Escape($MountPoint))) { return }
+    $null = & /usr/bin/hdiutil detach $MountPoint -quiet 2>&1
+    if ($LASTEXITCODE -ne 0) { $null = & /usr/bin/hdiutil detach $MountPoint -force -quiet 2>&1 }
 }
 
 function Get-Helper($Context) {
@@ -1337,6 +1384,68 @@ $checks = @(
         finally { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
     }
 
+    New-VerifyCheck -Id 'mac.release-bundle' -Needs ReleaseBuild, AppNotRunning -Kind Auto -Title 'the apps of the .dmg and the .tar.gz: signature, hardened runtime, load paths, Info.plist, SHA-256, and a start without the developer environment' `
+        -Closes 'T-217 kritérium 1 (kontrola .dmg a .tar.gz)', 'T-217 kritérium 2 (start bez prostředí vývojáře)', 'T-026 kritérium „Podepsaný bundle se spustí na čistém Macu“ (start s vyčištěným prostředím, rozhodnutí 2026-11-13; stream se nekontroluje)' -Action {
+        param($c)
+        foreach ($reason in (Get-ReleaseBuildProblem), (Get-RunningAppProblem)) { if ($reason) { Skip-VerifyCheck $reason } }
+        $files = Get-ReleaseBuildFiles
+        $problems = [System.Collections.Generic.List[string]]::new()
+        # SHA-256 of every file of dist against SHA256SUMS-macos.txt, which must list both downloads.
+        $sums = Read-Sha256Sums $files.Sums
+        foreach ($problem in @(Get-Sha256SumsProblems $files.Sums)) { $problems.Add($problem) }
+        foreach ($path in $files.DiskImage, $files.Archive) {
+            if (-not $sums.Contains((Split-Path -Leaf $path))) { $problems.Add("$(Split-Path -Leaf $path) is not listed in $(Split-Path -Leaf $files.Sums).") }
+        }
+        # .noindex: Spotlight does not index (and register) the copies.
+        $temp = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-verify-bundle-$(New-ShortId).noindex"
+        $mount = Join-Path $temp 'mnt'
+        $copies = [ordered]@{ '.dmg' = Join-Path $temp 'dmg' 'LayerPeek.app'; '.tar.gz' = Join-Path $temp 'tar' 'LayerPeek.app' }
+        $null = New-Item -ItemType Directory -Force -Path $mount, (Split-Path -Parent $copies['.dmg']), (Split-Path -Parent $copies['.tar.gz'])
+        try {
+            $attach = Invoke-VerifyTool -Context $c -Label 'hdiutil-attach' -FilePath '/usr/bin/hdiutil' -ArgumentList @('attach', '-nobrowse', '-readonly', '-noautoopen', '-mountpoint', $mount, $files.DiskImage)
+            if ($attach.ExitCode -ne 0) { $problems.Add('hdiutil attach of the .dmg failed (hdiutil-attach.txt).') }
+            else {
+                try { & /usr/bin/ditto (Join-Path $mount 'LayerPeek.app') $copies['.dmg'] }
+                finally { Dismount-VerifyImage $mount }
+            }
+            $untar = Invoke-VerifyTool -Context $c -Label 'tar' -FilePath '/usr/bin/tar' -ArgumentList @('-xzf', $files.Archive, '-C', (Split-Path -Parent $copies['.tar.gz']))
+            if ($untar.ExitCode -ne 0) { $problems.Add('tar -xzf of the .tar.gz failed (tar.txt).') }
+            $rules = Get-MacLoadPathRules -RepoRoot $script:Repo -HomePath ([Environment]::GetFolderPath('UserProfile'))
+            foreach ($label in $copies.Keys) {
+                $app = $copies[$label]
+                if (-not (Test-Path -LiteralPath (Join-Path $app 'Contents' 'Info.plist') -PathType Leaf)) { $problems.Add("${label}: no LayerPeek.app at the top level."); continue }
+                $plist = @(& /usr/bin/plutil -convert xml1 -o - (Join-Path $app 'Contents' 'Info.plist') 2>&1) -join "`n"
+                # The same checks as release-build.ps1 (ReleaseTools.psm1), and the stricter load paths of a clean Mac.
+                $found = @(Get-MacSignatureProblems $app) + @(Get-MacHardenedRuntimeProblems $app) + @(Get-MacBundleLibraryProblems $app) +
+                    @(Get-MacBundleLoadPathProblems -AppPath $app -Rules $rules) + @(Get-MacReleasePlistProblems -PlistText $plist -Version $files.Version -BundleIdentifier $script:BundleId)
+                foreach ($problem in $found) { $problems.Add("${label}: $problem") }
+            }
+            $null = Save-VerifyEvidence -Context $c -Name 'bundle-problems.txt' -Content @($problems)
+            # The app of the .dmg, started like on a Mac without the developer tools (aot-smoke.ps1: profile moved aside and back).
+            if (Test-Path -LiteralPath $copies['.dmg']) {
+                # The app loads FFmpeg only for a camera (and HarfBuzz later too), so its start proves only Avalonia and
+                # Skia: every library of the bundle is loaded here with all its dependencies, in the same clean environment.
+                $libraries = @(Get-ChildItem -LiteralPath (Join-Path $copies['.dmg'] 'Contents' 'MacOS') -File -Filter '*.dylib' | ForEach-Object FullName | Sort-Object)
+                $loadArguments = Get-SmokeCleanEnvironmentArguments -Executable (Get-Helper $c) -Arguments (@('dlopen') + $libraries) -HomePath ([Environment]::GetFolderPath('UserProfile')) -TempPath ([System.IO.Path]::GetTempPath())
+                $load = Invoke-VerifyTool -Context $c -Label 'dlopen-clean' -FilePath '/usr/bin/env' -ArgumentList $loadArguments
+                if ($load.ExitCode -ne 0) { $problems.Add(".dmg: a library does not load without the developer environment: $(@($load.Output) -join ' ')") }
+                $pwsh = @(Get-PwshCommand)
+                $arguments = @($pwsh | Select-Object -Skip 1) + @('-NoProfile', '-File', (Join-Path $script:Repo 'scripts' 'aot-smoke.ps1'), '-Runtime', 'osx-arm64', '-PublishDir', (Join-Path $copies['.dmg'] 'Contents' 'MacOS'), '-CleanEnvironment')
+                $started = Invoke-VerifyTool -Context $c -Label 'aot-smoke-clean' -FilePath $pwsh[0] -ArgumentList $arguments -Show
+                if ($started.ExitCode -ne 0) { $problems.Add("the start of the .dmg app without the developer environment failed (aot-smoke-clean.txt): $(@($started.Output | Where-Object { $_ -match 'FAILED|NOT ' }) | Select-Object -First 1)") }
+            }
+        }
+        finally {
+            Dismount-VerifyImage $mount
+            Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        # Nothing may be left: no attached image, no copy of the app.
+        if (@(& /usr/bin/hdiutil info 2>$null) -match [regex]::Escape($mount)) { $problems.Add("the .dmg is still attached at $mount.") }
+        if (Test-Path -LiteralPath $temp) { $problems.Add("the copies in $temp could not be deleted.") }
+        if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems[0])" }
+        New-VerifyResult PASS "$($files.Version) (build-info.json: $($files.Commit)): .dmg and .tar.gz apps signed (--deep --strict), hardened runtime and entitlements, libraries only from the bundle and the system, Info.plist, SHA-256; in env -i (no DOTNET_ROOT, no Homebrew) all $($libraries.Count) libraries of the .dmg app loaded (dlopen, FFmpeg included) and the app ran as UIElement without a native library error; nothing attached or left."
+    }
+
     New-VerifyCheck -Id 'mac.notifications' -Kind Auto -Title 'notification E2E of the test bundle (delivery, removal on quit and by the cleanup mode)' `
         -Closes 'T-020 kritérium 1 (doručení ze sestavené .app, test bundle)', 'T-020 kritérium 5 (odstranění při ukončení i úklidem po pádu)' -Action {
         param($c)
@@ -1920,7 +2029,7 @@ $checks = @(
 $presets = [ordered]@{
     release = @(
         'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
-        'mac.plist-localnetwork', 'mac.gatekeeper', 'mac.notifications', 'mac.display-wait', 'mac.camera',
+        'mac.plist-localnetwork', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
         'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.keys', 'mac.update-check',
         'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
     )
@@ -1932,7 +2041,12 @@ $preconditions = [ordered]@{
     Accessibility   = { param($c) if (-not (Test-Accessibility $c)) { 'the terminal has no Accessibility permission (System Settings > Privacy & Security > Accessibility; then restart the terminal)' } }
     ScreenRecording = { param($c) if ((Invoke-Helper $c @('screenrecording')) -notcontains 'true') { 'the terminal has no Screen Recording permission (System Settings > Privacy & Security > Screen & System Audio Recording; then restart the terminal)' } }
     NoScreenSharing = { param($c) if (@(& /usr/bin/pmset -g assertions 2>$null) -match 'Remote user active') { 'Screen Sharing is connected and keeps the display awake (pmset -g assertions: "Remote user active")' } }
+    ReleaseBuild    = { param($c) Get-ReleaseBuildProblem }
+    AppNotRunning   = { param($c) Get-RunningAppProblem }
 }
+
+# The preconditions that are checked without the Swift helper.
+$script:HelperFreeNeeds = @('NoScreenSharing', 'ReleaseBuild', 'AppNotRunning')
 
 function Get-MacPreconditionState($Context, [string[]] $Needs) {
     <# .SYNOPSIS Checks the preconditions once: name -> $null (met) or the reason; all unmet when the helper does not compile. #>
@@ -1940,7 +2054,7 @@ function Get-MacPreconditionState($Context, [string[]] $Needs) {
     $helperProblem = $null
     try { $null = Get-Helper $Context } catch { $helperProblem = "the helper could not be built: $($_.Exception.Message)" }
     foreach ($need in $Needs) {
-        if ($helperProblem -and $need -ne 'NoScreenSharing') { $state[$need] = $helperProblem; continue }
+        if ($helperProblem -and $need -notin $script:HelperFreeNeeds) { $state[$need] = $helperProblem; continue }
         try { $state[$need] = & $preconditions[$need] $Context }
         catch { $state[$need] = "could not be checked: $($_.Exception.Message)" }
     }
