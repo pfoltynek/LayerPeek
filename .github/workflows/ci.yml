@@ -29,6 +29,9 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
   # No XML documentation files in the NuGet folder: smaller package cache, nothing reads them in CI.
   NUGET_XMLDOC_MODE: skip
+  # Skips the few tests known to fail on a runner for a tracked reason (tests/Shared/ContinuousIntegration.cs; each skip
+  # names its task: T-220, T-221). Never set on a developer's machine.
+  LAYERPEEK_CI: '1'
 
 jobs:
   changes:
@@ -99,8 +102,11 @@ jobs:
             # (URL and SHA-256 in FFmpeg.targets); T-202 adds build/windows/build-ffmpeg.*, which the pattern already
             # covers (a pattern without a match adds nothing to the hash).
             ffmpeg-script: build/windows/build-ffmpeg.*
+          # macOS 27 (label xcode-27, still a preview image of GitHub; macos-latest is macOS 26): the macOS snapshot
+          # references are rendered on macOS 27 and glyph edges differ between major releases (user decision
+          # 2026-11-14, T-218). Back to a macos-NN label once GitHub has one for 27.
           - name: macOS
-            os: macos-26
+            os: xcode-27
             rid: osx-arm64
             timeout: 60
             ffmpeg-script: build/macos/build-ffmpeg.sh

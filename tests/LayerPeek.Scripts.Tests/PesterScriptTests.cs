@@ -31,9 +31,11 @@ public sealed class PesterScriptTests
         "Write-Output \"PESTER RESULT: $($r.Result) passed=$($r.PassedCount) failed=$($r.FailedCount) skipped=$($r.SkippedCount)\"; " +
         "if ($r.Result -ne 'Passed' -or $r.FailedCount -gt 0 -or $r.PassedCount -eq 0) { exit 1 }; exit 0";
 
-    // Time limit per test file in minutes: the orchestrator tests run release.ps1 end to end many times (about 1.5-2.5 min).
+    // Time limit per test file in minutes, a guard against a hanging run, not a speed check: the orchestrator tests run
+    // release.ps1 end to end many times (about 1.5-2.5 min); ReleaseTools takes about 3.5 min on an M2 and more than 5 on
+    // the 4-CPU Windows runner next to the other test assemblies (T-218).
     [Theory]
-    [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1", 5)]
+    [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1", 10)]
     [InlineData("scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1", 15)]
     [InlineData("scripts/ReleaseTools/ReleaseWinget.Tests.ps1", 5)]
     [InlineData("tools/migrate-from-prusatraydiagnostic.Tests.ps1", 5)]
@@ -85,10 +87,34 @@ public sealed class PesterScriptTests
         }
         finally
         {
-            if (Directory.Exists(root))
+            DeleteTree(root);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the folder of one Pester run. Git marks its object files read-only, which Directory.Delete refuses on
+    /// Windows: when a run was killed (time limit) before the scripts removed their repositories, the access error would
+    /// otherwise replace the real failure (T-218, seen on the Windows runner).
+    /// </summary>
+    private static void DeleteTree(string root)
+    {
+        if (!Directory.Exists(root))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(root, recursive: true);
+        }
+        catch (UnauthorizedAccessException) when (OperatingSystem.IsWindows())
+        {
+            foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
             {
-                Directory.Delete(root, recursive: true);
+                File.SetAttributes(file, FileAttributes.Normal);
             }
+
+            Directory.Delete(root, recursive: true);
         }
     }
 }

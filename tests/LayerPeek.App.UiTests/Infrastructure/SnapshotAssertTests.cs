@@ -49,6 +49,38 @@ public sealed class SnapshotAssertTests(HeadlessSession session)
             return Task.CompletedTask;
         });
 
+    // ---- Rendering origin of the macOS set (T-218) ----
+
+    [Theory]
+    [InlineData(null, "macOS 27", false)]
+    [InlineData("macOS 27", null, false)]
+    [InlineData("macOS 27", "macOS 27", false)]
+    [InlineData("macOS 27", "macOS 26", true)]
+    [InlineData("macOS 26", "macOS 27", true)]
+    public void PixelsAreComparedOnlyOnTheMajorReleaseTheReferencesWereRenderedOn(string? recorded, string? current, bool skipped)
+    {
+        string? reason = RenderingOrigin.SkipReason(recorded, current);
+
+        Assert.Equal(skipped, reason is not null);
+        if (reason is not null)
+        {
+            Assert.Contains(recorded!, reason, StringComparison.Ordinal);
+            Assert.Contains(current!, reason, StringComparison.Ordinal);
+            Assert.Contains(RenderingOrigin.FileName, reason, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void TheMacOsSetRecordsTheMajorReleaseItWasRenderedOn()
+    {
+        // The committed macOS set says where it was rendered, in the form the update writes.
+        string recorded = File.ReadAllText(Path.Combine(ReferenceSet.MacOS.DirectoryIn(SnapshotAssert.ReferenceDirectory), RenderingOrigin.FileName)).Trim();
+        Assert.Matches(@"^macOS \d+$", recorded);
+        Assert.Equal(OperatingSystem.IsMacOS(), RenderingOrigin.Current is not null);
+        // Windows compares everywhere: its set has no such file.
+        Assert.False(File.Exists(Path.Combine(ReferenceSet.Windows.DirectoryIn(SnapshotAssert.ReferenceDirectory), RenderingOrigin.FileName)));
+    }
+
     // ---- Reference set per OS (T-095) ----
 
     [Fact]

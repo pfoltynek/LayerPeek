@@ -12,6 +12,7 @@
     <Compile Include="..\Shared\AllocationProbe.cs" Link="Shared\AllocationProbe.cs" />
     <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
     <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+    <Compile Include="..\Shared\ContinuousIntegration.cs" Link="Shared\ContinuousIntegration.cs" />
     <!-- The Core One fixtures and synthetic failures of the detector tests (T-155), for the end-to-end alarm. -->
     <Compile Include="..\Shared\Detection\*.cs" Link="Shared\Detection\%(Filename)%(Extension)" />
   </ItemGroup>
