@@ -78,8 +78,8 @@ po sloučení (viz sběrné úkoly T-125 / T-127). CI spustí totéž na obou OS
       `build/macos/build-ffmpeg.sh` dá na macOS nový klíč – *čeká na runner (lokálně ověřeno, viz poznámky)*
 - [ ] Úmyslně rozbitý test v PR (jen na zkoušku, pak zahodit) skončí červeně a nahraje log testů – *čeká na runner*
 - [ ] Žádný E2E / interaktivní test v CI neběží (seznam přepínačů zapsaný); počet přeskočených testů zapsaný a zdůvodněný
-      – *seznam přepínačů hotový (`docs/prerequisites.md`), přeskočené testy macOS lokálně zapsané; počty z runneru
-      (hlavně Windows) chybí*
+      – *seznam přepínačů hotový (`docs/prerequisites.md`); počty z prvního běhu na runnerech zapsané v poznámkách,
+      po zeleném běhu potvrdit*
 - [x] `docs/prerequisites.md` doplněné; vazba na T-202 zapsaná v T-202
 - [x] `dotnet build` a `dotnet test` lokálně bez chyb a varování
 
@@ -121,6 +121,42 @@ Nové otázky z implementace (2026-11-13, neblokují):
    konec starého. Ponechat připnuté, nebo přejít na `*-latest`?
 9. **Časové limity jobů:** zatím prozatímně 60 minut pro oba buildy (lokálně na M2 Pro 8 min, runner bude pomalejší).
    Po prvních bězích nastavit ~1,5× naměřené doby (úkol to předepisuje); hlavní agent / další úprava.
+
+
+Otázky z prvního běhu na GitHubu (2026-11-13, běh 43501907104; rozbor v poznámkách „První běh na GitHubu“). Dokud
+nejsou rozhodnuté 10 a 11, zůstane CI červené na snímcích UI:
+10. **Snímky UI macOS na runneru (blokuje zelené CI na macOS):** 54 snímků se na `macos-26` liší o 11–287 pixelů
+    (povoleno 10). Reference jsou z Macu vývojáře (macOS 27.2.1), runner má macOS 26.7. Skia na macOS rasterizuje
+    glyfy přes CoreText / CoreGraphics systému, takže stejné písmo Inter dá na jiné hlavní verzi macOS jiné okraje
+    glyfů (stejně jako Windows a macOS mají vlastní sady, T-095). Možnosti:
+    - **(a)** job macOS na obrazu `xcode-27` (macOS 27.0.1 arm64, zatím *preview*: možné fronty a nestabilita). Bez
+      změny testů; jestli 27.0 kreslí stejně jako 27.2, ukáže jeden běh. Po přechodu Macu vývojáře na macOS 28 se
+      problém vrátí, dokud GitHub nemá obraz 28.
+    - **(b)** sada referencí macOS si pamatuje hlavní verzi macOS, na které vznikla (např. soubor v
+      `Snapshots/macOS/`). Na jiné hlavní verzi se porovnání pixelů **přeskočí s důvodem** (stabilita snímku, kontrola
+      písma a všechny testy rozložení dál běží); na Macu vývojáře se porovnává jako dnes.
+    - **(c)** druhá sada referencí pro verzi runneru (`Snapshots/macOS-26/`) z artefaktu `snapshot-failures-osx-arm64`:
+      plné pokrytí v CI, ale každá změna UI = dvě sady macOS ke kontrole.
+    - **(d)** vyšší tolerance na macOS v CI – nedoporučuji: 200 pixelů je víc než změněné slovo.
+    **Doporučení: (a) zkusit hned (jedna změna `runs-on`), a když 27.0 ≠ 27.2 nebo je preview nespolehlivý, (b).**
+11. **Snímky UI Windows (blokuje zelené CI na Windows):** 44 snímků Nastavení a O aplikaci selže, protože **sada
+    Windows je zastaralá** (známé body T-125: T-185, T-199, T-204; `settings-camera-tab.png` pro Windows vůbec není).
+    Snímky Diagnostiky a okna kamery na `windows-2025` prošly, runner tedy kreslí stejně jako Windows vývojáře.
+    Možnosti: **(a)** přegenerovat sadu Windows na Windows podle T-125 (jak je plánováno) – do té doby CI na Windows
+    červené; **(b)** vzít obrázky `*.actual.png` z artefaktu `snapshot-failures-win-x64` dalšího běhu jako nové
+    reference Windows (z Macu, s prohlídkou okem; rychlé, ale reference by poprvé nevznikly na Windows vývojáře).
+    **Doporučení: (b) jako rychlé odblokování CI, s kontrolou na Windows v T-125.**
+12. **Alokační testy na Windows runneru:** `PrintFailureDetectionAllocationTests.ASampleDoesNotAllocate` (každý platný
+    průchod ≥ 173 840 B, test 41 s) a `CameraTimelapseAllocationTests.SteadyStateTimelapseDoesNotAllocate` („Packets
+    not read“ po 10 s) – známá citlivost na zátěž (T-165, T-168), na 4 vCPU se 8 testovacími moduly současně výrazně
+    horší. Na Macu nejde rozebrat. Možnosti: **(a)** nový úkol (core-dev / qa-reviewer na Windows): příčina 173 KB a
+    odolnější měření; **(b)** v CI omezit souběh modulů (`--max-parallel-test-modules 2`, delší běh); **(c)** obojí.
+    **Doporučení: (a), (b) jen když (a) nepomůže.**
+13. **Luma z roviny Y na Windows (T-189):** `GrayscaleSampleEquivalenceTests.TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture`
+    na Windows: průměrný |rozdíl| 1,72 (mez 1,5) a průměrný posun +1,44 (mez 1). Na Macu 1,31 / +0,87 (T-189 měřil jen
+    macOS). Windows používá jiný build FFmpeg (BtbN) a jiné cesty SIMD swscale. Nejde o chybu CI: posun jasu o 1,4 úrovně
+    může posunout prahy detekce na Windows. **Doporučení: nový úkol pro core-dev (změřit na Windows vývojáře, rozhodnout
+    mez nebo opravu převodu; navazuje na T-202 s vlastním buildem FFmpeg pro Windows).**
 
 ## Poznámky k implementaci
 Stav 2026-11-13 (qa-reviewer, na Macu): workflow, Dependabot, test pravidel a dokumentace hotové a lokálně ověřené.
@@ -214,3 +250,33 @@ přeskočených testů z runnerů ověří hlavní agent po pushi (nepřesouvá 
 - pak povinná kontrola `CI result` v rulesetu 2 podle postupu v `docs/prerequisites.md` (dělá uživatel).
 - Pozn. pro hlavního agenta: definice agenta `.claude/agents/qa-reviewer.md` (a případně `CLAUDE.md`) dosud říká, že CI
   je odložené (T-016) – po sloučení aktualizovat.
+
+**První běh na GitHubu (2026-11-13, běh 43501907104, commit `c64d81d7`; qa-reviewer)** – oba buildy (Release + Debug)
+prošly bez varování, cache FFmpeg trefená (`Save FFmpeg` přeskočeno), oba joby červené v kroku testů; AOT publish se
+proto nespustil. Doby: macOS build Release 144 s / Debug 78 s / testy 819 s, Windows 135 s / 47 s / 462 s.
+- Testy: macOS 10 512 (10 180 prošlo, 57 selhalo, 275 přeskočeno), Windows 11 033 (10 592 / 51 / 390; navíc
+  `LayerPeek.App.E2E.Tests` 362 prošlo, 159 přeskočeno – E2E bez `LAYERPEEK_E2E` přeskočené, jak má být). Přeskočení
+  na macOS proti lokálnímu běhu +8: 7 testů lokálních vzorků (`~/LayerPeek-samples` na runneru není) a 1 test FFmpeg
+  lokálního klipu. Testy Klíčenky se na `macos-26` **nepřeskočily** (klíčenka runneru je odemčená) a prošly.
+- **Opraveno v tomto úkolu (příčina = předpoklad testu nebo CI, ne chyba aplikace):**
+  - `MacNativeCallTests.AMissingPermissionOrFolderIsNotAReadOnlyVolume`: test bral `/System/Library/CoreServices` jako
+    „složku bez práva zápisu“. Ta ale leží na zapečetěném systémovém svazku jen pro čtení a s vypnutým SIP (runnery
+    GitHubu) `access()` vrátí právě `EROFS`. Test teď vytvoří vlastní složku s právy 0555 (ověří `EACCES`).
+  - `ReleaseTools.Tests.ps1` „… ignores DYLD_INSERT_LIBRARIES (T-108)“: hardened runtime brání `DYLD_INSERT_LIBRARIES`
+    jen se zapnutým SIP; na runneru se knihovna vložila. Test se při `csrutil status` = disabled přeskočí s důvodem
+    (u vývojáře SIP zapnutý, běží dál).
+  - `ReleaseOrchestrator.Tests.ps1` „converts the real CHANGELOG.md …“: přeskakuje se podle tagu `v<verze>`, mělký
+    checkout ale tagy neměl → test běžel proti už vydané 0.5.0 a selhal. Checkout teď s `fetch-tags: true`.
+    `CHANGELOG.md` navíc patří mezi soubory, které testy čtou → v klasifikaci změn se počítá jako kód.
+  - `ReleaseTools.Tests.ps1` „archives exactly the pinned commit … without line ending conversion“ (Windows): archiv
+    má LF (SHA-256 sedí), ale test četl soubor přes roura + `Out-String`, které na Windows spojí řádky CRLF. Teď kontroluje
+    bajty rozbaleného souboru. Chyba testu z T-199 (psaný na Macu), na Windows by selhal i u vývojáře.
+  - `VerifyTools.Tests.ps1` (2×) a `windows-verify.Tests.ps1` (2×) na Windows: T-208 píše v reportu domovskou složku
+    jako `~`; dočasná složka testů leží na Windows v profilu, testy ale čekaly plnou cestu, JSON porovnávaly bez
+    odescapování `\` a `windows-verify.Tests.ps1` neznal nový sloupec Seconds. Opraveno (ověřeno na Macu s dočasnou
+    složkou testů v `$HOME`: původní test selže, upravený projde). Chyby testů z T-208, ne CI.
+- **CI upraveno:** NuGet cache obnovená a uložená zvlášť (dřív se při červených testech neuložila), nový artefakt
+  `snapshot-failures-<rid>` s `*.actual.png` / `*.diff.png` neshodných snímků (první běh je neměl, rozbor snímků macOS
+  je proto zatím úvaha, viz otázka 10), krok `Describe the runner` (OS, CPU, obraz, `csrutil status`, `sw_vers`).
+- **Neopraveno, rozhodnutí v otázkách 10–13:** snímky UI macOS (verze macOS runneru), snímky UI Windows (zastaralá
+  sada, T-125), dva alokační testy na Windows (zátěž), luma T-189 na Windows (jiný FFmpeg).
