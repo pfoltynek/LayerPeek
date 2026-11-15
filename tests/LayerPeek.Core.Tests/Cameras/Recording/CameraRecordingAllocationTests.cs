@@ -23,6 +23,7 @@ public sealed class CameraRecordingAllocationTests : IDisposable
     [Fact]
     public async Task SteadyStateRecordingDoesNotAllocate()
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         long minimum = long.MaxValue;
         for (int pass = 0; pass < 3 && minimum > 0; pass++)
         {
@@ -31,7 +32,7 @@ public sealed class CameraRecordingAllocationTests : IDisposable
             minimum = Math.Min(minimum, await MeasurePassAsync(pass));
         }
 
-        Assert.Equal(0, minimum);
+        AllocationProbe.AssertNoneAllocated(minimum);
     }
 
     private async Task<long> MeasurePassAsync(int pass)
@@ -51,11 +52,14 @@ public sealed class CameraRecordingAllocationTests : IDisposable
 
         // Paced like a camera (the writer keeps up): a backlog beyond the subscription's buffer pool would allocate
         // new buffers by design, which a real-time stream never builds up.
+        AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
         long before = GC.GetTotalAllocatedBytes(precise: true);
-        DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
         for (int i = 0; i < MeasuredPackets; i++)
         {
             packets.Packet((byte)i, keyFrame: i % 50 == 0);
+            // Per packet (T-220): on a loaded machine every wake-up of the writer waits for a CPU, a pass can take longer
+            // than the timeout; a writer that stopped writing still fails here.
+            DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
             SpinWait spin = default;
             while (writer.Count < WarmUpPackets + i + 1)
             {

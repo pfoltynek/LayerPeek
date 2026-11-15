@@ -3,6 +3,7 @@ using System.Threading.Tasks.Sources;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Tests.Monitoring;
 using LayerPeek.Tests.Allocation;
 
 namespace LayerPeek.Core.Tests.Cameras;
@@ -25,7 +26,7 @@ public sealed class CameraStreamHubAllocationTests
     {
         long allocated = await Task.Run(MeasureFramesAsync, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, allocated);
+        AllocationProbe.AssertNoneAllocated(allocated);
     }
 
     [Fact]
@@ -33,11 +34,12 @@ public sealed class CameraStreamHubAllocationTests
     {
         long allocated = await Task.Run(MeasurePacketsAsync, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, allocated);
+        AllocationProbe.AssertNoneAllocated(allocated);
     }
 
     private static async Task<long> MeasureFramesAsync()
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         LockstepFeed feed = new(packets: false);
         // The fake is stopped before the hub waits for its connection to close (its pending read then ends).
         await using CameraStreamHub hub = new(new ReconnectingCameraFeed(new SingleFeedFactory(feed), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance), TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
@@ -51,9 +53,14 @@ public sealed class CameraStreamHubAllocationTests
         long Step()
         {
             feed.Produce();
+            // T-220: the timeout catches a frame that never arrives instead of hanging the run. SpinOnce yields the CPU to
+            // the hub thread (Yield / Sleep(0), never Sleep(1): its ~15 ms tick on Windows tripled this test's duration).
+            DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
+            SpinWait spin = default;
             while (window.TakeLatest() is null)
             {
-                Thread.Yield();
+                Assert.True(DateTime.UtcNow < deadline, "Frame not delivered.");
+                spin.SpinOnce(sleep1Threshold: -1);
             }
 
             return ++taken;
@@ -67,6 +74,7 @@ public sealed class CameraStreamHubAllocationTests
         long minimum = long.MaxValue;
         for (int pass = 0; pass < 4 && minimum > 0; pass++)
         {
+            AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
             long before = GC.GetTotalAllocatedBytes(precise: true);
             for (int i = 0; i < Measured; i++)
             {
@@ -85,7 +93,7 @@ public sealed class CameraStreamHubAllocationTests
     {
         long allocated = await Task.Run(() => MeasureSamplesAsync(fromFeed: false), TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, allocated);
+        AllocationProbe.AssertNoneAllocated(allocated);
     }
 
     [Fact]
@@ -94,7 +102,7 @@ public sealed class CameraStreamHubAllocationTests
         // T-189: the feed converts the samples itself; the hub only copies them.
         long allocated = await Task.Run(() => MeasureSamplesAsync(fromFeed: true), TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, allocated);
+        AllocationProbe.AssertNoneAllocated(allocated);
     }
 
     /// <summary>
@@ -104,6 +112,7 @@ public sealed class CameraStreamHubAllocationTests
     /// </summary>
     private static async Task<long> MeasureSamplesAsync(bool fromFeed)
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         LockstepFeed feed = new(packets: false, grayscale: fromFeed ? new CameraGrayscaleSize(320, 180) : null);
         await using CameraStreamHub hub = new(new ReconnectingCameraFeed(new SingleFeedFactory(feed), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance), TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
         using Stopper stopper = new(feed);
@@ -121,9 +130,13 @@ public sealed class CameraStreamHubAllocationTests
         {
             feed.Produce();
             CameraFrameBuffer? sample;
+            // T-220: as in MeasureFramesAsync, yields to the hub thread and times out instead of hanging.
+            DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
+            SpinWait spin = default;
             while ((sample = samples.TakeLatest()) is null)
             {
-                Thread.Yield();
+                Assert.True(DateTime.UtcNow < deadline, "Sample not delivered.");
+                spin.SpinOnce(sleep1Threshold: -1);
             }
 
             sourceWidth = sample.SourceWidth;
@@ -137,6 +150,7 @@ public sealed class CameraStreamHubAllocationTests
         long minimum = long.MaxValue;
         for (int pass = 0; pass < 4 && minimum > 0; pass++)
         {
+            AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
             long before = GC.GetTotalAllocatedBytes(precise: true);
             for (int i = 0; i < Measured; i++)
             {
@@ -154,13 +168,15 @@ public sealed class CameraStreamHubAllocationTests
 
     private static async Task<long> MeasurePacketsAsync()
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         LockstepFeed feed = new(packets: true);
         // The fake is stopped before the hub waits for its connection to close (its pending read then ends).
         await using CameraStreamHub hub = new(new ReconnectingCameraFeed(new SingleFeedFactory(feed), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance), TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
         using Stopper stopper = new(feed);
         using CameraPacketSubscription recording = hub.SubscribePackets("mk4", StreamUri);
         using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        // A bug fails the test instead of hanging the run (set once: nothing of it runs in the measured loop).
+        // A bug fails the test instead of hanging the run: armed for the warm-up and again before each pass, never inside a
+        // measured loop (T-220: on a loaded machine every packet waits for a CPU, all passes together can take over a minute).
         stop.CancelAfter(TimeSpan.FromSeconds(60));
         IAsyncEnumerator<CameraStreamItem> items = recording.ReadAsync(stop.Token).GetAsyncEnumerator(stop.Token);
         try
@@ -176,6 +192,8 @@ public sealed class CameraStreamHubAllocationTests
             long minimum = long.MaxValue;
             for (int pass = 0; pass < 4 && minimum > 0; pass++)
             {
+                stop.CancelAfter(TimeSpan.FromSeconds(60));
+                AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
                 long before = GC.GetTotalAllocatedBytes(precise: true);
                 for (int i = 0; i < Measured; i++)
                 {
@@ -222,6 +240,7 @@ public sealed class CameraStreamHubAllocationTests
         private readonly SemaphoreSlim _requests = new(0);
         private readonly Thread _producer;
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly Lock _gate = new();
         private ManualResetValueTaskSourceCore<bool> _source;
         private bool _infoDelivered;
         private long _pts;
@@ -265,7 +284,17 @@ public sealed class CameraStreamHubAllocationTests
                 return new ValueTask<bool>(true);
             }
 
-            _source.Reset();
+            lock (_gate)
+            {
+                if (_stopped)
+                {
+                    // The producer may be gone: nobody would complete the read.
+                    return new ValueTask<bool>(false);
+                }
+
+                _source.Reset();
+            }
+
             _requests.Release();
             return new ValueTask<bool>(this, _source.Version);
         }
@@ -281,7 +310,11 @@ public sealed class CameraStreamHubAllocationTests
 
         public void Dispose()
         {
-            _stopped = true;
+            lock (_gate)
+            {
+                _stopped = true;
+            }
+
             _requests.Release();
             _credits.Release();
         }
@@ -293,6 +326,21 @@ public sealed class CameraStreamHubAllocationTests
                 _requests.Wait();
                 if (_stopped)
                 {
+                    // T-220: the wake-up may be the hub's next read, requested just before the stop (on a loaded machine
+                    // the test can stop the fake while this thread still waits for a CPU after the previous item). It
+                    // ends too, or the hub would wait for it forever when it closes the connection (the fake ignores
+                    // cancellation).
+                    bool pending;
+                    lock (_gate)
+                    {
+                        pending = _infoDelivered && _source.GetStatus(_source.Version) == ValueTaskSourceStatus.Pending;
+                    }
+
+                    if (pending)
+                    {
+                        _source.SetResult(false);
+                    }
+
                     return;
                 }
 

@@ -401,6 +401,7 @@ public sealed class CameraDashcamAllocationTests
     [Fact]
     public async Task SteadyStateBufferingDoesNotAllocate()
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         long minimum = long.MaxValue;
         for (int pass = 0; pass < 3 && minimum > 0; pass++)
         {
@@ -409,7 +410,7 @@ public sealed class CameraDashcamAllocationTests
             minimum = Math.Min(minimum, await MeasurePassAsync());
         }
 
-        Assert.Equal(0, minimum);
+        AllocationProbe.AssertNoneAllocated(minimum);
     }
 
     private static async Task<long> MeasurePassAsync()
@@ -427,6 +428,7 @@ public sealed class CameraDashcamAllocationTests
             sent = Send(packets, time, dashcam, sent, i);
         }
 
+        AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
         long before = GC.GetTotalAllocatedBytes(precise: true);
         for (int i = 0; i < MeasuredPackets; i++)
         {

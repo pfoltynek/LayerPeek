@@ -30,7 +30,7 @@ env:
   # No XML documentation files in the NuGet folder: smaller package cache, nothing reads them in CI.
   NUGET_XMLDOC_MODE: skip
   # Skips the few tests known to fail on a runner for a tracked reason (tests/Shared/ContinuousIntegration.cs; each skip
-  # names its task: T-220, T-221). Never set on a developer's machine.
+  # names its task: T-221). Never set on a developer's machine.
   LAYERPEEK_CI: '1'
 
 jobs:
