@@ -443,8 +443,9 @@ a kritérium.
       `context-menu-idle.json`). Zapsat i to, co ukáže Nastavení › Nahrávání u složky bez práva zápisu
       (`evidence/mac.recording/locked-settings-ax.json`, výňatek v řádku zprávy). Dále složku běhu, commit a řádek zprávy.
       `FAIL` = nový úkol.
-  - [ ] Hláška v Nastavení › Nahrávání u složky bez práva zápisu nastavené v `settings.json`: čeká na otázku 3 v T-210
-        (aplikace dnes hlášku ukáže jen po výběru složky přes „Změnit…“, T-213).
+  - [x] Hláška v Nastavení › Nahrávání u složky bez práva zápisu nastavené v `settings.json` → rozhodnuto uživatelem
+        2026-11-15 (T-210 otázka 3): **stačí dnešní chování** (bez pádu, bez nahrávky, notifikace a log); hláška jen po
+        výběru složky přes „Změnit…“ (T-213).
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
