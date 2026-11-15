@@ -52,7 +52,7 @@ public sealed partial class CiWorkflowTests
     }
 
     [Fact]
-    public void EveryJobHasATimeoutAndSupersededRunsAreCancelled()
+    public void EveryJobHasATimeout()
     {
         string[] lines = Lines();
         int jobs = Array.IndexOf(lines, "jobs:");
@@ -67,8 +67,26 @@ public sealed partial class CiWorkflowTests
                 lines[starts[j]..end].Any(static line => TimeoutLine().IsMatch(line)),
                 $"Job '{lines[starts[j]].Trim()}' has no timeout-minutes of its own.");
         }
+    }
 
-        Assert.Contains(lines, static line => line.Trim() == "cancel-in-progress: true");
+    /// <summary>
+    /// T-218: a push run is never cancelled and never takes the docs-only shortcut. A docs-only push once cancelled the run
+    /// of a code push and went green without testing that code; only a pull request (whose merge commit diff is the whole
+    /// pull request) may cancel its older run and skip the build.
+    /// </summary>
+    [Fact]
+    public void OnlyPullRequestsCancelOlderRunsAndSkipTheBuild()
+    {
+        string[] lines = Lines();
+        string[] code = [.. lines.Where(static line => !line.TrimStart().StartsWith('#'))];
+
+        Assert.Single(lines, static line => line.Trim().StartsWith("cancel-in-progress:", StringComparison.Ordinal));
+        Assert.Contains(lines, static line => line.Trim() == "cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
+        // The classification never looks at the push's own diff.
+        Assert.DoesNotContain(code, static line => line.Contains("event.before", StringComparison.Ordinal) || line.Contains("BEFORE", StringComparison.Ordinal));
+        Assert.Single(code, static line => line.Contains("files=$(git diff", StringComparison.Ordinal));
+        int diff = Array.FindIndex(code, static line => line.Contains("files=$(git diff --name-only HEAD^1 HEAD)", StringComparison.Ordinal));
+        Assert.True(diff > 0 && code[diff - 1].Trim() == "if [ \"$EVENT\" = pull_request ]; then", "The changed files are read for pull requests only.");
     }
 
     [Fact]
