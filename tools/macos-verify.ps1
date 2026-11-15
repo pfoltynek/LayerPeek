@@ -19,8 +19,9 @@
     test data folders (--layerpeek-e2e-clear-autostart), the LaunchServices registration, Preferences and caches of the
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
     tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items,
-    mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content or
-    mac.file-dialogs) Terminal in Privacy & Security > Accessibility (switch it off there yourself).
+    mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content,
+    mac.file-dialogs, mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live or mac.camera-next-attempt) Terminal in
+    Privacy & Security > Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
     when any check failed, 2 when the script could not run. The checks that need a visible desktop (mac.menubar,
@@ -445,7 +446,7 @@ function New-TestData {
     #>
     param($Context, $Simulator, [string] $Camera, [System.Collections.IDictionary] $Window, [System.Collections.IDictionary] $CameraOptions,
         [string] $RecordingFolder, [System.Collections.IDictionary] $RecordingOptions, [int] $PollingSeconds = 5, [switch] $SharedTemp, [switch] $Notifications,
-        [ValidateSet('Off', 'ImportantOnly', 'All')] [string] $Sound = 'Off', [switch] $Detection)
+        [ValidateSet('Off', 'ImportantOnly', 'All')] [string] $Sound = 'Off', [switch] $Detection, [System.Collections.IDictionary] $NotificationOptions)
     $base = if ($SharedTemp) { '/tmp' } else { [System.IO.Path]::GetTempPath() }
     $data = Join-Path $base "lpv-$(New-ShortId)"
     $null = New-Item -ItemType Directory -Force -Path $data
@@ -458,6 +459,8 @@ function New-TestData {
         notifications          = [ordered]@{ enabled = [bool] $Notifications; remainingTimeMinutes = 0; sound = $Sound }
         printers               = @()
     }
+    # -NotificationOptions (T-215): e.g. offline = $false next to the master switch.
+    if ($NotificationOptions) { foreach ($name in $NotificationOptions.Keys) { $settings.notifications[$name] = $NotificationOptions[$name] } }
     if ($Simulator) {
         $printer = [ordered]@{ id = $script:PrinterId; name = "LP verify $(New-ShortId)"; connectionType = 'PrusaLink'; address = $Simulator.Address; userName = $Simulator.User }
         if ($Camera) {
@@ -817,6 +820,70 @@ function Get-AxFocusedId($Context, [int] $ProcessId) { [string] (@(Invoke-Helper
 function Get-AxCenter($Node) { @([math]::Round($Node.frame.x + $Node.frame.width / 2, 1), [math]::Round($Node.frame.y + $Node.frame.height / 2, 1)) }
 
 function Get-AppType([int] $ProcessId) { Get-LaunchServicesAppType -ListOutput @(& /usr/bin/lsappinfo list 2>$null) -ProcessId $ProcessId }
+
+function Set-SimulatorPrinter($Simulator, [ValidateSet('offline', 'online')] [string] $State) {
+    <# .SYNOPSIS Switches the simulated printer off (its API stops answering) or on again (T-151, T-215). #>
+    $null = Invoke-RestMethod -Method Post -Uri "$($Simulator.BaseUri.TrimEnd('/'))/_simulator/$State" -TimeoutSec 10
+}
+
+function Invoke-HelperExit($Context, [string[]] $Arguments, [string] $Evidence) {
+    <# .SYNOPSIS The helper with its exit code (ExitCode, Output); -Evidence keeps the command, its exit code and its output. #>
+    $output = @(& (Get-Helper $Context) @Arguments 2>&1 | ForEach-Object { "$_" })
+    $code = $LASTEXITCODE
+    if ($Evidence) { $null = Save-VerifyEvidence -Context $Context -Name $Evidence -Content (@("$($Arguments -join ' '): exit code $code") + $output) }
+    [pscustomobject]@{ ExitCode = $code; Output = $output }
+}
+
+function Get-AxWindows($Context, [int] $ProcessId) {
+    <# .SYNOPSIS The windows of a process from the Accessibility API (helper 'axwindows': title, frame, main, focused, minimized, buttons). #>
+    @((Invoke-Helper $Context @('axwindows', "$ProcessId")) -join "`n" | ConvertFrom-Json)
+}
+
+function Test-AxWindowFocused($Context, [int] $ProcessId, [string] $Title) {
+    <# .SYNOPSIS Whether the process is the front app and its window with that title is its main and key window. #>
+    (Get-FrontProcessId) -eq $ProcessId -and @(Get-AxWindows $Context $ProcessId | Where-Object { $_.title -ceq $Title -and $_.main -and $_.focused }).Count -eq 1
+}
+
+function Get-CameraWindowFrame($Context, [int] $ProcessId, [int[]] $Except = @()) {
+    <# .SYNOPSIS The camera window of the process (Get-CameraWindow) leaving out the windows -Except (e.g. Settings, by number). #>
+    @(Get-ProcessWindows $Context $ProcessId | Where-Object { $_.onscreen -and $_.layer -ge 0 -and $_.layer -lt 25 -and $_.width -ge 80 -and $_.height -ge 45 -and $Except -notcontains $_.number } |
+            Sort-Object { $_.width * $_.height } -Descending) | Select-Object -First 1
+}
+
+function Wait-StableWindow {
+    <#
+    .SYNOPSIS
+        Polls a window (-Find returns it from the window list) every 100 ms until its bounds stayed the same for
+        -StableSeconds (the end of an animation, T-038 question 2); the window, or $null after -TimeoutSeconds.
+    #>
+    param([Parameter(Mandatory)] [scriptblock] $Find, [double] $StableSeconds = 1, [double] $TimeoutSeconds = 10)
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $lastKey = $null
+    $since = [DateTime]::UtcNow
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $window = & $Find
+        $key = if ($window) { "$($window.x),$($window.y),$($window.width),$($window.height)" } else { '' }
+        if ($key -ne $lastKey) { $lastKey = $key; $since = [DateTime]::UtcNow }
+        elseif ($window -and ([DateTime]::UtcNow - $since).TotalSeconds -ge $StableSeconds) { return $window }
+        Start-Sleep -Milliseconds 100
+    }
+    $null
+}
+
+function Open-SettingsTab($Context, [int] $ProcessId, [string[]] $Tabs, [string] $Target) {
+    <#
+    .SYNOPSIS
+        Presses the tabs (AXPress, in order) of the open Settings window until the element -Target is in the
+        Accessibility tree; the element, or $null.
+    #>
+    foreach ($tab in $Tabs) {
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $Context $ProcessId $tab) })) { return $null }
+        $null = Invoke-Helper $Context @('axpress', "$ProcessId", $tab) -AllowFailure
+    }
+    $script:settingsTarget = $null
+    $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:settingsTarget = Get-AxElement $Context $ProcessId $Target; $script:settingsTarget -and $script:settingsTarget.frame.width -gt 0 }
+    $script:settingsTarget
+}
 
 function Invoke-CameraPinCheck {
     <#
@@ -1826,6 +1893,598 @@ $checks = @(
 
             if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
             New-VerifyResult PASS "outline $($away.Pixels) px at every edge and corner of the mini preview ($(($sides | ForEach-Object { '{0} {1:0}/{2:0}' -f $_, $away.Edge.$_, $hover.Edge.$_ }) -join ', ') away/over; inside about $([math]::Round($away.Inner.top))), none in the normal window; the colours are fixed (white over the black content), so light and dark appearance look the same. Captures: mini-pointer-away.png, mini-pointer-over.png."
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.dock-windows' -Needs Session, Accessibility -Kind Permission `
+        -Permission "Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to read the Dock, its menu and the windows and to choose menu items, and an unlocked screen; for the notification part of (5) the notifications of 'LayerPeek E2E' allowed (mac.notifications)" `
+        -Title 'Dock and Cmd-Tab follow the windows (LaunchServices type Foreground / UIElement): (1) Settings and the camera window, back to none after the last one; (2) the Dock menu lists the windows, a press on the Dock item and on a window of its menu brings it to the front with the focus; (3) Bring camera to front; (4) the menu bar of the app is back after another app; (5) the camera window closed while the printer is offline and opened again where it was without taking the front, the mini preview on top without a Dock icon, no notification (simulator)' `
+        -Closes 'T-102 (ruční ověření: ikona v Docku a ⌘Tab podle oken, menu Docku se seznamem oken, klik na ikonu v Docku, fokus a pořadí oken, „Přenést kameru do popředí“; otázka 3: menu aplikace v menu baru po přepnutí na jinou aplikaci)', 'T-151 (ruční, Dock a ⌘Tab: okno zmizí při offline a objeví se na stejném místě bez krádeže fokusu, pořadí oken, malý náhled navrchu bez ikony v Docku, žádná notifikace)', 'T-215 kritérium 1' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $label = { param($Key) ConvertFrom-VerifyAccessText $texts[$Key] }
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            # Parts the script cannot judge here (notifications not allowed): a SKIP of the check with the reasons, never a PASS.
+            $skipped = [System.Collections.Generic.List[string]]::new()
+            $bundle = Get-TestBundle $c
+            $simulator = Get-Simulator $c
+            Set-SimulatorScenario $simulator 'idle'
+            $printerId = $script:PrinterId
+            # The LaunchServices type (rule of T-102): Foreground = Dock icon and Cmd-Tab, UIElement = neither.
+            $expectType = {
+                param([int] $AppId, [string] $Expected, [string] $What)
+                $script:appType = $null
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { ($script:appType = Get-AppType $AppId) -ceq $Expected })) { $problems.Add("${What}: LaunchServices type '$($script:appType)', expected $Expected") }
+            }
+            $titled = { param([int] $AppId, [string] $Title) @(Get-AxWindows $c $AppId | Where-Object title -CEQ $Title).Count -gt 0 }
+            $close = {
+                param([int] $AppId, [string] $Title, [string] $What)
+                $result = Invoke-HelperExit $c @('axwin', "$AppId", $Title, 'close')
+                if ($result.ExitCode -ne 0 -or -not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { -not (& $titled $AppId $Title) })) { $problems.Add("${What}: the window '$Title' did not close ($($result.Output -join ' '))") }
+            }
+            $finder = { if (-not (Invoke-FinderToFront)) { throw "Finder did not come to the front (front app $(Get-FrontAppText))" } }
+            # An ordinary other app (helper front regular: Dock icon, its own menu bar) in front, its window at a point.
+            $otherApp = {
+                param([double] $X, [double] $Y)
+                $other = Start-HelperProcess $c @('front', "$X", "$Y", '300', 'regular') (Join-Path $c.RunFolder 'tmp' "front-$(New-ShortId).txt")
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $other.Id })) { throw "the stand-in app did not come to the front (front app $(Get-FrontAppText))" }
+                $other
+            }
+            $stopOther = { param($Other) if ($Other -and -not $Other.HasExited) { $Other.Kill(); $Other.WaitForExit() } }
+            $menuBar = { (Invoke-Helper $c @('focusedmenubar')) -join "`n" | ConvertFrom-Json }
+
+            # (1) to (4): one app with Settings and a normal camera window.
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $cameraTitle = $texts['CameraTitle'] -f $name
+            $settingsTitle = $texts['SettingsTitle']
+            $app = Start-TestApp -Context $c -TestData $data
+            $appId = $app.Id
+            $other = $null
+            try {
+                & $expectType $appId 'UIElement' '(1) no window'
+                Send-TestCommand $data 'settings'
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { & $titled $appId $settingsTitle })) { throw "Settings ('$settingsTitle') did not open" }
+                & $expectType $appId 'Foreground' '(1) Settings open'
+                & $close $appId $settingsTitle '(1)'
+                & $expectType $appId 'UIElement' '(1) Settings closed'
+                Send-TestCommand $data "camera:$printerId"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { & $titled $appId $cameraTitle })) { throw "the camera window ('$cameraTitle') did not open" }
+                & $expectType $appId 'Foreground' '(1) camera window open'
+                Send-TestCommand $data 'settings'
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { & $titled $appId $settingsTitle })) { throw 'Settings did not open next to the camera window' }
+                $null = Save-VerifyEvidence -Context $c -Name 'ax-windows.json' -Content (ConvertTo-VerifyJsonArray (Get-AxWindows $c $appId) -Depth 5)
+
+                # (2) The Dock item: its menu lists both windows; a press on it and on the camera window of its menu.
+                $info = Invoke-HelperExit $c @('dock', $bundle.Path, 'info') 'dock-info.txt'
+                if ($info.ExitCode -ne 0) { $problems.Add("(2) no Dock item of the test bundle with two windows open: $($info.Output -join ' ')") }
+                else {
+                    & $finder
+                    $menu = Invoke-HelperExit $c @('dock', $bundle.Path, 'menu') 'dock-menu.txt'
+                    if ($menu.ExitCode -ne 0) { $problems.Add("(2) the Dock menu did not open: $($menu.Output -join ' ')") }
+                    else { foreach ($problem in Get-VerifyDockMenuProblems -MenuItems @($menu.Output -join "`n" | ConvertFrom-Json) -WindowTitles $cameraTitle, $settingsTitle) { $problems.Add("(2) $problem") } }
+                    & $finder
+                    $press = Invoke-HelperExit $c @('dock', $bundle.Path, 'press') 'dock-press.txt'
+                    $script:focusedTitle = $null
+                    $raised = $press.ExitCode -eq 0 -and (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId -and ($script:focusedTitle = @(Get-AxWindows $c $appId | Where-Object { $_.main -and $_.focused } | ForEach-Object title)[0]) })
+                    if (-not $raised) { $problems.Add("(2) AXPress on the Dock item brought no window of the app to the front with the focus (front app $(Get-FrontAppText); $($press.Output -join ' '))") }
+                    else { $notes.Add("(2) the Dock menu lists both windows; the Dock item brought '$($script:focusedTitle)' to the front with the focus") }
+                    & $finder
+                    $choose = Invoke-HelperExit $c @('dock', $bundle.Path, 'menupress', $cameraTitle) 'dock-menupress.txt'
+                    if ($choose.ExitCode -ne 0) { $problems.Add("(2) the item '$cameraTitle' of the Dock menu: $($choose.Output -join ' ')") }
+                    elseif (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { Test-AxWindowFocused $c $appId $cameraTitle })) { $problems.Add("(2) the Dock menu item '$cameraTitle' did not bring the camera window to the front with the focus (front app $(Get-FrontAppText))") }
+                    else { $notes.Add('(2) its window item brought the camera window to the front with the focus') }
+                }
+
+                # (3) "Bring camera to front" of the status item menu (T-209) gives the camera window the focus.
+                & $finder
+                $printer = $texts['MenuPrinter'] -f $name, $texts['StateIdle']
+                $toFront = Invoke-MenuPress $c $appId "$printer>$(& $label 'MenuCameraToFront')"
+                if ($toFront.ExitCode -ne 0) { $problems.Add("(3) menupress '$(& $label 'MenuCameraToFront')': $($toFront.Output -join ' ')") }
+                elseif (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { Test-AxWindowFocused $c $appId $cameraTitle })) { $problems.Add("(3) '$(& $label 'MenuCameraToFront')' did not give the camera window the focus (front app $(Get-FrontAppText))") }
+                else { $notes.Add("(3) '$(& $label 'MenuCameraToFront')' gave the camera window the focus") }
+
+                # (4) T-102 question 3: the menu bar of the app is back after another ordinary app was in front.
+                $before = & $menuBar
+                $screen = @(Get-Screens $c | Where-Object main)[0]
+                $other = & $otherApp ($screen.visible.x + 16) ($screen.visible.y + 16)
+                $during = & $menuBar
+                $back = Invoke-HelperExit $c @('dock', $bundle.Path, 'press')
+                $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId }
+                Start-Sleep -Milliseconds 500
+                $after = & $menuBar
+                $null = Save-VerifyEvidence -Context $c -Name 'menu-bar.json' -Content ([ordered]@{ before = $before; otherApp = $during; after = $after } | ConvertTo-Json -Depth 6)
+                $beforeTitles = @($before.items | ForEach-Object title)
+                $afterTitles = @($after.items | ForEach-Object title)
+                if ($before.pid -ne $appId -or $beforeTitles.Count -eq 0) { $problems.Add("(4) with the app in front the menu bar showed pid $($before.pid) with $($beforeTitles.Count) item(s)") }
+                elseif ($during.pid -ne $other.Id) { $problems.Add("(4) the stand-in app did not get the menu bar (pid $($during.pid))") }
+                elseif ($back.ExitCode -ne 0 -or $after.pid -ne $appId -or ($afterTitles -join '|') -cne ($beforeTitles -join '|')) {
+                    $problems.Add("(4) T-102 question 3: the menu bar of the app is not back after the other app (pid $($after.pid), items $($afterTitles -join ', '); before: $($beforeTitles -join ', ')) - a new task")
+                }
+                else { $notes.Add("(4) T-102 question 3: the menu bar of the app is back after another app ($($afterTitles -join ', '))") }
+                & $stopOther $other
+                $other = $null
+
+                # (1) The last window closed: no Dock icon again.
+                & $close $appId $settingsTitle '(1)'
+                & $close $appId $cameraTitle '(1)'
+                & $expectType $appId 'UIElement' '(1) the last window closed'
+                $notes.Add('(1) type Foreground with Settings or the camera window, UIElement without a window')
+            }
+            finally {
+                & $stopOther $other
+                $null = Stop-TestApp $data $app
+            }
+
+            # (5) T-151: an outage of the printer with the camera window open and an ordinary other app in front.
+            $closedText = "Closing the camera window of printer ${printerId}: the printer is offline."
+            $openedText = "Opening the camera window of printer $printerId again: the printer is online."
+            $outage = {
+                param($Data, $App, [string] $Part, [switch] $Mini)
+                $id = $App.Id
+                $type = if ($Mini) { 'UIElement' } else { 'Foreground' }
+                Send-TestCommand $Data "camera:$printerId"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $w = Get-CameraWindow $c $id; $w -and (-not $Mini -or $w.layer -gt 0) })) { $problems.Add("$Part no camera window opened"); return }
+                $before = Wait-StableWindow -Find { Get-CameraWindow $c $id }
+                & $expectType $id $type "$Part camera window open"
+                $other = & $otherApp ($before.x + 40) ($before.y + 40)
+                try {
+                    $otherWindow = @(Get-ProcessWindows $c $other.Id | Where-Object { $_.onscreen -and $_.layer -eq 0 }) | Select-Object -First 1
+                    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+                    Set-SimulatorPrinter $simulator 'offline'
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 90 -IntervalMilliseconds 500 -Condition { (Read-TestLog $Data).Contains($closedText) -and -not (Get-CameraWindow $c $id) })) { $problems.Add("$Part the camera window did not close within 90 s after the printer went offline"); return }
+                    $closeSeconds = [math]::Round($clock.Elapsed.TotalSeconds, 1)
+                    & $expectType $id 'UIElement' "$Part after the automatic close"
+                    $clock.Restart()
+                    Set-SimulatorPrinter $simulator 'online'
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 60 -Condition { (Read-TestLog $Data).Contains($openedText) -and (Get-CameraWindow $c $id) })) { $problems.Add("$Part the camera window did not open again within 60 s after the printer came back"); return }
+                    $openSeconds = [math]::Round($clock.Elapsed.TotalSeconds, 1)
+                    $after = Wait-StableWindow -Find { Get-CameraWindow $c $id }
+                    Start-Sleep -Milliseconds 1500
+                    $place = Get-VerifyBoundsProblem -Actual $after -Expected $before
+                    if ($place) { $problems.Add("$Part the window opened again elsewhere: $place") }
+                    if ((Get-FrontProcessId) -ne $other.Id) { $problems.Add("$Part the reopened window took the front from the other app (front app $(Get-FrontAppText))") }
+                    & $expectType $id $type "$Part after the reopening"
+                    # A point inside both windows: which one is in front there.
+                    $at = @((Invoke-Helper $c @('windowsat', "$($before.x + 60)", "$($before.y + 50)")) -join "`n" | ConvertFrom-Json)
+                    $null = Save-VerifyEvidence -Context $c -Name "windows-at-$(if ($Mini) { 'mini' } else { 'normal' }).json" -Content (ConvertTo-VerifyJsonArray $at)
+                    $order = if ($otherWindow -and $after) { Get-VerifyWindowOrder -Windows $at -Number $after.number -Other $otherWindow.number } else { 'unknown' }
+                    if ($Mini -and ($after.layer -le 0 -or $order -ne 'above')) { $problems.Add("$Part the mini preview is not on top (layer $($after.layer), $order the window of the active app)") }
+                    [pscustomobject]@{ Close = $closeSeconds; Open = $openSeconds; Order = $order; Window = $after }
+                }
+                finally {
+                    Set-SimulatorPrinter $simulator 'online'
+                    & $stopOther $other
+                }
+            }
+            $permission = (Get-TestNotificationStatus $c).Permission
+            $toasts = $permission -eq 'Allowed'
+            $delivered = {
+                $result = Invoke-BundleTool $bundle @('--layerpeek-e2e-notification-list')
+                $parsed = if ($result.ExitCode -eq 0) { ConvertFrom-VerifyNotificationList -Output $result.Output -BundleIdentifier $script:TestBundleId }
+                if (-not $parsed) { throw "The list mode of the test bundle answered ($($result.ExitCode)): $($result.Output -join ' ')" }
+                @($parsed.Notifications)
+            }
+            # Notifications on except going offline and back (those are notified by design): the reopened window must add none.
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' }) -Notifications:$toasts -NotificationOptions ([ordered]@{ offline = $false })
+            if ($toasts) { $null = Invoke-BundleTool $bundle @('--layerpeek-e2e-clear-toasts') }
+            $app = if ($toasts) { Get-Process -Id (Start-TestAppViaOpen -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_TOASTS = '1' }) } else { Start-TestApp -Context $c -TestData $data }
+            try {
+                $known = if ($toasts) { @(& $delivered | ForEach-Object identifier) } else { @() }
+                $normal = & $outage $data $app '(5)'
+                if ($normal) { $notes.Add("(5) the camera window closed $($normal.Close) s after the printer went offline and opened again $($normal.Open) s after it came back, at the same place ($(Format-VerifyBounds $normal.Window)), $($normal.Order) the window of the active app, which stayed in front") }
+                if ($toasts) {
+                    $new = @(& $delivered | Where-Object { $known -notcontains $_.identifier })
+                    $null = Save-VerifyEvidence -Context $c -Name 'notifications-after-outage.json' -Content (ConvertTo-VerifyJsonArray $new -Depth 6)
+                    if ($new.Count -gt 0) { $problems.Add("(5) $($new.Count) new notification(s) during the outage: $(@($new | ForEach-Object { "'$($_.title)' / '$($_.body)'" }) -join ', ')") }
+                    else { $notes.Add('(5) no new notification') }
+                }
+                else { $skipped.Add("(5) no new notification: the notifications of 'LayerPeek E2E' are $permission (allow them once with 'pwsh tools/macos-verify.ps1 -Only mac.notifications')") }
+            }
+            finally {
+                $null = Stop-TestApp $data $app
+                if ($toasts) { $null = Invoke-BundleTool $bundle @('--layerpeek-e2e-clear-toasts') }
+            }
+            # The mini preview (always on top) with the short delays of the test mode.
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Mini' })
+            $app = Start-TestApp -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_CAMERA_CLOSE_AFTER_MS = '3000'; LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS = '2000' }
+            try {
+                $mini = & $outage $data $app '(5) mini preview:' -Mini
+                if ($mini) { $notes.Add("(5) the mini preview opened again on top of the active app at the same place without a Dock icon (UIElement)") }
+            }
+            finally { $null = Stop-TestApp $data $app }
+
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            if ($skipped.Count -gt 0) { Skip-VerifyCheck "everything else as expected, not judged: $($skipped -join '; '). Done: $($notes -join '; ')." }
+            New-VerifyResult PASS ($notes -join '; ')
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.mini-after-fullscreen' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to press the window buttons, Esc and Apply and to read the windows, and an unlocked screen' `
+        -Title 'from full screen straight into the mini preview three ways (its button, Esc of a full screen opened from the mini preview, Apply in Settings during full screen): after the animation (bounds steady for 1 s) the size and corner of the saved mini preview (1 pt) and no window frame (simulator)' `
+        -Closes 'T-038 (otázka 2, krok J5: z celé obrazovky rovnou do malého náhledu – velikost, roh a rámeček po animaci)', 'T-215 kritérium 2' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $simulator = Get-Simulator $c
+            Set-SimulatorScenario $simulator 'idle'
+            $screens = @(Get-Screens $c)
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            $rows = [System.Collections.Generic.List[object]]::new()
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Mini'; mini = [ordered]@{ width = 320; height = 180; corner = 'BottomRight' } })
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $cameraTitle = $texts['CameraTitle'] -f $name
+            $settingsTitle = $texts['SettingsTitle']
+            $app = Start-TestApp -Context $c -TestData $data
+            $appId = $app.Id
+            # The camera window by its number (it stays one window in every mode); other windows (Settings) never count.
+            $script:cameraNumber = 0
+            $script:otherWindows = @()
+            $find = {
+                $w = @(Get-ProcessWindows $c $appId | Where-Object { $_.number -eq $script:cameraNumber -and $_.onscreen }) | Select-Object -First 1
+                if (-not $w) { $w = Get-CameraWindowFrame $c $appId $script:otherWindows; if ($w) { $script:cameraNumber = $w.number } }
+                $w
+            }
+            $fullScreen = {
+                param([string] $Part)
+                $null = Invoke-Helper $c @('axpress', "$appId", 'CameraFullScreenButton') -AllowFailure
+                $script:full = $null
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $script:full = & $find; $script:full -and (Test-FullScreen $script:full $screens) })) { $problems.Add("$Part the window did not go full screen ($(Format-VerifyBounds $script:full))"); return $false }
+                $null = Wait-StableWindow -Find $find
+                $true
+            }
+            # The window after the animation: size, corner (distances from the usable area of its screen), frame; compared with -Reference.
+            $measure = {
+                param([string] $Part, $Reference)
+                $window = Wait-StableWindow -Find $find -TimeoutSeconds 15
+                $ax = @(Get-AxWindows $c $appId | Where-Object title -CEQ $cameraTitle) | Select-Object -First 1
+                $screen = Get-VerifyScreenOf $screens $window
+                $corner = if ($window -and $screen) { Get-VerifyWindowCorner -Window $window -Area $screen.visible }
+                $buttons = @($ax.buttons | Where-Object { $_ })
+                $rows.Add([ordered]@{ Part = $Part; Window = $window; Screen = $screen.name; Corner = $corner; Buttons = $buttons; FullScreen = [bool] ($window -and (Test-FullScreen $window $screens)) })
+                $frameText = if ($buttons.Count -gt 0) { "a title bar ($($buttons -join ', '))" } else { 'no frame' }
+                $text = "$Part $(Format-VerifyBounds $window), corner $($corner.Corner) (left $($corner.Left), top $($corner.Top), right $($corner.Right), bottom $($corner.Bottom) pt), $frameText, layer $($window.layer)"
+                if ($Reference) {
+                    $size = Get-VerifyBoundsProblem -Actual $window -Expected $Reference.Window -Tolerance 1 -SizeOnly
+                    if ($size) { $problems.Add("$Part size $size") }
+                    if ($corner.Corner -cne $Reference.Corner.Corner) { $problems.Add("$Part corner $($corner.Corner), expected $($Reference.Corner.Corner)") }
+                    else {
+                        $edges = @($(if ($corner.Corner.StartsWith('Top')) { 'Top' } else { 'Bottom' }), $(if ($corner.Corner.EndsWith('Left')) { 'Left' } else { 'Right' }))
+                        foreach ($edge in $edges) { if ([math]::Abs($corner.$edge - $Reference.Corner.$edge) -gt 1) { $problems.Add("$Part $($edge.ToLowerInvariant()) distance $($corner.$edge) pt, expected $($Reference.Corner.$edge) pt") } }
+                    }
+                    if ($buttons.Count -gt 0) { $problems.Add("$Part has a window frame ($frameText), expected none") }
+                }
+                $notes.Add($text)
+                [pscustomobject]@{ Window = $window; Corner = $corner }
+            }
+            try {
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $w = & $find; $w -and $w.layer -gt 0 })) { return New-VerifyResult FAIL 'no mini preview opened.' }
+                $reference = & $measure 'saved mini preview:' $null
+                if (-not $reference.Corner) { return New-VerifyResult FAIL "the mini preview is on no screen ($(Format-VerifyBounds $reference.Window))." }
+
+                # (a) The mini preview button of the full screen.
+                if (& $fullScreen '(a)') {
+                    $null = Invoke-Helper $c @('axpress', "$appId", 'CameraMiniButton') -AllowFailure
+                    $null = & $measure '(a) mini preview button:' $reference
+                }
+                # (b) Esc of a full screen opened from the mini preview (the key goes to the key window of the front app).
+                if (& $fullScreen '(b)') {
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { Test-AxWindowFocused $c $appId $cameraTitle })) { $problems.Add("(b) the full screen window has no keyboard focus for Esc (front app $(Get-FrontAppText))") }
+                    else {
+                        $null = Invoke-Helper $c @('key', 'escape')
+                        $null = & $measure '(b) Esc:' $reference
+                    }
+                }
+                # (c) Apply in Settings (Printers > Camera window) while the window is full screen: the saved start mode is Mini.
+                if (& $fullScreen '(c)') {
+                    Send-TestCommand $data 'settings'
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { @(Get-AxWindows $c $appId | Where-Object title -CEQ $settingsTitle).Count -gt 0 })) { $problems.Add('(c) Settings did not open') }
+                    else {
+                        $script:otherWindows = @(Get-ProcessWindows $c $appId | Where-Object { $_.layer -eq 0 -and $_.number -ne $script:cameraNumber } | ForEach-Object number)
+                        if (-not (Open-SettingsTab $c $appId @('SettingsTabPrinters', 'PrinterTabCameraWindow') 'PrinterCameraWindowApply')) { $problems.Add('(c) no Apply button (PrinterCameraWindowApply) on Settings > Printers > Camera window') }
+                        else {
+                            $null = Invoke-Helper $c @('axpress', "$appId", 'PrinterCameraWindowApply')
+                            $null = & $measure '(c) Apply in Settings:' $reference
+                        }
+                        $null = Invoke-HelperExit $c @('axwin', "$appId", $settingsTitle, 'close')
+                    }
+                }
+            }
+            finally {
+                $null = Stop-TestApp $data $app
+                $null = Save-VerifyEvidence -Context $c -Name 'placements.json' -Content (ConvertTo-VerifyJsonArray $rows -Depth 6)
+            }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; '). Measured: $($notes -join '; '). The fix approved in T-038 question 2 (place the mini preview again after the animation) is a new task." }
+            New-VerifyResult PASS "the mini preview keeps its size, corner and no frame after full screen three ways: $($notes -join '; ')"
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.camera-live' -Needs Session, Accessibility, ScreenRecording -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to press the window buttons, drag and read the windows, Screen Recording for the terminal (window captures), and an unlocked screen' `
+        -Title 'live camera image in the normal window, full screen and the mini preview (two captures 1 s apart differ, the print status overlay in the Accessibility tree); while the grip of the mini preview is dragged, the mode switches (also with the green button) and the window moves to another monitor, no capture (every ~100 ms) is black and the stream is never opened again (simulator)' `
+        -Closes 'T-026 (krit. „Stream … ve všech režimech okna“, ruční část mac.camera-look: živý obraz a překryv ve všech třech režimech)', 'T-184 (část „nic nebliká a nezčerná, stream se nepřeruší“: tažení úchytu, přepnutí režimu i zeleným tlačítkem, přesun mezi monitory)', 'T-215 kritérium 3' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        if ((Invoke-Helper $c @('screenrecording')) -notcontains 'true') { Skip-VerifyCheck 'needs Screen Recording for the terminal (System Settings > Privacy & Security > Screen & System Audio Recording), then a restart of the terminal.' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $simulator = Get-Simulator $c
+            Set-SimulatorScenario $simulator 'printing'
+            $port = $simulator.CameraPort
+            $screens = @(Get-Screens $c)
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $cameraTitle = $texts['CameraTitle'] -f $name
+            $app = Start-TestApp -Context $c -TestData $data
+            $appId = $app.Id
+            $script:cameraNumber = 0
+            $find = {
+                $w = @(Get-ProcessWindows $c $appId | Where-Object { $_.number -eq $script:cameraNumber -and $_.onscreen }) | Select-Object -First 1
+                if (-not $w) { $w = Get-CameraWindow $c $appId; if ($w) { $script:cameraNumber = $w.number } }
+                $w
+            }
+            $waitMode = {
+                param([string] $Mode, [string] $What)
+                $script:modeWindow = $null
+                $ok = Wait-VerifyCondition -TimeoutSeconds 15 -Condition {
+                    $script:modeWindow = & $find
+                    $w = $script:modeWindow
+                    $w -and $(switch ($Mode) { 'FullScreen' { Test-FullScreen $w $screens } 'Mini' { $w.layer -gt 0 -and -not (Test-FullScreen $w $screens) } default { $w.layer -eq 0 -and -not (Test-FullScreen $w $screens) } })
+                }
+                if (-not $ok) { $problems.Add("${What}: the window did not reach $Mode ($(Format-VerifyBounds $script:modeWindow), layer $($script:modeWindow.layer))") }
+                $null = Wait-StableWindow -Find $find
+                $ok
+            }
+            $capture = {
+                param([string] $Name)
+                $file = Join-Path (Get-VerifyEvidenceFolder $c) "$Name.png"
+                & /usr/sbin/screencapture -x -o -l "$($script:cameraNumber)" $file
+                if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $file)) { return $null }
+                $file
+            }
+            # Two captures 1 s apart differ in the image area (Surface); the print status overlay is in the Accessibility tree.
+            $live = {
+                param([string] $Mode)
+                $window = Wait-StableWindow -Find $find
+                $surface = Get-AxElement $c $appId 'Surface'
+                if (-not $window -or -not $surface) { $problems.Add("${Mode}: no camera window or image (Surface) to capture"); return }
+                $first = & $capture "live-$Mode-1"
+                Start-Sleep -Seconds 1
+                $second = & $capture "live-$Mode-2"
+                if (-not $first -or -not $second) { $problems.Add("${Mode}: screencapture of window $($script:cameraNumber) failed"); return }
+                $diffArguments = @('regiondiff', $first, $second, "$($window.width)", "$($surface.frame.x - $window.x)", "$($surface.frame.y - $window.y)", "$($surface.frame.width)", "$($surface.frame.height)")
+                $diff = (Invoke-Helper $c $diffArguments -AllowFailure) -join "`n" | ConvertFrom-Json -ErrorAction SilentlyContinue
+                $verdict = Get-VerifyLiveImageVerdict -Diff $diff
+                if (-not $verdict.Live) { $problems.Add("${Mode}: the camera image did not change within 1 s ($($verdict.Detail); live-$Mode-1.png, live-$Mode-2.png)") }
+                $overlayId = if ($Mode -eq 'mini') { 'CameraMiniSummary' } else { 'CameraOverlay' }
+                $overlay = Get-AxElement $c $appId $overlayId
+                $shown = @(if ($overlay) { Get-AxNodes @($overlay) | Where-Object { "$($_.title)$($_.value)$($_.description)" } })
+                if (-not $overlay -or $overlay.frame.width -le 0 -or $shown.Count -eq 0) { $problems.Add("${Mode}: no print status overlay ($overlayId) with a text in the Accessibility tree") }
+                $notes.Add("${Mode}: live ($($verdict.Detail)), $overlayId with $($shown.Count) text(s)")
+            }
+            $press = { param([string] $Id) $null = Invoke-Helper $c @('axpress', "$appId", $Id) -AllowFailure }
+            $watch = $null
+            $frames = Join-Path $c.RunFolder 'tmp' "luma-$(New-ShortId)"
+            $watchFile = Join-Path (Get-VerifyEvidenceFolder $c) 'luma-watch.jsonl'
+            try {
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (& $waitMode 'Normal' 'open')) { return New-VerifyResult FAIL "no normal camera window opened: $($problems -join '; ')" }
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-RtspConnections $appId $port).Count -gt 0 })) { return New-VerifyResult FAIL "no RTSP connection to port $port within 20 s." }
+                Start-Sleep -Seconds 2
+                & $live 'normal'
+                & $press 'CameraFullScreenButton'
+                if (& $waitMode 'FullScreen' 'full screen button') { & $live 'full-screen' }
+                & $press 'CameraMiniButton'
+                if (& $waitMode 'Mini' 'mini preview button') { & $live 'mini' }
+
+                # T-184: a capture every ~100 ms while the window changes; the stream stays the same connection.
+                $peers = @(Get-VerifyRtspPeers (Get-RtspConnections $appId $port))
+                $logBefore = (Read-TestLog $data).Length
+                $watch = Start-HelperProcess $c @('lumawatch', "$($script:cameraNumber)", '100', '180', $frames) $watchFile
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (Test-Path -LiteralPath $watchFile) -and (Get-Item -LiteralPath $watchFile).Length -gt 0 })) { throw 'the capture watch did not start' }
+                Start-Sleep -Milliseconds 800
+                $steps = [System.Collections.Generic.List[string]]::new()
+                # 1. The top left grip of the mini preview dragged outwards (the preview grows away from its corner).
+                $w = & $find
+                $null = Invoke-Helper $c @('drag', "$($w.x + 3)", "$($w.y + 3)", "$($w.x - 77)", "$($w.y - 42)", '800')
+                $grown = Wait-StableWindow -Find $find
+                if (-not $grown -or $grown.width -le $w.width) { $problems.Add("the grip drag did not resize the mini preview ($(Format-VerifyBounds $w) -> $(Format-VerifyBounds $grown))") }
+                else { $steps.Add("grip drag $(Format-VerifyBounds $w) -> $(Format-VerifyBounds $grown)") }
+                # 2. Mini preview -> normal window, the green button to full screen and back, full screen button, mini button.
+                & $press 'CameraNormalButton'
+                if (& $waitMode 'Normal' 'normal window button') { $steps.Add('mini preview -> normal window') }
+                $green = Invoke-HelperExit $c @('axwin', "$appId", $cameraTitle, 'fullscreen') 'green-button-1.txt'
+                if ($green.ExitCode -ne 0) { $problems.Add("the green button: $($green.Output -join ' ')") }
+                elseif (& $waitMode 'FullScreen' 'green button') {
+                    $steps.Add('green button -> full screen')
+                    $green = Invoke-HelperExit $c @('axwin', "$appId", $cameraTitle, 'fullscreen') 'green-button-2.txt'
+                    if ($green.ExitCode -ne 0) { $problems.Add("the green button in full screen: $($green.Output -join ' ')") }
+                    elseif (& $waitMode 'Normal' 'green button in full screen') { $steps.Add('green button -> normal window') }
+                }
+                & $press 'CameraFullScreenButton'
+                if (& $waitMode 'FullScreen' 'full screen button') { $steps.Add('full screen button') }
+                & $press 'CameraMiniButton'
+                if (& $waitMode 'Mini' 'mini preview button') { $steps.Add('full screen -> mini preview') }
+                # 3. The mini preview dragged by its image to another monitor.
+                $w = & $find
+                $from = Get-VerifyScreenOf $screens $w
+                $to = @($screens | Where-Object { $from -and $_.id -ne $from.id }) | Select-Object -First 1
+                if ($to) {
+                    $null = Invoke-Helper $c @('drag', "$($w.x + $w.width / 2)", "$($w.y + $w.height / 3)", "$($to.visible.x + $to.visible.width / 2)", "$($to.visible.y + $to.visible.height / 2)", '1200')
+                    $moved = Wait-StableWindow -Find $find
+                    if ((Get-VerifyScreenOf $screens $moved).id -ne $to.id) { $problems.Add("dragging the mini preview did not move it to $($to.name) ($(Format-VerifyBounds $moved))") }
+                    else { $steps.Add("moved from $($from.name) (@$($from.scale)x) to $($to.name) (@$($to.scale)x)") }
+                }
+                else { $notes.Add('one monitor: no move between monitors') }
+                Start-Sleep -Milliseconds 800
+
+                $after = @(Get-VerifyRtspPeers (Get-RtspConnections $appId $port))
+                if ($peers.Count -eq 0 -or ($after -join ',') -cne ($peers -join ',')) { $problems.Add("the RTSP connection changed during the steps ($($peers -join ', ') -> $($after -join ', ')): the stream was opened again") }
+                $newLog = (Read-TestLog $data).Substring([math]::Min($logBefore, (Read-TestLog $data).Length))
+                $failures = @($newLog -split "`n" | Where-Object { $_ -match "Camera stream '.*' (failed|ended|sent no frame)" })
+                if ($failures.Count -gt 0) { $problems.Add("the camera stream failed or ended during the steps: $($failures[0])") }
+                $notes.Add("steps: $($steps -join ', ')")
+            }
+            finally {
+                if ($watch -and -not $watch.HasExited) { $watch.Kill(); $watch.WaitForExit() }
+                $null = Stop-TestApp $data $app
+            }
+            $captures = @(ConvertFrom-VerifyAxWatch @(Get-Content -LiteralPath $watchFile -ErrorAction SilentlyContinue))
+            $black = Get-VerifyBlackFrames -Frames $captures
+            if ($black.Frames -lt 20) { $problems.Add("only $($black.Frames) window capture(s) with a value ($($black.Errors) failed; luma-watch.jsonl)") }
+            if ($black.Black.Count -gt 0) {
+                $darkest = @($black.Black | Sort-Object { [double] $_.mean })[0]
+                Copy-Item -LiteralPath (Join-Path $frames $darkest.file) -Destination (Join-Path (Get-VerifyEvidenceFolder $c) 'darkest-capture.png') -ErrorAction SilentlyContinue
+                $problems.Add("$($black.Black.Count) of $($black.Frames) captures black (mean luminance below $($black.Threshold), baseline $($black.Baseline)) at $(@($black.Black | Select-Object -First 5 | ForEach-Object { "$($_.ms) ms" }) -join ', ') (darkest-capture.png)")
+            }
+            if (Test-Path -LiteralPath $frames) { Remove-Item -LiteralPath $frames -Recurse -Force }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS "$($notes -join '; '); $($black.Frames) captures every ~100 ms, none black (baseline $($black.Baseline), threshold $($black.Threshold), $($black.Errors) failed captures), the RTSP connection stayed the same. Sharpness and colours stay a manual point (T-184)."
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.camera-next-attempt' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to read the camera window, press its buttons, minimize it and press Test camera, and an unlocked screen' `
+        -Title 'the next attempt line of the camera window with the camera off (T-188 / T-194): about 5, 10, 20, 40 s and 1 min, counting down by the second; missing in the mini preview and back with the current value; a mode switch does not shorten the pause; minimized and restored during the minute: a new attempt at once; the camera back: the line goes and the stream runs; the window closed during a pause the recording holds: Test camera in Settings succeeds at once (simulator, real time, about 3 min)' `
+        -Closes 'T-188 (ruční část kromě délky textu: hodnoty 5, 10, 20, 40 s a 1 min, malý náhled, minimalizace, přepnutí režimu, po návratu kamery řádek zmizí)', 'T-194 (odpočet po sekundách; „Otestovat kameru“ během pauzy uspěje hned)', 'T-215 kritérium 4' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $secondsFormat = $texts['CameraNextAttemptSeconds']
+            $minutesFormat = $texts['CameraNextAttemptMinutes']
+            $connecting = $texts['CameraConnecting']
+            $success = ($texts['SettingsCameraTestSuccess'] -split '\{0\}', 2)[0]
+            $simulator = Get-Simulator $c
+            Set-SimulatorScenario $simulator 'printing'
+            $port = $simulator.CameraPort
+            $screens = @(Get-Screens $c)
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            # The recording of the print holds the stream (and its pause) while the window is closed (T-194).
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' }) -CameraOptions ([ordered]@{ recordPrints = $true }) -RecordingFolder 'Recordings'
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $cameraTitle = $texts['CameraTitle'] -f $name
+            $settingsTitle = $texts['SettingsTitle']
+            $app = Start-TestApp -Context $c -TestData $data
+            $appId = $app.Id
+            $watchFile = Join-Path (Get-VerifyEvidenceFolder $c) 'next-attempt-watch.jsonl'
+            $watch = $null
+            # The line now (the last line of the watch: it prints every change): seconds, or $null when it is not shown.
+            $current = {
+                $last = @(ConvertFrom-VerifyAxWatch @(Get-Content -LiteralPath $watchFile -ErrorAction SilentlyContinue)) | Select-Object -Last 1
+                if ($last -and $last.found -and $last.frame.width -gt 0) { ConvertFrom-VerifyNextAttemptText -Text "$($last.text)" -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat } else { $null }
+            }
+            $waitLine = {
+                param([scriptblock] $Match, [int] $Seconds)
+                $script:line = $null
+                Wait-VerifyCondition -TimeoutSeconds $Seconds -IntervalMilliseconds 200 -Condition { $script:line = & $current; & $Match $script:line }
+            }
+            $press = { param([string] $Id) $null = Invoke-Helper $c @('axpress', "$appId", $Id) -AllowFailure }
+            $window = { param([string] $Title) @(Get-AxWindows $c $appId | Where-Object title -CEQ $Title) | Select-Object -First 1 }
+            $clock = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (& $window $cameraTitle) -and (Get-RtspConnections $appId $port).Count -gt 0 })) { return New-VerifyResult FAIL "no streaming camera window within 20 s (RTSP port $port)." }
+                $watch = Start-HelperProcess $c @('axwatch', "$appId", 'CameraNextAttempt', '420000') $watchFile
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Test-Path -LiteralPath $watchFile) -and (Get-Item -LiteralPath $watchFile).Length -gt 0 })) { throw "the Accessibility watch did not start: $(Get-Content -LiteralPath $watchFile -Raw -ErrorAction SilentlyContinue)" }
+                if ($null -ne (& $current)) { $problems.Add('the next attempt line is shown while the camera streams') }
+                $clock.Restart()
+                Set-SimulatorCamera $simulator 'offline'
+
+                # The pause of 20 s: the mini preview hides the line, the window shows it again with the current value; full screen and back.
+                if (-not (& $waitLine { param($s) $null -ne $s -and $s -ge 15 -and $s -le 20 } 90)) { throw "the line never showed the pause of 20 s within 90 s (last: $($script:line))" }
+                $null = & $waitLine { param($s) $null -ne $s -and $s -le 17 } 10
+                $before = $script:line
+                if ($null -eq $before) { throw 'the line vanished during the pause of 20 s' }
+                $beforeAt = $clock.Elapsed.TotalSeconds
+                & $press 'CameraMiniButton'
+                if (-not (& $waitLine { param($s) $null -eq $s } 3)) { $problems.Add("the line stays in the mini preview ($($script:line) s)") }
+                Start-Sleep -Milliseconds 1500
+                & $press 'CameraNormalButton'
+                if (-not (& $waitLine { param($s) $null -ne $s } 3)) { $problems.Add('back in the window the line is missing') }
+                else {
+                    $expected = $before - ($clock.Elapsed.TotalSeconds - $beforeAt)
+                    if ([math]::Abs($script:line - $expected) -gt 2) { $problems.Add("back in the window the line shows $($script:line) s, expected about $([math]::Round($expected)) s (the current value)") }
+                    else { $notes.Add("the line left the mini preview and came back with the current value ($($script:line) s)") }
+                }
+                & $press 'CameraFullScreenButton'
+                $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $w = Get-CameraWindow $c $appId; $w -and (Test-FullScreen $w $screens) }
+                Start-Sleep -Seconds 1
+                & $press 'CameraNormalButton'
+                $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $w = Get-CameraWindow $c $appId; $w -and -not (Test-FullScreen $w $screens) }
+
+                # The minute: minimized to the Dock and restored, a new attempt at once ("Connecting…" or a new pause of 5 s).
+                if (-not (& $waitLine { param($s) $s -eq 60 } 120)) { throw "the line never showed about 1 min within 120 s (last: $($script:line))" }
+                Start-Sleep -Seconds 2
+                $minimize = Invoke-HelperExit $c @('axwin', "$appId", $cameraTitle, 'minimize') 'minimize.txt'
+                if ($minimize.ExitCode -ne 0 -or -not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (& $window $cameraTitle).minimized })) { $problems.Add("the camera window did not minimize: $($minimize.Output -join ' ')") }
+                Start-Sleep -Seconds 2
+                $restoredAt = $clock.Elapsed.TotalSeconds
+                $null = Invoke-HelperExit $c @('axwin', "$appId", $cameraTitle, 'restore') 'restore.txt'
+                $script:attempt = $null
+                $attempted = Wait-VerifyCondition -TimeoutSeconds 3 -IntervalMilliseconds 100 -Condition {
+                    $line = & $current
+                    if ($null -ne $line -and $line -le 5) { $script:attempt = "a new pause of $line s"; return $true }
+                    if (@(Get-AxNodes (Get-AxTree $c $appId) | Where-Object { "$($_.value)|$($_.title)|$($_.description)".Contains($connecting) }).Count -gt 0) { $script:attempt = "'$connecting'"; return $true }
+                    $false
+                }
+                if (-not $attempted) { $problems.Add("restored during the minute, no new attempt within 3 s (line: $(& $current) s)") }
+                else { $notes.Add("minimized and restored during the minute: $($script:attempt) $([math]::Round($clock.Elapsed.TotalSeconds - $restoredAt, 1)) s later") }
+
+                # The camera back during the short pause: the line goes, the stream runs.
+                $null = & $waitLine { param($s) $null -ne $s -and $s -le 5 } 10
+                Set-SimulatorCamera $simulator 'online'
+                $back = Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $null -eq (& $current) -and (Get-RtspConnections $appId $port).Count -gt 0 }
+                Start-Sleep -Seconds 2
+                $overlay = Get-AxElement $c $appId 'CameraOverlay'
+                if (-not $back -or $null -ne (& $current)) { $problems.Add("after the camera came back the line stays or no stream runs (line $(& $current) s, RTSP connections $((Get-RtspConnections $appId $port).Count))") }
+                elseif (-not $overlay) { $problems.Add('after the camera came back the window shows no overlay (CameraOverlay)') }
+                else { $notes.Add('the camera back: the line went, the stream runs') }
+
+                # T-194: the window closed during a pause the recording holds; Test camera with the camera back succeeds at once.
+                Set-SimulatorCamera $simulator 'offline'
+                if (-not (& $waitLine { param($s) $null -ne $s -and $s -ge 15 -and $s -le 20 } 90)) { throw "after the second outage the line never showed the pause of 20 s (last: $($script:line))" }
+                $pauseAt = $clock.Elapsed.TotalSeconds
+                $pauseLeft = $script:line
+                $null = Invoke-HelperExit $c @('axwin', "$appId", $cameraTitle, 'close') 'close.txt'
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { -not (& $window $cameraTitle) })) { $problems.Add('the camera window did not close') }
+                Set-SimulatorCamera $simulator 'online'
+                Send-TestCommand $data 'settings'
+                if (-not (Open-SettingsTab $c $appId @('SettingsTabPrinters', 'PrinterTabCamera') 'PrinterCameraTest')) { $problems.Add('no Test camera button (PrinterCameraTest) on Settings > Printers > Camera') }
+                else {
+                    $pressedAt = $clock.Elapsed.TotalSeconds
+                    & $press 'PrinterCameraTest'
+                    $script:result = ''
+                    $passed = Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $e = Get-AxElement $c $appId 'PrinterCameraTestResult'; $script:result = "$(@($e.value, $e.title, $e.description) | Where-Object { $_ } | Select-Object -First 1)"; $script:result.StartsWith($success) }
+                    $took = [math]::Round($clock.Elapsed.TotalSeconds - $pressedAt, 1)
+                    $left = [math]::Round($pauseLeft - ($pressedAt - $pauseAt), 1)
+                    if (-not $passed) { $problems.Add("Test camera during the pause did not succeed within 15 s ('$($script:result)')") }
+                    elseif ($took -ge $left) { $problems.Add("Test camera succeeded after $took s, not before the pause would have ended ($left s left)") }
+                    else { $notes.Add("Test camera during the pause (window closed, $left s left) succeeded after $took s: '$($script:result)'") }
+                }
+                $null = Invoke-HelperExit $c @('axwin', "$appId", $settingsTitle, 'close')
+            }
+            finally {
+                if ($watch -and -not $watch.HasExited) { $watch.Kill(); $watch.WaitForExit() }
+                Set-SimulatorCamera $simulator 'online'
+                $null = Stop-TestApp $data $app
+            }
+            $pauses = @(Get-VerifyNextAttemptPauses -Timeline @(ConvertFrom-VerifyAxWatch @(Get-Content -LiteralPath $watchFile)) -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat)
+            $null = Save-VerifyEvidence -Context $c -Name 'pauses.json' -Content (ConvertTo-VerifyJsonArray $pauses -Depth 6)
+            foreach ($problem in Get-VerifyCountdownProblems -Pauses $pauses -Expected 5, 10, 20, 40, 60) { $problems.Add($problem) }
+            $seen = "pauses $(@($pauses | Select-Object -First 5 | ForEach-Object { "$($_.Start) s" }) -join ', ') counting down by the second, $([math]::Round($clock.Elapsed.TotalMinutes, 1)) min in all"
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ') ($seen; next-attempt-watch.jsonl, pauses.json)" }
+            New-VerifyResult PASS "$seen; $($notes -join '; ')"
         }
     }
 
@@ -3475,7 +4134,8 @@ $presets = [ordered]@{
     release = @(
         'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
         'mac.plist-localnetwork', 'mac.decode', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
-        'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.recording-files', 'mac.recording', 'mac.dashcam',
+        'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.dock-windows', 'mac.mini-after-fullscreen', 'mac.camera-live',
+        'mac.camera-next-attempt', 'mac.recording-files', 'mac.recording', 'mac.dashcam',
         'mac.timelapse-files', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.file-dialogs', 'mac.keys', 'mac.update-check',
         'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
     )
@@ -3635,5 +4295,5 @@ $latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
 Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content or mac.file-dialogs.'
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content, mac.file-dialogs, mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live or mac.camera-next-attempt.'
 exit (Get-VerifyExitCode -Results $results)

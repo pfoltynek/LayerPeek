@@ -59,7 +59,19 @@
 //                                    notification, 2: the action failed, 3: no Accessibility, 4: the notification is
 //                                    there but macOS shows no such action in AX (its actions on stderr) (T-212)
 //   axwindows <pid>                  the windows of a process as JSON: title, document (AXDocument: the file URL of
-//                                    the folder a Finder window shows), frame; no contents (needs Accessibility; T-210)
+//                                    the folder a Finder window shows), frame, subrole, main, focused (the key window),
+//                                    minimized, buttons (close, minimize, zoom, fullscreen: those of its title bar); no
+//                                    contents (needs Accessibility; T-210, T-215)
+//   axwin <pid> <title> <action>     on the window with that exact title ("*": the main window): minimize, restore,
+//                                    raise, fullscreen (the green button) or close (needs Accessibility; T-215)
+//   focusedmenubar                   the menu bar the system shows: pid of the active app and the titles and frames of
+//                                    the top items of its AXMenuBar (needs Accessibility; T-215)
+//   dock <app> info|menu|press|menupress <title>  the Dock item of an app (its bundle path, or its exact title): its
+//                                    title, subrole, url, frame, running; the items of its Dock menu (AXShowMenu, read,
+//                                    closed: the app's open windows are items of it); AXPress on the item (a click); or
+//                                    AXPress on the item of its menu with that title. Exit code 1: no such item, menu or
+//                                    menu item (the titles on stderr), 2: the press failed (needs Accessibility; T-215)
+//   drag <x1> <y1> <x2> <y2> [<ms>]  a left mouse drag in even steps over <ms> (default 600) (needs Accessibility; T-215)
 //   axclose <pid> <path>             closes the window of a process whose AXDocument is <path> (a Finder window of a
 //                                    folder) with its close button (needs Accessibility; T-210)
 //   focusedid <pid>                  the identifier of the focused element of the process, or "" (needs Accessibility)
@@ -68,10 +80,17 @@
 //                                    for <ms>, or until 1.5 s after the text contained <stop> (needs Accessibility)
 //   windowsat <x> <y>                the on-screen windows containing a point, front to back: pid, owner, number, layer,
 //                                    bounds (whether a click there reaches the window under test)
-//   front <x> <y> <seconds>          a stand-in other app: an accessory app with one small window at a point, activated;
-//                                    prints its pid and runs until <seconds> pass or it is killed
-//   regiondiff <a.png> <b.png> <window width> <x> <y> <w> <h>  JSON: share of pixels (luminance difference > 40) and
-//                                    mean difference in a rectangle (points from the window's top left) of two captures
+//   front <x> <y> <seconds> [regular]  a stand-in other app: an accessory app (regular: an ordinary app with a Dock
+//                                    icon and a menu bar, T-215) with one small window at a point, activated; prints its
+//                                    pid and runs until <seconds> pass or it is killed
+//   regiondiff <a.png> <b.png> <window width> <x> <y> <w> <h>  JSON: share of pixels (luminance difference > 40), share
+//                                    of pixels with a difference > 8 (slightShare, T-215) and mean difference in a
+//                                    rectangle (points from the window's top left) of two captures
+//   luma <png> [<left> <top> <right> <bottom>]  JSON: mean luminance (0-255) and its deviation of a part of an image
+//                                    (shares 0 to 1 of its sides; default the whole image) (T-215)
+//   lumawatch <window> <ms> <seconds> <folder>  captures the window (its number) every <ms> into <folder> and prints a
+//                                    JSON line per capture: ms, file, mean and deviation of the luminance of the middle
+//                                    (20 to 80 % of each side), or the error (needs Screen Recording; T-215)
 //   screenrecording                  "true" / "false": whether this process may capture other apps' windows (Screen
 //                                    Recording); never asks for it
 //   ring <png> <offset> <thickness>  JSON: the mean luminance (0-255) of the band <offset> to <offset + thickness> pixels
@@ -359,8 +378,15 @@ func find(_ element: AXUIElement, _ identifier: String, _ depth: Int = 0) -> AXU
 func axWindows(_ pid: Int32) {
     requireTrusted()
     let app = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(app, 1.0)
+    let focusedWindow = attribute(app, kAXFocusedWindowAttribute).map { $0 as! AXUIElement }
     printJSON((attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []).map { window in
-        ["title": text(window, kAXTitleAttribute), "document": text(window, kAXDocumentAttribute), "frame": frame(window)] as [String: Any]
+        func flag(_ name: String) -> Bool { (attribute(window, name) as? NSNumber)?.boolValue ?? false }
+        // T-215: main and focused (the key window), minimized, and the title bar buttons it has (none: no window frame).
+        let buttons = [("close", kAXCloseButtonAttribute), ("minimize", kAXMinimizeButtonAttribute), ("zoom", kAXZoomButtonAttribute), ("fullscreen", "AXFullScreenButton")]
+            .filter { attribute(window, $0.1) != nil }.map(\.0)
+        return ["title": text(window, kAXTitleAttribute), "document": text(window, kAXDocumentAttribute), "frame": frame(window), "subrole": text(window, kAXSubroleAttribute),
+                "main": flag(kAXMainAttribute), "focused": focusedWindow.map { CFEqual($0, window) } ?? false, "minimized": flag(kAXMinimizedAttribute), "buttons": buttons] as [String: Any]
     })
 }
 
@@ -659,12 +685,13 @@ func windowsAt(_ x: Double, _ y: Double) {
     printJSON(result)
 }
 
-/// A stand-in "other app" for the checks: an accessory app (no Dock icon) with one small window at a point of the main
-/// display (top left origin), activated once; prints its pid and runs until <seconds> pass or it is killed. Unlike
-/// Finder it opens no window over the window under test.
-func frontApp(_ x: Double, _ y: Double, _ seconds: Double) {
+/// A stand-in "other app" for the checks: an accessory app (no Dock icon; with "regular" an ordinary app) with one small
+/// window at a point of the main display (top left origin), activated once; prints its pid and runs until <seconds> pass
+/// or it is killed. Unlike Finder it opens no window over the window under test.
+func frontApp(_ x: Double, _ y: Double, _ seconds: Double, regular: Bool = false) {
     let application = NSApplication.shared
-    application.setActivationPolicy(.accessory)
+    // "regular" (T-215): an ordinary app with a Dock icon and its own menu bar, as the user switches to.
+    application.setActivationPolicy(regular ? .regular : .accessory)
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 240, height: 60), styleMask: [.titled], backing: .buffered, defer: false)
     window.title = "macos-verify: other app"
     window.isReleasedWhenClosed = false
@@ -697,7 +724,7 @@ func regionDiff(_ before: String, _ after: String, _ windowWidth: Double, _ x: D
     let scale = Double(aw) / max(1, windowWidth)
     let left = max(0, Int(x * scale)), top = max(0, Int(y * scale))
     let right = min(aw, Int((x + width) * scale)), bottom = min(ah, Int((y + height) * scale))
-    var changed = 0, total = 0
+    var changed = 0, slight = 0, total = 0
     var sum = 0.0
     if right > left && bottom > top {
         for row in top..<bottom {
@@ -706,11 +733,13 @@ func regionDiff(_ before: String, _ after: String, _ windowWidth: Double, _ x: D
                 let difference = abs(luminance(pa, i) - luminance(pb, i))
                 sum += difference
                 if difference > 40 { changed += 1 }
+                if difference > 8 { slight += 1 }
                 total += 1
             }
         }
     }
-    printJSON(["pixels": total, "changed": changed, "share": total > 0 ? Double(changed) / Double(total) : 0, "mean": total > 0 ? sum / Double(total) : 0, "scale": scale])
+    printJSON(["pixels": total, "changed": changed, "share": total > 0 ? Double(changed) / Double(total) : 0, "mean": total > 0 ? sum / Double(total) : 0, "scale": scale,
+               "slightShare": total > 0 ? Double(slight) / Double(total) : 0])
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -1265,8 +1294,211 @@ func panelGo(_ pid: Int32, _ path: String, _ seconds: Double) {
     printJSON(["pid": Int(owner), "path": path, "field": typed, "button": title])
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Windows, the Dock and live captures (T-215)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// The window of a process with that exact title, or its main window (else the first one) for "*".
+func axWindow(_ app: AXUIElement, _ title: String) -> AXUIElement? {
+    let windows = attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []
+    if title == "*" { return attribute(app, kAXMainWindowAttribute).map { $0 as! AXUIElement } ?? windows.first }
+    return windows.first { text($0, kAXTitleAttribute) == title }
+}
+
+/// minimize / restore (AXMinimized), raise (AXRaise), fullscreen (the green button: AXFullScreenButton, else the zoom
+/// button) or close (the close button) on a window of a process; exit code 1 when there is no such window or it fails.
+func axWindowAction(_ pid: Int32, _ title: String, _ action: String) {
+    requireTrusted()
+    let app = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(app, 1.0)
+    guard let window = axWindow(app, title) else { fail("no window '\(title)' of process \(pid)") }
+    AXUIElementSetMessagingTimeout(window, 1.0)
+    var status: AXError
+    switch action {
+    case "minimize", "restore":
+        status = AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, (action == "minimize" ? kCFBooleanTrue : kCFBooleanFalse) as CFTypeRef)
+    case "raise":
+        status = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    case "fullscreen", "close":
+        let names = action == "close" ? [kAXCloseButtonAttribute] : ["AXFullScreenButton", kAXZoomButtonAttribute]
+        guard let button = names.lazy.compactMap({ attribute(window, $0) }).first else { fail("the window '\(title)' has no \(action) button") }
+        AXUIElementSetMessagingTimeout(button as! AXUIElement, 1.0)
+        status = AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString)
+        // A button whose action runs an animation may answer late: the press itself was delivered.
+        if status == .cannotComplete { status = .success }
+    default:
+        fail("unknown window action '\(action)' (minimize, restore, raise, fullscreen, close)")
+    }
+    if status != .success { fail("\(action) of the window '\(title)' failed: \(status.rawValue)") }
+}
+
+/// The menu bar the system shows now: the pid of the focused (active) application and the titles and frames of the top
+/// items of its AXMenuBar (T-102 question 3: is the menu of the app back after another app was in front?).
+func focusedMenuBar() {
+    requireTrusted()
+    let system = AXUIElementCreateSystemWide()
+    AXUIElementSetMessagingTimeout(system, 1.0)
+    guard let focused = attribute(system, kAXFocusedApplicationAttribute) else { printJSON(["pid": 0, "items": []]); return }
+    let app = focused as! AXUIElement
+    var pid: pid_t = 0
+    _ = AXUIElementGetPid(app, &pid)
+    let items = attribute(app, kAXMenuBarAttribute).map { children($0 as! AXUIElement) } ?? []
+    printJSON(["pid": Int(pid), "items": items.map { ["title": text($0, kAXTitleAttribute), "frame": frame($0)] as [String: Any] }])
+}
+
+/// The Dock item of an app: by the path of its bundle (AXURL) when <app> starts with "/", else by its exact title.
+func dockItem(_ wanted: String) -> AXUIElement? {
+    guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else { fail("the Dock is not running") }
+    let app = AXUIElementCreateApplication(dock.processIdentifier)
+    AXUIElementSetMessagingTimeout(app, 1.0)
+    let path = wanted.hasPrefix("/") ? URL(fileURLWithPath: wanted).resolvingSymlinksInPath().standardizedFileURL.path : nil
+    for list in children(app) {
+        for item in children(list) where text(item, kAXRoleAttribute) == "AXDockItem" {
+            if let path {
+                guard let url = attribute(item, kAXURLAttribute) as? URL else { continue }
+                if url.resolvingSymlinksInPath().standardizedFileURL.path == path { return item }
+            } else if text(item, kAXTitleAttribute) == wanted {
+                return item
+            }
+        }
+    }
+    return nil
+}
+
+/// The open menu of a Dock item (AXShowMenu), or nil.
+func dockMenu(_ item: AXUIElement) -> AXUIElement? {
+    let open = { () -> AXUIElement? in children(item).first { text($0, kAXRoleAttribute) == kAXMenuRole && !children($0).isEmpty } }
+    if let menu = open() { return menu }
+    AXUIElementSetMessagingTimeout(item, 0.5)
+    let status = AXUIElementPerformAction(item, kAXShowMenuAction as CFString)
+    guard status == .success || status == .cannotComplete else { return nil }
+    return waitFor(menuLevelTimeout, open)
+}
+
+func closeDockMenu(_ item: AXUIElement, _ menu: AXUIElement) {
+    _ = AXUIElementPerformAction(menu, kAXCancelAction as CFString)
+    let gone = { waitFor(0.5) { children(item).contains { text($0, kAXRoleAttribute) == kAXMenuRole } ? nil : true } != nil }
+    for _ in 0..<3 where !gone() { key("escape") }
+}
+
+/// dock <app> info | menu | press | menupress <title>: the Dock item of an app (title, subrole, url, frame, running), the
+/// items of its Dock menu (opened with AXShowMenu, read, closed: the open windows of the app are items of it), AXPress on
+/// the item (what a click does), or AXPress on the item of its menu with that exact title (e.g. a window). Exit code 1
+/// when there is no such item, menu or menu item (the titles of the menu on stderr), 2 when the press fails.
+func dockCommand(_ wanted: String, _ action: String, _ title: String?) {
+    requireTrusted()
+    guard let item = dockItem(wanted) else { fail("no Dock item '\(wanted)'") }
+    switch action {
+    case "info":
+        let url = (attribute(item, kAXURLAttribute) as? URL)?.path ?? ""
+        printJSON(["title": text(item, kAXTitleAttribute), "subrole": text(item, kAXSubroleAttribute), "url": url, "frame": frame(item),
+                   "running": (attribute(item, "AXIsApplicationRunning") as? NSNumber)?.boolValue ?? false])
+    case "press":
+        AXUIElementSetMessagingTimeout(item, 1.0)
+        let status = AXUIElementPerformAction(item, kAXPressAction as CFString)
+        if status != .success && status != .cannotComplete { fail("AXPress on the Dock item failed: \(status.rawValue)", code: 2) }
+    case "menu", "menupress":
+        guard let menu = dockMenu(item) else { fail("the Dock menu of '\(wanted)' did not open within \(menuLevelTimeout) s") }
+        let items = children(menu).filter { text($0, kAXRoleAttribute) == kAXMenuItemRole }
+        if action == "menu" {
+            let entries = items.map { ["title": text($0, kAXTitleAttribute), "enabled": isEnabled($0), "mark": text($0, "AXMenuItemMarkChar")] as [String: Any] }
+            closeDockMenu(item, menu)
+            printJSON(entries)
+            return
+        }
+        guard let title, let entry = items.first(where: { text($0, kAXTitleAttribute) == title }) else {
+            let available = items.map { "'\(text($0, kAXTitleAttribute))'" }.joined(separator: ", ")
+            closeDockMenu(item, menu)
+            fail("no item '\(title ?? "")' in the Dock menu; its items: \(available)")
+        }
+        AXUIElementSetMessagingTimeout(entry, 0.5)
+        let status = AXUIElementPerformAction(entry, kAXPressAction as CFString)
+        if status != .success && status != .cannotComplete { closeDockMenu(item, menu); fail("AXPress on '\(title)' failed: \(status.rawValue)", code: 2) }
+        _ = waitFor(1.0) { children(item).contains { text($0, kAXRoleAttribute) == kAXMenuRole } ? nil : true }
+    default:
+        fail("unknown Dock action '\(action)' (info, menu, press, menupress)")
+    }
+}
+
+/// A left mouse drag from one point to another (global, top left origin) in even steps over <ms> milliseconds, as a hand
+/// drags a grip or a window (needs Accessibility).
+func drag(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, _ milliseconds: Int) {
+    requireTrusted()
+    let source = CGEventSource(stateID: .hidSystemState)
+    func post(_ type: CGEventType, _ point: CGPoint) {
+        guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left) else { fail("no mouse event") }
+        event.post(tap: .cghidEventTap)
+    }
+    let start = CGPoint(x: x1, y: y1), end = CGPoint(x: x2, y: y2)
+    post(.mouseMoved, start)
+    usleep(80_000)
+    post(.leftMouseDown, start)
+    usleep(80_000)
+    let steps = max(10, milliseconds / 16)
+    for step in 1...steps {
+        let t = Double(step) / Double(steps)
+        post(.leftMouseDragged, CGPoint(x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t))
+        usleep(useconds_t(max(1, milliseconds * 1000 / steps)))
+    }
+    usleep(80_000)
+    post(.leftMouseUp, end)
+    usleep(80_000)
+}
+
+/// The mean luminance (0-255) and its deviation of a part of a capture: <left> <top> <right> <bottom> as shares (0 to 1)
+/// of the image, default the whole image (a black camera image while the window resizes or switches its mode, T-184).
+func regionLuminance(_ path: String, _ region: [Double]) -> [String: Any]? {
+    guard let image = NSImage(contentsOfFile: path), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+    let (left, top, right, bottom) = region.count == 4 ? (region[0], region[1], region[2], region[3]) : (0, 0, 1, 1)
+    let width = Double(cg.width), height = Double(cg.height)
+    let rect = CGRect(x: (left * width).rounded(), y: (top * height).rounded(), width: max(1, ((right - left) * width).rounded()), height: max(1, ((bottom - top) * height).rounded()))
+    guard let part = cg.cropping(to: rect) else { return nil }
+    let (mean, deviation) = luminance(part)
+    return ["mean": mean, "deviation": deviation, "width": cg.width, "height": cg.height]
+}
+
+func luma(_ path: String, _ region: [Double]) {
+    guard let result = regionLuminance(path, region) else { fail("not an image or not a region of it: \(path)") }
+    printJSON(result)
+}
+
+/// Captures one window (screencapture -l, needs Screen Recording) every <ms> for <seconds> into <folder> and prints a
+/// JSON line per capture: ms since the start, file, mean and deviation of the luminance of the middle of the image (20 to
+/// 80 % of each side: no title bar, window buttons or status strip), or the error when the capture failed (the window off
+/// screen for a moment). Runs until the time is over or it is killed; every line is flushed at once.
+func lumaWatch(_ window: Int, _ milliseconds: Int, _ seconds: Double, _ folder: String) {
+    try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+    let start = Date()
+    var index = 0
+    while Date().timeIntervalSince(start) < seconds {
+        let began = Date()
+        index += 1
+        let file = (folder as NSString).appendingPathComponent(String(format: "capture-%04d.png", index))
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = ["-x", "-o", "-l", "\(window)", file]
+        let errors = Pipe()
+        process.standardError = errors
+        process.standardOutput = FileHandle.nullDevice
+        var line: [String: Any] = ["ms": Int(began.timeIntervalSince(start) * 1000), "file": (file as NSString).lastPathComponent]
+        do {
+            try process.run()
+            let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            process.waitUntilExit()
+            if process.terminationStatus == 0, let result = regionLuminance(file, [0.2, 0.2, 0.8, 0.8]) { line.merge(result) { $1 } }
+            else { line["error"] = "screencapture exit code \(process.terminationStatus)\(message.isEmpty ? "" : ": \(message)")" }
+        } catch { line["error"] = "\(error)" }
+        if let data = try? JSONSerialization.data(withJSONObject: line, options: [.sortedKeys]), let text = String(data: data, encoding: .utf8) {
+            print(text)
+            fflush(stdout)
+        }
+        let rest = Double(milliseconds) / 1000 - Date().timeIntervalSince(began)
+        if rest > 0 { usleep(useconds_t(rest * 1_000_000)) }
+    }
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|type|panel|panelgo|panelcancel|click|decode|dlopen|localized|icons ...") }
+guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|type|panel|panelgo|panelcancel|click|axwin|dock|drag|luma|lumawatch|decode|dlopen|localized|icons ...") }
 switch command {
 case "screens": screens()
 case "windows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; windows(pid)
@@ -1301,9 +1533,9 @@ case "axwatch" where arguments.count == 4 || arguments.count == 5:
     guard let pid = Int32(arguments[1]), let milliseconds = Int(arguments[3]) else { fail("not a pid or a time") }
     axWatch(pid, arguments[2], milliseconds, arguments.count == 5 ? arguments[4] : nil)
 case "windowsat" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; windowsAt(x, y)
-case "front" where arguments.count == 4:
+case "front" where arguments.count == 4 || (arguments.count == 5 && arguments[4] == "regular"):
     guard let x = Double(arguments[1]), let y = Double(arguments[2]), let seconds = Double(arguments[3]) else { fail("not a point or a time") }
-    frontApp(x, y, seconds)
+    frontApp(x, y, seconds, regular: arguments.count == 5)
 case "regiondiff" where arguments.count == 8:
     let numbers = arguments[3...].compactMap(Double.init)
     guard numbers.count == 5 else { fail("not a number") }
@@ -1314,5 +1546,19 @@ case "decode" where arguments.count == 2: decode(arguments[1])
 case "dlopen" where arguments.count >= 2: load(Array(arguments[1...]))
 case "localized" where arguments.count >= 4: localized(arguments[1], arguments[2], Array(arguments[3...]))
 case "icons" where arguments.count >= 4: icons(arguments[1], arguments[2], arguments[3], Array(arguments[4...]))
+case "axwin" where arguments.count == 4: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axWindowAction(pid, arguments[2], arguments[3])
+case "focusedmenubar": focusedMenuBar()
+case "dock" where arguments.count == 3 || arguments.count == 4: dockCommand(arguments[1], arguments[2], arguments.count == 4 ? arguments[3] : nil)
+case "drag" where arguments.count == 5 || arguments.count == 6:
+    let numbers = arguments[1...4].compactMap(Double.init)
+    guard numbers.count == 4, let milliseconds = arguments.count == 6 ? Int(arguments[5]) : 600 else { fail("not a point or a time") }
+    drag(numbers[0], numbers[1], numbers[2], numbers[3], milliseconds)
+case "luma" where arguments.count == 2 || arguments.count == 6:
+    let region = arguments.dropFirst(2).compactMap(Double.init)
+    guard region.count == arguments.count - 2 else { fail("not a region") }
+    luma(arguments[1], region)
+case "lumawatch" where arguments.count == 5:
+    guard let window = Int(arguments[1]), let milliseconds = Int(arguments[2]), let seconds = Double(arguments[3]) else { fail("not a window number or a time") }
+    lumaWatch(window, milliseconds, seconds, arguments[4])
 default: fail("unknown command or arguments: \(arguments.joined(separator: " "))")
 }

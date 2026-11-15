@@ -35,7 +35,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 | T-212 | `mac.notifications-content`, režim `--layerpeek-e2e-notification-list`, helper `ncpress` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101; zbývá bod 1n |
 | T-213 | `mac.file-dialogs`, helper `panel` / `panelgo` / `panelcancel` / `type` | T-146 („Změnit…“), T-165, T-164; zbývá bod 1o |
 | T-214 | headless testy se San Francisco (hotovo 2026-11-14; od T-223 aplikace na macOS s Inter) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k (od T-223 šířky s Inter) |
-| T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188 |
+| T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt`, helper `dock` / `axwin` / `focusedmenubar` / `drag` / `luma` / `lumawatch` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188; zbývá bod 1p |
 | T-216 | `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`, `mac.open-fake`, `mac.hw-decoding-switch`, `mac.keys-czech-layout` | T-151 (fokus), T-122, T-117 (VoiceOver), T-154 (editor), T-097 otázka 5, T-053, T-205 (4)(5), T-100 otázka 1 |
 | T-217 | `mac.release-bundle` (hotovo 2026-11-14) | T-026 „čistý Mac“ (rozhodnutí 2026-11-13: vyčištěné prostředí stačí) |
 
@@ -503,6 +503,33 @@ a kritérium.
       neověřil; `FAIL` nebo `SKIP` z `panel` / `panelgo` nejdřív posoudit podle `evidence/mac.file-dialogs/panel-*.json`
       a `panelgo-*.txt` (exit 2 = pole „Přejít na složku“ se neotevřelo nebo panel zůstal otevřený, 4 = položku nejde
       vybrat).
+
+### 1p. Okna, Dock a živý obraz kamery (z T-215, připraveno na Macu 2026-11-15)
+- [ ] **T-215** (krit. 1–4: `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live` a
+      `mac.camera-next-attempt` = `PASS`; Terminál agenta neměl Zpřístupnění a obrazovka byla zamčená, všechny čtyři
+      skončily `SKIP` na předběžné podmínce): po přípravě z `docs/macos-manual-testing.md` (Zpřístupnění a Nahrávání
+      obrazovky pro Terminál, oznámení „LayerPeek E2E“ povolená jednou interaktivně přes
+      `pwsh tools/macos-verify.ps1 -Only mac.notifications`, pro přesun mezi monitory druhý monitor) spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně `pwsh tools/macos-verify.ps1
+      -Unattended -Only mac.dock-windows,mac.mini-after-fullscreen,mac.camera-live,mac.camera-next-attempt -Allow
+      'mac.dock-windows,mac.mini-after-fullscreen,mac.camera-live,mac.camera-next-attempt'`; asi 7 min, z toho
+      `mac.camera-next-attempt` asi 3 min v reálném čase). `PASS` `mac.dock-windows` odškrtne v tomto úkolu bod
+      **T-102** (včetně otázky 3 – výsledek ze zprávy zapsat i do T-102) a bod **T-151** „ruční, Dock a ⌘Tab“ (pořadí
+      oken nad / pod aktivní aplikací ze zprávy zapsat k bodu); bez povolených oznámení skončí `SKIP` s důvodem – bod
+      neodškrtne. `PASS` nebo `FAIL` s naměřenými hodnotami `mac.mini-after-fullscreen` uzavře bod **T-038** otázka 2
+      (výsledek zapsat i do T-038; při `FAIL` nový úkol na schválenou opravu „umístit znovu po animaci“). `PASS`
+      `mac.camera-live` odškrtne bod **T-026** „Stream … ve všech režimech okna“ (ruční část `mac.camera-look`) a v bodu
+      **T-184** část „nic nebliká a nezčerná, stream se nepřeruší“ (ostrost a barvy zůstávají ruční). `PASS`
+      `mac.camera-next-attempt` odškrtne bod **T-188** kromě délky textu (T-214). Do poznámek T-215 zapsat složku běhu,
+      commit, řádky zprávy a naměřené časy (zavření / otevření okna, celková doba `mac.camera-next-attempt`). Pozn.:
+      agent proti skutečnému systému neověřil AX strom Docku (AXDockItem, AXShowMenu, položky oken v jeho menu),
+      `focusedmenubar`, `axwin` (AXMinimized, zelené tlačítko AXFullScreenButton), `drag` po úchytu náhledu ani
+      `lumawatch` (`screencapture -l` v zamčené relaci selže); `FAIL` nejdřív posoudit podle důkazů ve
+      `evidence/mac.dock-windows/` (`dock-*.txt`, `menu-bar.json`, `windows-at-*.json`), `evidence/mac.mini-after-fullscreen/placements.json`,
+      `evidence/mac.camera-live/` (`live-*.png`, `luma-watch.jsonl`, `darkest-capture.png`) a
+      `evidence/mac.camera-next-attempt/` (`next-attempt-watch.jsonl`, `pauses.json`). Prahy živého obrazu (0,2 % pixelů
+      změněných o víc než 8 úrovní nebo průměrný rozdíl 0,3) a černého snímku (větší z 8 a čtvrtiny výchozího jasu)
+      jsou odhad bez skutečného snímku; když neodpovídají, upravit v `VerifyTools.psm1` s testem.
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

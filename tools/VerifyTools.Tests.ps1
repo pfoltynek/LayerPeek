@@ -856,7 +856,7 @@ Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashca
         $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
         $run.ExitCode | Should -Be 0 -Because $run.Text
         foreach ($id in 'mac.decode', 'mac.recording-files', 'mac.timelapse-files') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
-        foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.file-dialogs') {
+        foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.file-dialogs', 'mac.dock-windows', 'mac.mini-after-fullscreen', 'mac.camera-live', 'mac.camera-next-attempt') {
             @($run.Output | Where-Object { $_ -like "$id  *``[permission``]*" }) | Should -HaveCount 1 -Because $id
             $run.Output[0] | Should -BeLike "*allowed in advance:*$id*"
         }
@@ -1140,5 +1140,139 @@ Describe 'The verification scripts' {
         $run = Invoke-Script $other @('-Unattended', '-OutputRoot', (Join-Path $script:TempRoot 'out-other'))
         $run.ExitCode | Should -Be 2
         $run.Text | Should -Match 'runs on (macOS|Windows) only'
+    }
+}
+
+Describe 'Windows, the Dock and the camera image (mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live, mac.camera-next-attempt; T-215, pure)' {
+    BeforeAll {
+        $script:secondsFormat = 'Next attempt in about {0} s'
+        $script:minutesFormat = 'Next attempt in about {0} min'
+        # One 'axwatch' line: the text of <seconds> at <ms>; $null = the line not shown.
+        function New-WatchLine([int] $Ms, $Seconds) {
+            $text = if ($null -eq $Seconds) { '' } elseif ($Seconds -ge 60) { "Next attempt in about $($Seconds / 60) min" } else { "Next attempt in about $Seconds s" }
+            [pscustomobject]@{ ms = $Ms; found = $null -ne $Seconds; text = $text; frame = [pscustomobject]@{ width = 200; height = 16 } }
+        }
+        # A whole pause counted down each second from -From, starting at -At ms (-Hide: the ms range the line is hidden).
+        function New-WatchPause([int] $From, [int] $At, [int[]] $Hide = @()) {
+            for ($i = 0; $i -lt $From; $i++) {
+                $ms = $At + $i * 1000
+                if ($Hide.Count -eq 2 -and $ms -ge $Hide[0] -and $ms -lt $Hide[1]) { continue }
+                New-WatchLine $ms ($From - $i)
+            }
+        }
+    }
+
+    It 'formats and compares window bounds' {
+        $window = [pscustomobject]@{ x = 951; y = 619; width = 320; height = 180 }
+        Format-VerifyBounds $window | Should -Be '320 x 180 pt at 951, 619'
+        Format-VerifyBounds $null | Should -Be 'no window'
+        Get-VerifyBoundsProblem -Actual $window -Expected ([pscustomobject]@{ x = 951.5; y = 618.2; width = 320; height = 180.9 }) | Should -BeNullOrEmpty
+        Get-VerifyBoundsProblem -Actual $window -Expected ([pscustomobject]@{ x = 400; y = 300; width = 480; height = 270 }) | Should -BeLike '320 x 180 pt at 951, 619, expected 480 x 270 pt at 400, 300 (off: x, y, width, height*'
+        Get-VerifyBoundsProblem -Actual $window -Expected ([pscustomobject]@{ x = 400; y = 300; width = 320; height = 180 }) -SizeOnly | Should -BeNullOrEmpty
+        Get-VerifyBoundsProblem -Actual $null -Expected $window | Should -Be 'no window'
+    }
+
+    It 'tells the corner of a window and its screen' {
+        $area = [pscustomobject]@{ x = 0; y = 30; width = 1287; height = 799 }
+        $corner = Get-VerifyWindowCorner -Window ([pscustomobject]@{ x = 951; y = 613; width = 320; height = 200 }) -Area $area
+        $corner.Corner | Should -Be 'BottomRight'
+        $corner.Right | Should -Be 16
+        $corner.Bottom | Should -Be 16
+        (Get-VerifyWindowCorner -Window ([pscustomobject]@{ x = 16; y = 46; width = 320; height = 180 }) -Area $area).Corner | Should -Be 'TopLeft'
+        $screens = @(
+            [pscustomobject]@{ id = 1; frame = [pscustomobject]@{ x = 0; y = 0; width = 1287; height = 900 } },
+            [pscustomobject]@{ id = 2; frame = [pscustomobject]@{ x = 1287; y = 0; width = 1792; height = 1120 } }
+        )
+        (Get-VerifyScreenOf $screens ([pscustomobject]@{ x = 1200; y = 100; width = 320; height = 180 })).id | Should -Be 2
+        (Get-VerifyScreenOf $screens ([pscustomobject]@{ x = 100; y = 100; width = 320; height = 180 })).id | Should -Be 1
+        Get-VerifyScreenOf $screens $null | Should -BeNullOrEmpty
+    }
+
+    It 'finds the windows the Dock menu does not list' {
+        $items = @([pscustomobject]@{ title = 'LP verify 1 – Camera' }, [pscustomobject]@{ title = '' }, [pscustomobject]@{ title = 'Options' })
+        @(Get-VerifyDockMenuProblems -MenuItems $items -WindowTitles 'LP verify 1 – Camera') | Should -HaveCount 0
+        Get-VerifyDockMenuProblems -MenuItems $items -WindowTitles 'LP verify 1 – Camera', 'Settings' | Should -Be @("the Dock menu does not list the window 'Settings' (its items: 'LP verify 1 – Camera', 'Options')")
+    }
+
+    It 'tells which window is in front at a point' {
+        $at = @([pscustomobject]@{ number = 7 }, [pscustomobject]@{ number = 3 }, [pscustomobject]@{ number = 9 })
+        Get-VerifyWindowOrder -Windows $at -Number 3 -Other 9 | Should -Be 'above'
+        Get-VerifyWindowOrder -Windows $at -Number 9 -Other 7 | Should -Be 'below'
+        Get-VerifyWindowOrder -Windows $at -Number 4 -Other 7 | Should -Be 'unknown'
+    }
+
+    It 'reads the RTSP connections of lsof' {
+        $lines = @(
+            'LayerPeek 4242 me 31u IPv4 0x1 0t0 TCP 127.0.0.1:52345->127.0.0.1:8554 (ESTABLISHED)',
+            'LayerPeek 4242 me 32u IPv4 0x2 0t0 TCP 127.0.0.1:52340->127.0.0.1:8554 (ESTABLISHED)',
+            'nothing'
+        )
+        Get-VerifyRtspPeers $lines | Should -Be @('127.0.0.1:52340->127.0.0.1:8554', '127.0.0.1:52345->127.0.0.1:8554')
+        @(Get-VerifyRtspPeers @()) | Should -HaveCount 0
+    }
+
+    It 'tells a live image from a frozen one' {
+        (Get-VerifyLiveImageVerdict -Diff ([pscustomobject]@{ pixels = 10000; slightShare = 0.01; mean = 0.1 })).Live | Should -BeTrue
+        (Get-VerifyLiveImageVerdict -Diff ([pscustomobject]@{ pixels = 10000; slightShare = 0; mean = 0.5 })).Live | Should -BeTrue
+        $frozen = Get-VerifyLiveImageVerdict -Diff ([pscustomobject]@{ pixels = 10000; slightShare = 0; mean = 0 })
+        $frozen.Live | Should -BeFalse
+        $frozen.Detail | Should -Be '0 % of 10000 pixels changed by more than 8 levels, mean difference 0'
+        (Get-VerifyLiveImageVerdict -Diff $null).Live | Should -BeFalse
+    }
+
+    It 'finds the black captures against the baseline' {
+        $frames = @(
+            [pscustomobject]@{ ms = 0; file = 'capture-0001.png'; mean = 80; deviation = 30 },
+            [pscustomobject]@{ ms = 100; file = 'capture-0002.png'; mean = 82; deviation = 30 },
+            [pscustomobject]@{ ms = 200; file = 'capture-0003.png'; mean = 79; deviation = 30 },
+            [pscustomobject]@{ ms = 300; file = 'capture-0004.png'; error = 'screencapture exit code 1' },
+            [pscustomobject]@{ ms = 400; file = 'capture-0005.png'; mean = 15; deviation = 2 },
+            [pscustomobject]@{ ms = 500; file = 'capture-0006.png'; mean = 60; deviation = 25 }
+        )
+        $result = Get-VerifyBlackFrames -Frames $frames -BaselineCount 3
+        $result.Baseline | Should -Be 80
+        $result.Threshold | Should -Be 20
+        $result.Frames | Should -Be 5
+        $result.Errors | Should -Be 1
+        @($result.Black.file) | Should -Be @('capture-0005.png')
+        # A dark camera image: the floor of 8 levels decides.
+        (Get-VerifyBlackFrames -Frames $frames -Baseline 20).Threshold | Should -Be 8
+        (Get-VerifyBlackFrames -Frames @()).Frames | Should -Be 0
+    }
+
+    It 'reads the seconds of the next attempt line' {
+        ConvertFrom-VerifyNextAttemptText -Text 'Next attempt in about 5 s' -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -Be 5
+        ConvertFrom-VerifyNextAttemptText -Text "Next attempt in about 40`u{00A0}s" -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -Be 40
+        ConvertFrom-VerifyNextAttemptText -Text 'Next attempt in about 1 min' -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -Be 60
+        ConvertFrom-VerifyNextAttemptText -Text 'Další pokus asi za 5 s' -SecondsFormat 'Další pokus asi za {0} s' -MinutesFormat 'Další pokus asi za {0} min' | Should -Be 5
+        ConvertFrom-VerifyNextAttemptText -Text 'Connecting to the camera…' -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -BeNullOrEmpty
+        ConvertFrom-VerifyNextAttemptText -Text '' -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -BeNullOrEmpty
+    }
+
+    It 'splits the timeline into pauses and accepts the countdown as designed' {
+        # 5, 10, 20 (the mini preview hides the line 3 s), 40, 1 min (restored after 6 s: a new attempt, 5 s again).
+        $timeline = @(
+            New-WatchLine 0 $null; New-WatchPause 5 100; New-WatchLine 5100 $null; New-WatchPause 10 5200; New-WatchLine 15200 $null
+            New-WatchPause 20 15300 -Hide 19300, 22300; New-WatchLine 19400 $null; New-WatchLine 35300 $null
+            New-WatchPause 40 35400; New-WatchLine 75400 $null; New-WatchLine 75500 60; New-WatchLine 81500 $null; New-WatchLine 81900 5; New-WatchLine 82900 4
+        ) | Sort-Object ms
+        $pauses = @(Get-VerifyNextAttemptPauses -Timeline $timeline -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat)
+        @($pauses.Start) | Should -Be @(5, 10, 20, 40, 60, 5)
+        $pauses[2].Values[4].Gap | Should -BeTrue
+        $pauses[2].Values[4].Seconds | Should -Be 13
+        @(Get-VerifyCountdownProblems -Pauses $pauses -Expected 5, 10, 20, 40, 60) | Should -HaveCount 0
+    }
+
+    It 'names a missing pause, a wrong start, a skipped second and a shortened pause' {
+        $timeline = @(
+            New-WatchPause 5 0; New-WatchLine 5000 $null; New-WatchLine 5100 10; New-WatchLine 6100 9; New-WatchLine 8100 7; New-WatchLine 9100 6
+            New-WatchLine 9200 $null; New-WatchPause 30 9300
+        )
+        $pauses = @(Get-VerifyNextAttemptPauses -Timeline $timeline -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat)
+        $problems = @(Get-VerifyCountdownProblems -Pauses $pauses -Expected 5, 10, 20, 40)
+        $problems[0] | Should -Be '3 pause(s) seen (starting with 5, 10, 30 s), expected at least 4 (5, 10, 20, 40 s)'
+        $problems | Should -Contain 'pause 2 (10 s): 9 s then 7 s after 2000 ms (expected 1 s less after about 1000 ms)'
+        $problems | Should -Contain 'pause 2 (10 s) ended early: last shown 6 s, 4 s after its start'
+        $problems | Should -Contain 'pause 3 started with 30 s, expected 20 s'
     }
 }
