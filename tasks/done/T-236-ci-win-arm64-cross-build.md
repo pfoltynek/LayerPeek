@@ -1,7 +1,7 @@
 ---
 id: T-236
 title: CI – křížový build win-arm64 (Native AOT publish + kontrola architektury, bez spuštění)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P3
 platform: windows
@@ -23,19 +23,23 @@ FFmpeg pro ARM64, nativní balíčky Avalonie/Skia) by se ukázalo až při vyd�
 - `CiWorkflowTests` a `docs/prerequisites.md` (oddíl „CI (GitHub Actions)“) aktualizovat.
 
 ## Akceptační kritéria
-- [ ] CI na Windows publikuje `win-arm64` a kontrola architektury projde (všechny PE `0xAA64`)
-  – lokální simulace kroků jobu prošla (8 PE, vše ARM64); čeká na první skutečný běh na GitHubu (spustí uživatel)
-- [ ] Cache llvm-mingw a FFmpeg ARM64 funguje (teplý běh nic nestahuje ani nepřekládá); doby běhu zapsané
-  – lokálně ověřeno (studený / teplý běh níže); trefu cache a doby na runneru zapsat po prvním a druhém běhu na GitHubu
+- [x] CI na Windows publikuje `win-arm64` a kontrola architektury projde (všechny PE `0xAA64`)
+  – běhy 43742173997 (c23597c8) a 43748044752 (22f0000e): 8 PE, vše ARM64, včetně DLL FFmpeg
+- [x] Cache llvm-mingw a FFmpeg ARM64 funguje (teplý běh nic nestahuje ani nepřekládá); doby běhu zapsané
+  – studený běh 7 min 14 s (c23597c8), teplý 2 min 37 s (22f0000e: trefa cache FFmpeg a NuGet, llvm-mingw a MSYS2
+  přeskočeny, build 29 s, publish 47 s)
 - [x] `CiWorkflowTests` pokrývají nový krok; `docs/prerequisites.md` odpovídá
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
-  – `dotnet build` 0 varování, `LayerPeek.Scripts.Tests` zelené; celé `dotnet test` proběhne v CI spolu s kritérii výše
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
+  – `dotnet build` 0 varování; celé `dotnet test` zelené v CI 43748044752 (Windows i macOS)
 
 ## Otevřené otázky
 - (žádné blokující) Limit jobu `timeout-minutes: 30` je odhad (~1,5× odhadu studeného běhu); po změření na runneru
   případně upravit stejně jako u T-218 (otázka 9 tam).
 
 ## Poznámky k implementaci
+- 2026-11-15 (hlavní agent, po prvních bězích na GitHubu): studený běh 7 min 14 s, teplý 2 min 37 s. Limit jobu
+  snížen z 30 na **20 min** (rozhodnutí uživatele 2026-11-15, ~2,5× studený běh). Kvóta cache: zkontrolovat
+  v nastavení repozitáře (Actions → Caches) – zapsáno jako sledovaný bod, ne kritérium.
 Stav 2026-11-15 (qa-reviewer, Windows x64, worktree `LP-T-236`): workflow, testy a dokumentace hotové a lokálně ověřené.
 Úkol zůstává v `in-progress/`: zelený běh, trefu cache a doby na GitHubu ověří uživatel / hlavní agent po pushi.
 
