@@ -579,6 +579,11 @@ Describe 'macOS helpers (pure)' {
         $windows = '[{"pid":991,"owner":"BetterDisplay","layer":2147483629},{"pid":42,"owner":"LayerPeek","layer":0,"number":7},{"pid":1,"owner":"Finder","layer":0}]' | ConvertFrom-Json
         (Get-VerifyTopWindow $windows).pid | Should -Be 42
         Get-VerifyTopWindow @($windows[0]) | Should -BeNullOrEmpty
+        # The Dock's window over a whole display lets clicks through; the Dock itself (a strip) does not.
+        $dock = '[{"pid":1270,"owner":"Dock","layer":20,"number":29,"width":1287,"height":900},{"pid":42,"owner":"LayerPeek","layer":0,"number":7,"width":780,"height":532}]' | ConvertFrom-Json
+        (Get-VerifyTopWindow $dock).pid | Should -Be 42
+        $strip = '[{"pid":1270,"owner":"Dock","layer":20,"number":30,"width":1100,"height":70},{"pid":42,"owner":"LayerPeek","layer":0,"number":7,"width":780,"height":532}]' | ConvertFrom-Json
+        (Get-VerifyTopWindow $strip).pid | Should -Be 1270
     }
 
     Context 'the result of "Check now" (mac.update-check)' {
@@ -1274,6 +1279,53 @@ Describe 'Windows, the Dock and the camera image (mac.dock-windows, mac.mini-aft
         $problems | Should -Contain 'pause 2 (10 s): 9 s then 7 s after 2000 ms (expected 1 s less after about 1000 ms)'
         $problems | Should -Contain 'pause 2 (10 s) ended early: last shown 6 s, 4 s after its start'
         $problems | Should -Contain 'pause 3 started with 30 s, expected 20 s'
+    }
+}
+
+Describe 'First run with an unlocked screen (2026-11-15, pure)' {
+    It 'compares menu titles with no-break spaces as plain spaces' {
+        ConvertTo-VerifyMenuTitle "Save the last 2`u{00A0}min" | Should -BeExactly 'Save the last 2 min'
+        ConvertTo-VerifyMenuTitle "10`u{202F}%`u{2007}x" | Should -BeExactly '10 % x'
+        ConvertTo-VerifyMenuTitle 'Open PrusaLink' | Should -BeExactly 'Open PrusaLink'
+        ConvertTo-VerifyMenuTitle $null | Should -BeExactly ''
+    }
+
+    It 'tells the selected tab of the Accessibility tree' {
+        $pipe = [pscustomobject]@{ identifier = 'PART_LayoutRoot'; children = @([pscustomobject]@{ identifier = 'PART_SelectedPipe'; children = @() }) }
+        Test-VerifyAxTabSelected ([pscustomobject]@{ identifier = 'SettingsTabPrinters'; value = ''; children = @($pipe) }) | Should -BeTrue
+        Test-VerifyAxTabSelected ([pscustomobject]@{ identifier = 'SettingsTabWidgets'; value = ''; children = @([pscustomobject]@{ identifier = 'PART_LayoutRoot'; children = @() }) }) | Should -BeFalse
+        Test-VerifyAxTabSelected ([pscustomobject]@{ identifier = 'x'; value = 1; children = @() }) | Should -BeTrue
+        Test-VerifyAxTabSelected $null | Should -BeFalse
+    }
+
+    It 'lists the tab items of a TabControl without the sub-tabs in its content' {
+        $tab = { param($Id) [pscustomobject]@{ identifier = $Id; role = 'AXRadioButton'; children = @() } }
+        $sub = [pscustomobject]@{ identifier = 'SettingsPrinterTabs'; role = 'AXTabGroup'; children = @([pscustomobject]@{ identifier = 'PART_ItemsPresenter'; role = 'AXGroup'; children = @((& $tab 'PrinterTabConnection'), (& $tab 'PrinterTabDetection')) }) }
+        $group = [pscustomobject]@{
+            identifier = 'SettingsTabs'; role = 'AXTabGroup'; children = @(
+                [pscustomobject]@{ identifier = 'PART_ItemsPresenter'; role = 'AXGroup'; children = @((& $tab 'SettingsTabPrinters'), (& $tab 'SettingsTabWidgets'), (& $tab 'SettingsTabCamera')) }
+                [pscustomobject]@{ identifier = 'PART_SelectedContentHost'; role = 'AXGroup'; children = @($sub) })
+        }
+        @(Get-VerifyAxTabItems $group).identifier | Should -Be @('SettingsTabPrinters', 'SettingsTabWidgets', 'SettingsTabCamera')
+        @(Get-VerifyAxTabItems $sub).identifier | Should -Be @('PrinterTabConnection', 'PrinterTabDetection')
+        @(Get-VerifyAxTabItems $null) | Should -HaveCount 0
+    }
+
+    It 'formats a number for the command line in the invariant culture' {
+        $culture = [cultureinfo]::CurrentCulture
+        try {
+            [cultureinfo]::CurrentCulture = [cultureinfo]::GetCultureInfo('cs-CZ')
+            Format-VerifyInvariantNumber 25 | Should -BeExactly '25'
+            Format-VerifyInvariantNumber 12.5 | Should -BeExactly '12.5'
+            Format-VerifyInvariantNumber 0.04 | Should -BeExactly '0.04'
+        }
+        finally { [cultureinfo]::CurrentCulture = $culture }
+    }
+
+    It 'tells that the Debug test mode recorded the addresses instead of opening the browser' {
+        Test-VerifyUrlsRecorded '2026-11-15 16:19:35.701 +01:00 INF [pid 34352] LayerPeek.App.Platform.RecordingUrlLauncher: Test mode: an address on github.com was recorded instead of opening the browser.' | Should -BeTrue
+        Test-VerifyUrlsRecorded 'LayerPeek.App.Platform.ProcessUrlLauncher: opened' | Should -BeFalse
+        Test-VerifyUrlsRecorded $null | Should -BeFalse
     }
 }
 

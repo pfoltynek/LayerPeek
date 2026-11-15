@@ -3,7 +3,8 @@
 // Command Line Tools); no other dependency. Prints JSON (or plain values) on stdout, errors on stderr with exit code 1.
 //
 //   screens                          the displays: id, UUID, name, frame and usable area (points, origin top left of
-//                                    the main display, as CGWindowList), scale, main
+//                                    the main display, as CGWindowList), scale, main; read as an app reads them (the menu
+//                                    bar of every display with separate Spaces left out of its usable area)
 //   windows <pid>                    the windows of a process from CGWindowListCopyWindowInfo: number, layer, bounds,
 //                                    on screen; needs no Screen Recording permission (window titles are not read)
 //   menubar                          the menu bar level windows (layers 23 to 26) of every process with owner name and
@@ -73,7 +74,8 @@
 //                                    menu item (the titles on stderr), 2: the press failed (needs Accessibility; T-215)
 //   drag <x1> <y1> <x2> <y2> [<ms>]  a left mouse drag in even steps over <ms> (default 600) (needs Accessibility; T-215)
 //   axclose <pid> <path>             closes the window of a process whose AXDocument is <path> (a Finder window of a
-//                                    folder) with its close button (needs Accessibility; T-210)
+//                                    folder; one without AXDocument, as Finder's on macOS 27, by its title = the last part
+//                                    of <path>) with its close button (needs Accessibility; T-210)
 //   focusedid <pid>                  the identifier of the focused element of the process, or "" (needs Accessibility)
 //   axwatch <pid> <identifier> <ms> [<stop>]  JSON lines: the text (value, title or description) and frame of the
 //                                    element with that identifier at the start and at every change, polled every 50 ms
@@ -95,6 +97,9 @@
 //   front <x> <y> <seconds> [regular]  a stand-in other app: an accessory app (regular: an ordinary app with a Dock
 //                                    icon and a menu bar, T-215) with one small window at a point, activated; prints its
 //                                    pid and runs until <seconds> pass or it is killed
+//   activate <pid>                   brings the app with that pid to the front through the Accessibility API
+//                                    (AXFrontmost), which the cooperative activation of macOS 14+ does not refuse as it
+//                                    may refuse the app's own activate(); exit code 1 when it is not in front within 3 s
 //   regiondiff <a.png> <b.png> <window width> <x> <y> <w> <h>  JSON: share of pixels (luminance difference > 40), share
 //                                    of pixels with a difference > 8 (slightShare, T-215) and mean difference in a
 //                                    rectangle (points from the window's top left) of two captures
@@ -150,6 +155,9 @@ func topLeft(_ rect: NSRect) -> [String: Double] {
 }
 
 func screens() {
+    // Connected to the window server like an app: without NSApplication a command line tool gets the usable area of a
+    // display other than the main one without its menu bar (visibleFrame = frame), unlike the app under test.
+    _ = NSApplication.shared
     var result: [[String: Any]] = []
     for screen in NSScreen.screens {
         let number = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
@@ -409,8 +417,13 @@ func axClose(_ pid: Int32, _ path: String) {
     requireTrusted()
     let app = AXUIElementCreateApplication(pid)
     let wanted = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+    // By AXDocument; a Finder window of macOS 27 has none (first run with an unlocked screen 2026-11-15), then by its
+    // title, the name of the folder.
+    let leaf = URL(fileURLWithPath: wanted).lastPathComponent
     let matches: (AXUIElement) -> Bool = { window in
-        guard let url = URL(string: text(window, kAXDocumentAttribute)), url.isFileURL else { return false }
+        let document = text(window, kAXDocumentAttribute)
+        if document.isEmpty { return !leaf.isEmpty && text(window, kAXTitleAttribute) == leaf }
+        guard let url = URL(string: document), url.isFileURL else { return false }
         return url.resolvingSymlinksInPath().standardizedFileURL.path == wanted
     }
     guard let window = (attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []).first(where: matches) else { fail("no window of process \(pid) shows \(path)") }
@@ -894,7 +907,7 @@ func menuPress(_ pid: Int32, _ path: String) {
             let items = children(menu).filter { text($0, kAXRoleAttribute) == kAXMenuItemRole }
             let level = titles[..<index].joined(separator: ">")
             // A title ending with "*" matches by its start (an item whose title changes, e.g. a percentage; T-213).
-            let matches: (String) -> Bool = title.hasSuffix("*") ? { $0.hasPrefix(title.dropLast()) } : { $0 == title }
+            let matches: (String) -> Bool = title.hasSuffix("*") ? { sameTitle($0).hasPrefix(sameTitle(String(title.dropLast()))) } : { sameTitle($0) == sameTitle(title) }
             guard let item = items.first(where: { matches(text($0, kAXTitleAttribute)) }) else {
                 let available = items.map { "'\(text($0, kAXTitleAttribute))'" }.filter { $0 != "''" }
                 problem = "no item '\(title)' in the menu\(level.isEmpty ? "" : " '\(level)'"); its items: \(available.joined(separator: ", "))"
@@ -916,6 +929,30 @@ func menuPress(_ pid: Int32, _ path: String) {
         return false
     }
     if let problem { fail(problem) }
+}
+
+/// A menu title for comparing: the no-break spaces as plain spaces. NSMenu shows a no-break space of a title (e.g.
+/// "Save the last 2\u{00A0}min" of the resources) as a plain space to the Accessibility API, while the menus Avalonia
+/// draws itself (the context menu of the camera window) keep it.
+func sameTitle(_ title: String) -> String {
+    title.replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{202F}", with: " ").replacingOccurrences(of: "\u{2007}", with: " ")
+}
+
+/// Brings an app to the front through the Accessibility API (needs Accessibility): AXFrontmost on the app and AXRaise on
+/// its main window. macOS 14+ may refuse the cooperative NSApplication.activate() of a stand-in app started from a
+/// terminal while another app is active; this is what an assistive app does instead.
+func activateApp(_ pid: Int32) {
+    requireTrusted()
+    let app = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(app, 1.0)
+    let status = AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+    let main = attribute(app, kAXMainWindowAttribute).map { $0 as! AXUIElement }
+    if let window = main ?? (attribute(app, kAXWindowsAttribute) as? [AXUIElement])?.first {
+        _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    }
+    if waitFor(3.0, { NSRunningApplication(processIdentifier: pid)?.isActive == true ? true : nil }) == nil {
+        fail("the app \(pid) is not in front after AXFrontmost (status \(status.rawValue))")
+    }
 }
 
 /// The result of async work handed from its task to the waiting thread (written once, before the semaphore is signalled).
@@ -1111,17 +1148,50 @@ func typeText(_ text: String) {
 /// process, but a check reports where the panel really was.
 let panelServicePrefix = "com.apple.appkit.xpc.openAndSavePanelService"
 
-/// A file browser below `element` (the list, outline, table or column browser of a panel), depth first, or nil.
-func fileBrowser(_ element: AXUIElement, _ depth: Int = 0) -> AXUIElement? {
-    if ["AXBrowser", kAXOutlineRole as String, kAXTableRole as String, kAXListRole as String].contains(text(element, kAXRoleAttribute)) { return element }
-    guard depth < 12 else { return nil }
-    for child in children(element) { if let found = fileBrowser(child, depth + 1) { return found } }
-    return nil
+/// The file browser below `element` (the column browser, or the list, outline or table of a panel), or nil. The column
+/// browser first; else the last one depth first: the sidebar (an outline of places, "Recents", "Favourites" …) comes
+/// before the file list in the tree (first run with an unlocked screen 2026-11-15: the items were the sidebar's).
+func fileBrowser(_ element: AXUIElement) -> AXUIElement? {
+    var found: [AXUIElement] = []
+    func collect(_ node: AXUIElement, _ depth: Int) {
+        let role = text(node, kAXRoleAttribute)
+        if role == "AXBrowser" { found.insert(node, at: 0); return }
+        if [kAXOutlineRole as String, kAXTableRole as String, kAXListRole as String].contains(role) { found.append(node); return }
+        guard depth < 12 else { return }
+        for child in children(node) { collect(child, depth + 1) }
+    }
+    collect(element, 0)
+    if let browser = found.first, text(browser, kAXRoleAttribute) == "AXBrowser" { return browser }
+    return found.last
 }
 
-/// An open or save panel: a window or sheet with a default and a cancel button and a file browser.
+/// An open or save panel: a window or sheet with a default and a cancel button and a file browser. The sheet of an
+/// NSOpenPanel on macOS 27 (identifier "open-panel", first run with an unlocked screen 2026-11-15) has no
+/// AXDefaultButton / AXCancelButton: its identifier and file browser tell it then (panelButton finds the buttons).
 func isPanel(_ element: AXUIElement) -> Bool {
-    attribute(element, kAXDefaultButtonAttribute) != nil && attribute(element, kAXCancelButtonAttribute) != nil && fileBrowser(element) != nil
+    guard fileBrowser(element) != nil else { return false }
+    if attribute(element, kAXDefaultButtonAttribute) != nil && attribute(element, kAXCancelButtonAttribute) != nil { return true }
+    return ["open-panel", "save-panel"].contains(text(element, kAXIdentifierAttribute)) && panelButton(element, kAXDefaultButtonAttribute) != nil
+}
+
+/// The default (`kAXDefaultButtonAttribute`) or cancel button of a panel: the attribute, else the bottom row of titled
+/// buttons of the panel as AppKit lays it out (the default button rightmost, Cancel left of it).
+func panelButton(_ panel: AXUIElement, _ name: String) -> AXUIElement? {
+    if let value = attribute(panel, name) { return (value as! AXUIElement) }
+    var buttons: [(element: AXUIElement, x: Double, bottom: Double)] = []
+    func collect(_ element: AXUIElement, _ depth: Int) {
+        guard depth < 12, buttons.count < 100 else { return }
+        if text(element, kAXRoleAttribute) == (kAXButtonRole as String), !text(element, kAXTitleAttribute).isEmpty {
+            let f = frame(element)
+            if f["width", default: 0] > 0 && f["height", default: 0] > 0 { buttons.append((element, f["x", default: 0], f["y", default: 0] + f["height", default: 0])) }
+        }
+        for child in children(element) { collect(child, depth + 1) }
+    }
+    collect(panel, 0)
+    guard let lowest = buttons.map(\.bottom).max() else { return nil }
+    let row = buttons.filter { abs($0.bottom - lowest) <= 4 }.sorted { $0.x > $1.x }
+    let index = name == (kAXDefaultButtonAttribute as String) ? 0 : 1
+    return row.count >= 2 ? row[index].element : nil
 }
 
 /// The panels of a process with the window each belongs to (itself, or the window of a sheet).
@@ -1182,8 +1252,7 @@ func panelItems(_ browser: AXUIElement) -> [[String: Any]] {
 }
 
 func buttonJSON(_ panel: AXUIElement, _ name: String) -> [String: Any] {
-    guard let value = attribute(panel, name) else { return ["title": NSNull(), "enabled": NSNull()] }
-    let button = value as! AXUIElement
+    guard let button = panelButton(panel, name) else { return ["title": NSNull(), "enabled": NSNull()] }
     return ["title": text(button, kAXTitleAttribute), "enabled": isEnabled(button)]
 }
 
@@ -1246,7 +1315,7 @@ func panelCloses(_ owner: Int32, _ panel: AXUIElement, _ seconds: Double) -> Boo
 
 /// Closes the panel with its cancel button, else Esc; exit code 1 when it stays open.
 func cancelPanel(_ owner: Int32, _ entry: (panel: AXUIElement, window: AXUIElement)) {
-    if let button = attribute(entry.panel, kAXCancelButtonAttribute) { _ = AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString) }
+    if let button = panelButton(entry.panel, kAXCancelButtonAttribute) { _ = AXUIElementPerformAction(button, kAXPressAction as CFString) }
     if panelCloses(owner, entry.panel, 3.0) { return }
     for _ in 0..<3 {
         _ = raisePanel(owner, entry.window)
@@ -1295,7 +1364,7 @@ func panelGo(_ pid: Int32, _ path: String, _ seconds: Double) {
     usleep(300_000)
     let typed = text(field, kAXValueAttribute)
     key("return")
-    guard let button = attribute(entry.panel, kAXDefaultButtonAttribute).map({ $0 as! AXUIElement }) else { give(up: "the panel has no default button", code: 2) }
+    guard let button = panelButton(entry.panel, kAXDefaultButtonAttribute) else { give(up: "the panel has no default button", code: 2) }
     guard waitFor(3.0, { isEnabled(button) ? true : nil }) != nil else {
         give(up: "the default button '\(text(button, kAXTitleAttribute))' stays disabled after Go to '\(path)' (field: '\(typed)')", code: 4)
     }
@@ -1351,10 +1420,21 @@ func focusedMenuBar() {
     requireTrusted()
     let system = AXUIElementCreateSystemWide()
     AXUIElementSetMessagingTimeout(system, 1.0)
-    guard let focused = attribute(system, kAXFocusedApplicationAttribute) else { printJSON(["pid": 0, "items": []]); return }
-    let app = focused as! AXUIElement
+    // The front app of the window server when the system-wide element names none (macOS 27 with a Screen Sharing display,
+    // first run with an unlocked screen 2026-11-15: AXFocusedApplication was missing even with an app in front).
     var pid: pid_t = 0
-    _ = AXUIElementGetPid(app, &pid)
+    let app: AXUIElement
+    if let focused = attribute(system, kAXFocusedApplicationAttribute) {
+        app = focused as! AXUIElement
+        _ = AXUIElementGetPid(app, &pid)
+    } else if let front = NSWorkspace.shared.frontmostApplication {
+        pid = front.processIdentifier
+        app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 1.0)
+    } else {
+        printJSON(["pid": 0, "items": []])
+        return
+    }
     let items = attribute(app, kAXMenuBarAttribute).map { children($0 as! AXUIElement) } ?? []
     printJSON(["pid": Int(pid), "items": items.map { ["title": text($0, kAXTitleAttribute), "frame": frame($0)] as [String: Any] }])
 }
@@ -1419,7 +1499,7 @@ func dockCommand(_ wanted: String, _ action: String, _ title: String?) {
             printJSON(entries)
             return
         }
-        guard let title, let entry = items.first(where: { text($0, kAXTitleAttribute) == title }) else {
+        guard let title, let entry = items.first(where: { sameTitle(text($0, kAXTitleAttribute)) == sameTitle(title) }) else {
             let available = items.map { "'\(text($0, kAXTitleAttribute))'" }.joined(separator: ", ")
             closeDockMenu(item, menu)
             fail("no item '\(title ?? "")' in the Dock menu; its items: \(available)")
@@ -1629,6 +1709,7 @@ case "focusedid" where arguments.count == 2: guard let pid = Int32(arguments[1])
 case "axwatch" where arguments.count == 4 || arguments.count == 5:
     guard let pid = Int32(arguments[1]), let milliseconds = Int(arguments[3]) else { fail("not a pid or a time") }
     axWatch(pid, arguments[2], milliseconds, arguments.count == 5 ? arguments[4] : nil)
+case "activate" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; activateApp(pid)
 case "windowsat" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; windowsAt(x, y)
 case "front" where arguments.count == 4 || (arguments.count == 5 && arguments[4] == "regular"):
     guard let x = Double(arguments[1]), let y = Double(arguments[2]), let seconds = Double(arguments[3]) else { fail("not a point or a time") }
