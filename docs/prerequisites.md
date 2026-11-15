@@ -180,6 +180,8 @@ Testy skriptu (`build/update-ffmpeg.Tests.ps1`, Pester, běží v `dotnet test`)
 
 Komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64` se samostatně nestahuje, je součástí workloadu *Desktop development with C++* v instalátoru Visual Studia.
 
+Ověřeno 2026-11-15 (T-232) s Build Tools for Visual Studio 2026 18.12.0: MSVC 14.52 (složka sady nástrojů `14.52.37025`, překladač 19.52.37029) a Windows 11 SDK 10.0.26100, které workload instaluje jako doporučené. Novější Windows 11 SDK 10.0.28000 je ve workloadu jen volitelné; Native AOT ho nepotřebuje (linker bere jen knihovny importu systému, které má i 10.0.26100), proto se neinstaluje. Minimální verze MSVC ani SDK se nepředepisuje.
+
 ### Varianta A – winget (doporučeno)
 
 ```powershell
@@ -362,7 +364,7 @@ Workflow `.github/workflows/ci.yml` (T-218) běží při pushi do `develop`, `re
 | Job | Runner | Co |
 |---|---|---|
 | `Changes` | `ubuntu-24.04` | u PR zjistí změněné soubory proti cílové větvi; push a ruční spuštění vždy plný běh |
-| `Build and test (Windows)` | `windows-2025` (VS 2026 s workloadem *Desktop development with C++*, Edge, PowerShell 7, Pester 5) | kroky 1–3, `win-x64` |
+| `Build and test (Windows)` | `windows-2025` (= obraz `windows-2025-vs2026`; VS 2026 s workloadem *Desktop development with C++*, Edge, PowerShell 7, Pester 5) | kroky 1–3, `win-x64` |
 | `Build and test (macOS)` | `xcode-27` (macOS 27, Apple Silicon, zatím *preview* obraz GitHubu; Xcode Command Line Tools, PowerShell 7, Pester 5) | kroky 1–3, `osx-arm64` |
 | `Cross-publish (win-arm64)` | `windows-2025` (navíc komponenta `Microsoft.VisualStudio.Component.VC.Tools.ARM64`, na obrazu předinstalovaná) | krok 4, souběžně s buildy, limit 30 min |
 | `CI result` | `ubuntu-24.04` | jediná povinná kontrola: projde, když oba buildy i křížový publish prošly, nebo když nebyly potřeba |
