@@ -230,6 +230,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-229 | Aktualizace Avalonia 12.1.4 → 12.1.6 (hotovo) | all | ui-dev | P2 | – |
 | T-230 | Aktualizace všech NuGet balíčků a .NET nástrojů na nejnovější stabilní verze (hotovo; Windows v T-125) | all | qa-reviewer | P2 | – |
 | T-233 | E2E test `ClassicFormPostOfTheProxiedPageReachesThePrinter` selhává s Edge 157 na macOS | all | qa-reviewer | P2 | – |
+| T-238 | Testovací režim – volitelné skutečné otevírání odkazů přes /usr/bin/open pro `mac.open-fake` (T-053 L4) | all | ui-dev | P3 | T-216 |
+| T-242 | Kontextové menu textových polí (Cut / Copy / Paste) je anglicky i v jiném jazyce aplikace | all | ui-dev | P3 | T-029 |
 
 ### Windows (`windows`)
 
@@ -326,3 +328,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-223 | macOS – písmo Inter jako výchozí písmo aplikace (místo San Francisco, které Avalonia rozvrhuje úzce) (hotovo; šířky v běžící aplikaci v T-127; SystemFont ponechán 2026-11-15) | macos | ui-dev | P2 | T-222 |
 | T-231 | macOS – aktualizace nativních závislostí a nástrojů (FFmpeg ze zdrojů, Xcode, runner CI) (hotovo) | macos | qa-reviewer | P2 | – |
 | T-235 | macOS ověření – kontrola pozastavení kamery při zakrytí okna a na jiném Space (`mac.camera-pause-hidden`) | macos | qa-reviewer | P3 | T-187, T-215 |
+| T-237 | macOS – malý náhled po Esc z celé obrazovky má titulkový pruh a je o 28 bodů vyšší (T-038 otázka 2) | macos | ui-dev | P2 | T-038, T-215 |
+| T-239 | macOS – záložky Nastavení nejdou přepnout přes Accessibility (AXPress, VoiceOver) (Avalonia 12.1.6) | macos | ui-dev | P3 | – |
+| T-240 | macOS – ⌘⇧[ s českým rozložením klávesnice nepřepne na předchozí záložku Nastavení (T-100 otázka 1) | macos | ui-dev | P2 | T-100, T-216 |
+| T-241 | macOS – menu ikony v Docku nevypisuje okna aplikace (Nastavení, okno kamery) (T-102) | macos | ui-dev | P3 | T-102, T-215 |
+| T-243 | macOS – panel „Exportovat timelapse do JPEG…“ dovolí vybrat i jiný soubor než .mp4 (⌘⇧G) (T-165 / T-213) | macos | ui-dev | P3 | T-165, T-213 |

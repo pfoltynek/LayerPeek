@@ -1032,10 +1032,12 @@ function Get-VerifyTopWindow {
     <#
     .SYNOPSIS
         The window a click at a point reaches, from the helper's 'windowsat' list (front to back): the first one of a
-        normal or floating level (0 to 24); overlays above the menu bar (e.g. display tools, the cursor) let clicks through.
+        normal or floating level (0 to 24); overlays above the menu bar (e.g. display tools, the cursor) let clicks through,
+        and so does a window of the Dock larger than 200 x 200 pt (the Dock level 20 covering a whole display, seen with a
+        Screen Sharing display 2026-11-15: real clicks reached the windows under it; the Dock itself is narrower).
     #>
     param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Windows)
-    @($Windows | Where-Object { $_.layer -ge 0 -and $_.layer -lt 25 }) | Select-Object -First 1
+    @($Windows | Where-Object { $_.layer -ge 0 -and $_.layer -lt 25 -and -not ($_.owner -ceq 'Dock' -and $_.width -gt 200 -and $_.height -gt 200) }) | Select-Object -First 1
 }
 
 function ConvertFrom-VerifyAxWatch {
@@ -1689,6 +1691,69 @@ function Get-VerifyTabMoveProblem {
     if ($index -lt 0) { return "the tab $Before is not one of $($Tabs -join ', ')" }
     $expected = $Tabs[(($index + $Step) % $Tabs.Count + $Tabs.Count) % $Tabs.Count]
     if ($After -cne $expected) { "went from $Before to $After, expected $expected" }
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# First run with an unlocked screen (2026-11-15): tabs, menu titles, the test mode's URL launcher
+# ---------------------------------------------------------------------------------------------------------------------
+
+function ConvertTo-VerifyMenuTitle {
+    <#
+    .SYNOPSIS
+        A menu title for comparing: no-break spaces (U+00A0, U+202F, U+2007) as plain spaces. NSMenu hands a title such
+        as "Save the last 2<U+00A0>min" of the resources to the Accessibility API with a plain space; the menus Avalonia
+        draws itself (the context menu of the camera window) keep the no-break space.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Title)
+    "$Title".Replace([string] [char] 0x00A0, ' ').Replace([string] [char] 0x202F, ' ').Replace([string] [char] 0x2007, ' ')
+}
+
+function Test-VerifyAxTabSelected {
+    <#
+    .SYNOPSIS
+        Whether a tab item of the helper's Accessibility tree is the selected one: a value of 1 / True, or the selection
+        pipe of the Fluent theme (PART_SelectedPipe) among its children (hidden, so not in the tree, in the other tabs).
+    #>
+    param([AllowNull()] $Node)
+    if (-not $Node) { return $false }
+    if ("$($Node.value)" -in '1', 'True') { return $true }
+    foreach ($child in @($Node.children)) {
+        if (-not $child) { continue }
+        if ($child.identifier -ceq 'PART_SelectedPipe' -or (Test-VerifyAxTabSelected ([pscustomobject]@{ value = ''; children = $child.children }))) { return $true }
+    }
+    $false
+}
+
+function Get-VerifyAxTabItems {
+    <#
+    .SYNOPSIS
+        The tab items of a TabControl of the helper's Accessibility tree (AXRadioButton / AXTab with an identifier), in
+        order, without those of a nested TabControl in the content of the selected tab (PART_SelectedContentHost): the
+        sub-tabs of a printer are no main tabs (first run with an unlocked screen 2026-11-15).
+    #>
+    param([AllowNull()] $Group)
+    if (-not $Group -or -not $Group.PSObject.Properties['children']) { return }
+    foreach ($child in @($Group.children)) {
+        if (-not $child -or $child.identifier -ceq 'PART_SelectedContentHost') { continue }
+        if ($child.identifier -and $child.role -in 'AXRadioButton', 'AXTab') { $child; continue }
+        Get-VerifyAxTabItems $child
+    }
+}
+
+function Format-VerifyInvariantNumber {
+    <# .SYNOPSIS A number as a command line argument: invariant culture (12.5, never 12,5), no exponent for the usual values. #>
+    param([Parameter(Mandatory)] [double] $Value)
+    $Value.ToString('0.############', [cultureinfo]::InvariantCulture)
+}
+
+function Test-VerifyUrlsRecorded {
+    <#
+    .SYNOPSIS
+        Whether the log of a Debug test app shows that its addresses went to opened-urls.txt instead of the browser
+        (RecordingUrlLauncher, T-067): then no browser opens and no request reaches the web proxy.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Log)
+    "$Log" -match 'RecordingUrlLauncher: Test mode: an address on .+ was recorded instead of opening the browser'
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
