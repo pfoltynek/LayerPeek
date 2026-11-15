@@ -159,12 +159,19 @@ public sealed partial class CameraWindow : Window
             // macOS (T-038): also before a mode switch goes on, e.g. full screen needs the flags of a normal window back.
             UpdateSpaces();
         }
+        else if (change.Property == WindowDecorationsProperty)
+        {
+            // macOS (T-237): also where Avalonia ignores them after AppKit left full screen.
+            OnDecorationsChanged();
+        }
 
         if (change.Property != WindowStateProperty || !_opened || _viewModel is not { } viewModel)
         {
             return;
         }
 
+        // macOS (T-237): before the mode follows (and sets its decorations).
+        OnFullScreenStateChanged(change.GetOldValue<WindowState>(), change.GetNewValue<WindowState>());
         // A minimized window pauses the stream; restoring it reconnects.
         viewModel.SetActive(WindowState != WindowState.Minimized);
         if (!_applyingMode && WindowState != WindowState.Minimized)
