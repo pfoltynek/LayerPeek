@@ -227,7 +227,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-207 | Kamera – dekodér si pamatuje poslední SPS/PPS pro nově otevřený kontext kodeku | all | core-dev | P3 | T-205 |
 | T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR | all | qa-reviewer | P2 | – |
 | T-219 | Nestabilní test `CameraStreamHubKeyFrameTests.WithoutDueSubscribersNoKeyFrameIsWanted` při plném `dotnet test` | all | core-dev | P2 | – |
-| T-224 | Aktualizace Avalonia 12.1.4 → 12.1.6 (hotovo) | all | ui-dev | P2 | – |
+| T-229 | Aktualizace Avalonia 12.1.4 → 12.1.6 (hotovo) | all | ui-dev | P2 | – |
 
 ### Windows (`windows`)
 

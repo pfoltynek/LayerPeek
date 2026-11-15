@@ -1,5 +1,5 @@
 ---
-id: T-224
+id: T-229
 title: Aktualizace Avalonia 12.1.4 → 12.1.6
 status: done
 owner: ui-dev
@@ -68,7 +68,7 @@ nerozbilo (testy, snímky, Native AOT), a změřit chybu San Francisco z T-222 z
   (první běh: 6 selhání = jen očekávané verze „12.1.4“ v testech; po úpravě oba projekty zelené; závěrečný běh
   10 729 testů: 10 458 OK, 270 přeskočeno, 1 selhání `CameraStreamHubAllocationTests.GrayscaleKeyFrameSamplesDoNotAllocate`
   (840 B, Core bez Avalonie, souběžně běžel `macos-verify.ps1` jiné relace; samotná třída 3× a celé `LayerPeek.Core.Tests`
-  znovu zelené → nestabilita alokačního testu pod zátěží, ne T-224); `dotnet publish src/LayerPeek.App -c Release -r osx-arm64` bez varování IL/AOT (jen varování nativního linkeru /
+  znovu zelené → nestabilita alokačního testu pod zátěží, ne T-229); `dotnet publish src/LayerPeek.App -c Release -r osx-arm64` bez varování IL/AOT (jen varování nativního linkeru /
   `dsymutil` o modulové cache a hláška `xcodebuild` o Command Line Tools – nástroje Xcode, ne IL/AOT, jako v T-223), binárka 37 914 104 → 37 930 680 B (+16,6 kB);
   Debug aplikace v testovacím režimu (`LAYERPEEK_TEST_DATA_DIR`, `LAYERPEEK_INSTANCE_SUFFIX`) nastartovala, běžela
   18 s bez varování a chyb v logu, ukončena `kill`.

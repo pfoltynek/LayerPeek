@@ -143,7 +143,7 @@ přečtení textu; návrat k San Francisco = budoucí úkol po opravě v Avaloni
 > weights and compare with `CTLineGetTypographicBounds`. Related: #21565 (spacing workaround `LetterSpacing = 0.7`
 > in its last comment), #22182 (the same symptom for Avalonia's own variation clones), #11092, #22179, #22665.
 
-### 2026-11-15 – opakované měření na Avalonii 12.1.6 a hledání existujícího hlášení (T-224)
+### 2026-11-15 – opakované měření na Avalonii 12.1.6 a hledání existujícího hlášení (T-229)
 - **Chyba ve 12.1.6 trvá, beze změny.** Stejný měřicí program jako výše (headless Skia, `TextLayout`,
   `.AppleSystemUIFont` / `SFNS.ttf` / Inter, Normal / SemiBold / Bold, 11–17 pt, 10 vzorků) jen s balíčky 12.1.6:
   CSV šířek je **bajtově shodné** s 12.1.4 a všech 630 vykreslených řádků Avalonie je bajtově shodných (žádná změna
