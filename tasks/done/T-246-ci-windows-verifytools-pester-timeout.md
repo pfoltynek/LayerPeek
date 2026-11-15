@@ -1,7 +1,7 @@
 ---
 id: T-246
 title: CI Windows – Pester VerifyTools.Tests.ps1 překračuje 5 min (macos-verify -ListChecks 66 s na runneru, lokálně < 1 s)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: windows
@@ -23,8 +23,8 @@ síť / DNS, hledání příkazů, Defender, první spuštění `pwsh` …), a o
 - Ověřit ručním během CI (spustí hlavní agent).
 
 ## Akceptační kritéria
-- [ ] Příčina zapsaná a opravená; `VerifyTools.Tests.ps1` v CI na Windows bezpečně pod limitem (příčina a oprava
-  hotové, viz poznámky; čeká na ruční běh CI, který spustí hlavní agent)
+- [x] Příčina zapsaná a opravená; `VerifyTools.Tests.ps1` v CI na Windows bezpečně pod limitem (příčina a oprava
+  hotové, viz poznámky; ruční běh CI 43764085324 na fc9496dc, 2026-11-15, celý zelený)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování (`dotnet build` 0 varování; `LayerPeek.Scripts.Tests`
   25 prošlo / 0 selhalo / 1 přeskočen na vyžádání, 5:45; ostatních sestav se změna nedotýká)
 
