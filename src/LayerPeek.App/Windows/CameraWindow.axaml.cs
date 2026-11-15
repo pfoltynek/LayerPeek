@@ -26,7 +26,8 @@ namespace LayerPeek.App.Windows;
 /// full screen, or the mini preview (no frame, always on top, moved by dragging the image, resized by its edges). It
 /// reports where the normal window and the mini preview were, so that they come back there next time. Without a
 /// remembered placement (or with "remember" off in the settings) it opens with the printer's defaults (T-035: mode,
-/// monitor, size and corner, <see cref="CameraWindowPlanner"/>). Minimizing pauses the stream.
+/// monitor, size and corner, <see cref="CameraWindowPlanner"/>). Minimizing pauses the stream, and so do a locked session,
+/// a display that is off and (Windows) another virtual desktop (T-186, <see cref="CameraViewModel.SetCloaked"/>).
 /// </remarks>
 public sealed partial class CameraWindow : Window
 {
@@ -114,6 +115,11 @@ public sealed partial class CameraWindow : Window
             {
                 PlaceBeforeShowing(_viewModel);
             }
+            else if (!_closed)
+            {
+                // T-186: the new view model learns the current cloaking.
+                StartCloakingWatch();
+            }
         }
 
         base.OnDataContextChanged(e);
@@ -125,6 +131,8 @@ public sealed partial class CameraWindow : Window
         _opened = true;
         CorrectFrame();
         EnsureOnScreen();
+        // T-186: whether the window is cloaked (another virtual desktop) before its stream starts.
+        StartCloakingWatch();
         if (_viewModel is { } viewModel)
         {
             ApplyMode(viewModel.Mode);
@@ -175,6 +183,7 @@ public sealed partial class CameraWindow : Window
     {
         // The native window is gone: nothing is written to it any more (T-038).
         _closed = true;
+        StopCloakingWatch();
         if (_viewModel is { } viewModel)
         {
             // Stops the stream right away; the slot disposes the view model next (which persists the window state).

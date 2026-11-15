@@ -16,6 +16,7 @@ using LayerPeek.App.Tray;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.Display;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
@@ -81,7 +82,8 @@ internal interface ICameraFrameSink
 /// </summary>
 /// <remarks>
 /// <para>
-/// The window takes frames only while it is active (shown and not minimized, <see cref="SetActive"/>): it holds a lease
+/// The window takes frames only while it is active (shown and not minimized, <see cref="SetActive"/>, and visible: T-186,
+/// <see cref="SetCloaked"/>, <see cref="IDisplayActivityService"/>): it holds a lease
 /// on the printer's shared connection of the <see cref="CameraStreamHub"/> (T-143), which reconnects by itself and keeps
 /// the connection for other consumers (and for the hub's linger time). The lease asks for frames of the size the image is
 /// drawn at (T-184, <see cref="SetVideoArea"/>). Each borrowed frame is copied once, on the streaming thread, straight into
@@ -167,6 +169,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <param name="localNetwork">Whether "no route to host" may be the denied local network permission (T-097); <see langword="null"/> = never.</param>
     /// <param name="topmostWriter">Saves "always on top" switched by the pin (T-117); <see langword="null"/> = saving fails.</param>
     /// <param name="recordings">The camera recordings (T-146); <see langword="null"/> = no recording button.</param>
+    /// <param name="displayActivity">Whether the screen can be seen (T-186); <see langword="null"/> = always.</param>
     internal CameraViewModel(
         CameraTarget target,
         CameraStreamHub hub,
@@ -185,7 +188,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         ICameraOverlayLayoutWriter? layoutWriter = null,
         ILocalNetworkPrivacy? localNetwork = null,
         ICameraWindowTopmostWriter? topmostWriter = null,
-        ICameraRecordings? recordings = null)
+        ICameraRecordings? recordings = null,
+        IDisplayActivityService? displayActivity = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(hub);
@@ -214,6 +218,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _presentFrame = PresentFrame;
         _applyDisplaySize = ApplyDisplaySize;
         _applyPrinters = ApplyPrinters;
+        _applyScreenVisibility = ApplyScreenVisibility;
+        _displayActivity = displayActivity ?? AlwaysVisibleDisplayActivity.Instance;
 
         // T-035: the remembered state (when the defaults allow it) or the defaults; the window places itself from these.
         _defaults = target.Window;
@@ -259,6 +265,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
         _printers.Changed += OnPrintersChanged;
+        // T-186: the window pauses while the screen cannot be seen.
+        SubscribeScreenVisibility();
         PrinterSnapshot? current = _monitor.TryGetSnapshot(PrinterId, out PrinterSnapshot? snapshot) ? snapshot : null;
         Overlay.ShowCurrent(current);
         MiniStrip.ShowCurrent(current);
@@ -489,29 +497,20 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     internal bool IsStreaming => _lease is not null;
 
     /// <summary>
-    /// The window is shown and not minimized (<see langword="true"/>): the stream runs; minimized (<see langword="false"/>):
-    /// it stops until the window is restored. Opening or restoring the window ends a reconnect wait of the shared
-    /// connection (T-188); switching modes of a shown window does not come here.
+    /// The window is shown and not minimized (<see langword="true"/>): the stream runs while the screen can be seen and the
+    /// window is not cloaked (T-186, <see cref="SetCloaked"/>); minimized (<see langword="false"/>): it stops until the
+    /// window is restored. Opening or restoring the window ends a reconnect wait of the shared connection (T-188);
+    /// switching modes of a shown window does not come here.
     /// </summary>
     public void SetActive(bool active)
     {
-        if (_disposed || _active == active)
+        if (_disposed || _windowShown == active)
         {
             return;
         }
 
-        _active = active;
-        if (active)
-        {
-            StartStream(shortensReconnectWait: true);
-        }
-        else
-        {
-            StopStream();
-        }
-
-        // T-194: the time to the next attempt only while shown (no timer while minimized or closed).
-        RefreshNextAttempt();
+        _windowShown = active;
+        UpdateActive();
     }
 
     /// <summary>
@@ -640,6 +639,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
         _printers.Changed -= OnPrintersChanged;
+        UnsubscribeScreenVisibility();
         DisposeRecording();
         // An open edit is discarded (T-091).
         DisposeLayoutMode();
