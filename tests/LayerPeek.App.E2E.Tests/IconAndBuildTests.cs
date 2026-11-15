@@ -38,6 +38,8 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         AppSwitches.TestEnvironmentArgument,
         // T-020: the macOS test bundle and its status mode.
         AppSwitches.NotificationStatusArgument,
+        // T-212: the list mode of the test bundle.
+        AppSwitches.NotificationListArgument,
         AppSwitches.TestBundleIdentifier,
     ];
 

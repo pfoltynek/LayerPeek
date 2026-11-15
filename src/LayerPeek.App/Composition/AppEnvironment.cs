@@ -285,6 +285,14 @@ internal sealed class AppEnvironment
     /// </summary>
     public const string NotificationStatusArgument = "--layerpeek-e2e-notification-status";
 
+    /// <summary>
+    /// Debug builds only (T-212): the command line mode of the test bundle that prints the delivered notifications of the test
+    /// bundle (identifier, texts, category, thread, attachments, sound, the arguments of a click and of the button) and its
+    /// registered categories with their buttons as JSON, and nothing else: changes and shows nothing, asks nothing, no app,
+    /// no single-instance guard, no log; exit code 0, otherwise 1 with the reason on stderr. Refused outside the test bundle.
+    /// </summary>
+    public const string NotificationListArgument = "--layerpeek-e2e-notification-list";
+
     /// <summary>The Start menu shortcut of the test app; also the app name Windows shows in its toasts (T-067).</summary>
     public const string TestShortcutFileName = "LayerPeek E2E.lnk";
 
