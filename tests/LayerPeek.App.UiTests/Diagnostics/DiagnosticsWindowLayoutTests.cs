@@ -495,8 +495,11 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
 
     // ---- States of the no-scroll-bar test (T-041, "Testy pro implementaci") ----
 
-    /// <summary>A name longer than the header (about 80 characters; the design measured 60).</summary>
-    private const string LongName = "Original Prusa Core One L – workshop, second floor, left rack next to the window";
+    /// <summary>
+    /// A name longer than the header (about 100 characters; the design measured 60) in Inter and in the narrower San
+    /// Francisco of LayerPeek.App.UiTests.SystemFont (T-214).
+    /// </summary>
+    private const string LongName = "Original Prusa Core One L – workshop, second floor, left rack next to the window, by the north door";
 
     private static IEnumerable<(string Name, Func<UiTestScope, DiagnosticsWindowHarness> Open)> States()
     {

@@ -2620,6 +2620,113 @@ function Get-MacSignatureProblems {
     @("codesign --verify --deep --strict failed for $($AppPath): $(($output | ForEach-Object { "$_" }) -join ' ')")
 }
 
+function Get-MacLoadPathRules {
+    <#
+    .SYNOPSIS
+        Where the Mach-O files of a downloaded bundle may load libraries from (T-217, pure): only the bundle (@rpath,
+        @loader_path, @executable_path) and the system (/usr/lib, /System/Library). Forbidden names the places a build
+        machine has and a clean Mac does not (Homebrew, /usr/local, /opt, the build output artifacts/ and the FFmpeg build
+        cache LayerPeek.Build), so that a problem says where a reference points.
+    #>
+    param([Parameter(Mandatory)] [string] $RepoRoot, [Parameter(Mandatory)] [string] $HomePath)
+    $folder = { param($Path) $Path.TrimEnd('/') + '/' }
+    [pscustomobject]@{
+        Allowed   = @('@rpath/', '@loader_path/', '@executable_path/', '/usr/lib/', '/System/Library/')
+        Forbidden = [ordered]@{
+            '/opt/homebrew/'                                              = 'Homebrew'
+            '/usr/local/'                                                 = '/usr/local (Homebrew on Intel, hand-built libraries)'
+            '/opt/'                                                       = '/opt'
+            (& $folder (Join-Path $RepoRoot 'artifacts'))                 = 'the build output artifacts/'
+            (& $folder (Join-Path $HomePath 'Library' 'Caches' 'LayerPeek.Build')) = 'the FFmpeg build cache LayerPeek.Build'
+        }
+        # LC_RPATH entries: relative to the bundle only.
+        RpathPrefixes = @('@executable_path', '@loader_path')
+    }
+}
+
+function Get-MacLoadPathProblem {
+    <# .SYNOPSIS Why a library reference of `otool -L` is not allowed by Get-MacLoadPathRules, or $null (pure). #>
+    param([Parameter(Mandatory)] [string] $Reference, [Parameter(Mandatory)] $Rules)
+    foreach ($prefix in $Rules.Forbidden.Keys) {
+        if ($Reference.StartsWith($prefix, [StringComparison]::Ordinal)) { return "$Reference ($($Rules.Forbidden[$prefix]))" }
+    }
+    foreach ($prefix in $Rules.Allowed) {
+        if ($Reference.StartsWith($prefix, [StringComparison]::Ordinal)) { return $null }
+    }
+    "$Reference (outside the bundle and the system)"
+}
+
+function Get-MacLoadCommandRpaths {
+    <# .SYNOPSIS The paths of the LC_RPATH load commands in `otool -l` output (pure). #>
+    param([AllowEmptyCollection()] [string[]] $OtoolLoadCommands = @())
+    $inRpath = $false
+    foreach ($line in $OtoolLoadCommands) {
+        $text = "$line".Trim()
+        if ($text -match '^cmd\s+(?<cmd>\S+)$') { $inRpath = $Matches.cmd -ceq 'LC_RPATH'; continue }
+        if ($inRpath -and $text -match '^path\s+(?<path>.+?)\s+\(offset \d+\)$') { $Matches.path; $inRpath = $false }
+    }
+}
+
+function Get-MacMachOLoadPathProblems {
+    <#
+    .SYNOPSIS
+        Load path problems of one Mach-O file (pure; T-217): every `otool -L` reference except its own install name
+        (-InstallName, `otool -D`: only an identifier) must pass Get-MacLoadPathProblem, every LC_RPATH of `otool -l` must
+        start with @executable_path or @loader_path.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $File,
+        [AllowEmptyCollection()] [string[]] $OtoolList = @(),
+        [AllowEmptyCollection()] [string[]] $OtoolLoadCommands = @(),
+        [string] $InstallName,
+        [Parameter(Mandatory)] $Rules
+    )
+    # The references are the indented lines; a universal file has one header line "<path> (architecture <arch>):" per
+    # architecture.
+    foreach ($line in @($OtoolList | Where-Object { "$_" -match '^\s' })) {
+        $reference = ("$line".Trim() -split ' \(compatibility version')[0].Trim()
+        if (-not $reference -or $reference -ceq $InstallName) { continue }
+        $problem = Get-MacLoadPathProblem -Reference $reference -Rules $Rules
+        if ($problem) { "$File loads $problem." }
+    }
+    foreach ($rpath in @(Get-MacLoadCommandRpaths $OtoolLoadCommands)) {
+        if (-not ($Rules.RpathPrefixes | Where-Object { $rpath -ceq $_ -or $rpath.StartsWith("$_/", [StringComparison]::Ordinal) })) {
+            "$File has the LC_RPATH $rpath (only @executable_path and @loader_path are allowed)."
+        }
+    }
+}
+
+function Get-MacBundleLoadPathProblems {
+    <# .SYNOPSIS Get-MacMachOLoadPathProblems of every Mach-O file of a bundle (otool -L, -D and -l); empty = fine. #>
+    param([Parameter(Mandatory)] [string] $AppPath, [Parameter(Mandatory)] $Rules)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $app 'Contents') -Recurse -File -Force | Where-Object { Test-MachOFile $_.FullName })) {
+        $list = @(& /usr/bin/otool -L $file.FullName 2>&1 | ForEach-Object { "$_" })
+        if ($LASTEXITCODE -ne 0) { "otool -L failed for $($file.FullName): $($list -join ' ')"; continue }
+        $commands = @(& /usr/bin/otool -l $file.FullName 2>&1 | ForEach-Object { "$_" })
+        if ($LASTEXITCODE -ne 0) { "otool -l failed for $($file.FullName)."; continue }
+        $id = @(& /usr/bin/otool -D $file.FullName 2>$null | Select-Object -Skip 1) | Select-Object -First 1
+        Get-MacMachOLoadPathProblems -File $file.FullName.Substring($app.Length + 1) -OtoolList $list -OtoolLoadCommands $commands -InstallName "$id".Trim() -Rules $Rules
+    }
+}
+
+function Get-MacReleasePlistProblems {
+    <#
+    .SYNOPSIS
+        Problems of the Info.plist of a released bundle (T-217, pure; XML text, e.g. from plutil -convert xml1): both
+        versions equal the build version, the bundle identifier of build/macos/Info.plist, LSUIElement true.
+    #>
+    param([Parameter(Mandatory)] [string] $PlistText, [Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $BundleIdentifier)
+    try { $entries = Get-PlistEntries -Text $PlistText }
+    catch { return "Info.plist is no property list: $($_.Exception.Message)" }
+    $value = { param($Key) if ($entries.Contains($Key)) { $entries[$Key].InnerText } else { $null } }
+    foreach ($key in 'CFBundleShortVersionString', 'CFBundleVersion') {
+        if ((& $value $key) -cne $Version) { "Info.plist $key is '$(& $value $key)', expected the build version $Version." }
+    }
+    if ((& $value 'CFBundleIdentifier') -cne $BundleIdentifier) { "Info.plist CFBundleIdentifier is '$(& $value 'CFBundleIdentifier')', expected $BundleIdentifier." }
+    if (-not $entries.Contains('LSUIElement') -or $entries['LSUIElement'].Name -cne 'true') { 'Info.plist does not set LSUIElement to true (the app would get a Dock icon).' }
+}
+
 function Get-MacDiskImageArguments {
     <#
     .SYNOPSIS
@@ -3849,6 +3956,36 @@ function Invoke-ReleasePush {
     $result = Invoke-Git $RepoRoot (@('push', '--atomic', $Remote) + $refspecs.ToArray())
     foreach ($line in @($result.Output) + @($result.Error)) { if ($line) { Write-Host "  $line" } }
     if ($result.ExitCode -ne 0) { throw "git push $Remote $($refspecs -join ' ') failed (exit code $($result.ExitCode)). Nothing is force-pushed; see docs/release.md." }
+}
+
+function Get-SmokeCleanEnvironmentArguments {
+    <#
+    .SYNOPSIS
+        The arguments of /usr/bin/env for a start without the developer's environment (T-217, pure): env -i, then only
+        HOME, the system PATH and TMPDIR, then the executable and its arguments. Nothing else reaches the app: no
+        DOTNET_ROOT or other DOTNET_*, no DYLD_*, no Homebrew in PATH.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Executable,
+        [AllowEmptyCollection()] [string[]] $Arguments = @(),
+        [Parameter(Mandatory)] [string] $HomePath,
+        [Parameter(Mandatory)] [string] $TempPath
+    )
+    foreach ($value in $HomePath, $TempPath) {
+        if (-not [System.IO.Path]::IsPathRooted($value) -or $value.Contains('=')) { throw "'$value' is no absolute path for the clean environment." }
+    }
+    @('-i', "HOME=$HomePath", 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', "TMPDIR=$TempPath", $Executable) + @($Arguments)
+}
+
+function Get-SmokeNativeLoadErrors {
+    <#
+    .SYNOPSIS
+        The lines of the app's output or log that report a native library that failed to load (T-217, pure): dyld errors
+        and the .NET exceptions of a missing or broken native library (FFmpeg, Avalonia, SkiaSharp, HarfBuzz).
+    #>
+    param([AllowEmptyCollection()] [AllowEmptyString()] [string[]] $Lines = @())
+    $pattern = 'dyld\[\d+\]|Library not loaded|image not found|DllNotFoundException|Unable to load (shared library|DLL)|BadImageFormatException|EntryPointNotFoundException|TypeInitializationException|video decoder \(FFmpeg\) is not available'
+    @($Lines | Where-Object { $_ -match $pattern })
 }
 
 function Get-SmokeProfile {

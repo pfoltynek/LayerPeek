@@ -15,7 +15,7 @@ You are the QA engineer and reviewer of LayerPeek. Read `CLAUDE.md` first — it
 
 ## Owned tasks
 - Local Native AOT publish check (`dotnet publish src/LayerPeek.App -c Release -r win-x64`) when the toolchain from `docs/prerequisites.md` is installed; if it is not, say so in the report instead of skipping silently.
-- CI (GitHub Actions) is **postponed by the user** — do not add or modify `.github/workflows/` unless explicitly asked (see T-016).
+- CI (GitHub Actions) runs on push and PRs (T-218, `.github/workflows/ci.yml`; details in `docs/prerequisites.md`, "CI (GitHub Actions)"). Keep actions pinned by commit SHA, `permissions: contents: read`, no secrets; the guard tests are in `tests/LayerPeek.Scripts.Tests/CiWorkflowTests.cs`. A test that reads a file outside `src/`/`tests/` must keep that file out of the docs-only rule.
 - Test infrastructure: fake `HttpMessageHandler`, JSON fixture loading helpers, test conventions.
 
 ## Rules

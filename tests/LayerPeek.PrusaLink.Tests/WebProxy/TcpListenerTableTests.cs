@@ -6,7 +6,7 @@ using LayerPeek.Tests.Shared;
 namespace LayerPeek.PrusaLink.Tests.WebProxy;
 
 /// <summary>
-/// The OS listener table the proxy and browser tests rely on (T-211): it must see a listening socket and nothing once it
+/// The OS listener table the proxy and browser tests rely on (T-228): it must see a listening socket and nothing once it
 /// is closed, also with the garbled row states of Windows 11 build 26300 (listeners reported as state 0, connections
 /// and TIME_WAIT sockets as LISTEN).
 /// </summary>

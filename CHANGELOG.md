@@ -46,6 +46,11 @@ your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this
   decoded but not converted, copied or drawn), which saves CPU; the normal window and full screen keep the camera's full
   frame rate. A new **Camera** tab of the settings sets it for all cameras: Economy (5 fps), Balanced (10 fps), Smooth
   (every frame) or a custom limit of 1–30 fps. Print failure detection, recordings and timelapses are not affected.
+- **Hardware decoding of the camera video (macOS):** the camera window and the mini preview are decoded by the graphics
+  hardware (VideoToolbox) when it is available, otherwise by the processor, which roughly halves the work of decoding.
+  **Settings → Camera → Hardware decoding** offers **Automatic** (the default) and **Off** (always the processor: less
+  memory, no system decoder; try it if the camera picture is damaged or black). A change applies after **Save** from the
+  camera's next key frame, without reconnecting. On Windows, **Automatic** still decodes on the processor for now.
 - **Shorter settings tab names** in French ("Démarrage, MàJ"), Italian ("Riprese"), Polish ("Start i aktualizacje") and
   Slovak ("Štart a aktualizácie"), so that the six tabs fit on one row.
 - **Print failure detection performance:** its samples are scaled straight from the brightness (luma) of the camera
@@ -55,6 +60,11 @@ your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this
   minute, instead of every 5 s; a successful stream starts over at 5 s. Opening or restoring the camera window, and
   **Test camera** in the settings, try again at once.
 - **Built with the stable .NET 11** release instead of a release candidate.
+- **Window font on macOS:** the settings, diagnostics, About and camera windows use the bundled Inter font instead of the
+  system font San Francisco, which the UI framework (Avalonia 12.1) laid out too tightly: text was 7–20 % narrower than
+  in native apps and semibold and bold letters touched. The menu bar menu, notifications and system dialogs keep the
+  system font; Windows is unchanged (Segoe UI). Inter (SIL Open Font License 1.1) is listed under **About →
+  Third-party licences…**. The macOS app is about 1.9 MB larger (about 0.9 MB in the download).
 
 ### Fixed
 

@@ -484,6 +484,13 @@ Settings for all cameras (each printer's camera is set up on its **Camera** sub-
   (**Custom**). Fewer frames mean less CPU load and less image data copied; the camera is still read in full, so
   recordings, timelapses and print failure detection are not affected. The normal window and full screen always show
   every frame. The change applies to an open mini preview after **Save**.
+- **Hardware decoding:** **Automatic** (the default) lets the graphics hardware decode the video of the camera window
+  and the mini preview when it can, otherwise the processor does it; this lowers the CPU load. **Off** always decodes on
+  the processor: less memory and no system decoder, but a higher CPU load. Choose **Off** if the camera picture is
+  damaged or black, after a problem with the graphics driver, or to save memory. On Windows, **Automatic** currently
+  decodes on the processor too. The camera test and print failure detection always use the processor. The
+  change applies after **Save**; an open camera window switches at the camera's next key frame (usually within a few
+  seconds) without reconnecting.
 
 ## 12. Updates
 
@@ -689,6 +696,9 @@ LayerPeek on in **System Settings → Privacy & Security → Local Network**.
 
 **The camera shows No signal.** Check the RTSP address with **Test camera**, and that the camera is on and reachable.
 Don't put a user name or password in the address.
+
+**The camera picture is damaged or black** (the address and **Test camera** are fine). Set **Settings → Camera →
+Hardware decoding** to **Off** and save; the camera window then decodes on the processor (see [11.6](#116-camera)).
 
 **Notifications don't appear.** Use **Send test notification** in **Settings → General** and check **Do not disturb**
 (Windows) or **Focus** (macOS).

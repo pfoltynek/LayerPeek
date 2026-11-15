@@ -1710,6 +1710,32 @@
             <TextBlock AutomationProperties.AutomationId="MiniFrameRateDescription"
                        Classes="hint"
                        Text="{Binding MiniFrameRateDescription}" />
+            <!--
+              T-204 (user decisions 2026-11-12): hardware decoding, Automatic (default) or Off, like the profile above: the
+              selection and the description of the selected option below it. Where Automatic is still software (Windows
+              until T-206) a second hint says so. Applied after saving from the next key frame of a running camera window.
+            -->
+            <TextBlock Classes="section"
+                       Text="{Binding [SettingsHardwareDecoding], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <ComboBox AutomationProperties.AutomationId="HardwareDecoding"
+                      AutomationProperties.Name="{Binding [SettingsHardwareDecoding], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.HelpText="{Binding HardwareDecodingDescription}"
+                      ItemsSource="{Binding HardwareDecodingOptions}"
+                      SelectedItem="{Binding SelectedHardwareDecoding}"
+                      MinWidth="180">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:HardwareDecodingOption">
+                  <TextBlock Text="{Binding Text}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock AutomationProperties.AutomationId="HardwareDecodingDescription"
+                       Classes="hint"
+                       Text="{Binding HardwareDecodingDescription}" />
+            <TextBlock AutomationProperties.AutomationId="HardwareDecodingSoftwareNote"
+                       Classes="hint"
+                       IsVisible="{Binding ShowsHardwareDecodingSoftwareNote}"
+                       Text="{Binding [SettingsHardwareDecodingSoftwareNote], Source={x:Static loc:LocalizedStrings.Instance}}" />
           </StackPanel>
         </ScrollViewer>
       </TabItem>

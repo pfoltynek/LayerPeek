@@ -513,6 +513,14 @@ vedi [11.1](#111-stampanti)).
   telecamera viene comunque letta per intero, quindi registrazioni, timelapse e rilevamento degli errori di stampa non
   cambiano. La finestra normale e lo schermo intero mostrano sempre ogni fotogramma. La modifica vale per un’anteprima
   mini aperta dopo **Salva**.
+- **Decodifica hardware:** **Automatica** (predefinita) fa decodificare all’hardware grafico il video della finestra
+  della telecamera e dell’anteprima mini quando possibile, altrimenti lo decodifica la CPU; così il carico di CPU
+  diminuisce. **Disattivata** decodifica sempre con la CPU: meno memoria e nessun decoder di sistema, ma più carico di
+  CPU. Scegli **Disattivata** se l’immagine della telecamera è danneggiata o nera, dopo un problema con il driver
+  grafico o per risparmiare memoria. Su Windows, per ora anche **Automatica** decodifica con la CPU. La verifica della
+  telecamera e il rilevamento degli errori di stampa usano sempre la CPU. La modifica vale dopo **Salva**; una finestra
+  della telecamera aperta passa al nuovo valore dal prossimo fotogramma chiave della telecamera (di solito entro pochi
+  secondi), senza riconnettersi.
 
 ## 12. Aggiornamenti
 
@@ -729,6 +737,10 @@ locale**.
 
 **La telecamera mostra Nessun segnale.** Controlla l’indirizzo RTSP con **Verifica telecamera** e che la telecamera sia
 accesa e raggiungibile. Non inserire nome utente o password nell’indirizzo.
+
+**L’immagine della telecamera è danneggiata o nera** (l’indirizzo e **Verifica telecamera** sono a posto). Imposta
+**Impostazioni → Telecamera → Decodifica hardware** su **Disattivata** e salva; la finestra della telecamera decodifica
+poi con la CPU (vedi [11.6](#116-telecamera)).
 
 **Le notifiche non compaiono.** Usa **Invia notifica di prova** in **Impostazioni → Generale** e controlla **Non
 disturbare** (Windows) o **Full immersion** (macOS).

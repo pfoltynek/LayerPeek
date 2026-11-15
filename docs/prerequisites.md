@@ -5,7 +5,7 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 > **Důležité:**
 > - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. **Výjimka na macOS (T-026): první `dotnet build` přeloží knihovny FFmpeg ze zdrojů, takže potřebuje Xcode Command Line Tools** (`xcode-select --install`). Bez nich build hned na začátku (nic nestahuje) skončí chybou `The Xcode Command Line Tools are not installed (or not selected). …` s návodem. Další buildy používají cache a toolchain už nepotřebují.
 > - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Vydávané RID: `win-x64` a `osx-arm64` (rozhodnuto 2026-10-21; Windows ARM64 `win-arm64` se od 2026-11-01 nepodporuje, T-130).
-> - CI (GitHub Actions) se nepoužívá (T-016 zamítnut 2026-11-01), AOT binárky se proto sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
+> - CI (GitHub Actions, T-218) jen sestaví, otestuje a AOT publikuje na Windows i macOS (viz „CI (GitHub Actions)“). Nic nevydává: binárky pro vydání se dál sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
 
 ## Společné (obě platformy)
 
@@ -33,6 +33,14 @@ klon i všechny jeho worktree (sdílený `.git/config`):
 git config user.email 12541813+pfoltynek@users.noreply.github.com
 git config user.email      # kontrola
 git log -1 --format='%an <%ae> | %cn <%ce>'   # po prvním commitu: autor i committer s adresou noreply
+```
+
+Pojistka pro nové klony (rozhodnutí uživatele 2026-11-13, T-198 otázka 12), jednou **globálně** na každém počítači:
+git pak commit bez nastaveného `user.email` odmítne, místo aby adresu odvodil ze jména počítače.
+
+```bash
+git config --global user.name "Petr Foltýnek"   # s useConfigOnly se ani jméno už neodvozuje ze systému
+git config --global user.useConfigOnly true
 ```
 
 Nový klon (nebo nový počítač) nastavení nemá, protože `.git/config` se neklonuje. Ostatní přispěvatelé si adresu
@@ -75,11 +83,13 @@ macOS navíc:
   configure --enable-shared --disable-static --enable-version3 --disable-programs --disable-doc --disable-debug
     --disable-autodetect --disable-everything --disable-avdevice --disable-avfilter --disable-swresample
     --enable-network --enable-protocol=tcp,file --enable-demuxer=rtsp,h264 --enable-muxer=mp4 --enable-parser=h264
-    --enable-decoder=h264 --arch=aarch64 --install-name-dir=@loader_path
+    --enable-decoder=h264 --enable-videotoolbox --enable-hwaccel=h264_videotoolbox --arch=aarch64
+    --install-name-dir=@loader_path
     --extra-cflags="-arch arm64 -mmacosx-version-min=14.0" --extra-ldflags="-arch arm64 -mmacosx-version-min=14.0"
   ```
 
-  `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP; muxer `mov`, parser `ac3` a bitstream filtry `aac_adtstoasc`, `vp9_superframe` kvůli muxeru `mp4`). Aplikace je stejně nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Muxer `mp4` (T-147) slouží nahrávání kamery (T-144): pakety H.264 z RTSP se jen přebalí do fragmentovaného MP4, žádný enkodér se nepřidává. Převod Annex B na délkově prefixované NAL jednotky a SPS/PPS na `avcC` dělá muxer sám, bitstream filtry `h264_mp4toannexb` ani `extract_extradata` potřeba nejsou. Knihovny jsou díky tomu větší asi o 262 KiB (`libavformat` o 245 KiB, `libavcodec` o 16 KiB). Bez `--enable-gpl` a `--enable-nonfree`, bez VideoToolbox (dekódování jen softwarově, rozhodnuto 2026-10-29), licence podle `configure`: „LGPL version 3 or later“.
+  `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP; muxer `mov`, parser `ac3` a bitstream filtry `aac_adtstoasc`, `vp9_superframe` kvůli muxeru `mp4`). Aplikace je stejně nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Muxer `mp4` (T-147) slouží nahrávání kamery (T-144): pakety H.264 z RTSP se jen přebalí do fragmentovaného MP4, žádný enkodér se nepřidává. Převod Annex B na délkově prefixované NAL jednotky a SPS/PPS na `avcC` dělá muxer sám, bitstream filtry `h264_mp4toannexb` ani `extract_extradata` potřeba nejsou. Knihovny jsou díky tomu větší asi o 262 KiB (`libavformat` o 245 KiB, `libavcodec` o 16 KiB). Bez `--enable-gpl` a `--enable-nonfree`, licence podle `configure`: „LGPL version 3 or later“.
+- **VideoToolbox (T-203):** `--enable-videotoolbox --enable-hwaccel=h264_videotoolbox` zapíná hardwarové dekódování H.264 okna kamery (rozhodnutí uživatele 2026-11-12, T-192; do 2026-11-12 jen software). Kvůli `--disable-autodetect` a `--disable-everything` musí být oba přepínače výslovně. Frameworky VideoToolbox, CoreMedia, CoreVideo, CoreFoundation a CoreServices jsou součástí macOS (`/System/Library/Frameworks`, kontrola závislostí je povoluje), nic dalšího se neinstaluje: Xcode Command Line Tools stačí. VideoToolbox není v seznamu GPL ani nonfree, licence zůstává LGPL 3. Knihovny jsou větší o 27 KB (`libavcodec` 1 624 952 B, `libavutil` 742 648 B). Klíč cache obsahuje obsah skriptu, takže se po změně přestaví sama (ověřeno 2026-11-12: nová složka `osx-arm64-c88d70…`, 39 s). Test `HardwareDecodingFallbackTests.TheMacOSBuildHasVideoToolboxForH264AndStaysLgpl` hlídá, že knihovny `h264_videotoolbox` obsahují (`av_hwdevice_iterate_types` + `avcodec_get_hw_config`).
 - **Když build selže:** logy `configure.log` a `make.log` zůstanou ve složce `tmp-…` v cache (smaže je build po dvou hodinách). Když tarball z ffmpeg.org zmizí, změň v `build/FFmpeg.targets` `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256` a `LayerPeekFFmpegMacSourceFolder` na jiný oficiální tarball 9.0.x (stejné verze knihoven). Postup je v „Nová verze FFmpeg“ níže.
 - **Ověření tarballu je automatické:** každý první build ověří připnutý SHA256 (`LayerPeekFFmpegMacSourceSha256`) a při neshodě skončí chybou. Uživatel ani vývojář nic ručně neověřuje. FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Proto se připnutý hash při změně verze ověřuje skriptem `build/update-ffmpeg.ps1` proti nezávislému zdroji (vzorec Homebrew) a podpisem GPG, když je `gpg` k dispozici. Hash 9.0.2 (`8c38502…e002e`) souhlasí se vzorcem Homebrew (ověřeno 2026-10-29), podpis GPG ověřený nebyl (`gpg` na stroji není).
 
@@ -267,6 +277,58 @@ Na macOS skript navíc ověří, že aplikace běží bez ikony v Docku (`lsappi
 ### Proč `UseOptimizedPublish=false`
 
 V `src/LayerPeek.App/LayerPeek.App.csproj` je nastaveno `<UseOptimizedPublish>false</UseOptimizedPublish>`. .NET 11 SDK při AOT publishi standardně používá „optimalizovaný“ publish, který místo celého `Build` spouští jen `PrepareResources; Compile` – a `PrepareResources` tak běží před `ResolveReferences`. Avalonia 12 ale přidává své `!AvaloniaResources` až před `ResolveReferences`, takže se resource nevloží do assembly, XAML se nezkompiluje a publikovaná aplikace hned po startu spadne s `XamlLoadException: No precompiled XAML found`. Publish přitom projde bez varování. Nastavení vrací běžný plný build; odstranit ho lze až po opravě v Avalonii nebo SDK (ověřit smoke testem).
+
+## CI (GitHub Actions)
+
+Workflow `.github/workflows/ci.yml` (T-218) běží při pushi do `develop`, `release/**` a `hotfix/**`, v každém pull requestu do `develop` a `main` a ručně (`workflow_dispatch`). Na každém OS spustí totéž, co se má před sloučením spustit lokálně:
+
+1. `dotnet build LayerPeek.slnx -c Release` a `-c Debug` (varování jsou chyby, jako lokálně);
+2. `dotnet test` (Debug) pro všechny testovací projekty kromě `tests/LayerPeek.E2E.Tests` (na runneru Windows je Edge, testy prohlížeče by se tedy spustily). Seznam projektů se bere z `LayerPeek.slnx` při běhu (filtr řešení `ci-tests.slnf` v dočasné složce runneru), nový testovací projekt tedy CI spustí sám;
+3. `dotnet publish src/LayerPeek.App -c Release -r <rid>` (Native AOT, bez spuštění aplikace; `aot-smoke.ps1` se nespouští, mění profil a potřebuje displej).
+
+| Job | Runner | Co |
+|---|---|---|
+| `Changes` | `ubuntu-24.04` | zjistí změněné soubory (u PR proti cílové větvi, u pushe proti předchozímu stavu větve) |
+| `Build and test (Windows)` | `windows-2025` (VS 2026 s workloadem *Desktop development with C++*, Edge, PowerShell 7, Pester 5) | kroky 1–3, `win-x64` |
+| `Build and test (macOS)` | `xcode-27` (macOS 27, Apple Silicon, zatím *preview* obraz GitHubu; Xcode Command Line Tools, PowerShell 7, Pester 5) | kroky 1–3, `osx-arm64` |
+| `CI result` | `ubuntu-24.04` | jediná povinná kontrola: projde, když oba buildy prošly, nebo když nebyly potřeba |
+
+- **Změna jen dokumentace / úkolů:** buildy se přeskočí a `CI result` hned projde (žádné `paths-ignore`, povinná kontrola tak nikdy nečeká). Za takovou změnu se počítá, když je **každý** změněný soubor v `tasks/`, v `docs/` nebo je to `*.md` v kořeni repozitáře. **Výjimky:** `manuals/**`, `docs/troubleshooting.md` a `CHANGELOG.md` čtou testy (`UserManualTests`, `NotificationAndUpdateInfrastructureTests`, `ReleaseOrchestrator.Tests.ps1`), proto se vždy buildí a testuje. **Kdo přidá test, který čte soubor v `docs/` nebo `*.md` v kořeni, doplní ho do výjimek v kroku `Classify the changed files`.** Nový branch, vynucený push (předchozí commit nejde stáhnout) a ruční spuštění vždy spustí všechno.
+- **Bezpečnost:** `permissions: contents: read`, žádné `secrets`, `pull_request` (nikdy `pull_request_target`), `actions/checkout` s `persist-credentials: false`, každá akce připnutá na SHA commitu s komentářem verze. Hlídá to test `CiWorkflowTests` (v `dotnet test`). Aktualizace připnutých akcí navrhuje Dependabot (`.github/dependabot.yml`, týdně, nová verze až po 7 dnech, PR do `develop`). Obrazy runnerů (`runs-on`) Dependabot neaktualizuje: připnuté jsou kvůli předvídatelnosti, nový obraz se nastaví ručně, až GitHub ohlásí konec starého.
+- **Souběh a časové limity:** nový push do stejné větve / PR zruší rozběhnutý běh (`concurrency`, `cancel-in-progress`). Každý job má `timeout-minutes`.
+- **Cache:**
+  - NuGet (`~/.nuget/packages`), klíč = OS + hash `Directory.Packages.props`, všech `*.csproj` a `global.json`. Obnova a uložení jsou oddělené kroky (`actions/cache/restore` + `/save`, uloží se hned po prvním buildu), takže cache vznikne i při červených testech.
+  - FFmpeg: `LayerPeekFFmpegCacheRoot` ukazuje do dočasné složky runneru (`$RUNNER_TEMP/ffmpeg`), uloží se hned po prvním buildu (i když pak selžou testy). Klíč = obraz runneru + RID + hash `build/FFmpeg.targets` a skriptu buildu FFmpeg dané platformy (macOS `build/macos/build-ffmpeg.sh`; Windows dnes jen stažený zip BtbN, vzor `build/windows/build-ffmpeg.*` zatím nic nenajde – T-202 ho přidá a klíč se rozšíří sám). Stejné vstupy jako složka cache v `build/FFmpeg.targets`; obraz je v klíči proto, že macOS knihovny se překládají jeho Xcodem. Bez `restore-keys`: jiný recept vždy staví načisto.
+- **Pester:** krok `Check PowerShell and Pester` selže, když na runneru chybí Pester 5+, aby se `ScriptPesterTestsPass` nepřeskočil potichu.
+- **Při selhání** se nahrají artefakty `test-results-<rid>` (TRX všech testovacích projektů, `--report-xunit-trx`) a `snapshot-failures-<rid>` (`*.actual.png` a `*.diff.png` neshodných snímků UI ze složky `LayerPeek.App.UiTests.<id>` v dočasné složce systému), uchování 3 dny. Při úspěchu žádné artefakty. Krok `Describe the runner` vypíše OS, počet CPU, obraz a na macOS `csrutil status` a `sw_vers` (testy na nich závisí).
+- **Tagy:** checkout stahuje i tagy (`fetch-tags: true`, bez historie). Test skutečného `CHANGELOG.md` se podle tagu `v<verze>` přeskočí u už vydané verze; bez tagů by selhal.
+
+**E2E a interaktivní testy v CI neběží.** Zapínají je jen tyto proměnné, workflow žádnou nenastavuje:
+
+| Proměnná | Co zapne |
+|---|---|
+| `LAYERPEEK_E2E=1` | E2E testy skutečné aplikace (`LayerPeek.App.E2E.Tests`, jen Windows) a E2E testy macOS / Windows v `LayerPeek.App.Tests` (`Mac*E2ETests`, `ForegroundRaiserE2ETests`) |
+| `LAYERPEEK_E2E_SYSTEM_CHANGES=1`, `LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS` | E2E zásahy do nastavení Windows (jen s `tools/run-e2e.ps1`) |
+| `LAYERPEEK_VERIFY_UNATTENDED=<id kontrol>` | skutečné kontroly `tools/*-verify.ps1` (`VerifyScriptTests.UnattendedChecksPassOnDemand`) |
+| `LAYERPEEK_DETECTION_SWEEP=1` | dlouhé sweepy detektorů (`*SeedSweep*`, `BedChangeDarkSweep`) |
+| `LAYERPEEK_README_SCREENSHOTS=1`, `LAYERPEEK_UPDATE_SNAPSHOTS=1` | přegenerování snímků README / referenčních snímků UI testů (zapisují do repozitáře) |
+| `LAYERPEEK_SAMPLES` | složka lokálních vzorků kamery (bez ní a bez `~/LayerPeek-samples` se testy vzorků přeskočí) |
+| `LAYERPEEK_CI=1` | **opak přepínače:** nastavuje ho jen workflow CI. Na runneru Windows přeskočí testy se známou příčinou selhání, každý s důvodem a úkolem: `ASampleDoesNotAllocate`, `SteadyStateTimelapseDoesNotAllocate` (T-220) a `TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture` (T-221). Na počítači vývojáře se nenastavuje. |
+
+**Snímky UI na macOS** (rozhodnutí uživatele 2026-11-14): Skia kreslí glyfy přes Core Graphics systému, takže jiná hlavní verze macOS dá jiné okrajové pixely písmen (rozvržení stejné; ověřeno na obrázcích rozdílů z runneru macOS 26). Sada `Snapshots/macOS/` proto v `rendered-on.txt` zapisuje hlavní verzi macOS, na které vznikla (`LAYERPEEK_UPDATE_SNAPSHOTS=1` ho přepíše). Na jiné hlavní verzi se porovnání pixelů **přeskočí s důvodem** (test skončí v místě snímku). CI proto běží na macOS 27 (`xcode-27`). Sada Windows soubor nemá a porovnává se vždy; dokud ji uživatel nepřegeneruje na Windows (T-125), snímky Nastavení a O aplikaci v CI na Windows selhávají (bez přeskočení, rozhodnutí 2026-11-14).
+
+Testy prohlížeče (`tests/LayerPeek.E2E.Tests`) se v CI vynechávají celé (viz výše). Headless UI testy (`LayerPeek.App.UiTests`) běží. Testy Klíčenky se přeskočí s důvodem, když je výchozí klíčenka runneru zamčená.
+
+### Povinná kontrola v rulesetu (provádí uživatel)
+
+Workflow kontrolu jen poskytuje; ruleset se mění ručně (nebo agentem s výslovným souhlasem uživatele). Až první běh na GitHubu projde:
+
+1. GitHub → repozitář → **Settings → Rules → Rulesets** → ruleset 2 („pull request required“, `develop` + `main`, T-180) → **Edit**.
+2. Zaškrtnout **Require status checks to pass**, pak **Add checks**, do hledání napsat `CI result` a vybrat kontrolu se zdrojem **GitHub Actions** (nabídne se až po prvním běhu workflow).
+3. Volitelně **Require branches to be up to date before merging** (pak se PR před sloučením znovu otestuje proti aktuálnímu cíli; stojí další běh). Doporučení: zatím nezapínat.
+4. Ostatní pravidla (CodeQL, obcházení adminem) beze změny → **Save changes**.
+
+Jen `CI result`, ne joby `Build and test (…)`: ty se u změn jen dokumentace přeskočí a jejich názvy se mohou změnit, výsledná kontrola zůstává stejná. CodeQL běží dál jako *default setup*; workflow žádný vlastní CodeQL nepřidává.
 
 ## Časté chyby
 

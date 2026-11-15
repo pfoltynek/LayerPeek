@@ -63,13 +63,29 @@ public sealed class MacNativeCallTests
     }
 
     /// <summary>
-    /// Only EROFS counts: a folder this user may not write (EACCES, the system volume) or a missing one is not a read-only
-    /// volume. The read-only volume itself (the mounted .dmg) is checked by hand (T-019 notes).
+    /// Only EROFS counts: a folder this user may not write (EACCES) or a missing one is not a read-only volume. The read-only
+    /// volume itself (the mounted .dmg) is checked by hand (T-019 notes). The folder without write permission is made here:
+    /// a system folder such as /System/Library is no stand-in, because it does lie on a read-only volume (the sealed system
+    /// volume), and with System Integrity Protection off (GitHub's macOS runners, T-218) access() reports exactly that.
     /// </summary>
     [Fact]
     public void AMissingPermissionOrFolderIsNotAReadOnlyVolume()
     {
-        Assert.False(MacAppBundle.IsOnReadOnlyVolume("/System/Library/CoreServices"));
+        string folder = TestDirectories.NewDirectoryPath();
+        Directory.CreateDirectory(folder);
+        try
+        {
+            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+            // EACCES (13), unless the tests run as root, for whom the folder stays writable.
+            Assert.Equal(MacUnixNative.EffectiveUserId() == 0 ? 0 : 13, MacUnixNative.TryAccessWritable(folder));
+            Assert.False(MacAppBundle.IsOnReadOnlyVolume(folder));
+        }
+        finally
+        {
+            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            TestDirectories.Delete(folder);
+        }
+
         Assert.False(MacAppBundle.IsOnReadOnlyVolume(TestDirectories.NewDirectoryPath()));
     }
 

@@ -1,14 +1,14 @@
 ---
-id: T-208
+id: T-225
 title: Windows ARM64 – vlastní LGPL build FFmpeg pro `win-arm64` (křížový překlad z x64)
 status: todo
 owner: core-dev
 priority: P2
 platform: windows
-depends_on: [T-202, T-207]
+depends_on: [T-202, T-224]
 ---
 
-> **Rozhodnutí uživatele 2026-11-12:** LayerPeek se vydává i pro `win-arm64` (série T-207 až T-210, ruší T-130).
+> **Rozhodnutí uživatele 2026-11-12:** LayerPeek se vydává i pro `win-arm64` (série T-224 až T-227, ruší T-130).
 > Kamera má na ARM64 fungovat stejně jako na `win-x64`.
 >
 > **Navazuje na T-202** (vlastní minimální LGPL build FFmpeg pro `win-x64` ze zdrojů místo BtbN; rozhodnutí uživatele
@@ -32,7 +32,7 @@ Vývoj a testy na x64 se nemění.
     Licence: LLVM (Apache-2.0 s LLVM výjimkou), runtime mingw-w64 – ověřit v `LICENSE.txt` vydání a uvést, co se
     staticky přilinkuje (compiler-rt builtins, CRT start-up kód).
   - **(b) MSVC ARM64** (`--toolchain=msvc --arch=aarch64 --enable-cross-compile`, prostředí `vcvarsall x64_arm64`):
-    komponentu MSVC ARM64 instaluje už T-207. `configure` a `make` stejně potřebují shell MSYS2; asembler NEON FFmpeg je
+    komponentu MSVC ARM64 instaluje už T-224. `configure` a `make` stejně potřebují shell MSYS2; asembler NEON FFmpeg je
     v syntaxi GNU, s MSVC potřebuje `gas-preprocessor.pl` + `armasm64`, jinak `--disable-asm` (pomalejší dekódování
     H.264 na CPU). Jiný překladač než `win-x64` (MinGW, T-202) = dvě sady problémů.
   - **(c) Nativní build na ARM64** (MSYS2 prostředí CLANGARM64, https://www.msys2.org/docs/environments/): jeho balíčky
@@ -55,13 +55,13 @@ Vývoj a testy na x64 se nemění.
 - **Kontrola výsledku:** všechny DLL jsou ARM64 PE (`0xAA64`); závislosti jen sourozenecké DLL FFmpeg a systémové DLL
   Windows (žádné `libc++.dll`, `libunwind.dll`, `libwinpthread-1.dll`); D3D11VA přítomné (kontrola jako v T-202, ale
   bez načtení – na x64 ARM64 DLL načíst nejde, např. řetězce v `avcodec`/`avutil` nebo seznam z `configure`).
-- **Testy:** `[FFmpegFact]` (`FFmpegTestEnvironment.CanRun`) spouštět i na Windows ARM64 procesu (na zařízení, T-210);
+- **Testy:** `[FFmpegFact]` (`FFmpegTestEnvironment.CanRun`) spouštět i na Windows ARM64 procesu (na zařízení, T-227);
   na x64 test/kontrola obsahu publish `win-arm64` (DLL, licence, architektura). `SkipReason` a komentáře podle RID.
 - **Licence a zdroj u vydání (T-199):** `ThirdPartyLicenses.FFmpeg` a okno licencí – oba buildy (stejný zdroj, dva
   řádky configure, toolchain ARM64 a jeho licence, pokud se z něj něco přilinkuje). Jeden archiv
   `ffmpeg-source-<verze>-windows.tar.xz` s oběma řádky configure (otázka 4).
 - **Dokumentace:** `docs/prerequisites.md` (toolchain ARM64, cache, chyby), `docs/hw-decoding.md` (D3D11VA na ARM64 –
-  ovladače GPU ARM64 zařízení, neověřeno do T-210), `docs/architecture.md` (FFmpeg pro dvě architektury Windows).
+  ovladače GPU ARM64 zařízení, neověřeno do T-227), `docs/architecture.md` (FFmpeg pro dvě architektury Windows).
 
 ## Akceptační kritéria
 - [ ] `dotnet publish src/LayerPeek.App -c Release -r win-arm64` na Windows x64 přeloží FFmpeg pro ARM64 z připnutého
@@ -75,7 +75,7 @@ Vývoj a testy na x64 se nemění.
 - [ ] `ThirdPartyLicenses`, okno licencí a test pokrývají build `win-arm64`; jeden archiv zdroje u vydání s oběma
       řádky configure
 - [ ] `docs/prerequisites.md`, `docs/hw-decoding.md`, `docs/architecture.md` aktuální
-- [ ] Běh kamery na ARM64 (RTSP, nahrávání, timelapse, D3D11VA) → ověřuje T-210
+- [ ] Běh kamery na ARM64 (RTSP, nahrávání, timelapse, D3D11VA) → ověřuje T-227
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -90,7 +90,7 @@ Vývoj a testy na x64 se nemění.
    `ffmpeg-source-<verze>-windows.tar.xz` (stejný tarball, skript buildu, `README.txt` s oběma řádky configure a
    odkazem na toolchain ARM64).
 5. ~~**D3D11VA na ARM64?**~~ **Rozhodnuto uživatelem 2026-11-12:** stejná sada funkcí jako `win-x64` včetně D3D11VA;
-   ověření za běhu v T-210.
+   ověření za běhu v T-227.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

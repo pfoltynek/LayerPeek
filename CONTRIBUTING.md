@@ -24,6 +24,8 @@ must exist in all languages. Fixes of existing translations and new languages ar
 3. `dotnet build` and `dotnet test` must pass with **zero warnings**, because warnings are treated as errors.
 4. Add a line to `CHANGELOG.md` under `[Unreleased]` for user-visible changes.
 5. Open the PR against `develop`.
+6. The CI workflow (`.github/workflows/ci.yml`) builds, tests and publishes (Native AOT) the PR on Windows and macOS;
+   the check **CI result** must pass. A change of task notes or docs only passes it without a build.
 
 ## Coding rules
 

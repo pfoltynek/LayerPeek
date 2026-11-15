@@ -159,6 +159,8 @@ public sealed class CameraStreamHubKeyFrameTests : IAsyncDisposable
         Assert.True(demand.KeyFrameDue);
         feed.PushFrame(fill: 1, keyFrame: true);
         await NextFrameAsync(samples);
+        // The hub reschedules after it handed the frame to every subscriber, before it reads on (T-219).
+        await HandledAsync(feed, 1);
 
         Assert.False(demand.KeyFrameDue);
         samples.Dispose();
@@ -220,6 +222,7 @@ public sealed class CameraStreamHubKeyFrameTests : IAsyncDisposable
         feed.PushFrame(fill: 20, width: 64, height: 36, keyFrame: true);
         CameraFrameBuffer first = await NextFrameAsync(samples);
         Assert.Equal((CameraPixelFormat.Gray8, 16, 16, 64, 36, (byte)20), (first.Format, first.Width, first.Height, first.SourceWidth, first.SourceHeight, first.Pixels[0]));
+        await HandledAsync(feed, 1);
         Assert.False(demand.GrayscaleDue);
 
         _time.Advance(Interval);
@@ -267,6 +270,7 @@ public sealed class CameraStreamHubKeyFrameTests : IAsyncDisposable
         Assert.Equal((16, 16, (byte)50), (first.Width, first.Height, first.Pixels[0]));
         Assert.Equal((32, 18, (byte)50), (second.Width, second.Height, second.Pixels[0]));
         Assert.Equal((1, 1), (feed.FullConversions, feed.GrayscaleConversions));
+        await HandledAsync(feed, 1);
         Assert.False(demand.FullResolutionDue);
         Assert.False(demand.GrayscaleDue);
     }

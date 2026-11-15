@@ -287,7 +287,8 @@ uživatele 2026-11-05): projekt `LayerPeek.PrusaConnect` je smazaný, menu tisk�
 | Skrytí z docku/taskbaru | bez hlavního okna automaticky | `LSUIElement` v `Info.plist` (`build/macos/Info.plist`) a `MacOSPlatformOptions.ShowInDock = false` (Avalonia by jinak při startu nastavila běžnou aplikaci s ikonou v Docku); pomocná okna z menu baru přivedou aplikaci do popředí (`MacAppActivation`, `[NSApp activate]`) – T-019 |
 | Vytažení otevřeného okna do popředí (tray menu, druhý start) | `WindowsWindowActivator` → `ForegroundRaiser` (`[LibraryImport]` do `user32`): na dobu volání `AttachThreadInput` k vláknu okna v popředí, `BringWindowToTop` + `SetForegroundWindow`; odmítne-li Windows popředí (např. připojení k vláknu VMware odmítnuto), aspoň `SetWindowPos(HWND_TOP)` bez aktivace – okno je pak hned pod oknem v popředí, nad všemi ostatními; `Topmost` se nemění – T-119 | beze změny: `Window.Activate()` a aktivace aplikace (`MacAppActivation`) – T-019 |
 | Autostart, balení | vlastní zástupce aplikace ve složce Startup (`IAutostart`, volba v nastavení, výchozí zapnuto: zapne ho hook instalace, aktualizace volbu nemění), instalátor Velopack (`docs/velopack.md`, T-056): hooky instalace/odinstalace v `Installer/VelopackStartup` jako první v `Main`, aktualizace `AppUpdates` (jen v instalaci) + `.zip`, bez podpisu – T-017; kontrola aktualizací T-058 (viz „Kontrola aktualizací“) | „Otevřít při přihlášení“ = Login Item `SMAppService.mainAppService` (`LoginItemAutostart`, `SMAppServiceLoginItem`, interop s Objective-C runtime přes `[LibraryImport]`), jen pro aplikaci v `LayerPeek.app` na trvalém místě (ne z `.dmg` ani přeložená Gatekeeperem); `.app` bundle s ad-hoc podpisem, `.dmg` + `.tar.gz` (`release-build.ps1`, krok `app`) – T-019; od T-058 `.app` od `vpk` s `UpdateMac`, aktualizace přes Velopack (`docs/velopack.md`, bod 10) |
-| Vydání | lokálně skripty T-055, RID `win-x64` (Windows ARM64 se od T-130 nepodporovalo; rozhodnutí uživatele 2026-11-12: `win-arm64` se bude vydávat také, zatím neimplementováno – T-207 až T-210), nahrání do GitHub Releases | lokálně skripty T-055, RID `osx-arm64`, přidání do stejného GitHub vydání |
+| Písmo oken | systémové Segoe UI (výchozí písmo Avalonie, statické písmo) | přibalené Inter 3.019 z balíčku `Avalonia.Fonts.Inter` (`Platform/AppFont.UseAppFont` v `Program`: `WithInterFont()` + `FontManagerOptions.DefaultFamilyName`, znaky mimo Inter z fallbacku systému). San Francisco Avalonia 12.1 rozvrhuje s posuny výchozí instance proměnného písma (o 7–20 % užší než AppKit, polotučná / tučná písmena se dotýkají, T-222). Menu v menu baru, notifikace a systémové dialogy jsou nativní se systémovým písmem. Návrat k SF po opravě v Avalonii = budoucí úkol – T-223 |
+| Vydání | lokálně skripty T-055, RID `win-x64` (Windows ARM64 se od T-130 nepodporovalo; rozhodnutí uživatele 2026-11-12: `win-arm64` se bude vydávat také, zatím neimplementováno – T-224 až T-227), nahrání do GitHub Releases | lokálně skripty T-055, RID `osx-arm64`, přidání do stejného GitHub vydání |
 | Tajné údaje | Credential Manager (`[LibraryImport]`, roaming s profilem) – T-002 (hotovo) | souborový login Keychain (SecItem API v `Security.framework` přes `[LibraryImport]`, `KeychainSecretStore`, jen lokálně) – T-021 |
 | Přístup do místní sítě | bez oprávnění; „no route to host“ = běžná chyba spojení (`NoLocalNetworkPrivacy`) | od macOS 15 oprávnění „Místní síť“ (Apple TN3179) pro každé spojení na tiskárnu i kameru v LAN: popis v dialogu `NSLocalNetworkUsageDescription` (`Info.plist` anglicky, překlady v `build/macos/Localizations/<jazyk>.lproj/InfoPlist.strings`, `CFBundleLocalizations`); odepřené oprávnění vypadá jako EHOSTUNREACH, `MacLocalNetworkPrivacy` pak u adresy v místní síti ukáže `LocalNetworkAccessMayBeOff` a zapíše řádek do logu – T-097 |
 | Okno kamery – monitor, vždy navrchu, celá obrazovka | monitor podle `monitorDevicePath` a přátelského názvu z EDID (`MonitorNameNative`), pozice v px, `Topmost` = `HWND_TOPMOST`, celá obrazovka = okno bez rámečku přes monitor – T-035, T-037 | monitor podle trvalého UUID displeje z ColorSync (`MacDisplayUuid`, `CGDisplayCreateUUIDFromDisplayID` přes `[LibraryImport]`) jako cesty zařízení a názvu `NSScreen.localizedName` (lokalizovaný, stejné monitory macOS čísluje „(1)“, „(2)“ v proměnlivém pořadí); souřadnice a `Scaling` v bodech (Avalonia.Native hlásí `Scaling` 1); pracovní plocha = `visibleFrame` (bez menu baru a Docku); `Topmost` = `NSFloatingWindowLevel` (nad běžnými okny všech aplikací v témže Space); malý náhled se zapnutým „vždy navrchu“ navíc `NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary` (`MacWindowSpaces`, přes `ObjCRuntime`) – vidět na každém Space i nad aplikací na celé obrazovce, po odchodu z náhledu nebo vypnutí „vždy navrchu“ se vrátí předchozí příznaky (normální okno navrchu zůstává na svém Space); celá obrazovka = nativní celá obrazovka ve vlastním Space na monitoru, kde okno je – T-038 |
@@ -358,29 +359,66 @@ A/B měření (2026-11-11, macOS Apple Silicon, simulátor se 3 tiskárnami) vý
 o 1,9 %. Doporučení je build neměnit. Hlavní náklad je zobrazení kamery (~20 % jádra), ne GC. Tabulky a postup jsou
 v [aot-gc-settings.md](aot-gc-settings.md).
 
-## Hardwarové dekódování kamery (T-192 průzkum, plán T-203 až T-206)
+## Hardwarové dekódování kamery (T-192 průzkum, T-203 implementace, T-204 až T-206)
 
 Měření (2026-11-11, macOS Apple Silicon, simulátor 720p a 1080p): softwarové dekódování H.264 je i po T-184 / T-185 /
 T-195 50–58 % instrukcí aplikace s otevřeným oknem kamery a 67–69 % u malého náhledu. VideoToolbox (`av_hwframe_map`,
 NV12 dál přes `BgraConverter` / `GrayscaleConverter`) ušetří 45–63 % instrukcí včetně systémového procesu
 `VTDecoderXPCService`. Čísla, rizika a doporučení jsou v [hw-decoding.md](hw-decoding.md).
 
-**Plán (rozhodnutí uživatele 2026-11-12, zatím neimplementováno – dnes se dekóduje jen softwarově):**
+**Stav (T-203, 2026-11-12): macOS dekóduje okno kamery přes VideoToolbox, Windows zatím softwarově.**
 
-- **Core** zná jen neutrální volbu `AppSettings.CameraHardwareDecoding` (`Automatic` výchozí / `Off`, jedna pro všechny
-  kamery, T-203). Typ zařízení, FFmpeg ani GPU v Core nejsou. App předá hodnotu do `FFmpegCameraFeedFactory`
-  pozorovatelem nastavení (jako `DebugLoggingObserver`); dekodér ji čte při otevření plného dekódování.
-- **Camera.FFmpeg** má jediné pravidlo podle OS: `Automatic` → macOS VideoToolbox, Windows software (D3D11VA jen za
-  vývojovým přepínačem `LAYERPEEK_TEST_HW_DECODER`, Debug, do rozhodnutí po měření v T-125, T-206). `Off` → vždy
-  software. Hardware jen pro plné dekódování (okno kamery, malý náhled); samostatné klíčové snímky detekce, test kamery
-  a `CameraSnapshot` zůstávají softwarové, takže bez okna kamery se systémový dekodér nepoužije. Selhání hardwaru →
-  návrat k softwaru v témže spojení bez odpojení RTSP.
-- **Build:** macOS `build/macos/build-ffmpeg.sh` + `--enable-videotoolbox --enable-hwaccel=h264_videotoolbox` (T-203,
-  LGPL 3 zůstává). Windows: vlastní build T-202 s `h264_d3d11va` (T-206).
+- **Core** zná jen neutrální volbu `AppSettings.CameraHardwareDecoding` (`Core/Cameras/CameraHardwareDecoding`:
+  `Automatic` výchozí / `Off`, jedna pro všechny kamery). V `settings.json` je `"cameraHardwareDecoding": "Off"`, výchozí
+  hodnota se nezapisuje, chybějící i neznámá hodnota dá `Automatic` (neznámá s varováním). Diagnostický balíček
+  (`SettingsExport`) ji nese stejně. Typ zařízení, FFmpeg ani GPU v Core nejsou.
+- **App:** `CameraHardwareDecodingObserver` (pozorovatel `MonitoringSession`, jako `DebugLoggingObserver`) nastaví
+  `FFmpegCameraFeedFactory.HardwareDecoding` po načtení a po každém uložení. Debug testovací režim (T-044) má vývojový
+  přepínač `LAYERPEEK_TEST_HW_DECODER` = `off` | `videotoolbox` | `d3d11va` (`AppEnvironment.TestHardwareDecoder`,
+  `FFmpegCameraFeedFactory.UseTestHardwareDecoder`, v Release se nepřekládá), který přebije volbu i pravidlo OS pro
+  měření (T-205, T-125); neznámou hodnotu dekodér zapíše do logu a použije software.
+- **Camera.FFmpeg:** jediné pravidlo podle OS je `HardwareDecoderSelection`: `Automatic` → macOS
+  `AV_HWDEVICE_TYPE_VIDEOTOOLBOX`, Windows software (D3D11VA až po měření v T-125 a rozhodnutí uživatele, T-206). `Off` →
+  vždy software. `HardwareDecodingPolicy` (jedna na továrnu) drží aktuální volbu jako neměnný objekt (zařízení, důvod
+  softwaru, generace); dekodér ji čte jedním `volatile` čtením při startu plného dekódování a na každém klíčovém snímku,
+  bez zámků v cestě snímku.
+- **Kdy hardware:** jen plné dekódování pro okno kamery (čtenář s `CameraStreamDemand.DisplaySize`; okno kamery je jediný
+  takový čtenář, T-184). Samostatné klíčové snímky detekce, `CameraSnapshot`, „Otestovat kameru“ a vzorky detekce bez
+  okna jdou softwarem, takže bez okna kamery zařízení (a `VTDecoderXPCService`) neexistuje. Kontext kodeku je vždy jen
+  jeden: hardwarový se otevře pro plné dekódování a s ním i zařízení se uvolní, když plné dekódování skončí (po lhůtě
+  hubu); klíčové snímky detekce pak dostanou zase softwarový. Hardware se volí při startu plného dekódování a znovu na
+  každém jeho klíčovém snímku, kde přepnutí nic neztratí: uložená změna volby se tak projeví hned od dalšího klíčového
+  snímku (rozhodnutí T-204, otázka 2) a okno, které dostane velikost až po rozvržení, přejde na hardware na prvním
+  klíčovém snímku potom. Běžící hardwarová relace zůstane i bez čtenáře s velikostí až do konce plného dekódování.
+- **Snímky:** formát vybere výchozí `get_format` FFmpeg (se zařízením hardwarový formát, jen když ho dekodér nabízí,
+  jinak první softwarový). Převádí se jen splatný snímek (T-185): `av_hwframe_map` bez kopie do opakovaně použitého
+  `AVFrame`, po převodu se hned uvolní. Když mapování selže, kopíruje se (`av_hwframe_transfer_data`) do konce relace.
+  NV12 jde beze změny přes `BgraConverter` / `GrayscaleConverter`.
+- **Návrat k softwaru:** chybí-li zařízení v buildu, nejde vytvořit, FFmpeg hardware neinicializuje nebo dekódování či
+  kopie v hardwaru vrátí chybu → jeden `Warning` s kódem chyby a spojení dekóduje softwarově od dalšího klíčového snímku,
+  bez odpojení RTSP a bez chyby v okně. Proti přepínání dokola (`HardwareDecodingHistory`, podle adresy kamery bez
+  přihlašovacích údajů): po selhání jede spojení do konce softwarově, další spojení to zkusí znovu, po 2 selhaných
+  hardwarových relacích za sebou zůstane kamera softwarová do konce běhu procesu nebo do změny volby (nová generace).
+  Relace, která dekódovala snímky a skončila bez chyby, počítání vynuluje.
+- **Log:** při startu (a přepnutí) plného dekódování jeden řádek `Information` „Camera video decoding: videotoolbox“ nebo
+  „… software (důvod)“, při návratu k softwaru `Warning`; nikdy na snímek, nikdy s adresou kamery.
+- **Build:** macOS `build/macos/build-ffmpeg.sh` + `--enable-videotoolbox --enable-hwaccel=h264_videotoolbox` (LGPL 3
+  zůstává, systémové frameworky z `/System/Library`). Windows: vlastní build T-202 s `h264_d3d11va` (T-206).
 - **Bezpečnost (doplněk T-050):** data řezů z nedůvěryhodné kamery zpracuje při hardwarovém dekódování i systémový
   dekodér a ovladač GPU (macOS `VTDecoderXPCService` a AppleAVD, Windows ovladač D3D11VA). Uživatel to 2026-11-12
   přijal, pojistkou je volba „Vypnuto“. Whitelisty T-050 platí beze změny. Paměť +10–25 MB na stream.
-- UI volby (Nastavení > Kamera, T-204), měření produktového kódu na Macu (T-205).
+- **Ověřeno na Macu (T-205, Release Native AOT `LayerPeek.app` s hardened runtime):** VideoToolbox funguje bez nového
+  entitlementu. Instrukce aplikace + `VTDecoderXPCService` −50 až −51 % v okně kamery a −58 / −67 % v malém náhledu
+  (720p / 1080p), doba CPU nevzroste, paměť +13 / +22 MB na stream (jeden pomocný proces na aplikaci, po zavření okna jeho
+  paměť klesne na ~3 MB). Bez okna kamery (sledování, detekce) žádná relace VT. Snímky bit po bitu stejné jako ze
+  softwaru, zpoždění paket → snímek +1 ms (720p) až −1,4 ms (1080p). Simulátor posílá SPS a PPS před každým IDR snímkem
+  i u klipů MP4 (jinak by dekodér otevřený na klíčovém snímku po přepnutí neměl parametry). Od T-207 si `FFmpegDecoder`
+  u proudu bez SPS / PPS v popisu relace pamatuje poslední SPS a PPS z paketů (`H264ParameterSetMemory`, každý nejvýš
+  1 KiB, paket se prohlíží jen do prvního řezu) a dá je každému nově otevřenému kontextu kodeku jako extradata; kamera,
+  která je pošle jen na začátku spojení, tak po přepnutí, po návratu k softwaru i u klíčových snímků detekce po hardwarové
+  relaci obraz neztratí. U Buddy3D (`sprop-parameter-sets`) se nic nemění. Tabulky v
+  [hw-decoding.md](hw-decoding.md), oddíl „Výsledky implementace (T-205)“; uspání a probuzení a pohled na okno → T-127.
+- Dál: D3D11VA na Windows (T-206).
 
 ## Logování
 

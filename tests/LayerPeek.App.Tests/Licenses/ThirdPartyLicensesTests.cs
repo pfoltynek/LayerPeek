@@ -172,7 +172,7 @@ public sealed partial class ThirdPartyLicensesTests
     {
         // User decision 2026-10-19: descriptions are translated, product names stay; licence texts stay English.
         List<ThirdPartyComponent> described = [.. ThirdPartyLicenses.All.Where(static c => c.DisplayNameKey is not null)];
-        Assert.Equal(3, described.Count);
+        Assert.Equal(4, described.Count);
         foreach (ThirdPartyComponent component in described)
         {
             foreach (string code in Core.Settings.AppLanguages.Supported)
@@ -220,6 +220,11 @@ public sealed partial class ThirdPartyLicensesTests
 
         ThirdPartyComponent angle = Assert.Single(ThirdPartyLicenses.All, static c => c.License == "BSD-3-Clause");
         Assert.Contains("The ANGLE Project Authors", ThirdPartyLicenses.ReadText(angle), StringComparison.Ordinal);
+
+        // T-223: the Inter font (SIL Open Font License 1.1, with the copyright of the Inter authors).
+        string inter = ThirdPartyLicenses.ReadText(Assert.Single(ThirdPartyLicenses.All, static c => c.License == "OFL-1.1"));
+        Assert.Contains("SIL OPEN FONT LICENSE Version 1.1", inter, StringComparison.Ordinal);
+        Assert.Contains("The Inter Project Authors", inter, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -301,9 +306,10 @@ public sealed partial class ThirdPartyLicensesTests
     }
 
     [Fact]
-    public void FFmpegMacOSBuildIsLgplOnlyWithoutHardwareDecoding()
+    public void FFmpegMacOSBuildIsLgplOnlyWithVideoToolboxAsItsOnlyHardwareDecoder()
     {
-        // T-026 (user decisions 2026-10-29): LGPL only, version 3 like the BtbN build, software decoding only.
+        // T-026 (user decisions 2026-10-29): LGPL only, version 3 like the BtbN build. T-203 (user decision 2026-11-12):
+        // hardware decoding of H.264 through VideoToolbox, a system framework, and nothing else.
         string script = File.ReadAllText(Path.Combine(RepositoryRoot, "build", "macos", "build-ffmpeg.sh"));
         Match flags = ConfigureFlags().Match(script);
         Assert.True(flags.Success);
@@ -311,7 +317,8 @@ public sealed partial class ThirdPartyLicensesTests
 
         Assert.DoesNotContain("--enable-gpl", configure, StringComparison.Ordinal);
         Assert.DoesNotContain("--enable-nonfree", configure, StringComparison.Ordinal);
-        Assert.DoesNotContain("--enable-videotoolbox", configure, StringComparison.Ordinal);
+        Assert.Contains("--enable-videotoolbox --enable-hwaccel=h264_videotoolbox", configure, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(configure, "--enable-hwaccel"));
         // T-147: recording only remuxes (--enable-muxer=mp4), it never encodes.
         Assert.DoesNotContain("--enable-encoder", configure, StringComparison.Ordinal);
         Assert.Contains("--enable-version3", configure, StringComparison.Ordinal);

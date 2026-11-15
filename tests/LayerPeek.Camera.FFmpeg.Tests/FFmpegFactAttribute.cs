@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
+using FFmpeg.AutoGen.Abstractions;
+
 using LayerPeek.Core.Cameras;
 
 namespace LayerPeek.Camera.FFmpeg.Tests;
@@ -61,5 +63,49 @@ public sealed class FFmpegTheoryAttribute : TheoryAttribute
         Skip = FFmpegTestEnvironment.SkipReason;
         SkipType = typeof(FFmpegTestEnvironment);
         SkipUnless = nameof(FFmpegTestEnvironment.CanRun);
+    }
+}
+
+/// <summary>
+/// Whether the hardware decoding tests of T-203 can run: FFmpeg is available, the build has VideoToolbox for H.264 and this
+/// Mac can create a VideoToolbox device. Windows (D3D11VA) has its own tests in T-206.
+/// </summary>
+public static class HardwareDecodingTestEnvironment
+{
+    public const string SkipReason =
+        "Hardware decoding (VideoToolbox) is not available: it needs macOS with the FFmpeg build of T-203 and a VideoToolbox device.";
+
+    public static bool CanRun { get; } = FFmpegTestEnvironment.CanRun && OperatingSystem.IsMacOS() && CanCreateVideoToolbox();
+
+    private static unsafe bool CanCreateVideoToolbox()
+    {
+        try
+        {
+            if (!FFmpegRuntime.HasHardwareDecoder(AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX))
+            {
+                return false;
+            }
+
+            AVBufferRef* device = null;
+            int created = ffmpeg.av_hwdevice_ctx_create(&device, AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX, null, null, 0);
+            ffmpeg.av_buffer_unref(&device);
+            return created >= 0;
+        }
+        catch (CameraFeedException)
+        {
+            return false;
+        }
+    }
+}
+
+/// <summary>A fact that needs hardware decoding (VideoToolbox); skipped where it is not available (see <see cref="HardwareDecodingTestEnvironment"/>).</summary>
+public sealed class HardwareDecodingFactAttribute : FactAttribute
+{
+    public HardwareDecodingFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
+    {
+        Skip = HardwareDecodingTestEnvironment.SkipReason;
+        SkipType = typeof(HardwareDecodingTestEnvironment);
+        SkipUnless = nameof(HardwareDecodingTestEnvironment.CanRun);
     }
 }

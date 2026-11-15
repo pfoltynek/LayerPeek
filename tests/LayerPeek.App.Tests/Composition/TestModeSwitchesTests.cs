@@ -227,6 +227,22 @@ public sealed class TestModeSwitchesTests
     }
 
     [Fact]
+    public void TheHardwareDecoderSwitchIsOnlyForTheTestMode()
+    {
+        // T-203: the value as given (the decoder logs an unknown one and uses software, it does not refuse the start).
+        Assert.Equal("LAYERPEEK_TEST_HW_DECODER", AppEnvironment.TestHardwareDecoderVariable);
+        Assert.Equal("videotoolbox", Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestHardwareDecoderVariable, " videotoolbox ")).TestHardwareDecoder);
+        Assert.Equal("cuda", Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestHardwareDecoderVariable, "cuda")).TestHardwareDecoder);
+        Assert.Null(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestHardwareDecoderVariable, " ")).TestHardwareDecoder);
+        Assert.Null(Read((AppEnvironment.DataDirectoryVariable, Folder)).TestHardwareDecoder);
+
+        AppEnvironment outside = Read((AppEnvironment.TestHardwareDecoderVariable, "off"));
+        Assert.False(outside.IsIsolated);
+        Assert.Null(outside.TestHardwareDecoder);
+        Assert.Equal([AppEnvironment.TestHardwareDecoderVariable], outside.IgnoredTestSwitches);
+    }
+
+    [Fact]
     public void WithoutAnyVariableTheProcessIsProduction()
     {
         Assert.Same(AppEnvironment.Production, Read());
