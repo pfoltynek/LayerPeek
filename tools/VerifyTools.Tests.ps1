@@ -1369,6 +1369,17 @@ Describe 'Small checks (mac.camera-pin-ax, mac.detection-region, mac.appkit-lang
         (Get-VerifyTitleLanguages -Titles 'Kopírovať', 'Vložiť')[0].Language | Should -Be 'sk'
         Get-VerifyTitleLanguages -Titles 'Something' | Should -HaveCount 0
         Get-VerifyTitleLanguages -Titles @() | Should -HaveCount 0
+        # The access key of the app's own menus (T-242) does not count.
+        (Get-VerifyTitleLanguages -Titles '_Ausschneiden', 'Alles aus_wählen')[0].Matches | Should -Be 2
+    }
+
+    It 'tells whether the text field menu is in the language of LayerPeek (T-242)' {
+        Get-VerifyTextMenuProblem -Titles '_Ausschneiden', '_Kopieren', '_Einsetzen', 'Alles aus_wählen' -Language 'de' | Should -BeNullOrEmpty
+        Get-VerifyTextMenuProblem -Titles 'V_ložiť', 'Vybrať _všetko' -Language 'sk' | Should -BeNullOrEmpty
+        Get-VerifyTextMenuProblem -Titles 'Cut', 'Copy', 'Paste' -Language 'de' | Should -Be "items 'Cut', 'Copy', 'Paste' are en, expected all de (0 of 3)"
+        Get-VerifyTextMenuProblem -Titles 'Ausschneiden', 'Paste' -Language 'de' | Should -Match 'expected all de \(1 of 2\)'
+        Get-VerifyTextMenuProblem -Titles 'Something' -Language 'de' | Should -Match 'in no LayerPeek language'
+        Get-VerifyTextMenuProblem -Titles @() -Language 'de' | Should -Be 'no items'
     }
 
     It 'picks a LayerPeek language other than the system language' {

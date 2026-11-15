@@ -2821,8 +2821,8 @@ $checks = @(
 
     New-VerifyCheck -Id 'mac.appkit-language' -Needs Session, Accessibility -Kind Permission `
         -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to open the image panel and the context menu of a text field and read them, and an unlocked screen' `
-        -Title 'T-097 question 5 (a finding, not a failure): with LayerPeek in another language than the system (de, or fr on a German system), the language of the buttons of the printer image panel (NSOpenPanel) and of the items of the context menu of a text field (simulator)' `
-        -Closes 'T-097 (otázka 5: v jakém jazyce jsou prvky AppKitu při jazyce LayerPeeku jiném než jazyk systému; zjištění i do T-097)', 'T-216 kritérium 4' -Action {
+        -Title 'T-097 question 5 (a finding, not a failure): with LayerPeek in another language than the system (de, or fr on a German system), the language of the buttons of the printer image panel (NSOpenPanel); and the items of the context menu of a text field in the language of LayerPeek (T-242, a failure otherwise; simulator)' `
+        -Closes 'T-097 (otázka 5: v jakém jazyce jsou prvky AppKitu při jazyce LayerPeeku jiném než jazyk systému; zjištění i do T-097)', 'T-216 kritérium 4', 'T-242 kritérium 2' -Action {
         param($c)
         if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
         Invoke-SessionCheck $c {
@@ -2834,6 +2834,7 @@ $checks = @(
             $appId = $app.Id
             $findings = [System.Collections.Generic.List[string]]::new()
             $failures = [System.Collections.Generic.List[string]]::new()
+            $wrong = [System.Collections.Generic.List[string]]::new()
             $describe = { param([string[]] $Titles) $l = @(Get-VerifyTitleLanguages -Titles $Titles); if ($l.Count) { ($l | ForEach-Object { "$($_.Language) ($($_.Matches))" }) -join ', ' } else { 'not recognised' } }
             try {
                 Send-TestCommand $data 'settings'
@@ -2872,16 +2873,23 @@ $checks = @(
                     }
                     $null = Save-VerifyEvidence -Context $c -Name 'text-menu.json' -Content ((Get-AxTree $c $appId) | ConvertTo-Json -Depth 100)
                     if ($script:menuTitles.Count -eq 0) { $failures.Add('Control-click and right click on the printer name opened no context menu in the Accessibility tree (text-menu.json)') }
-                    else { $findings.Add("text field context menu: '$($script:menuTitles -join "', '")' = $(& $describe $script:menuTitles)") }
+                    else {
+                        $findings.Add("text field context menu: '$($script:menuTitles -join "', '")' = $(& $describe $script:menuTitles)")
+                        # T-242: the menu is the app's own now and must follow the language of LayerPeek.
+                        $menuProblem = Get-VerifyTextMenuProblem -Titles $script:menuTitles -Language $language
+                        if ($menuProblem) { $wrong.Add("text field context menu not in the language of LayerPeek: $menuProblem") }
+                    }
                     $null = Invoke-Helper $c @('key', 'escape')
                 }
                 $null = Invoke-Helper $c @('axpress', "$appId", 'SettingsCancel') -AllowFailure
             }
             finally { $null = Stop-TestApp $data $app }
-            $null = Save-VerifyEvidence -Context $c -Name 'finding.txt' -Content (@("system languages: $($system -join ', ')", "LayerPeek language: $language") + $findings + $failures)
+            $null = Save-VerifyEvidence -Context $c -Name 'finding.txt' -Content (@("system languages: $($system -join ', ')", "LayerPeek language: $language") + $findings + $failures + $wrong)
             $head = "system $($system -join ', '), LayerPeek $language"
-            # A decision point: what AppKit shows is the finding; only nothing read at all is a failure of the check.
+            # What AppKit shows (the image panel) is a finding; the text field menu is the app's own (T-242) and must be in
+            # the language of LayerPeek; nothing read at all is a failure of the check.
             if ($findings.Count -eq 0) { return New-VerifyResult FAIL "$head; nothing could be read: $($failures -join '; ')" }
+            if ($wrong.Count -gt 0) { return New-VerifyResult FAIL "$head; $($wrong -join '; '); $($findings -join '; ')" }
             New-VerifyResult PASS "finding for T-097 question 5 ($head): $($findings -join '; ')$(if ($failures.Count) { "; not read: $($failures -join '; ')" })"
         }
     }

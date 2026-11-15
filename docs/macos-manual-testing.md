@@ -327,7 +327,9 @@ Aplikaci spouštět z Finderu (procesy z Terminálu mají přístup k místní s
    krok 3, T-026 krok 2.
 5. **Prvky AppKitu v jiném jazyce.** Jazyk LayerPeeku jiný než jazyk systému (např. systém čeština, LayerPeek
    angličtina v Nastavení → Obecné): dialog výběru obrázku tiskárny, kontextové menu textového pole. Prvky AppKitu mají
-   být v jazyce systému, ostatní v jazyce LayerPeeku; jen zapsat, co se ukázalo. **Uzavírá:** T-097 krok 5.
+   být v jazyce systému, ostatní v jazyce LayerPeeku; jen zapsat, co se ukázalo. Kontextové menu textového pole je od
+   T-242 vlastní menu aplikace a musí být v jazyce LayerPeeku (`mac.appkit-language` jinak hlásí FAIL). **Uzavírá:**
+   T-097 krok 5.
 
 ## Sezení 5 – Oznámení
 

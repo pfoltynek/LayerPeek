@@ -231,7 +231,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-230 | Aktualizace všech NuGet balíčků a .NET nástrojů na nejnovější stabilní verze (hotovo; Windows v T-125) | all | qa-reviewer | P2 | – |
 | T-233 | E2E test `ClassicFormPostOfTheProxiedPageReachesThePrinter` selhává s Edge 157 na macOS | all | qa-reviewer | P2 | – |
 | T-238 | Testovací režim – volitelné skutečné otevírání odkazů přes /usr/bin/open pro `mac.open-fake` (T-053 L4) | all | ui-dev | P3 | T-216 |
-| T-242 | Kontextové menu textových polí (Cut / Copy / Paste) je anglicky i v jiném jazyce aplikace | all | ui-dev | P3 | T-029 |
+| T-242 | Kontextové menu textových polí (Cut / Copy / Paste) je anglicky i v jiném jazyce aplikace (hotovo) | all | ui-dev | P3 | T-029 |
 | T-244 | Nestabilní test InstanceTransportTests – kontrola peera nestihne proběhnout pod zátěží (4 jádra) | all | qa-reviewer | P3 | – |
 
 ### Windows (`windows`)
