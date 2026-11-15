@@ -1,12 +1,12 @@
 <Project>
   <ItemGroup Label="App">
-    <PackageVersion Include="Avalonia" Version="12.1.4" />
-    <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageVersion Include="Avalonia" Version="12.1.6" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- The Inter font: default font of the app on macOS (T-223) and the only font of the UI tests (T-031); package MIT,
          font SIL OFL 1.1, embedded resources only (no reflection, AOT/trim compatible). Same version as Avalonia. -->
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.6" />
     <!-- Installer hooks and updates on Windows (T-017); MIT, verified for Native AOT and trimming in T-056 (docs/velopack.md).
          Keep the same version as the vpk tool in .config/dotnet-tools.json (a Pester test compares them). -->
     <PackageVersion Include="Velopack" Version="1.2.161" />
@@ -19,9 +19,9 @@
   <ItemGroup Label="Tests">
     <!-- Headless Avalonia platform for the UI tests (T-031; also the camera and licence window tests of T-014, on the same
          xunit.v3 as every test project, no Avalonia.Headless.XUnit); MIT, test-only (never referenced by src/), same version as Avalonia. -->
-    <PackageVersion Include="Avalonia.Headless" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.6" />
     <!-- Snapshot tests (T-031), test-only: Skia rendering. -->
-    <PackageVersion Include="Avalonia.Skia" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Skia" Version="12.1.6" />
     <!-- UI Automation of the real app exe in the on-demand Windows end-to-end tests (T-044); MIT, test-only (never referenced
          by src/), not AOT relevant (the tests run on the JIT with built-in COM interop of the UIA3 interop assembly). -->
     <PackageVersion Include="FlaUI.Core" Version="5.0.0" />
