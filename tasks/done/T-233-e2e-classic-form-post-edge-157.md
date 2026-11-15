@@ -46,3 +46,7 @@ navigaci formuláře zodpovězenou 204 nehlásí jako `requestfailed` (`net::ERR
   401/`WWW-Authenticate`, dialogů, chyb skriptů a provozu mimo 127.0.0.1 beze změny.
 - Ověřeno na Macu: `ProxyOriginGuardTests` opakovaně 3/3; celé `dotnet build` (Debug i Release) 0 varování, `dotnet test` 10838 testů,
   0 selhání (271 přeskočeno – platformní). Ověření na Windows → T-125, oddíl 2ae.
+- **Windows 2026-11-15** (Windows 11 Pro 10.0.26300 x64, Edge 157.0.4341.46, Playwright 1.64.1, ověřeno v T-232):
+  `ProxyOriginGuardTests` 3× po sobě 3/3. Dočasný diagnostický zápis výsledku `settled` (po běhu odstraněný) ve všech
+  třech bězích: formulářový POST zodpovězený 204 Edge hlásí jako **dokončený** (`requestfinished`, `Failure` prázdné),
+  ne jako `net::ERR_ABORTED` – stejně jako Edge 157 na Macu. V rámci celého `dotnet test` (T-232) třída také prošla.

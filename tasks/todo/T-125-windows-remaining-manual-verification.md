@@ -523,14 +523,17 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       T-035). Nic neměnit v tomto bodě.
 
 ### 2ae. Aktualizace spravovaných závislostí (z T-230, ověřeno na Macu 2026-11-15)
-- [ ] **T-230** (automaticky): `dotnet build` a `dotnet test` na Windows bez chyb a varování (TimeProvider.Testing 11.0.0,
+- [x] **T-230** (automaticky): `dotnet build` a `dotnet test` na Windows bez chyb a varování (TimeProvider.Testing 11.0.0,
       Playwright 1.64.1, xunit.v3 4.0.3 – jen testy) a `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez
       varování AOT. Známé selhání `ProxyOriginGuardTests.ClassicFormPostOfTheProxiedPageReachesThePrinter` řeší T-233;
       zapsat, zda selhává i s Edge na Windows.
-- [ ] **T-233** (automaticky): `dotnet test --project tests/LayerPeek.E2E.Tests` na Windows s aktuálním Edge bez chyb,
+      Ověřeno v T-232 (2026-11-15, Edge 157.0.4341.46): build 0 varování, `dotnet test` 11 468 testů, 0 selhání, AOT
+      publish `win-x64` bez varování AOT/trim; `ProxyOriginGuardTests` na Windows prochází (s úpravou z T-233).
+- [x] **T-233** (automaticky): `dotnet test --project tests/LayerPeek.E2E.Tests` na Windows s aktuálním Edge bez chyb,
       hlavně `ProxyOriginGuardTests` (3 testy). Do poznámek T-233 zapsat verzi Edge a jak hlásí formulářový POST
       zodpovězený 204 – jako dokončený (`requestfinished`, Edge 157 na Macu) nebo zrušený (`net::ERR_ABORTED`); test
       přijímá obojí.
+      Ověřeno v T-232 (2026-11-15, Edge 157.0.4341.46): 3/3, POST hlášen jako dokončený (`requestfinished`); zapsáno v T-233.
 
 ### 2af. Pozastavení kamery při zamčení, vypnutém displeji a na jiné virtuální ploše (z T-186, implementováno na Windows 2026-11-15)
 Postup: simulátor (`docs/simulator.md`) nebo tiskárna s kamerou, otevřené okno kamery s obrazem. Že se obraz
@@ -600,6 +603,15 @@ dělají u konzole Windows.
 - [ ] **T-226** (automaticky): celé `pwsh scripts/release-build.ps1 -SkipFeedSignature` na Windows x64 (testy řešení,
       smoke test `win-x64`, krok `ffmpeg-source`) projde; výstup `win-x64` i `win-arm64`, kontrola architektury PE bez
       problémů, `SHA256SUMS-windows.txt` odpovídá `Get-FileHash`. Výstup pak smazat.
+
+### 2aj. Nativní závislosti Windows – zbytek na konzoli (z T-232, ověřeno na Windows přes RDP 2026-11-15)
+Build Tools 2026 18.12.0 (MSVC 14.52), Windows 11 SDK 10.0.26100, Edge 157.0.4341.46, Playwright 1.64.1. `dotnet build`,
+`dotnet test` (včetně testů prohlížeče) a AOT publish `win-x64` / `win-arm64` prošly už v T-232; zbývá:
+- [ ] **T-232** (automaticky): `pwsh scripts/aot-smoke.ps1 -Runtime win-x64` projde bez chyb (v T-232 nespuštěno:
+      běžela nainstalovaná LayerPeek uživatele a skript se s běžící instancí odmítne spustit; aplikaci před během ukončit).
+- [ ] **T-232** (automaticky, na konzoli – testy s myší přes RDP nejdou, T-169): plné `pwsh tools/run-e2e.ps1` s MSVC 14.52,
+      Playwright 1.64.1 a aktuálním Edge bez chyb; verzi Edge zapsat do poznámek T-232
+      (v T-232 157.0.4341.46, Mac v T-230 už .60 – ověřit, že se Edge mezitím sám aktualizoval).
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
