@@ -460,12 +460,16 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       kapitolu 14 příručky v jazyce aplikace (zkontrolovat aspoň en a cs, že GitHub skočí přímo na nadpis kapitoly).
 
 ### 2aa. Identita v gitu – adresa noreply (z T-198, rozhodnutí uživatele 2026-11-11, otázka 1)
-- [ ] **T-198** (krit. B8, `user.email` nastavený na obou počítačích): v každém klonu LayerPeek na Windows
+- [x] **T-198** (krit. B8, `user.email` nastavený na obou počítačích): v každém klonu LayerPeek na Windows
       `git config user.email 12541813+pfoltynek@users.noreply.github.com` (`docs/prerequisites.md`, „Identita v gitu“),
       kontrola `git config user.email`; po prvním commitu na Windows `git log -1 --format='%an <%ae> | %cn <%ce>'`
       ukazuje autora i committera s adresou noreply. Výsledek zapsat do T-198 (Poznámky).
-- [ ] **T-198** (otázka 12): globálně `git config --global user.name "Petr Foltýnek"` a `git config --global user.useConfigOnly true` (`docs/prerequisites.md`), kontrola
+- [x] **T-198** (otázka 12): globálně `git config --global user.name "Petr Foltýnek"` a `git config --global user.useConfigOnly true` (`docs/prerequisites.md`), kontrola
       `git config --global --get user.useConfigOnly` vypíše `true`.
+      Ověřeno 2026-11-15 na Windows (D:\00-Source\LayerPeek): lokálně `user.email` = adresa noreply (přebíjí globální
+      `pfoltynek@outlook.cz`), globálně `user.name` = Petr Foltýnek a `user.useConfigOnly` = `true`; commit c23597c8:
+      autor i committer `Petr Foltýnek <12541813+pfoltynek@users.noreply.github.com>`. Commity z Windows z 2026-11-12 až
+      2026-11-15 15:03 (46, už pushnuté v `develop`) mají ještě `pfoltynek@outlook.cz`; historie se nepřepisuje.
 
 ### 2ab. Zdroj FFmpeg u vydání a věta o FFmpeg v okně O aplikaci (z T-199, implementováno na Macu 2026-11-11)
 > Doplněno 2026-11-12: balení zdroje Windows z commitu FFmpeg a skriptů BtbN (`git archive`, 3. bod) je přechodný stav,
