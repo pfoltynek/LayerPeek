@@ -34,7 +34,10 @@ public sealed class PesterScriptTests
 
     // Time limit per test file in minutes, a guard against a hanging run, not a speed check: the orchestrator tests run
     // release.ps1 end to end many times (about 1.5-2.5 min); ReleaseTools takes about 3.5 min on an M2 and more than 5 on
-    // the 4-CPU Windows runner next to the other test assemblies (T-218).
+    // the 4-CPU Windows runner next to the other test assemblies (T-218). VerifyTools starts about 15 child pwsh
+    // processes (the verification scripts, the stand-in GitHub API); it takes about 15 s locally, but took 2-5 min on the
+    // Windows runner, where it runs while the other test assemblies keep all 4 CPUs busy: a bare child pwsh took 5 s there
+    // (0.4 s locally), one macos-verify.ps1 -ListChecks 20-66 s (T-246).
     [Theory]
     [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1", 10)]
     [InlineData("scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1", 15)]
@@ -43,7 +46,7 @@ public sealed class PesterScriptTests
     [InlineData("tools/profile-snapshot.Tests.ps1", 5)]
     [InlineData("build/update-ffmpeg.Tests.ps1", 5)]
     [InlineData("build/FFmpeg.Tests.ps1", 5)]
-    [InlineData("tools/VerifyTools.Tests.ps1", 5)]
+    [InlineData("tools/VerifyTools.Tests.ps1", 10)]
     [InlineData("tools/windows-verify.Tests.ps1", 5)]
     [InlineData("tools/RunE2E.Results.Tests.ps1", 5)]
     public async Task ScriptPesterTestsPass(string relativePath, int timeoutMinutes)

@@ -4997,10 +4997,10 @@ if ($ListChecks) {
         try { $listed = @(Select-VerifyPreset -Checks $checks -Name $Preset -Ids $presetIds) }
         catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 2 }
         Write-Output "Preset ${Preset}: $($listed.Count) checks, unattended; allowed in advance: $((@($listed | Where-Object Kind -EQ 'Permission').Id) -join ', ')"
-        Format-VerifyCheckList -Checks $listed | Write-Output
+        Format-VerifyCheckList -Checks $listed -AsText | Write-Output
         exit 0
     }
-    Format-VerifyCheckList -Checks $checks | Write-Output
+    Format-VerifyCheckList -Checks $checks -AsText | Write-Output
     exit 0
 }
 

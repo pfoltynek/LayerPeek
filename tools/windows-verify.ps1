@@ -400,7 +400,7 @@ if ($env:LAYERPEEK_VERIFY_STANDINS) {
 # ---------------------------------------------------------------------------------------------------------------------
 
 if ($ListChecks) {
-    Format-VerifyCheckList -Checks $checks | Write-Output
+    Format-VerifyCheckList -Checks $checks -AsText | Write-Output
     exit 0
 }
 

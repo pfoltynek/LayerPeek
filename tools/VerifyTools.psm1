@@ -130,15 +130,25 @@ function Select-VerifyChecks {
 }
 
 function Format-VerifyCheckList {
-    <# .SYNOPSIS The lines of -ListChecks: id, kind, the criteria it closes and the title. #>
-    param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Checks)
-    foreach ($check in $Checks) {
+    <#
+    .SYNOPSIS The lines of -ListChecks: id, kind, the criteria it closes and the title.
+    .PARAMETER AsText
+        The same lines as one text (nothing without checks), which the scripts print. PowerShell's console host has a
+        cost per printed object (likely a call to the console) that grows a lot on a busy machine: on the Windows CI
+        runner, all CPUs taken by the other test assemblies, one -ListChecks of macos-verify.ps1 (about 200 lines, one
+        object each) took over a minute; locally under load 200 objects 7.9 s, the same lines as one text 0.27 s (T-246).
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Checks, [switch] $AsText)
+    $lines = foreach ($check in $Checks) {
         $kind = switch ($check.Kind) { 'Auto' { 'auto' } 'Permission' { 'permission' } 'Manual' { 'manual' } }
         "$($check.Id)  [$kind]  $($check.Title)"
         foreach ($criterion in $check.Closes) { "    closes: $criterion" }
         if ($check.Permission) { "    needs:  $($check.Permission)" }
         if (@($check.Needs).Count -gt 0) { "    requires: $($check.Needs -join ', ')" }
     }
+    if (-not $AsText) { return $lines }
+    $lines = @($lines)
+    if ($lines.Count -gt 0) { $lines -join [Environment]::NewLine }
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
