@@ -145,10 +145,10 @@ gcc 16.2.0, nasm 3.02, make 4.4.1); 2 **jen D3D11VA** (bez DXVA2 a D3D12VA); 3 *
      PATH jen `/mingw64/bin:/usr/bin`): stejné příznaky jako macOS + `--target-os=mingw32 --arch=x86_64
      --enable-d3d11va --enable-hwaccel=h264_d3d11va`, `-static-libgcc` a statický winpthreads (`--extra-ldflags=-static`
      u sdílených knihoven ověřit), kontrola `objdump -p` (DLL Name jen av*/sw* a systémové DLL), parametr architektury
-     (`x86_64` teď, `aarch64` pro T-208).
+     (`x86_64` teď, `aarch64` pro T-225).
   4. `build/FFmpeg.targets`: přejmenovat `LayerPeekFFmpegMacSource*` na společné `LayerPeekFFmpegSource*`, odstranit BtbN
      a `LayerPeekFFmpegWindows*`, cílový adresář `win-x64-<hash>`, kontrola toolchainu (existence `C:\msys64\usr\bin\bash.exe`
-     a gcc/nasm/make v `/mingw64`), chybová hláška s `-p:LayerPeekFFmpegEnabled=false`; RID zvolený proměnnou kvůli T-208.
+     a gcc/nasm/make v `/mingw64`), chybová hláška s `-p:LayerPeekFFmpegEnabled=false`; RID zvolený proměnnou kvůli T-225.
   5. `update-ffmpeg.ps1` a ReleaseTools bez BtbN, docs/README/CHANGELOG, ověření (simulátor, E2E kamery, AOT publish),
      měření velikosti DLL / doby buildu, nové měření `GrayscaleSampleEquivalenceTests`.
 - **Otevřené otázky:** zatím žádné nové (počkat, jestli při kroku 3 nevyjdou najevo další potřebné volby configure pro
