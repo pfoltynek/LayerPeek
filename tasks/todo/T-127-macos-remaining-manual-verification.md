@@ -36,7 +36,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 | T-213 | `mac.file-dialogs`, helper `panel` / `panelgo` / `panelcancel` / `type` | T-146 („Změnit…“), T-165, T-164; zbývá bod 1o |
 | T-214 | headless testy se San Francisco (hotovo 2026-11-14; od T-223 aplikace na macOS s Inter) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k (od T-223 šířky s Inter) |
 | T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt`, helper `dock` / `axwin` / `focusedmenubar` / `drag` / `luma` / `lumawatch` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188; zbývá bod 1p |
-| T-216 | `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`, `mac.open-fake`, `mac.hw-decoding-switch`, `mac.keys-czech-layout` | T-151 (fokus), T-122, T-117 (VoiceOver), T-154 (editor), T-097 otázka 5, T-053, T-205 (4)(5), T-100 otázka 1 |
+| T-216 | `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`, `mac.open-fake`, `mac.hw-decoding-switch`, `mac.keys-czech-layout`, helper `inputsource` / `apps` / `terminate` | T-151 (fokus), T-122, T-117 (VoiceOver), T-154 (editor), T-097 otázka 5, T-053, T-205 (4)(5), T-100 otázka 1; zbývá bod 1q |
 | T-217 | `mac.release-bundle` (hotovo 2026-11-14) | T-026 „čistý Mac“ (rozhodnutí 2026-11-13: vyčištěné prostředí stačí) |
 
 Ruční zůstává: skutečná tiskárna a Buddy3D (oddíl 2), vydání (oddíl 3), vzhled (ikony, obrysy, ostrost), fyzické
@@ -530,6 +530,32 @@ a kritérium.
       `evidence/mac.camera-next-attempt/` (`next-attempt-watch.jsonl`, `pauses.json`). Prahy živého obrazu (0,2 % pixelů
       změněných o víc než 8 úrovní nebo průměrný rozdíl 0,3) a černého snímku (větší z 8 a čtvrtiny výchozího jasu)
       jsou odhad bez skutečného snímku; když neodpovídají, upravit v `VerifyTools.psm1` s testem.
+
+### 1q. Drobné kontroly (z T-216, připraveno na Macu 2026-11-15)
+- [ ] **T-216** (krit. 1–7: `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`,
+      `mac.open-fake`, `mac.hw-decoding-switch` a `mac.keys-czech-layout`; Terminál agenta neměl Zpřístupnění a obrazovka
+      byla zamčená, `mac.camera-autoclose` skončil `SKIP` „… the screen is locked“, ostatní `SKIP` na předběžné podmínce):
+      po přípravě z `docs/macos-manual-testing.md` (Zpřístupnění pro Terminál, volitelně Nahrávání obrazovky, vzorky
+      v `~/LayerPeek-samples`) spustit `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Only mac.camera-autoclose,mac.camera-pin-ax,mac.detection-region,mac.appkit-language,mac.open-fake,mac.hw-decoding-switch,mac.keys-czech-layout
+      -Allow 'mac.detection-region,mac.appkit-language,mac.hw-decoding-switch,mac.keys-czech-layout'`; asi 5 min).
+      `mac.open-fake` otevře odkaz na GitHub a web simulátoru ve výchozím prohlížeči (rozhodnutí 2026-11-13); nová okna
+      zavře, spuštěný prohlížeč ukončí, panel v už otevřeném okně nechá. `PASS` odškrtne v tomto úkolu body: `mac.camera-autoclose`
+      **T-151** „Automaticky otevřené okno nebere fokus …“; `mac.camera-pin-ax` **T-122** a část VoiceOver bodu **T-117**;
+      `mac.detection-region` část editoru výřezu bodu **T-154** (bez skutečné Buddy3D); `mac.open-fake` bod **T-053**
+      (přihlášení přes proxy kryjí E2E T-028 / T-107); `mac.hw-decoding-switch` body (4) a (5) bodu **T-205** (výsledek
+      i do poznámek T-205); `mac.keys-czech-layout` = `PASS` bod **T-100** otázka 1 pro softwarové rozložení (`FAIL` = nový
+      úkol; fyzické klávesnice zůstávají). `mac.appkit-language` je vždy `PASS` se zjištěním: jazyk tlačítek panelu
+      a kontextového menu zapsat k bodu **T-097** otázka 5 a do T-097 (pak bod odškrtnout). Do poznámek T-216 zapsat
+      složku běhu, commit a řádky zprávy. Pozn.: agent proti skutečnému systému neověřil AX jména špendlíku v češtině,
+      pole s výřezem (AXTitle / AXDescription editoru), tažení v editoru, výběr v seznamu „Hardware decoding“,
+      kontextové menu textového pole v AX ani klik na odkazy v O aplikaci; `FAIL` nejdřív posoudit podle důkazů ve
+      `evidence/mac.*/` (`detection-after-load.json`, `settings-*.json`, `panel.json`, `text-menu.json`, `finding.txt`,
+      `switch-app.log`, `two-cameras-app.log`, `vtdecoder.txt`, `inputsource.jsonl`). Ověřeno bez oprávnění: E2E test
+      T-151 se zamčenou obrazovkou proběhl (zavření a otevření prošlo, fokus „vynecháno … the screen is locked“ → `SKIP`),
+      se spícími displeji selhal na „No active display“ (→ `SKIP` s radou `caffeinate -d -u`); dvě okna kamery dvou
+      simulátorů s klipem Buddy3D logují dvakrát „Camera video decoding: videotoolbox.“ a přibyl právě jeden
+      `VTDecoderXPCService` (jeden už běžel pro jinou aplikaci).
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

@@ -1551,6 +1551,147 @@ function Get-VerifyCountdownProblems {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
+# Small checks (T-216, mac.camera-autoclose, mac.camera-pin-ax, mac.detection-region, mac.appkit-language, mac.open-fake,
+# mac.hw-decoding-switch, mac.keys-czech-layout; pure)
+# ---------------------------------------------------------------------------------------------------------------------
+
+function ConvertFrom-VerifyFormattedText {
+    <#
+    .SYNOPSIS
+        The whole numbers a text shows in the places {0}, {1}, ... of a .NET format string (a resource text), in the order
+        of the placeholders, e.g. the accessible name "Bed region: 15 % from the left, ..." of the detection region editor;
+        $null when the text does not have that form. Any white space of the format (also U+00A0) matches any white space.
+    #>
+    param([Parameter(Mandatory)] [string] $Format, [AllowNull()] [AllowEmptyString()] [string] $Text)
+    if (-not $Text) { return $null }
+    $pattern = [System.Text.StringBuilder]::new('^')
+    $order = [System.Collections.Generic.List[int]]::new()
+    foreach ($part in [regex]::Split($Format, '(\{\d+\})')) {
+        if ($part -match '^\{(?<n>\d+)\}$') { $order.Add([int] $Matches.n); $null = $pattern.Append("(?<p$($Matches.n)>-?\d+)") }
+        else { $null = $pattern.Append(([regex]::Escape($part) -replace '(\\ |\s)+', '\s+')) }
+    }
+    $null = $pattern.Append('$')
+    $match = [regex]::Match($Text.Trim(), $pattern.ToString())
+    if (-not $match.Success) { return $null }
+    foreach ($n in ($order | Sort-Object -Unique)) { [int] $match.Groups["p$n"].Value }
+}
+
+function Get-VerifyRegionProblem {
+    <#
+    .SYNOPSIS
+        How a bed region in whole percent (x, y, width, height) differs from the expected one by more than -Tolerance
+        percentage points, or $null. "x 15 (expected 5)" for each value that is off.
+    #>
+    param([AllowNull()] [int[]] $Actual, [Parameter(Mandatory)] [double[]] $Expected, [double] $Tolerance = 0)
+    if (-not $Actual -or $Actual.Count -ne 4) { return 'no region' }
+    $names = 'x', 'y', 'width', 'height'
+    $off = for ($i = 0; $i -lt 4; $i++) { if ([math]::Abs($Actual[$i] - $Expected[$i]) -gt $Tolerance) { "$($names[$i]) $($Actual[$i]) (expected $([math]::Round($Expected[$i], 1)))" } }
+    if ($off) { "region $($Actual -join ' / ') %: $(@($off) -join ', ')" }
+}
+
+function ConvertTo-VerifyRegionPercent {
+    <# .SYNOPSIS A region of settings.json (x, y, width, height as fractions 0-1) in whole percent, as the editor names it; $null without one. #>
+    param([AllowNull()] $Region)
+    if (-not $Region) { return $null }
+    foreach ($name in 'x', 'y', 'width', 'height') { [int] [math]::Round([double] $Region.$name * 100, [MidpointRounding]::AwayFromZero) }
+}
+
+function Get-VerifyDecodingPaths {
+    <#
+    .SYNOPSIS
+        The decoding paths of the app's log lines "Camera video decoding: <path>." (T-203), in order: e.g. videotoolbox,
+        "software (the option is off)".
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Log)
+    if (-not $Log) { return @() }
+    @([regex]::Matches($Log, 'Camera video decoding: (?<path>[^\r\n]+?)\.?\s*(\r?\n|$)') | ForEach-Object { $_.Groups['path'].Value })
+}
+
+# The titles AppKit gives the buttons of an open panel and the standard items of a text context menu, per language of
+# LayerPeek (macOS 15 to 27; several where macOS uses more than one, e.g. "Einsetzen" / "Einfügen").
+$script:AppKitTitles = [ordered]@{
+    en = @('Cancel', 'Open', 'Choose', 'Cut', 'Copy', 'Paste', 'Select All', 'Delete', 'Undo', 'Redo')
+    cs = @('Zrušit', 'Otevřít', 'Vybrat', 'Vyjmout', 'Kopírovat', 'Vložit', 'Vybrat vše', 'Smazat', 'Odvolat', 'Znovu')
+    de = @('Abbrechen', 'Öffnen', 'Auswählen', 'Ausschneiden', 'Kopieren', 'Einsetzen', 'Einfügen', 'Alles auswählen', 'Löschen', 'Widerrufen', 'Wiederholen')
+    es = @('Cancelar', 'Abrir', 'Seleccionar', 'Elegir', 'Cortar', 'Copiar', 'Pegar', 'Seleccionar todo', 'Eliminar', 'Deshacer', 'Rehacer')
+    fr = @('Annuler', 'Ouvrir', 'Choisir', 'Couper', 'Copier', 'Coller', 'Tout sélectionner', 'Supprimer', 'Rétablir')
+    it = @('Annulla', 'Apri', 'Scegli', 'Taglia', 'Copia', 'Incolla', 'Seleziona tutto', 'Elimina', 'Ripristina')
+    pl = @('Anuluj', 'Otwórz', 'Wybierz', 'Wytnij', 'Kopiuj', 'Wklej', 'Zaznacz wszystko', 'Usuń', 'Cofnij', 'Powtórz')
+    sk = @('Zrušiť', 'Otvoriť', 'Vybrať', 'Vystrihnúť', 'Kopírovať', 'Vložiť', 'Vybrať všetko', 'Vymazať', 'Odvolať', 'Znova')
+}
+
+function Get-VerifyTitleLanguages {
+    <#
+    .SYNOPSIS
+        The languages of LayerPeek (en, cs, de, es, fr, it, pl, sk) whose AppKit titles contain the titles read (T-097
+        question 5: in which language AppKit shows its panel and menu), the best first: Language and Matches (how many of
+        the titles). An empty list when no title is known. "Annulla" alone is it, "Cancel" en; titles without a trailing
+        ellipsis and access key are compared exactly.
+    #>
+    param([AllowEmptyCollection()] [AllowNull()] [string[]] $Titles = @())
+    $clean = @($Titles | Where-Object { $_ } | ForEach-Object { ($_ -replace '(…|\.\.\.)$', '').Trim() } | Select-Object -Unique)
+    $found = foreach ($language in $script:AppKitTitles.Keys) {
+        $count = @($clean | Where-Object { $script:AppKitTitles[$language] -ccontains $_ }).Count
+        if ($count -gt 0) { [pscustomobject]@{ Language = $language; Matches = $count } }
+    }
+    @($found | Sort-Object -Property @{ Expression = 'Matches'; Descending = $true }, @{ Expression = 'Language'; Descending = $false })
+}
+
+function Get-VerifyOtherLanguage {
+    <#
+    .SYNOPSIS
+        A LayerPeek language other than the system's (the first entry of AppleLanguages, e.g. cs-CZ): de, or fr when the
+        system is German (T-097 question 5).
+    #>
+    param([AllowEmptyCollection()] [AllowNull()] [string[]] $SystemLanguages = @())
+    $first = "$(@($SystemLanguages | Where-Object { $_ }) | Select-Object -First 1)".ToLowerInvariant()
+    if ($first -eq 'de' -or $first.StartsWith('de-')) { 'fr' } else { 'de' }
+}
+
+function Get-VerifyDefaultBrowser {
+    <#
+    .SYNOPSIS
+        The bundle identifier of the default browser from the LaunchServices handlers (the JSON of
+        ~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist): the role handler of the
+        https scheme, else of http; com.apple.safari when there is none (the system default).
+    #>
+    param([AllowNull()] $Handlers)
+    if (-not $Handlers -or -not $Handlers.PSObject.Properties['LSHandlers']) { return 'com.apple.safari' }
+    foreach ($scheme in 'https', 'http') {
+        $entry = @($Handlers.LSHandlers | Where-Object { $_ -and $_.PSObject.Properties['LSHandlerURLScheme'] -and $_.LSHandlerURLScheme -ceq $scheme }) | Select-Object -First 1
+        if ($entry -and $entry.PSObject.Properties['LSHandlerRoleAll'] -and $entry.LSHandlerRoleAll) { return ([string] $entry.LSHandlerRoleAll).ToLowerInvariant() }
+    }
+    'com.apple.safari'
+}
+
+function Get-VerifyProxyAnswers {
+    <#
+    .SYNOPSIS
+        The answers of the app's web proxy in its detailed log ("Web proxy: GET / answered 200 (printer 'verify')."; the
+        path without the access token), in order: Method, Path, Status, Printer.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Log)
+    if (-not $Log) { return @() }
+    @([regex]::Matches($Log, "Web proxy: (?<method>[A-Z]+) (?<path>\S*) answered (?<status>\d{3}) \(printer '(?<printer>[^']*)'\)") | ForEach-Object {
+            [pscustomobject]@{ Method = $_.Groups['method'].Value; Path = $_.Groups['path'].Value; Status = [int] $_.Groups['status'].Value; Printer = $_.Groups['printer'].Value }
+        })
+}
+
+function Get-VerifyTabMoveProblem {
+    <#
+    .SYNOPSIS
+        Whether the selected tab moved by -Step (+1 = Cmd-Shift-], -1 = Cmd-Shift-[, wrapping round) from -Before to
+        -After in the tab list; $null when it did, else what happened.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $Tabs, [AllowEmptyString()] [string] $Before, [AllowEmptyString()] [string] $After, [int] $Step = 1)
+    if (-not $Before -or -not $After -or $Tabs.Count -eq 0) { return 'the selected tab could not be read' }
+    $index = [array]::IndexOf($Tabs, $Before)
+    if ($index -lt 0) { return "the tab $Before is not one of $($Tabs -join ', ')" }
+    $expected = $Tabs[(($index + $Step) % $Tabs.Count + $Tabs.Count) % $Tabs.Count]
+    if ($After -cne $expected) { "went from $Before to $After, expected $expected" }
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------
 
