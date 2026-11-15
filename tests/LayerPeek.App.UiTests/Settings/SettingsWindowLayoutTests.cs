@@ -78,32 +78,36 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
     // ---- No scroll bar, headers on one row, nothing cut (every language × state × view) ----
 
+    /// <summary>
+    /// The layout states × the UI languages. One case per state and language (T-245): every view of a state lays out its
+    /// tab anew (about 20 ms each locally, several times that on a loaded 4-core CI runner), so all states of a language in
+    /// one body came close to the 30 s limit of a UI test body on CI.
+    /// </summary>
+    public static TheoryData<string, string> LanguagesAndStates =>
+        [.. AppLanguages.Supported.SelectMany(static language => States().Select(state => (language, state.Name)))];
+
     [Theory]
-    [MemberData(nameof(Languages))]
-    public Task EverythingFitsWithoutScrollingInEveryState(string language) =>
+    [MemberData(nameof(LanguagesAndStates))]
+    public Task EverythingFitsWithoutScrollingInEveryState(string language, string state) =>
         session.RunAsync(async scope =>
         {
             Assert.True(new UiLanguage().Apply(language));
             List<string> problems = [];
-            foreach ((string state, Func<UiTestScope, Task<SettingsWindowHarness>> open) in States())
+            SettingsWindowHarness ui = await OpenState(state)(scope);
+            Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
+            Assert.False(ui.ViewModel.HasNotice);
+            foreach ((string view, int tab, int printerTab) in Views)
             {
-                SettingsWindowHarness ui = await open(scope);
-                Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
-                Assert.False(ui.ViewModel.HasNotice);
-                foreach ((string view, int tab, int printerTab) in Views)
-                {
-                    ui.ViewModel.SelectedTabIndex = tab;
-                    ui.ViewModel.SelectedPrinterTabIndex = printerTab;
-                    ui.Window.Settle();
-                    string context = $"{language} / {state} / {view}";
-                    problems.AddRange(ScrollingViewers(ui.Window, context));
-                    problems.AddRange(CutTexts(ui.Window, context));
-                    problems.AddRange(HeadersNotOnOneRow(ui.Window, context));
-                }
-
-                ui.Window.Close();
+                ui.ViewModel.SelectedTabIndex = tab;
+                ui.ViewModel.SelectedPrinterTabIndex = printerTab;
+                ui.Window.Settle();
+                string context = $"{language} / {state} / {view}";
+                problems.AddRange(ScrollingViewers(ui.Window, context));
+                problems.AddRange(CutTexts(ui.Window, context));
+                problems.AddRange(HeadersNotOnOneRow(ui.Window, context));
             }
 
+            ui.Window.Close();
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
 
@@ -113,80 +117,117 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
     private const double MinButtonHeight = 32;
 
     /// <summary>
+    /// The states of the button tests: the layout states and the states with a button of their own. One case per state
+    /// (T-245): all 32 states × 10 views in one body took 10–13 s locally and more than the 30 s limit of a UI test body
+    /// on the 4-core CI runner.
+    /// </summary>
+    public static TheoryData<string> ButtonCheckStates => [.. States().Concat(ButtonStates()).Select(static state => state.Name)];
+
+    /// <summary>
+    /// The buttons that the check of <see cref="EveryButtonIsAtLeast32DipHighInEveryState"/> must reach, each with the state
+    /// that shows it: the buttons of every tab (any state has them, here the first one), the link of the Cool-down panel and
+    /// the buttons of the extra states.
+    /// </summary>
+    private static readonly (string State, string[] Buttons)[] ReachedButtons =
+    [
+        ("PrusaLink with a saved password",
+        [
+            "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterImageButton", "PrinterTestConnection", "PrinterCameraTest",
+            "PrinterCameraWindowReset", "PrinterCameraWindowApply", "WidgetsEditLayout", "WidgetsReset", "WidgetsApplyAll",
+            "SettingsTestNotification", "SettingsSave", "SettingsCancel",
+        ]),
+        ("connection test running", ["PrinterCancelTest"]),
+        ("macOS Local Network hint of the connection test", ["PrinterOpenLocalNetworkSettings"]),
+        ("camera test running", ["PrinterCameraCancelTest"]),
+        ("macOS Local Network hint of the camera test", ["PrinterCameraOpenLocalNetworkSettings"]),
+        ("widgets: cool-down selected, single printer", ["WidgetCooldownApplyAll", "WidgetCooldownNotifyLink"]),
+        ("macOS notifications turned off", ["SettingsOpenNotificationSettings"]),
+        ("macOS Login Items need approval", ["SettingsOpenLoginItems"]),
+    ];
+
+    /// <summary>
     /// T-111: every visible button of the window (plain buttons and link buttons, not the parts inside the templates of other
     /// controls) is at least 32 DIP high in every view and state: the states of the layout test (errors, test results, a
     /// running camera test, the widget panels) and the states with a button of their own (T-019 Login Items, T-020 / T-101
     /// the notification slot, T-097 the Local Network hints, a running connection test).
     /// </summary>
-    [Fact]
-    public Task EveryButtonIsAtLeast32DipHighInEveryState() =>
-        session.RunAsync(static async scope =>
+    [Theory]
+    [MemberData(nameof(ButtonCheckStates))]
+    public Task EveryButtonIsAtLeast32DipHighInEveryState(string state) =>
+        session.RunAsync(async scope =>
         {
             List<string> problems = [];
             HashSet<string> checkedButtons = [];
-            foreach ((string state, Func<UiTestScope, Task<SettingsWindowHarness>> open) in States().Concat(ButtonStates()))
+            SettingsWindowHarness ui = await OpenState(state)(scope);
+            Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
+            (string, int, int) opened = ("as opened", ui.ViewModel.SelectedTabIndex, ui.ViewModel.SelectedPrinterTabIndex);
+            foreach ((string view, int tab, int printerTab) in Views.Prepend(opened))
             {
-                SettingsWindowHarness ui = await open(scope);
-                Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
-                (string, int, int) opened = ("as opened", ui.ViewModel.SelectedTabIndex, ui.ViewModel.SelectedPrinterTabIndex);
-                foreach ((string view, int tab, int printerTab) in Views.Prepend(opened))
+                ui.ViewModel.SelectedTabIndex = tab;
+                ui.ViewModel.SelectedPrinterTabIndex = printerTab;
+                ui.Window.Settle();
+                foreach (Button button in OwnButtons(ui.Window))
                 {
-                    ui.ViewModel.SelectedTabIndex = tab;
-                    ui.ViewModel.SelectedPrinterTabIndex = printerTab;
-                    ui.Window.Settle();
-                    foreach (Button button in OwnButtons(ui.Window))
+                    checkedButtons.Add(ButtonName(button));
+                    if (button.Bounds.Height < MinButtonHeight - 0.01)
                     {
-                        checkedButtons.Add(ButtonName(button));
-                        if (button.Bounds.Height < MinButtonHeight - 0.01)
-                        {
-                            problems.Add($"{state} / {view}: {ButtonName(button)} is {button.Bounds.Height:0.#} DIP high.");
-                        }
+                        problems.Add($"{state} / {view}: {ButtonName(button)} is {button.Bounds.Height:0.#} DIP high.");
                     }
                 }
-
-                ui.Window.Close();
             }
 
+            ui.Window.Close();
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems.Distinct()));
-            // The check reached the buttons of every tab, the link of the Cool-down panel and the buttons of the extra states.
-            string[] expected =
-            [
-                "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterImageButton", "PrinterTestConnection", "PrinterCancelTest",
-                "PrinterOpenLocalNetworkSettings", "PrinterCameraTest", "PrinterCameraCancelTest", "PrinterCameraOpenLocalNetworkSettings",
-                "PrinterCameraWindowReset", "PrinterCameraWindowApply", "WidgetsEditLayout", "WidgetsReset", "WidgetsApplyAll",
-                "WidgetCooldownApplyAll", "WidgetCooldownNotifyLink", "SettingsTestNotification", "SettingsOpenNotificationSettings",
-                "SettingsOpenLoginItems", "SettingsSave", "SettingsCancel",
-            ];
-            Assert.Empty(expected.Except(checkedButtons));
+            // The check reached the buttons this state is the witness of (ReachedButtons).
+            Assert.Empty(ReachedButtons.Where(entry => entry.State == state).SelectMany(static entry => entry.Buttons).Except(checkedButtons));
         });
+
+    /// <summary>
+    /// T-245: split per state, the button check still has to reach the buttons of every tab, the link of the Cool-down panel
+    /// and the buttons of the extra states: each of them is assigned to an existing state of the check, whose case asserts it.
+    /// </summary>
+    [Fact]
+    public void ButtonCheckReachesEveryKindOfButton()
+    {
+        string[] states = [.. States().Concat(ButtonStates()).Select(static state => state.Name)];
+        Assert.Equal(states.Length, states.Distinct().Count());
+        Assert.Empty(ReachedButtons.Select(static entry => entry.State).Except(states));
+        string[] expected =
+        [
+            "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterImageButton", "PrinterTestConnection", "PrinterCancelTest",
+            "PrinterOpenLocalNetworkSettings", "PrinterCameraTest", "PrinterCameraCancelTest", "PrinterCameraOpenLocalNetworkSettings",
+            "PrinterCameraWindowReset", "PrinterCameraWindowApply", "WidgetsEditLayout", "WidgetsReset", "WidgetsApplyAll",
+            "WidgetCooldownApplyAll", "WidgetCooldownNotifyLink", "SettingsTestNotification", "SettingsOpenNotificationSettings",
+            "SettingsOpenLoginItems", "SettingsSave", "SettingsCancel",
+        ];
+        Assert.Empty(expected.Except(ReachedButtons.SelectMany(static entry => entry.Buttons)));
+    }
 
     /// <summary>
     /// T-111: the style of the window gives only its own buttons the 32 DIP. The buttons inside the templates of other controls
     /// (the spinner of a NumericUpDown, the reveal button of a password box, the repeat buttons of a slider or a scroll bar,
     /// whatever a ComboBox, TabItem or TextBox has) keep the MinHeight and Height they have in a plain window with the
-    /// application theme only.
+    /// application theme only. One case per state (T-245), like the button height check.
     /// </summary>
-    [Fact]
-    public Task ButtonsInsideTheTemplatesOfOtherControlsKeepTheirSize() =>
-        session.RunAsync(static async scope =>
+    [Theory]
+    [MemberData(nameof(ButtonCheckStates))]
+    public Task ButtonsInsideTheTemplatesOfOtherControlsKeepTheirSize(string state) =>
+        session.RunAsync(async scope =>
         {
             Dictionary<string, (double MinHeight, double Height)> parts = [];
-            foreach ((string _, Func<UiTestScope, Task<SettingsWindowHarness>> open) in States().Concat(ButtonStates()))
+            SettingsWindowHarness ui = await OpenState(state)(scope);
+            foreach ((string _, int tab, int printerTab) in Views)
             {
-                SettingsWindowHarness ui = await open(scope);
-                foreach ((string _, int tab, int printerTab) in Views)
+                ui.ViewModel.SelectedTabIndex = tab;
+                ui.ViewModel.SelectedPrinterTabIndex = printerTab;
+                ui.Window.Settle();
+                foreach ((string key, Button part) in TemplateButtons(ui.Window))
                 {
-                    ui.ViewModel.SelectedTabIndex = tab;
-                    ui.ViewModel.SelectedPrinterTabIndex = printerTab;
-                    ui.Window.Settle();
-                    foreach ((string key, Button part) in TemplateButtons(ui.Window))
-                    {
-                        parts[key] = (part.MinHeight, part.Height);
-                    }
+                    parts[key] = (part.MinHeight, part.Height);
                 }
-
-                ui.Window.Close();
             }
+
+            ui.Window.Close();
 
             Window plain = scope.Track(new Window
             {
@@ -1415,6 +1456,10 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         });
 
     // ---- States of the no-scroll-bar test (T-033, "Headless test bez posuvníku") ----
+
+    /// <summary>Opens the layout or button state named <paramref name="state"/> (the theory cases carry only the name).</summary>
+    private static Func<UiTestScope, Task<SettingsWindowHarness>> OpenState(string state) =>
+        States().Concat(ButtonStates()).Single(entry => entry.Name == state).Open;
 
     private static IEnumerable<(string Name, Func<UiTestScope, Task<SettingsWindowHarness>> Open)> States()
     {
