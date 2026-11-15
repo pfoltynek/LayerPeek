@@ -223,11 +223,12 @@ Um die CPU zu schonen, zeigt die Mini-Vorschau standardmäßig höchstens 10 Bil
 reicht; das normale Fenster und das Vollbild zeigen jedes Bild der Kamera. Die Grenze stellen Sie im Reiter **Kamera**
 der Einstellungen ein (siehe [11.6](#116-kamera)).
 
-Das Fenster nimmt außerdem keine Bilder an, solange es niemand sieht: wenn es minimiert ist und unter Windows auch,
-solange der Computer gesperrt oder der Bildschirm aus ist oder das Fenster auf einem anderen virtuellen Desktop liegt
-(ein Fenster, das nur von anderen Fenstern verdeckt ist, läuft weiter). Kurz nach Ihrer Rückkehr kommt das Bild ab dem
-nächsten Schlüsselbild der Kamera zurück. Aufnahme, Dashcam, Zeitraffer und die Erkennung von Druckfehlern laufen
-währenddessen weiter.
+Das Fenster nimmt außerdem keine Bilder an, solange es niemand sieht: wenn es minimiert ist, solange der Computer
+gesperrt oder der Bildschirm aus ist, unter Windows auch, solange das Fenster auf einem anderen virtuellen Desktop liegt
+(ein Fenster, das nur von anderen Fenstern verdeckt ist, läuft weiter), und unter macOS, solange nichts davon zu sehen
+ist, etwa wenn es ganz von anderen Fenstern verdeckt ist oder auf einem anderen Schreibtisch liegt (nach etwa zwei
+Sekunden). Kurz nach Ihrer Rückkehr kommt das Bild ab dem nächsten Schlüsselbild der Kamera zurück. Aufnahme, Dashcam,
+Zeitraffer und die Erkennung von Druckfehlern laufen währenddessen weiter.
 
 <p align="center">
   <img src="../../docs/images/de/camera-mini.jpg" alt="Mini-Vorschau mit der Infoleiste, der Zeile mit dem Drucknamen und der Zeile mit dem Temperaturdiagramm" width="400">

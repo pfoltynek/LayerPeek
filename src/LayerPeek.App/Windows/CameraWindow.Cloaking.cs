@@ -2,12 +2,14 @@ using System.Diagnostics.CodeAnalysis;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Platform;
+using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 
 namespace LayerPeek.App.Windows;
 
 /// <summary>
-/// T-186: a window the window manager cloaks (Windows: on another virtual desktop) pauses its stream like a minimized one
+/// T-186: a window the window manager cloaks (Windows: on another virtual desktop; macOS, T-187: fully occluded, also on
+/// another Space) pauses its stream like a minimized one
 /// (<see cref="CameraViewModel.SetCloaked"/>); followed from opening to closing.
 /// </summary>
 public sealed partial class CameraWindow
@@ -17,12 +19,15 @@ public sealed partial class CameraWindow
 
     /// <summary>
     /// Tells whether the shown window is cloaked; default (also for <see langword="null"/>): <see cref="WindowsWindowCloaking"/>
-    /// on Windows, <see cref="NoWindowCloaking"/> elsewhere. Tests supply a fake (headless windows have no handle).
+    /// on Windows, <see cref="MacWindowOcclusion"/> on macOS, <see cref="NoWindowCloaking"/> elsewhere. Tests supply a fake
+    /// (headless windows have no handle).
     /// </summary>
     [AllowNull]
     internal IWindowCloaking WindowCloaking
     {
-        get => _cloaking ??= OperatingSystem.IsWindows() ? WindowsWindowCloaking.Shared : NoWindowCloaking.Instance;
+        get => _cloaking ??= OperatingSystem.IsWindows() ? WindowsWindowCloaking.Shared
+            : OperatingSystem.IsMacOS() ? MacWindowOcclusion.Shared
+            : NoWindowCloaking.Instance;
         init => _cloaking = value;
     }
 
