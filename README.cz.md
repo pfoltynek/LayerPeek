@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Poslední vydání"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?label=release" alt="Poslední vydání"></a>
   <a href="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml?query=branch%3Adevelop"><img src="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml/badge.svg?branch=develop" alt="Stav CI (develop)"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="Licence: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platforma: Windows 10/11 | macOS (Apple Silicon)">
@@ -334,9 +334,9 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 
 | Platforma | Stav |
 |---|---|
-| Windows 10/11 x64 | ✅ podporováno |
-| Windows na ARM64 | 🚧 připravuje se: zatím ke stažení není, dokud se neověří na zařízení s ARM64 |
-| macOS (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
+| Windows 10 nebo 11 (x64) | ✅ podporováno |
+| Windows 11 (ARM64) | ✅ podporováno |
+| macOS 14 nebo novější (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
 
 ## Rychlý start
 
@@ -346,18 +346,23 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 
 ### 1. Stažení
 
-Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/LayerPeek/releases):
+Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/LayerPeek/releases).
 
-- **Instalátor** `LayerPeek-X.Y.Z-win-x64-Setup.exe`: instaluje jen pro tvého uživatele, bez práv správce, do
-  `%LOCALAPPDATA%\LayerPeek` a přidá LayerPeek do nabídky Start. Odinstaluješ ho v **Nastavení → Aplikace**.
-- **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: rozbal ho kamkoli a spusť `LayerPeek.exe`.
+#### Windows
 
-Oba soubory jsou pro Windows na **x64** (procesory Intel a AMD). Ověříš to v **Nastavení → Systém → O systému** u položky
-**Typ systému**: „procesor typu x64“ znamená tyto soubory. Nativní verze pro Windows na **ARM64** („procesor typu ARM“,
-např. notebooky se Snapdragonem) se připravuje a zatím ke stažení není. Až bude, její soubory ponesou v názvu
-`…-win-arm64-…`. Přechod z verze x64 na ni je ruční: odinstaluj verzi x64 v **Nastavení → Aplikace** a pak nainstaluj
-verzi ARM64. Obě používají stejnou složku, nastavení i hesla a instalace architekturu sama nikdy nezmění (každá se
-aktualizuje v rámci své verze).
+| | x64 (procesory Intel a AMD) | ARM64 (např. notebooky se Snapdragonem) |
+|---|---|---|
+| **Instalátor** | `LayerPeek-X.Y.Z-win-x64-Setup.exe` | `LayerPeek-X.Y.Z-win-arm64-Setup.exe` |
+| **ZIP** | `LayerPeek-X.Y.Z-win-x64.zip` | `LayerPeek-X.Y.Z-win-arm64.zip` |
+
+- **Instalátor:** instaluje jen pro tvého uživatele, bez práv správce, do `%LOCALAPPDATA%\LayerPeek` a přidá LayerPeek
+  do nabídky Start. Odinstaluješ ho v **Nastavení → Aplikace**.
+- **ZIP:** rozbal ho kamkoli a spusť `LayerPeek.exe`.
+
+Který? Otevři **Nastavení → Systém → O systému** a podívej se na položku **Typ systému**: „procesor typu x64“ znamená
+soubory `win-x64`, „procesor typu ARM“ soubory `win-arm64`. Přechod nainstalované verze x64 na verzi ARM64 je ruční:
+odinstaluj verzi x64 v **Nastavení → Aplikace** a pak nainstaluj verzi ARM64. Obě používají stejnou složku, nastavení
+i hesla a instalace architekturu sama nikdy nezmění (každá se aktualizuje v rámci své verze).
 
 > [!IMPORTANT]
 > Aktualizace v rámci verzí 1.x zachovají tvoje nastavení; soubory nastavení starších verzí se vždy načtou.
@@ -423,7 +428,8 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
   u každé tiskárny), neprůhlednost karet a rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 - **Kamera:** nastavení pro všechny kamery: snímková frekvence malého náhledu (Úsporný 5 fps, ve výchozím stavu Vyvážený
-  10 fps, Plynulý s každým snímkem, nebo vlastní omezení 1–30 fps).
+  10 fps, Plynulý s každým snímkem, nebo vlastní omezení 1–30 fps) a hardwarové dekódování (ve výchozím stavu
+  **Automaticky**, nebo **Vypnuto**; ve Windows zatím v obou režimech dekóduje procesor).
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu zapnuté – zapne ho instalátor;
   jen v nainstalované verzi). Na macOS: **Otevřít při přihlášení** (ve výchozím stavu vypnuté, jen pro LayerPeek.app
   zkopírovanou z obrazu disku, např. do Aplikací). Pokud jsi LayerPeek vypnul v Nastavení systému → Obecné → Položky
@@ -482,7 +488,7 @@ Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web Prus
   používají se jen stabilní vydání SDK, žádné preview.
 - Git.
 - Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*
-  (pro Windows ARM64 navíc komponenta *MSVC ARM64 build tools*), na macOS Xcode Command Line Tools.
+  (pro Windows ARM64 navíc komponenta *MSVC ARM64/ARM64EC build tools*), na macOS Xcode Command Line Tools.
 - První build stáhne oficiální zdrojový kód FFmpeg (~12 MB, ověřený přes SHA-256) a jednou z něj přeloží minimální
   LGPL build knihoven kamery: na Windows přes [MSYS2](https://www.msys2.org/) a MinGW-w64 (`winget install
   MSYS2.MSYS2`, pak balíčky `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; pár minut), na macOS přes

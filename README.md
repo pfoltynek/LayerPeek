@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Latest release"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?label=release" alt="Latest release"></a>
   <a href="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml?query=branch%3Adevelop"><img src="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml/badge.svg?branch=develop" alt="CI status (develop)"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platform: Windows 10/11 | macOS (Apple Silicon)">
@@ -338,9 +338,9 @@ cameras.
 
 | Platform | Status |
 |---|---|
-| Windows 10/11 x64 | ✅ supported |
-| Windows on ARM64 | 🚧 in preparation: no download yet, until it is tested on an ARM64 device |
-| macOS (Apple Silicon) | ✅ supported since 0.3.0 (menu bar app) |
+| Windows 10 or 11 (x64) | ✅ supported |
+| Windows 11 (ARM64) | ✅ supported |
+| macOS 14 or later (Apple Silicon) | ✅ supported since 0.3.0 (menu bar app) |
 
 ## Quick start
 
@@ -350,18 +350,24 @@ cameras.
 
 ### 1. Download
 
-Get the latest build from the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page:
+Get the latest build from the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page.
 
-- **Installer** `LayerPeek-X.Y.Z-win-x64-Setup.exe`: installs for your user only, without administrator rights, into
-  `%LOCALAPPDATA%\LayerPeek` and adds LayerPeek to the Start menu. Uninstall it in **Settings → Apps**.
-- **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: unpack it anywhere and run `LayerPeek.exe`.
+#### Windows
 
-Both files are for Windows on **x64** (Intel and AMD processors). To check, open **Settings → System → About** and look
-at **System type**: "x64-based processor" means these files. A native build for Windows on **ARM64** ("ARM-based
-processor", e.g. Snapdragon laptops) is in preparation and not offered for download yet. When it comes, its files will
-be named `…-win-arm64-…`. Switching from the x64 build to it is a manual step: uninstall the x64 version in
-**Settings → Apps**, then install the ARM64 version. Both use the same folder, settings and passwords, and an
-installation never switches the architecture by itself (each one updates within its own build).
+| | x64 (Intel and AMD processors) | ARM64 (e.g. Snapdragon laptops) |
+|---|---|---|
+| **Installer** | `LayerPeek-X.Y.Z-win-x64-Setup.exe` | `LayerPeek-X.Y.Z-win-arm64-Setup.exe` |
+| **ZIP** | `LayerPeek-X.Y.Z-win-x64.zip` | `LayerPeek-X.Y.Z-win-arm64.zip` |
+
+- **Installer:** installs for your user only, without administrator rights, into `%LOCALAPPDATA%\LayerPeek` and adds
+  LayerPeek to the Start menu. Uninstall it in **Settings → Apps**.
+- **ZIP:** unpack it anywhere and run `LayerPeek.exe`.
+
+Which one? Open **Settings → System → About** and look at **System type**: "x64-based processor" means the `win-x64`
+files, "ARM-based processor" the `win-arm64` files. Switching an installed x64 version to the ARM64 one is a manual
+step: uninstall the x64 version in **Settings → Apps**, then install the ARM64 version. Both use the same folder,
+settings and passwords, and an installation never switches the architecture by itself (each one updates within its own
+build).
 
 > [!IMPORTANT]
 > Updates within 1.x keep your settings; settings files of older versions always load. Builds are not
@@ -430,7 +436,8 @@ submenu.
   printer), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
 - **Camera:** settings for all cameras: the frame rate of the mini preview (Economy 5 fps, Balanced 10 fps by default,
-  Smooth with every frame, or a custom limit of 1–30 fps).
+  Smooth with every frame, or a custom limit of 1–30 fps) and hardware decoding (**Automatic** by default, or **Off**;
+  on Windows the processor decodes in both modes for now).
 - **Startup and updates:** start LayerPeek after you sign in to Windows (on by default: the installer switches it on;
   only the installed version).
   On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of the disk image, e.g. to Applications).
@@ -487,7 +494,8 @@ No. It asks for the state every few seconds (configurable), the same way the Pru
   [`global.json`](global.json); only stable SDK releases are used, no previews.
 - Git.
 - For a **Native AOT publish** only: on Windows the Visual Studio Build Tools with the *Desktop development with
-  C++* workload (for Windows ARM64 also the component *MSVC ARM64 build tools*), on macOS the Xcode Command Line Tools.
+  C++* workload (for Windows ARM64 also the component *MSVC ARM64/ARM64EC build tools*), on macOS the Xcode Command Line
+  Tools.
 - The first build downloads the official FFmpeg source (~12 MB, verified by SHA-256) and compiles a minimal LGPL
   build of the camera libraries from it, once: on Windows with [MSYS2](https://www.msys2.org/) and MinGW-w64
   (`winget install MSYS2.MSYS2`, then the packages `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; a few

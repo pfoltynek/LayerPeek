@@ -93,21 +93,32 @@ instalátoru se aktualizuje z kanálu `win-arm64` a uživatel v README a příru
    $true`, `Uploadable = $false` s `BlockedReason` „not verified on an ARM64 device (T-227)“; nahrávat až po úspěšném
    T-227 (přepnutí `Uploadable` je součást T-227). README a příručky do té doby soubory ARM64 ke stažení nenabízejí
    (podpora „připravuje se“), soubory ke stažení doplní T-227.
+   **Změněno rozhodnutím uživatele 2026-11-16:** `win-arm64` se vydává **naplno** (ne experimentálně), i bez
+   běhu na zařízení s ARM64, od prvního vydání po 1.0.0 (1.0.0 vychází z existujícího tagu jen s macOS a `win-x64`): `Uploadable = $true` bez `BlockedReason`, README a příručky soubory ARM64 nabízejí,
+   T-227 zůstává jen dodatečné ověření na zařízení (už ne podmínka nahrání). Provedeno 2026-11-16 na větvi
+   `feature/release-1.0.0-arm64-readme` (viz poznámky).
 2. ~~**Uživatelé x64 buildu na ARM64 zařízení?**~~ **Rozhodnuto uživatelem 2026-11-12:** jen zdokumentovat ruční přechod
    (odinstalovat x64, nainstalovat ARM64); žádný automatický přechod.
 3. ~~**winget a 1.0.0?**~~ **Rozhodnuto uživatelem 2026-11-12:** uzel `arm64` se do manifestu přidá až od prvního
    vydání, které `win-arm64` skutečně nahraje; šablona a skript ať umí obě varianty (podle souborů ve vydání).
+   Platí dál: první odeslání do winget (T-059, 1.0.0) je jen `x64`, uzel `arm64` přijde s prvním vydáním se soubory
+   `win-arm64` (ruční odeslání podle otázky 6).
 4. ~~**Patří `win-arm64` do vydání 1.0.0 (T-198)?**~~ **Rozhodnuto uživatelem 2026-11-12:** ne, není to bloker 1.0.0;
-   přijde v 1.0.x / 1.1.0. T-198 se nemění.
+   přijde v 1.0.x / 1.1.0. T-198 se nemění. **Upřesněno uživatelem 2026-11-16:** 1.0.0 bez `win-arm64`
+   (z existujícího tagu), `win-arm64` naplno v dalším vydání (viz otázka 1).
 5. ~~**Build pro nahrání bez `win-arm64`?**~~ **Rozhodnuto uživatelem 2026-11-15:** schváleno, build pro nahrání je
-   `release-build.ps1 -Runtime win-x64` (jak je implementováno). Původní znění: s `Default = $true` a `Uploadable = $false` by výchozí
+   `release-build.ps1 -Runtime win-x64` (jak je implementováno). **Od 2026-11-16 neplatí:** `win-arm64` je nahratelný,
+   `Get-ReleaseBuildRuntimeArguments` vrací na obou OS prázdno, build pro nahrání je výchozí build bez `-Runtime`
+   (mechanismus pro nenahratelný RID zůstává a je testovaný nad umělou tabulkou). Původní znění: s `Default = $true` a `Uploadable = $false` by výchozí
    build Windows nešel nahrát, takže by `release.ps1` (a tedy vydání 1.0.0 z Windows) skončil chybou. Implementováno:
    `release.ps1`, plán a vypsané příkazy sestavují pro nahrání jen nahratelné RID (`release-build.ps1 -Runtime win-x64`),
    ruční `release-build.ps1` bez `-Runtime` dál sestaví oba RID (lokální ověření). Po T-227 se `-Runtime` vynechá samo.
    Alternativy: `release-upload.ps1` by soubory nenahratelných RID přeskočil (pak by ale `SHA256SUMS-windows.txt` uváděl
    nenahrané soubory a kritérium 2 by neplatilo), nebo `Default = $false` do T-227.
 6. ~~**winget: první vydání s `arm64` automaticky?**~~ **Rozhodnuto uživatelem 2026-11-15:** první odeslání s `arm64`
-   zůstává ruční krok v T-227 (jak je implementováno). Původní znění: `wingetcreate update` potřebuje stejný počet URL jako uzlů
+   zůstává ruční krok v T-227 (jak je implementováno). Platí dál: 1.0.0 jde do winget jen s `x64`, první vydání
+   se soubory `win-arm64` se odešle ručně (`-OutputDirectory`, `winget validate`, `wingetcreate submit`), ověření
+   `winget install` na ARM64 v T-227. Původní znění: `wingetcreate update` potřebuje stejný počet URL jako uzlů
    předchozího manifestu (T-059), takže první vydání s `win-arm64` jde jen ručně (`-OutputDirectory`, `winget validate`,
    `wingetcreate submit`; skript při selhání `update` postup vypíše). Má `release-winget.ps1` tento přechod rozpoznat sám
    (přečíst architektury předchozí verze z `microsoft/winget-pkgs` přes `gh api` a poslat manifest ze šablon), nebo
@@ -241,3 +252,17 @@ Přesunuto do T-227 (zařízení ARM64, už v jeho rozsahu): smoke test `win-arm
 odinstalace `win-arm64` a instalace ARM64 přes x64 instalaci (bod 4), `winget install --manifest` s uzlem `arm64`
 (bod 5), `tools/run-e2e.ps1` a `tools/windows-verify.ps1` s RID `win-arm64` (bod 6); do T-227 bodu 7 doplněná předávka
 (které testy a texty změnit po přepnutí `Uploadable`, ruční první odeslání winget s `arm64`).
+
+**Změna po rozhodnutí uživatele 2026-11-16 (`win-arm64` naplno od prvního vydání po 1.0.0; 1.0.0 z existujícího tagu
+jen s macOS a `win-x64`; ARM64 vyžaduje Windows 11):** na větvi `feature/release-1.0.0-arm64-readme`
+(z develop 786f0893) `$script:ReleaseRuntimes['win-arm64']` → `Uploadable = $true`, `BlockedReason = $null`; komentáře a
+nápověda skriptů (`ReleaseTools.psm1`, `release.ps1`, `release-build.ps1`, `release-upload.ps1`, `release-publish.ps1`,
+`release-winget.ps1`) bez „do T-227“. Kód toku vydání beze změny: `Get-ReleaseBuildRuntimeArguments` teď vrací prázdno,
+takže `release.ps1`, plán i další kroky volají `release-build.ps1` bez `-Runtime` samy; `release-publish.ps1` čeká
+i `releases.win-arm64.json` (+ `.sig`); kontrola toolchainu `release.ps1` chce i komponentu MSVC ARM64. Testy:
+`ReleaseTools.Tests.ps1` (tabulka RID, nahratelné RID, build s `win-arm64` přijatý, vydání bez feedu `win-arm64`
+odmítnuté, úplný koncept s `win-arm64`, obecné odmítnutí nenahratelného RID nad umělou tabulkou),
+`ReleaseOrchestrator.Tests.ps1` (bez `-Runtime win-x64`, zástupný build Windows s oběma RID, `-AddToPublished` nahraje
+i soubory `win-arm64`). Dokumentace: `docs/release.md`, `docs/prerequisites.md`, `docs/velopack.md`,
+`docs/architecture.md`, README EN + CZ, 8 příruček, `CHANGELOG.md` (Unreleased → Added). Podrobnosti a stav ověření
+na zařízení: T-227.

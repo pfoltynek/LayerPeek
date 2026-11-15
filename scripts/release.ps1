@@ -16,8 +16,9 @@
          back into develop, push develop (confirmed y/N), delete the local release branch.
       3. checkout of the tag (detached, clean tree), release-build.ps1, release-upload.ps1 -DryRun, then (confirmed y/N)
          release-upload.ps1, which creates the draft or fills it. Back to develop at the end and on failure.
-         The build has only the RIDs that may be uploaded: on Windows release-build.ps1 -Runtime win-x64 while win-arm64
-         is built by default but not uploadable until it is verified on an ARM64 device (T-226, T-227).
+         The build has only the RIDs that may be uploaded: on Windows win-x64 and win-arm64 (the default build,
+         T-226), on macOS osx-arm64; a RID that is built by default but not uploadable would be left out with
+         -Runtime.
          release-build.ps1 signs the update feed (T-181) with the key in LAYERPEEK_FEED_SIGNING_KEY and asks for its
          password twice (key check before the build, signing after it; keep the key medium connected until the build
          ends); without the variable the build step fails (docs/release.md, "Podpis feedu aktualizací").
@@ -200,7 +201,7 @@ try {
         if (@(Get-GitStatusLines $repoRoot).Count -gt 0) { throw "The checkout of $tag is not clean." }
     }
     if (-not $steps.Build.Done) {
-        # T-226: only the uploadable RIDs (Windows: -Runtime win-x64 until win-arm64 may be uploaded, T-227).
+        # T-226: only the uploadable RIDs (no -Runtime while every default RID is uploadable).
         Invoke-ReleaseScript 'release-build.ps1' @(Get-ReleaseBuildRuntimeArguments -Os $facts.HostOs)
     }
     if (-not $steps.Upload.Done) {

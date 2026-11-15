@@ -8,6 +8,15 @@ older versions always load.
 
 ## [Unreleased]
 
+### Added
+
+- **Windows on ARM64:** every release now also offers a native version for Windows 11 on ARM64 (for example laptops
+  with a Snapdragon processor), next to the x64 one: the installer `LayerPeek-X.Y.Z-win-arm64-Setup.exe` and the ZIP
+  `LayerPeek-X.Y.Z-win-arm64.zip`, with the camera libraries included and its own update channel. **Settings → System
+  → About → System type** tells which one you need ("x64-based processor" or "ARM-based processor"). An installed x64
+  version does not switch by itself: uninstall it in **Settings → Apps**, then install the ARM64 version; your
+  settings and passwords stay.
+
 ## [1.0.0] - 2026-11-15
 
 The first stable release. The [user manual](https://github.com/pfoltynek/LayerPeek/blob/main/manuals/en/manual.md)

@@ -60,9 +60,9 @@
 .PARAMETER Runtime
     RIDs to build. Default: the default RIDs of this OS (Windows: win-x64 and win-arm64, macOS: osx-arm64). RIDs of
     another OS and unknown RIDs are refused. win-arm64 (T-226) is cross-compiled on Windows x64 and checked to be ARM64
-    (exe and DLLs), but its smoke test runs only on an ARM64 device, and it is not uploadable until it is verified there
-    (T-227): a build with it is for local verification, release-upload.ps1 refuses it. For the upload build
-    -Runtime win-x64 (scripts/release.ps1 does this itself).
+    (exe and DLLs); its smoke test runs only on an ARM64 device (on x64 it is recorded as not verified by running). It
+    is uploaded with win-x64 (user decision 2026-11-16), so the upload build is the default build
+    (the on-device check follows in T-227). -Runtime win-x64 builds win-x64 only, e.g. for a quick local check.
 
 .PARAMETER SmokeSeconds
     How long the published app must keep running in the AOT smoke test. Default 10.
@@ -85,7 +85,7 @@
 
 .EXAMPLE
     pwsh scripts/release-build.ps1 -FeedSigningKey /Volumes/LP-KEY/layerpeek-feed-key.pem
-    pwsh scripts/release-build.ps1 -Runtime win-x64 -FeedSigningKey E:\layerpeek-feed-key.pem
+    pwsh scripts/release-build.ps1 -FeedSigningKey E:\layerpeek-feed-key.pem
     pwsh scripts/release-build.ps1 -SkipFeedSignature
     pwsh scripts/release-build.ps1 -Runtime win-arm64 -SkipFeedSignature
     pwsh scripts/release-build.ps1 -SignOnly -FeedSigningKey /Volumes/LP-KEY/layerpeek-feed-key.pem
