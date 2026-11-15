@@ -1,7 +1,7 @@
 ---
 id: T-245
 title: UI test EveryButtonIsAtLeast32DipHighInEveryState překračuje 30 s na runneru Windows (blokuje další UI testy)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: all
@@ -24,7 +24,7 @@ na zatíženém runneru se 4 jádry přes 30 s. Je to test citlivý na zátěž,
 
 ## Akceptační kritéria
 - [x] Příčina a měření zapsané; test pod zátěží (4 jádra + souběžné běhy) bezpečně pod limitem
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování; job Windows v CI zelený
+- [x] `dotnet build` a `dotnet test` bez chyb a varování; job Windows v CI zelený – ruční běh 43761629956 (72811eab, 2026-11-15) celý zelený
   (lokálně splněno: build 0 varování, App.UiTests 2× zelené, z toho 1× omezeně; zbývá zelený job Windows v CI)
 
 ## Otevřené otázky
