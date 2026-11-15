@@ -6,7 +6,9 @@ namespace LayerPeek.App.Platform;
 /// Whether the window manager hides a shown window without minimizing it (T-186). Windows: the window is cloaked
 /// (<c>DWMWA_CLOAKED</c>), above all while it is on another virtual desktop
 /// (<see cref="Windows.WindowsWindowCloaking"/>). A window merely covered by other windows is not reported (Windows cannot
-/// tell it reliably; user decision 2026-11-11). Elsewhere: <see cref="NoWindowCloaking"/> (macOS: T-187).
+/// tell it reliably; user decision 2026-11-11). macOS (T-187): no part of the window can be seen
+/// (<see cref="MacOS.MacWindowOcclusion"/>: fully covered, on another Space...), reported after a short grace. Elsewhere:
+/// <see cref="NoWindowCloaking"/>.
 /// </summary>
 internal interface IWindowCloaking
 {

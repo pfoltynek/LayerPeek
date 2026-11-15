@@ -36,6 +36,31 @@ public sealed class DisplayActivityTrackerTests
     }
 
     [Fact]
+    public void DisplaySleepHidesTheScreenAndWakeShowsItAgain()
+    {
+        // macOS (T-187): all screens sleep and wake together.
+        _tracker.SetDisplayAsleep(true);
+        Assert.False(_tracker.IsScreenVisible);
+
+        _tracker.SetDisplayAsleep(false);
+        Assert.True(_tracker.IsScreenVisible);
+        Assert.Equal(2, _changes);
+    }
+
+    [Fact]
+    public void WakeToTheLockScreenStaysHiddenUntilUnlocked()
+    {
+        _tracker.SetSessionLocked(true);
+        _tracker.SetDisplayAsleep(true);
+        _tracker.SetDisplayAsleep(false);
+        Assert.False(_tracker.IsScreenVisible);
+
+        _tracker.SetSessionLocked(false);
+        Assert.True(_tracker.IsScreenVisible);
+        Assert.Equal(2, _changes);
+    }
+
+    [Fact]
     public void DimmedDisplayCountsAsVisible()
     {
         _tracker.SetConsoleDisplayState(DisplayActivityTracker.DisplayDimmed);

@@ -114,19 +114,35 @@ internal sealed class NativeWindowCollectionBehavior : IWindowCollectionBehavior
     /// </summary>
     public static NativeWindowCollectionBehavior? Of(IPlatformHandle? handle)
     {
+        nint window = WindowOf(handle);
         try
         {
-            nint window = handle switch
-            {
-                { HandleDescriptor: "NSWindow", Handle: var pointer } => pointer,
-                { HandleDescriptor: "NSView", Handle: not 0 and var view } => ObjCRuntime.Send(view, ObjCRuntime.Selector("window")),
-                _ => 0,
-            };
             return window == 0 || !ObjCRuntime.RespondsTo(window, "setCollectionBehavior:") ? null : new NativeWindowCollectionBehavior(window);
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// The <c>NSWindow</c> of an Avalonia platform handle (the window directly, or the window of an <c>NSView</c>); 0 for
+    /// any other handle (headless) or without a window. Not retained. Never throws.
+    /// </summary>
+    public static nint WindowOf(IPlatformHandle? handle)
+    {
+        try
+        {
+            return handle switch
+            {
+                { HandleDescriptor: "NSWindow", Handle: var pointer } => pointer,
+                { HandleDescriptor: "NSView", Handle: not 0 and var view } => ObjCRuntime.Send(view, ObjCRuntime.Selector("window")),
+                _ => 0,
+            };
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return 0;
         }
     }
 

@@ -224,10 +224,12 @@ Per risparmiare CPU, l’anteprima mini mostra per impostazione predefinita al m
 sufficienti per l’immagine piccola; la finestra normale e lo schermo intero mostrano ogni fotogramma della telecamera. Il
 limite si imposta nella scheda **Telecamera** delle impostazioni (vedi [11.6](#116-telecamera)).
 
-La finestra smette anche di ricevere fotogrammi finché nessuno la vede: quando è ridotta a icona e, su Windows,
-mentre il computer è bloccato, lo schermo è spento o la finestra è su un altro desktop virtuale (una finestra solo
-coperta da altre finestre continua). Poco dopo il ritorno, l’immagine riprende dal fotogramma chiave successivo della
-telecamera. La registrazione, la dashcam, i timelapse e il rilevamento degli errori di stampa continuano nel frattempo.
+La finestra smette anche di ricevere fotogrammi finché nessuno la vede: quando è ridotta a icona, mentre il computer è
+bloccato o lo schermo è spento, su Windows mentre la finestra è su un altro desktop virtuale (una finestra solo coperta
+da altre finestre continua) e su macOS mentre non se ne vede nessuna parte, ad esempio quando altre finestre la coprono
+del tutto o è su un’altra scrivania (dopo circa due secondi). Poco dopo il ritorno, l’immagine riprende dal fotogramma
+chiave successivo della telecamera. La registrazione, la dashcam, i timelapse e il rilevamento degli errori di stampa
+continuano nel frattempo.
 
 <p align="center">
   <img src="../../docs/images/it/camera-mini.jpg" alt="Anteprima mini con la barra informativa, la riga del nome della stampa e la riga del grafico delle temperature" width="400">
