@@ -171,6 +171,12 @@ Rozhodnuto uživatelem 2026-11-14:
     mezím T-189, core-dev, vazba na T-202). Do opravy se tyto testy přeskočí **jen v CI** (`LAYERPEEK_CI=1` z workflow,
     důvod s číslem úkolu), lokálně běží.
 
+**Rozhodnuto uživatelem 2026-11-15:** zbytek úkolu dokončí **relace na Windows**: zkontrolovat první celý zelený běh po
+opravě souběhu (merge `38e38809`, pushe se už neruší), zkušební PR s úmyslně rozbitým testem (uživatel ho schválil:
+založit, ověřit červený `CI result` a nahrané logy, pak zavřít bez merge a smazat větev) a povinná kontrola
+`CI result` v rulesetu (schváleno přes `gh api`, příkaz ale před odesláním ukázat uživateli; postup
+`docs/prerequisites.md`, „CI (GitHub Actions)“). Relace na Macu na tom dál nepracuje.
+
 ## Poznámky k implementaci
 Stav 2026-11-13 (qa-reviewer, na Macu): workflow, Dependabot, test pravidel a dokumentace hotové a lokálně ověřené.
 Úkol zůstává v `in-progress/`: zelený běh na GitHubu, cache při druhém běhu, červený běh s rozbitým testem a počty
