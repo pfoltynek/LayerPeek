@@ -40,7 +40,8 @@ BeforeAll {
     $script:CacheRoot = Join-Path $script:TempRoot 'cache'
 
     $msys2 = if ($env:LayerPeekMsys2Root) { $env:LayerPeekMsys2Root } else { 'C:\msys64' }
-    $script:Bash = Join-Path $msys2 'usr' 'bin' 'bash.exe'
+    # Join-Path resolves the drive of 'C:\msys64', which does not exist on macOS and Linux (the tests needing it skip there).
+    $script:Bash = [System.IO.Path]::Combine($msys2, 'usr', 'bin', 'bash.exe')
 
     # The properties of the library project for the given global properties (evaluation only).
     function Get-FFmpegBuildProperties {
