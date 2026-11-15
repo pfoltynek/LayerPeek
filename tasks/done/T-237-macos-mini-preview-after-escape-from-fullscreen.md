@@ -83,3 +83,4 @@ znovu po animaci“ je schválená podmíněně v T-038 (otázka 2, 2026-10-30) 
   své položky celé obrazovky v menu Okno – AppKit; oprava pokrývá obě cesty. **Živě neověřeno:** zelené tlačítko,
   menu a ⌃⌘F (kontrola je neprochází).
   `dotnet build` 0 varování, 0 chyb; `dotnet test` 10984 testů, 0 selhání, 287 přeskočeno.
+- **Rozhodnutí uživatele 2026-11-15:** chyba Avalonie (příznak `_fullScreenActive` po odchodu z celé obrazovky přes AppKit) se upstream **nehlásí**; náhradní cesta v aplikaci zůstává.
