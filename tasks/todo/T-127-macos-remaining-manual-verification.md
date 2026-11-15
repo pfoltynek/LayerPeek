@@ -587,6 +587,21 @@ po návratu se spojení obnoví a obraz se vrátí od dalšího klíčového sn�
       snímcích. Viditelný mezistav = nový úkol (oprava pro macOS, vzor `CameraWindow.SetBoundsAtOnce`); výsledek zapsat
       i do poznámek T-169.
 
+### 1t. Pole hesla v přístupnosti macOS (z T-234, rozhodnutí uživatele 2026-11-15)
+Na Windows hlásí UI Automation u pole hesla `IsPassword` = `False` (chybí v Avalonii 12.1.6, koncept upstream issue
+`docs/upstream/avalonia-ispassword-issue.md`); heslo samo neunikne, `ValuePattern.Value` je maska (T-054). Délka hesla
+v masce je přijatá (rozhodnuto uživatelem 2026-11-15). Podle `libAvaloniaNative.dylib` 12.1.6 macOS podroli
+`AXSecureTextField` pravděpodobně nehlásí (neověřeno za běhu).
+- [ ] **T-234** (macOS – vlastnosti pole hesla přes Accessibility): Debug aplikace v testovacím režimu
+      (`LAYERPEEK_TEST_DATA_DIR`, simulovaná tiskárna s heslem), Nastavení → tiskárna → Připojení, do pole hesla
+      (`PrinterPassword`) zadat jedinečné heslo simulátoru (např. `E2E-pw-` + náhodný řetězec) a „Otestovat připojení“
+      (úspěch = heslo je v poli; postup Windows: E2E `PasswordAutomationTests`). `swift tools/macos-verify-helper.swift
+      ax <pid> > ax.json` (oprávnění Zpřístupnění pro Terminál) a v něm prvek s `identifier` `PrinterPassword` zapsat:
+      `role` a `subrole` (očekává se `AXTextField` / `AXSecureTextField`), `value` (má být maska, ne heslo), `title`,
+      `description`. Pak `grep` hesla (i jeho části) v celém `ax.json` – heslo nesmí být nikde ve stromu AX. Totéž
+      po uložení, zavření a znovuotevření nastavení. Výsledek zapsat do poznámek T-234. Heslo ve stromu AX = nový úkol (únik
+      hesla, priorita P1); chybějící podrole `AXSecureTextField` = doplnit do upstream issue (oddíl macOS) a do T-234.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)
