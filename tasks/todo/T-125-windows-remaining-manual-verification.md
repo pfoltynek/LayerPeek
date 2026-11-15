@@ -521,6 +521,10 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       Playwright 1.64.1, xunit.v3 4.0.3 – jen testy) a `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez
       varování AOT. Známé selhání `ProxyOriginGuardTests.ClassicFormPostOfTheProxiedPageReachesThePrinter` řeší T-233;
       zapsat, zda selhává i s Edge na Windows.
+- [ ] **T-233** (automaticky): `dotnet test --project tests/LayerPeek.E2E.Tests` na Windows s aktuálním Edge bez chyb,
+      hlavně `ProxyOriginGuardTests` (3 testy). Do poznámek T-233 zapsat verzi Edge a jak hlásí formulářový POST
+      zodpovězený 204 – jako dokončený (`requestfinished`, Edge 157 na Macu) nebo zrušený (`net::ERR_ABORTED`); test
+      přijímá obojí.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

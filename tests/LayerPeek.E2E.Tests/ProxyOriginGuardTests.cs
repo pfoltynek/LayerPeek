@@ -53,28 +53,67 @@ public sealed class ProxyOriginGuardTests(EdgeFixture edge)
         IPage page = await browser.OpenAsync(address);
         string startPrint = new Uri(address, "api/v1/files/usb/form.gcode").ToString();
 
-        // Under Referrer-Policy: no-referrer the browser sends Origin: null with Sec-Fetch-Site: same-origin
-        // (decision 2026-10-21: allowed). The printer answers 204, so the page stays where it is.
-        IResponse form = await page.RunAndWaitForResponseAsync(
-            () => page.EvaluateAsync(
-                """
-                url => {
-                  const form = document.createElement("form");
-                  form.method = "POST";
-                  form.action = url;
-                  document.body.appendChild(form);
-                  form.submit();
-                }
-                """,
-                startPrint),
-            response => response.Url == startPrint && response.Request.Method == "POST");
+        // A navigation answered 204 leaves the page where it is. How the browser reports that request differs by
+        // version: older Edge reported it as failed (net::ERR_ABORTED), Edge 157 as finished (T-233). The test waits
+        // until the request settled either way, so the check below does not race the browser's report.
+        TaskCompletionSource<string?> settled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool IsFormPost(IRequest request) => request.Url == startPrint && request.Method == "POST";
+        void OnRequestFinished(object? sender, IRequest request)
+        {
+            if (IsFormPost(request))
+            {
+                settled.TrySetResult(null);
+            }
+        }
+
+        void OnRequestFailed(object? sender, IRequest request)
+        {
+            if (IsFormPost(request))
+            {
+                settled.TrySetResult(request.Failure);
+            }
+        }
+
+        // Context events, subscribed after the session's own recorder, so FailedRequests is complete once settled.
+        page.Context.RequestFinished += OnRequestFinished;
+        page.Context.RequestFailed += OnRequestFailed;
+        IResponse form;
+        string? formFailure;
+        try
+        {
+            // Under Referrer-Policy: no-referrer the browser sends Origin: null with Sec-Fetch-Site: same-origin
+            // (decision 2026-10-21: allowed).
+            form = await page.RunAndWaitForResponseAsync(
+                () => page.EvaluateAsync(
+                    """
+                    url => {
+                      const form = document.createElement("form");
+                      form.method = "POST";
+                      form.action = url;
+                      document.body.appendChild(form);
+                      form.submit();
+                    }
+                    """,
+                    startPrint),
+                response => IsFormPost(response.Request));
+            formFailure = await settled.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
+        }
+        finally
+        {
+            page.Context.RequestFinished -= OnRequestFinished;
+            page.Context.RequestFailed -= OnRequestFailed;
+        }
 
         Assert.Equal("null", await form.Request.HeaderValueAsync("origin"));
         Assert.Equal("same-origin", await form.Request.HeaderValueAsync("sec-fetch-site"));
         Assert.Equal(204, form.Status);
+        // What the printer received is the security-relevant outcome, independent of how the browser reports it.
         Assert.Equal(["POST /api/v1/files/usb/form.gcode"], rig.Printer.Commands);
-        // A navigation answered 204 is cancelled by the browser, which reports it as aborted; nothing else failed.
-        Assert.Equal($"POST {startPrint}: net::ERR_ABORTED", Assert.Single(browser.FailedRequests));
+        Assert.Equal(address.ToString(), page.Url);
+        // The cancelled navigation is the only request that may be reported as failed, and only as aborted.
+        Assert.True(formFailure is null or "net::ERR_ABORTED", $"The form POST failed with {formFailure}.");
+        string[] expectedFailures = formFailure is null ? [] : [$"POST {startPrint}: {formFailure}"];
+        Assert.Equal(expectedFailures, browser.FailedRequests);
         Assert.DoesNotContain(browser.Responses, static r => r.Status == 401 || r.WwwAuthenticate is not null);
         Assert.Empty(browser.Dialogs);
         Assert.Empty(browser.ScriptErrors);
