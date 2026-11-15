@@ -74,8 +74,9 @@ po sloučení (viz sběrné úkoly T-125 / T-127). CI spustí totéž na obou OS
       s komentářem verze, `concurrency` s `cancel-in-progress`, `timeout-minutes` u každého jobu
 - [ ] Zelený běh na GitHubu pro **macOS** i **Windows** (build Debug + Release, `dotnet test` bez E2E, AOT publish);
       odkazy na běhy v poznámkách – *čeká na první běh po pushi (ověří hlavní agent)*
-- [ ] Druhý běh bez změny FFmpeg použije cache FFmpeg (v logu žádný build / stažení FFmpeg) na obou OS; změna
+- [x] Druhý běh bez změny FFmpeg použije cache FFmpeg (v logu žádný build / stažení FFmpeg) na obou OS; změna
       `build/macos/build-ffmpeg.sh` dá na macOS nový klíč – *čeká na runner (lokálně ověřeno, viz poznámky)*
+      – *ověřeno 2026-11-15 z logů, viz poznámky „Třetí kolo“*
 - [ ] Úmyslně rozbitý test v PR (jen na zkoušku, pak zahodit) skončí červeně a nahraje log testů – *čeká na runner*
 - [ ] Žádný E2E / interaktivní test v CI neběží (seznam přepínačů zapsaný); počet přeskočených testů zapsaný a zdůvodněný
       – *seznam přepínačů hotový (`docs/prerequisites.md`); počty z prvního běhu na runnerech zapsané v poznámkách,
@@ -317,3 +318,39 @@ proto nespustil. Doby: macOS build Release 144 s / Debug 78 s / testy 819 s, Win
     zaseknutí, ne měření rychlosti; lokálně 200 s).
 - Zbývá po pushi: běh na `xcode-27` (shodují se snímky macOS 27.0 s referencemi z 27.2? když ne, rozhodnutí o
   vedlejších verzích je nové – zapsat), Windows červené jen na snímcích do T-125.
+
+**Třetí kolo (2026-11-15, qa-reviewer; běhy 43706555987, 43709551686, z logů jen ke čtení)**
+- **Windows zelené** (běh 43709551686, `32b193fb`): build Release 110 s, Debug 45 s, testy 540 s, AOT publish `win-x64`
+  75 s; obnova NuGet 56 s, uložení 20 s. Testy 11 380, prošlo 10 800, **0 selhalo, 580 přeskočeno**: App.Tests 95
+  (testy jen pro macOS), App.UiTests 105 (88 snímků README na požádání + testy jen pro macOS), App.UiTests.SystemFont 188
+  (písmo San Francisco jen na macOS, T-214), Camera.FFmpeg 20 (testy VideoToolbox a macOS buildu FFmpeg, lokální klip), Detection 11 (lokální
+  vzorky a sweepy), PrusaLink 1, Scripts 1 (`LAYERPEEK_VERIFY_UNATTENDED`), `LayerPeek.App.E2E.Tests` 159 (E2E bez
+  `LAYERPEEK_E2E`; 362 testů infrastruktury prošlo). Core.Tests 0 přeskočených: přeskočení `LAYERPEEK_CI` z T-218 už v kódu nejsou (práce na T-220 / T-221, oba v `in-progress`).
+- **macOS (`xcode-27`, macOS 27.0.1, SIP vypnutý podle `Describe the runner`)**: snímky UI se s referencemi z 27.2
+  **shodují** (žádné selhání snímku), selhal jen Pester „… ignores DYLD_INSERT_LIBRARIES (T-108)“. Build Release 119 s,
+  Debug 58 s, testy 545 s.
+- **Příčina selhání DYLD:** přeskočení při vypnutém SIP z `8cd43f3a` v souboru **nebylo**: sloučení `78295b3c` („Merge
+  origin/develop (Mac session) into develop“, 2026-11-15) vzalo `scripts/ReleaseTools/ReleaseTools.Tests.ps1` celé ze
+  strany Windows a zahodilo 123 řádků ze strany Macu: přeskočení T-218, testy T-217 (`-CleanEnvironment` v
+  `aot-smoke.ps1`, celý `Describe 'Downloaded macOS release bundle (T-217, pure)'`, `Get-SmokeCleanEnvironmentArguments`,
+  `Get-SmokeNativeLoadErrors`) a opravu CRLF (ta s testem git archive mezitím odpadla s T-202). Funkce v
+  `ReleaseTools.psm1` a `aot-smoke.ps1` sloučení převzalo, jen jejich testy chyběly. Kontrola všech souborů toho
+  sloučení: jinde se nic neztratilo (jen úkoly T-201 / README, záměrně).
+- **Opraveno:** soubor obnovený třícestným sloučením (`git merge-file`, základ `2ce7be01`, Mac `11f09e09`, nynější
+  stav); jediný konflikt (kontext git vstupů, který T-202 odstranil) vyřešen ve prospěch nynějšího stavu. Podmínka
+  přeskočení zpřísněná: test běží jen při přesném „System Integrity Protection status: enabled.“ a bez boot-args AMFI
+  (`amfi_get_out_of_my_way`, `amfi=`); jinak přeskočení s výstupem `csrutil` / `nvram` v důvodu. Řídicí sonda chováním
+  (vložení do nepodepsané binárky) by nerozlišila nic – vložení do nepodepsaného procesu funguje i se SIP. Lokálně
+  (SIP zapnutý) celý `ReleaseTools.Tests.ps1`: 347 prošlo, 0 selhalo, 5 přeskočeno (jen Windows / jiné OS); test DYLD
+  běží a prochází.
+- **Cache FFmpeg (kritérium splněno):** běhy 43701381975, 43701951944, 43706555987 a 43709551686 obnovily na obou OS
+  klíč `ffmpeg-v1-<obraz>-<rid>-<hash>` (`Restore FFmpeg` trefa, `Save FFmpeg` přeskočeno) a v logu buildu není
+  „Downloading FFmpeg“ ani „Building FFmpeg from source“. Změna receptu dává nový klíč: přechod na `xcode-27` vytvořil
+  klíč `ffmpeg-v1-xcode-27-…` a T-202 (`build/windows/build-ffmpeg.sh` ve vzoru `ffmpeg-script`) mění hash klíče
+  Windows; běh 43721174386 (po T-202) má na obou OS trefu a přeskočený MSYS2 – jeho klíč Windows po dokončení ještě
+  zapsat.
+- **Zrychlení dokumentace:** běhy 43705139779 a 43714204910 (jen úkoly / dokumentace): `Build and test` přeskočeno,
+  `CI result` zelený.
+- **Zbývá:** zelený macOS po pushi této opravy (pak kritérium zeleného běhu s odkazy), PR s úmyslně rozbitým testem
+  a povinná kontrola v rulesetu (uživatel). **Proces:** sloučení `origin/develop` z druhého stroje řešit třícestně, ne
+  „vzít celý soubor“ – doporučení pro hlavního agenta.
