@@ -241,7 +241,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-063 | win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64) (zamítnuto 2026-11-01) | windows | qa-reviewer | P2 | T-055, T-056 |
 | T-017 | Balení a distribuce, autostart – Windows (hotovo; ověření v T-124 / T-125) | windows | ui-dev | P2 | T-008, T-055, T-056 |
 | T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
-| T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |
+| T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) (hotovo; nevydá, nález IsPassword v T-234) | windows | qa-reviewer | P3 | T-044 |
 | T-044 | End-to-end testy skutečné aplikace na Windows (UI Automation) (hotovo) | windows | qa-reviewer | P2 | T-040, T-041, T-042, T-043 |
 | T-059 | Publikace do winget (rozpracováno: skript, manifest a dokumentace hotové na macOS, zbývá ověření a odeslání na Windows po 1.0.0) | windows | qa-reviewer | P3 | T-017, T-055 |
 | T-061 | Připnutí tray ikony do viditelné části hlavního panelu (workaround přes `IsPromoted`) (hotovo) | windows | ui-dev | P2 | T-007 |
