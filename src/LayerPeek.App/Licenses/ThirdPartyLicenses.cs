@@ -59,6 +59,8 @@ internal static class ThirdPartyLicenses
                 new("Avalonia", "12.1.4"),
                 new("Avalonia.Desktop", "12.1.4"),
                 new("Avalonia.Themes.Fluent", "12.1.4"),
+                // The package's code (MIT); the fonts in it are the Inter entry below.
+                new("Avalonia.Fonts.Inter", "12.1.4"),
                 new("Avalonia.Skia", "12.1.4"),
                 new("Avalonia.HarfBuzz", "12.1.4"),
                 new("Avalonia.Win32", "12.1.4"),
@@ -176,6 +178,17 @@ internal static class ThirdPartyLicenses
             new Uri("https://github.com/microsoft/fluentui-system-icons"),
             [],
             [ResourcePrefix + "mit-fluentui-system-icons.txt"]),
+        // The default font on macOS (T-223): the six Inter files embedded in Avalonia.Fonts.Inter 12.1.4 (listed above
+        // with Avalonia) are Inter 3.019 (name table: "Version 3.019;git-0a5106e0b"); the licence text is LICENSE.txt of
+        // the Inter repository at tag v3.19.
+        new(
+            "Inter",
+            "3.019",
+            "OFL-1.1",
+            new Uri("https://github.com/rsms/inter"),
+            [],
+            [ResourcePrefix + "ofl-inter.txt"],
+            nameof(Strings.LicensesComponentInter)),
     ];
 
     /// <summary>
