@@ -1,7 +1,7 @@
 ---
 id: T-244
 title: Nestabilní test InstanceTransportTests – kontrola peera nestihne proběhnout pod zátěží (4 jádra)
-status: todo
+status: in-progress
 owner: qa-reviewer
 priority: P3
 platform: all
