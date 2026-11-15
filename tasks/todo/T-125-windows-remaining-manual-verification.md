@@ -366,9 +366,11 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       Core One) a 1,27 ms (celý snímek).
 
 ### 2r. Stabilní .NET 11 (z T-193, ověřeno na Macu 2026-11-10)
-- [ ] **T-193** (Windows): nainstalovat SDK `11.0.100` (GA; `global.json` už nepovoluje RC). `dotnet --version` = `11.0.100`,
+- [x] **T-193** (Windows): nainstalovat SDK `11.0.100` (GA; `global.json` už nepovoluje RC). `dotnet --version` = `11.0.100`,
       `dotnet build` a `dotnet test` bez chyb a varování, `pwsh scripts/aot-smoke.ps1` PASS (win-x64, runtime 11.0.0),
       `pwsh scripts/release-build.ps1` projde (Velopack `Setup.exe`, zip, feed). Výsledek zapsat do poznámek T-193.
+      Hotovo 2026-11-15 (Windows, generálka B4 v T-198): `dotnet --version` 11.0.100, celé `dotnet test` (Release) zelené, AOT smoke
+      test win-x64 PASS a celé `release-build.ps1 -FeedSigningKey …` prošlo (Setup.exe, zip, feed, podpis).
 
 ### 2s. Kamera v rozlišení zobrazení (z T-184, implementováno na Macu 2026-11-11)
 - [ ] **T-184** (krit. „Kvalita obrazu na celé obrazovce se viditelně nezhorší“, ruční, simulátor stačí): okno kamery
