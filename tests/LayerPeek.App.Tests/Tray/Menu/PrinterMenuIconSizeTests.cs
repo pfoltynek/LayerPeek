@@ -71,7 +71,7 @@ public sealed class PrinterMenuIconSizeTests
     public void TheMacOsSizingIsCheckedAgainstAvaloniaNative1216()
     {
         // The NSMenu image size is taken from AvnAppMenuItem::SetIcon of libAvaloniaNative.dylib 12.1.4 (menu.mm unchanged
-        // in 12.1.6, T-224): check it again (and the factor in PrinterMenuIconSize) when Avalonia is updated.
+        // in 12.1.6, T-229): check it again (and the factor in PrinterMenuIconSize) when Avalonia is updated.
         string? version = typeof(Avalonia.Controls.NativeMenuItem).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
         Assert.StartsWith("12.1.6", version, StringComparison.Ordinal);
