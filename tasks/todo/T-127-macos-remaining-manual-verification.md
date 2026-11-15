@@ -629,6 +629,16 @@ Kontrola `mac.appkit-language` v běhu z 2026-11-15 skončila `SKIP` (zamčená 
       → `PASS`: místní nabídka pole „Název“ (Nastavení › Tiskárny) má Vyjmout / Kopírovat / Vložit / Vybrat vše v jazyce
       LayerPeeku (ne v jazyce systému), pole hesla bez Vyjmout a Kopírovat. `FAIL` = nový úkol.
 
+### 1w. Filtr .mp4 panelu exportu do JPEG (z T-243, upraveno na Macu 2026-11-15)
+Kontrola `mac.file-dialogs` posuzuje filtr `.mp4` nově podle ztlumených položek seznamu panelu; ⌘⇧G filtr obchází
+i v čisté AppKit aplikaci, aplikace takový soubor odmítne. Běh `artifacts/verify/20261115-204424/` skončil `SKIP` jen
+kvůli zakázaným oznámením „LayerPeek E2E“; části panelu prošly.
+- [ ] **T-243** (krit. 2): s povolenými oznámeními „LayerPeek E2E“ (jednou interaktivně
+      `pwsh tools/macos-verify.ps1 -Only mac.notifications`) a odemčenou obrazovkou z Terminálu
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Only mac.file-dialogs -Allow mac.file-dialogs`
+      → `PASS` s „(b) the list dims notes.txt, not the .mp4 files“ a „(b) notes.txt through Go to refused as
+      NotATimelapse“. `FAIL` = nový úkol.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)
