@@ -134,6 +134,23 @@ internal static unsafe partial class ObjCRuntime
         return type != 0 && AddMethod(type, RegisterName(selector), implementation, types);
     }
 
+    /// <summary>
+    /// <c>[super selector:argument]</c> with a <c>BOOL</c> result (T-240): the implementation of
+    /// <paramref name="superclass"/> (the superclass of the class that defines the calling method, not of the receiver's class).
+    /// </summary>
+    public static bool SendSuperBool(nint receiver, nint superclass, nint selector, nint argument)
+    {
+        Super target = new() { Receiver = receiver, SuperClass = superclass };
+        return SendSuperBool(&target, selector, argument);
+    }
+
+    /// <summary>The superclass of the class of that name, or 0 when the class does not exist or is a root class.</summary>
+    public static nint SuperclassOf(string className)
+    {
+        nint type = GetClass(className);
+        return type == 0 ? 0 : GetSuperclass(type);
+    }
+
     [LibraryImport(LibObjC, EntryPoint = "objc_getClass", StringMarshalling = StringMarshalling.Utf8)]
     private static partial nint GetClass(string name);
 
@@ -158,6 +175,13 @@ internal static unsafe partial class ObjCRuntime
     [LibraryImport(LibObjC, EntryPoint = "class_addMethod", StringMarshalling = StringMarshalling.Utf8)]
     [return: MarshalAs(UnmanagedType.U1)]
     private static partial bool AddMethod(nint type, nint selector, nint implementation, string types);
+
+    [LibraryImport(LibObjC, EntryPoint = "class_getSuperclass")]
+    private static partial nint GetSuperclass(nint type);
+
+    [LibraryImport(LibObjC, EntryPoint = "objc_msgSendSuper")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static partial bool SendSuperBool(Super* target, nint selector, nint argument);
 
     [LibraryImport(LibObjC, EntryPoint = "objc_getProtocol", StringMarshalling = StringMarshalling.Utf8)]
     private static partial nint GetProtocol(string name);
@@ -219,4 +243,12 @@ internal static unsafe partial class ObjCRuntime
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool SendBool(nint receiver, nint selector, nint* error);
+
+    // struct objc_super of <objc/message.h>.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Super
+    {
+        public nint Receiver;
+        public nint SuperClass;
+    }
 }

@@ -806,6 +806,7 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
     - `mac.keys-czech-layout` – „jméno tiskárny změněno na ''“ = **chyba kontroly** (pole se četlo na skryté záložce
       Widgety); jméno se **nemění**. ⌘⇧[ s českým rozložením ale záložku opravdu nepřepne (ani z pole, ani ze záložky),
       s US ano → **chyba aplikace T-240**. Kontrola teď zkouší české i US rozložení a obě pořadí (`steps.json`).
+      Opraveno v T-240 (AppKit bral ⌘⇧/ jako „Zobrazit nabídku Nápověda“); samostatné opakování 2026-11-15 `PASS`.
     - `mac.recording` – **chyba kontroly**: „Přehrát poslední nahrávku“ se povolí až chvíli po konci nahrávání (kontrola
       teď počká), Finder macOS 27 nemá u oken AXDocument (teď podle titulku, i `helper axclose`), v celé obrazovce je
       lišta nabídek skrytá (ukazatel k hornímu okraji), nahrávka 0,92 s < 1 s (teď 2 s). Opakování `PASS`; Nastavení ›
