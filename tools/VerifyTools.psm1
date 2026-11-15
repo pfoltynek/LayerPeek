@@ -1342,6 +1342,92 @@ function Get-VerifyLayerTimelapseFrames {
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------
 
+function Get-VerifyFileJobEvents {
+    <#
+    .SYNOPSIS
+        The results of the file jobs in the app's log, in order (T-213): Exported (the JPEG export of a timelapse, T-165:
+        Frames, Name = the folder), NotExported (Name = the timelapse, Problem, e.g. NotATimelapse or Cancelled), Made (a
+        timelapse from a recording, T-164: Frames, Files, Name = the recording) and NotMade (Name, Problem).
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Log)
+    foreach ($line in @("$Log" -split "`n")) {
+        if ($line -cmatch "Exported (?<n>\d+) timelapse frames as JPEG into '(?<name>[^']+)'") { [pscustomobject]@{ Kind = 'Exported'; Name = $Matches.name; Frames = [int] $Matches.n; Files = 0; Problem = '' } }
+        elseif ($line -cmatch "The JPEG export of '(?<name>[^']+)' ended without a folder \((?<problem>\w+)\)") { [pscustomobject]@{ Kind = 'NotExported'; Name = $Matches.name; Frames = 0; Files = 0; Problem = $Matches.problem } }
+        elseif ($line -cmatch "Made a timelapse of (?<n>\d+) frames in (?<files>\d+) file\(s\) from the recording '(?<name>[^']+)'") { [pscustomobject]@{ Kind = 'Made'; Name = $Matches.name; Frames = [int] $Matches.n; Files = [int] $Matches.files; Problem = '' } }
+        elseif ($line -cmatch "The timelapse from the recording '(?<name>[^']+)' ended without a file \((?<problem>\w+)\)") { [pscustomobject]@{ Kind = 'NotMade'; Name = $Matches.name; Frames = 0; Files = 0; Problem = $Matches.problem } }
+    }
+}
+
+function Get-VerifyPanelProblems {
+    <#
+    .SYNOPSIS
+        What an open panel of the helper's 'panel' JSON (T-213) does differently from -Expected: Sheet ($true: attached to
+        a window, $false: a free-standing window), Title (the window title or one of its texts, the message), Folder (the
+        folder it shows: AXDocument, else the name in its path pop-up), Front (its app active and the panel its key window).
+        Paths are compared without /private and a trailing separator. Empty: as expected.
+    #>
+    param($Panel, [Parameter(Mandatory)] [System.Collections.IDictionary] $Expected)
+    if (-not $Panel) { return @('no open panel') }
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $plain = { param([string] $Path) if ($Path) { [System.IO.Path]::TrimEndingDirectorySeparator(($Path -replace '^/private/', '/')) } else { '' } }
+    if ($Expected.Contains('Sheet') -and [bool] $Panel.sheet -ne [bool] $Expected.Sheet) {
+        $problems.Add("a $(if ($Panel.sheet) { 'sheet' } else { 'free-standing window' }) ($($Panel.role) $($Panel.subrole)), expected a $(if ($Expected.Sheet) { 'sheet' } else { 'free-standing window' })")
+    }
+    if ($Expected.Contains('Title') -and "$($Panel.title)" -cne $Expected.Title -and @($Panel.texts) -cnotcontains $Expected.Title) {
+        $problems.Add("title '$($Panel.title)' and texts $(@($Panel.texts | ForEach-Object { "'$_'" }) -join ', ') without '$($Expected.Title)'")
+    }
+    if ($Expected.Contains('Folder')) {
+        $folder = & $plain $Panel.folder
+        $wanted = & $plain $Expected.Folder
+        $shown = if ($folder) { $folder -ceq $wanted } else { "$($Panel.folderTitle)" -ceq (Split-Path -Leaf $wanted) }
+        if (-not $shown) { $problems.Add("shows the folder '$(if ($folder) { $folder } else { $Panel.folderTitle })', expected '$wanted'") }
+    }
+    if ($Expected.Contains('Front') -and $Expected.Front) {
+        if (-not $Panel.frontmost) { $problems.Add('its app is not in front') }
+        if (-not $Panel.focused) { $problems.Add('it is not the key window of its app') }
+    }
+    $problems.ToArray()
+}
+
+function Get-VerifyPanelItemProblems {
+    <#
+    .SYNOPSIS
+        Whether the items of an open panel (the helper's 'panel' JSON, T-213) can be chosen as expected: every name of
+        -Allowed enabled, every name of -Refused disabled. Returns Problems, and Unknown: the names AX shows without an
+        enabled state (or not at all), which the check cannot judge.
+    #>
+    param([AllowEmptyCollection()] [object[]] $Items = @(), [string[]] $Allowed = @(), [string[]] $Refused = @())
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $unknown = [System.Collections.Generic.List[string]]::new()
+    foreach ($name in @($Allowed) + @($Refused)) {
+        $item = @($Items | Where-Object { $_ -and "$($_.name)" -ceq $name }) | Select-Object -First 1
+        if (-not $item -or $null -eq $item.enabled) { $unknown.Add($name); continue }
+        $expected = $Allowed -ccontains $name
+        if ([bool] $item.enabled -ne $expected) { $problems.Add("'$name' is $(if ($item.enabled) { 'enabled' } else { 'disabled' }), expected $(if ($expected) { 'enabled' } else { 'disabled' })") }
+    }
+    [pscustomobject]@{ Problems = $problems.ToArray(); Unknown = $unknown.ToArray() }
+}
+
+function Get-VerifyMenuPercent {
+    <#
+    .SYNOPSIS
+        The percentage of the first item of the helper's 'menu' JSON (submenus included) whose title is -Format (a resource
+        text with "{0}" for the percentage and maybe an access key, e.g. "Cancel JPEG _export ({0}%)"); $null when none
+        (T-213).
+    #>
+    param([AllowEmptyCollection()] [object[]] $Items = @(), [Parameter(Mandatory)] [string] $Format)
+    $parts = (ConvertFrom-VerifyAccessText $Format) -split '\{0\}', 2
+    $pattern = "^$([regex]::Escape($parts[0]))(\d{1,3})$([regex]::Escape($parts[1]))$"
+    foreach ($item in @($Items | Where-Object { $_ })) {
+        if ("$($item.title)" -cmatch $pattern) { return [int] $Matches[1] }
+        if ($item.submenu) {
+            $found = Get-VerifyMenuPercent -Items @($item.submenu) -Format $Format
+            if ($null -ne $found) { return $found }
+        }
+    }
+    $null
+}
+
 function Invoke-VerifySelfTest {
     <#
     .SYNOPSIS

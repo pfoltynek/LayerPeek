@@ -856,7 +856,7 @@ Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashca
         $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
         $run.ExitCode | Should -Be 0 -Because $run.Text
         foreach ($id in 'mac.decode', 'mac.recording-files', 'mac.timelapse-files') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
-        foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content') {
+        foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.file-dialogs') {
             @($run.Output | Where-Object { $_ -like "$id  *``[permission``]*" }) | Should -HaveCount 1 -Because $id
             $run.Output[0] | Should -BeLike "*allowed in advance:*$id*"
         }
@@ -923,6 +923,91 @@ Describe 'Delivered notifications (mac.notifications-content; T-212, pure)' {
         @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Category = 'layerpeek.with-action'; ActionTitle = 'Falešný poplach' } -Categories $list.Categories) | Should -Be @("the category 'layerpeek.with-action' has no button 'Falešný poplach' (buttons: 'False alarm')")
         $foreground = @([pscustomobject]@{ identifier = 'layerpeek.with-action'; actions = @([pscustomobject]@{ identifier = 'layerpeek.action'; title = 'False alarm'; options = 4 }) })
         @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Category = 'layerpeek.with-action'; ActionTitle = 'False alarm' } -Categories $foreground) | Should -Be @("the button 'False alarm' brings the app to the front (options 4)")
+    }
+}
+
+Describe 'Open panels (mac.file-dialogs; T-213, pure)' {
+    BeforeAll {
+        $script:panel = @'
+{
+  "pid": 4242, "process": "LayerPeek", "bundleIdentifier": "io.github.pfoltynek.LayerPeek.E2E",
+  "role": "AXWindow", "subrole": "AXDialog", "sheet": false,
+  "title": "", "texts": ["Choose a timelapse to export to JPEG (experimental)"],
+  "main": true, "focused": true, "frontmost": true,
+  "folder": "/private/var/folders/xy/lpv-1/Recordings/LP verify 1/", "folderTitle": "LP verify 1",
+  "defaultButton": { "title": "Open", "enabled": false }, "cancelButton": { "title": "Cancel", "enabled": true },
+  "items": [
+    { "name": "2026-11-15_10-00-00_Benchy.mp4", "role": "AXRow", "enabled": true },
+    { "name": "2026-11-15_10-00-00_Benchy_timelapse.mp4", "role": "AXRow", "enabled": true },
+    { "name": "notes.txt", "role": "AXRow", "enabled": false },
+    { "name": "other.mp4", "role": "AXRow", "enabled": null }
+  ],
+  "frame": { "x": 100, "y": 100, "width": 800, "height": 500 }
+}
+'@ | ConvertFrom-Json
+    }
+
+    It 'accepts the free-standing panel in front with its message and folder' {
+        $expected = [ordered]@{ Sheet = $false; Title = 'Choose a timelapse to export to JPEG (experimental)'; Folder = '/var/folders/xy/lpv-1/Recordings/LP verify 1'; Front = $true }
+        Get-VerifyPanelProblems -Panel $script:panel -Expected $expected | Should -BeNullOrEmpty
+    }
+
+    It 'names a sheet, another title, another folder and a panel behind' {
+        $other = $script:panel | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        $other.sheet = $true; $other.role = 'AXSheet'; $other.texts = @('Something else'); $other.folder = '/Users/me/Movies'; $other.frontmost = $false; $other.focused = $false
+        $problems = @(Get-VerifyPanelProblems -Panel $other -Expected ([ordered]@{ Sheet = $false; Title = 'Choose'; Folder = '/var/x'; Front = $true }))
+        $problems | Should -HaveCount 5
+        $problems[0] | Should -BeLike 'a sheet (AXSheet*expected a free-standing window'
+        $problems[1] | Should -BeLike "title '' and texts 'Something else' without 'Choose'"
+        $problems[2] | Should -Be "shows the folder '/Users/me/Movies', expected '/var/x'"
+        $problems[3..4] | Should -Be @('its app is not in front', 'it is not the key window of its app')
+        Get-VerifyPanelProblems -Panel $null -Expected @{} | Should -Be @('no open panel')
+    }
+
+    It 'takes the title of the window and the path pop-up without a document' {
+        $other = $script:panel | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        $other.title = 'Choose'; $other.texts = @(); $other.folder = ''
+        Get-VerifyPanelProblems -Panel $other -Expected ([ordered]@{ Title = 'Choose'; Folder = '/tmp/LP verify 1' }) | Should -BeNullOrEmpty
+        $other.folderTitle = 'Movies'
+        Get-VerifyPanelProblems -Panel $other -Expected ([ordered]@{ Folder = '/tmp/LP verify 1' }) | Should -Be @("shows the folder 'Movies', expected '/tmp/LP verify 1'")
+    }
+
+    It 'judges which items can be chosen and reports what AX does not tell' {
+        $result = Get-VerifyPanelItemProblems -Items @($script:panel.items) -Allowed '2026-11-15_10-00-00_Benchy.mp4', 'other.mp4', 'missing.mp4' -Refused 'notes.txt'
+        $result.Problems | Should -BeNullOrEmpty
+        $result.Unknown | Should -Be @('other.mp4', 'missing.mp4')
+        (Get-VerifyPanelItemProblems -Items @($script:panel.items) -Allowed 'notes.txt' -Refused '2026-11-15_10-00-00_Benchy.mp4').Problems |
+            Should -Be @("'notes.txt' is disabled, expected enabled", "'2026-11-15_10-00-00_Benchy.mp4' is enabled, expected disabled")
+    }
+
+    It 'reads the results of the file jobs from the log' {
+        $log = @(
+            "2026-11-15 10:00:01.000 +01:00 [INF] LayerPeek.Core.Cameras.Timelapse.CameraTimelapseJpegExporter: The JPEG export of '2026-11-15_10-00-00_Benchy.mp4' ended without a folder (NotATimelapse).",
+            "2026-11-15 10:00:09.000 +01:00 [INF] LayerPeek.Core.Cameras.Timelapse.CameraTimelapseJpegExporter: Exported 12 timelapse frames as JPEG into '2026-11-15_10-00-00_Benchy_timelapse_jpg'.",
+            "2026-11-15 10:01:00.000 +01:00 [INF] LayerPeek.Core.Cameras.Timelapse.CameraTimelapseFromRecordingMaker: Made a timelapse of 9 frames in 1 file(s) from the recording '2026-11-15_10-00-00_Benchy.mp4'.",
+            "2026-11-15 10:02:00.000 +01:00 [INF] LayerPeek.Core.Cameras.Timelapse.CameraTimelapseFromRecordingMaker: The timelapse from the recording '2026-11-15_10-00-00_Benchy.mp4' ended without a file (Cancelled).",
+            'something else'
+        ) -join "`n"
+        $events = @(Get-VerifyFileJobEvents $log)
+        $events.Kind | Should -Be @('NotExported', 'Exported', 'Made', 'NotMade')
+        $events[0].Problem | Should -Be 'NotATimelapse'
+        $events[1].Frames | Should -Be 12
+        $events[1].Name | Should -Be '2026-11-15_10-00-00_Benchy_timelapse_jpg'
+        $events[2].Files | Should -Be 1
+        $events[3].Problem | Should -Be 'Cancelled'
+        @(Get-VerifyFileJobEvents '') | Should -HaveCount 0
+    }
+
+    It 'reads the percentage of a running job from the menu, also in a submenu' {
+        $items = @(
+            [pscustomobject]@{ title = 'Settings…'; submenu = $null },
+            [pscustomobject]@{ title = 'LP verify 1 – Idle'; submenu = @(
+                    [pscustomobject]@{ title = 'Cancel JPEG export (42%)'; submenu = $null },
+                    [pscustomobject]@{ title = 'Create timelapse from recording… (experimental)'; submenu = $null }) }
+        )
+        Get-VerifyMenuPercent -Items $items -Format 'Cancel JPEG _export ({0}%)' | Should -Be 42
+        Get-VerifyMenuPercent -Items $items -Format 'Cancel ti_melapse from recording ({0}%)' | Should -BeNullOrEmpty
+        Get-VerifyMenuPercent -Items @() -Format 'Cancel JPEG _export ({0}%)' | Should -BeNullOrEmpty
     }
 }
 

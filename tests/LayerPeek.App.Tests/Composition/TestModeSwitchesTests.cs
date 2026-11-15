@@ -243,6 +243,25 @@ public sealed class TestModeSwitchesTests
     }
 
     [Fact]
+    public void TheFileJobDelayIsOnlyForTheTestMode()
+    {
+        // T-213: whole milliseconds up to 1 s; zero without the switch; ignored and reported outside the test mode.
+        Assert.Equal("LAYERPEEK_TEST_FILE_JOB_DELAY_MS", AppEnvironment.TestFileJobDelayVariable);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFileJobDelayVariable, "500")).TestFileJobDelay);
+        Assert.Equal(TimeSpan.FromSeconds(1), Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFileJobDelayVariable, "1000")).TestFileJobDelay);
+        Assert.Equal(TimeSpan.Zero, Read((AppEnvironment.DataDirectoryVariable, Folder)).TestFileJobDelay);
+        foreach (string invalid in new[] { "1001", "-5", "5.5", "fast" })
+        {
+            Assert.ThrowsAny<ArgumentException>(() => Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFileJobDelayVariable, invalid)));
+        }
+
+        AppEnvironment outside = Read((AppEnvironment.TestFileJobDelayVariable, "500"));
+        Assert.False(outside.IsIsolated);
+        Assert.Equal(TimeSpan.Zero, outside.TestFileJobDelay);
+        Assert.Equal([AppEnvironment.TestFileJobDelayVariable], outside.IgnoredTestSwitches);
+    }
+
+    [Fact]
     public void WithoutAnyVariableTheProcessIsProduction()
     {
         Assert.Same(AppEnvironment.Production, Read());

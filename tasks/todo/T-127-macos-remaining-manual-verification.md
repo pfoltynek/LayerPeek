@@ -33,7 +33,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 | T-210 | `mac.decode`, `mac.recording-files`, `mac.recording`, `mac.dashcam`, helper `decode` | T-146, T-148 (simulátor), T-147 (simulátor), T-145 (simulátor); zbývá bod 1l |
 | T-211 | `mac.timelapse-files`, `mac.timelapse`, `mac.timelapse-layers`, simulátor `--layers` | T-161, T-159 (UI), T-160 (přehrání); zbývá bod 1m |
 | T-212 | `mac.notifications-content`, režim `--layerpeek-e2e-notification-list`, helper `ncpress` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101; zbývá bod 1n |
-| T-213 | `mac.file-dialogs` | T-146 („Změnit…“), T-165, T-164 |
+| T-213 | `mac.file-dialogs`, helper `panel` / `panelgo` / `panelcancel` / `type` | T-146 („Změnit…“), T-165, T-164; zbývá bod 1o |
 | T-214 | headless testy se San Francisco (hotovo 2026-11-14; od T-223 aplikace na macOS s Inter) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k (od T-223 šířky s Inter) |
 | T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188 |
 | T-216 | `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`, `mac.open-fake`, `mac.hw-decoding-switch`, `mac.keys-czech-layout` | T-151 (fokus), T-122, T-117 (VoiceOver), T-154 (editor), T-097 otázka 5, T-053, T-205 (4)(5), T-100 otázka 1 |
@@ -483,6 +483,26 @@ a kritérium.
       popis, akce). `FAIL` = nový úkol. Pozn.: strom AX Centra oznámení (banner, názvy vlastních akcí „Name:…“) agent
       proti skutečnému banneru neověřil (bez Zpřístupnění a bez povolených oznámení); `FAIL` nebo `SKIP` z `ncpress`
       nejdřív posoudit podle `evidence/mac.notifications-content/ncpress-*.txt` a `list-*.json`.
+
+### 1o. Systémové dialogy souborů přes Accessibility (z T-213, připraveno na Macu 2026-11-15)
+- [ ] **T-213** (krit. 1–4: `mac.file-dialogs` (a), (b), (c) = `PASS`, po běhu žádný otevřený panel ani menu; Terminál
+      agenta neměl Zpřístupnění a obrazovka byla zamčená, kontrola skončila `SKIP` na předběžné podmínce): po přípravě
+      z `docs/macos-manual-testing.md` (Zpřístupnění pro Terminál, vzorky v `~/LayerPeek-samples`, oznámení
+      „LayerPeek E2E“ povolená jednou interaktivně přes `pwsh tools/macos-verify.ps1 -Only mac.notifications`) spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `pwsh tools/macos-verify.ps1 -Unattended -Only mac.file-dialogs -Allow mac.file-dialogs`; pak si kontrola udělá
+      vlastní tisk s výpadkem kamery, asi 2 min navíc). `PASS` (a) uzavře v tomto úkolu u bodu **T-146** část „Změnit…“
+      (systémový dialog složky, nezapisovatelná složka), `PASS` (b) bod **T-165** a `PASS` (c) bod **T-164** (přehrání
+      v QuickTime nahrazuje `helper decode`, rozhodnutí 2026-11-13; prohlédnutí JPEG v Náhledu nahrazuje kontrola názvů
+      a počtu snímků). Bez povolených oznámení skončí `SKIP` s důvodem „notification … not allowed“ – bod neodškrtne.
+      Do poznámek T-213 zapsat složku běhu, commit, řádek zprávy a z `evidence/mac.file-dialogs/panel-*.json`: roli
+      a podroli panelu (volné okno vs. list; u „Změnit…“ se čeká list Nastavení), proces panelu (`pid`, `process` –
+      LayerPeek není v sandboxu, čeká se proces aplikace) a titulky tlačítek (`defaultButton` / `cancelButton`: jazyk
+      prvků AppKitu, T-097 otázka 5 – bod sám uzavře T-216). `FAIL` = nový úkol. Pozn.: podobu panelu v AX stromu
+      (výchozí a zrušovací tlačítko, prohlížeč souborů, pole ⌘⇧G, stav `enabled` položek) agent proti skutečnému panelu
+      neověřil; `FAIL` nebo `SKIP` z `panel` / `panelgo` nejdřív posoudit podle `evidence/mac.file-dialogs/panel-*.json`
+      a `panelgo-*.txt` (exit 2 = pole „Přejít na složku“ se neotevřelo nebo panel zůstal otevřený, 4 = položku nejde
+      vybrat).
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

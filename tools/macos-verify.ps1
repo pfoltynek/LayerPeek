@@ -19,8 +19,8 @@
     test data folders (--layerpeek-e2e-clear-autostart), the LaunchServices registration, Preferences and caches of the
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
     tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items,
-    mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers or mac.notifications-content) Terminal in Privacy & Security >
-    Accessibility (switch it off there yourself).
+    mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content or
+    mac.file-dialogs) Terminal in Privacy & Security > Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
     when any check failed, 2 when the script could not run. The checks that need a visible desktop (mac.menubar,
@@ -711,6 +711,54 @@ function Test-Timelapse($Context, [System.IO.FileInfo] $File, $Range) {
         $note = "$($File.Name): $frames frames$expected, $([math]::Round([double] $result.Report.duration, 2)) s"
     }
     [pscustomobject]@{ Problems = $problems.ToArray(); Note = $note }
+}
+
+function Get-FileDialogMedia($Context) {
+    <#
+    .SYNOPSIS
+        The media of mac.file-dialogs (T-213): a print recording with a camera outage (Recording …mp4, Continuation
+        …-2.mp4) and a timelapse. Those of mac.recording-files and mac.timelapse-files of this run when they ran, otherwise
+        one print of its own (simulator x20, recording and timelapse together, the camera off for 10 s). Made once per run.
+    #>
+    if ($Context.Shared.ContainsKey('FileDialogMedia')) { return $Context.Shared.FileDialogMedia }
+    if ($Context.Shared.FileDialogRecording -and $Context.Shared.FileDialogTimelapse) {
+        $media = [pscustomobject]@{
+            Recording    = $Context.Shared.FileDialogRecording.Recording
+            Continuation = $Context.Shared.FileDialogRecording.Continuation
+            Timelapse    = $Context.Shared.FileDialogTimelapse
+            Source       = 'the recording of mac.recording-files and the timelapse of mac.timelapse-files of this run'
+        }
+        $Context.Shared.FileDialogMedia = $media
+        return $media
+    }
+    $simulator = Get-Simulator $Context -Speed 20 -Clip (Get-Buddy3DClip)
+    Set-SimulatorScenario $simulator 'idle'
+    $data = New-TestData -Context $Context -Simulator $simulator -Camera $simulator.Camera -CameraOptions ([ordered]@{ recordPrints = $true; timelapsePrints = $true }) -RecordingFolder 'Recordings' -RecordingOptions ([ordered]@{ timelapseIntervalSeconds = $script:TimelapseInterval }) -PollingSeconds 1
+    $app = Start-TestApp -Context $Context -TestData $data
+    try {
+        Start-Sleep -Seconds 4
+        Set-SimulatorScenario $simulator 'printing'
+        $first = Wait-RecordingEvent $data 'Writes' 0 60
+        if (-not $first) { throw 'The print of the file dialog media recorded nothing within 60 s.' }
+        Start-Sleep -Seconds 25
+        Set-SimulatorCamera $simulator 'offline'
+        Start-Sleep -Seconds 10
+        Set-SimulatorCamera $simulator 'online'
+        $second = Wait-RecordingEvent $data 'Writes' 1 60
+        if (-not $second) { throw 'The print of the file dialog media wrote no second file within 60 s after the camera came back.' }
+        Start-Sleep -Seconds 25
+    }
+    # Quitting completes the recording and the timelapse.
+    finally { $null = Stop-TestApp $data $app; Set-SimulatorCamera $simulator 'online'; Set-SimulatorScenario $simulator 'idle' }
+    $all = @(Get-RecordingFiles $data.Recordings)
+    $recording = @($all | Where-Object Name -CEQ $first.File)
+    $continuation = @($all | Where-Object Name -CEQ $second.File)
+    # The outage may split the timelapse as well: the longest one.
+    $timelapse = @(Get-TimelapseFiles $data.Recordings | Sort-Object Length -Descending)
+    if ($recording.Count -ne 1 -or $continuation.Count -ne 1 -or $timelapse.Count -eq 0) { throw "The print of the file dialog media left $(@($all.Name) -join ', ') (expected $($first.File), $($second.File) and a timelapse)." }
+    $media = [pscustomobject]@{ Recording = $recording[0]; Continuation = $continuation[0]; Timelapse = $timelapse[0]; Source = 'a print of its own (mac.recording-files and mac.timelapse-files did not run before)' }
+    $Context.Shared.FileDialogMedia = $media
+    $media
 }
 
 function Get-StatusToolTipLines($Context, [int] $ProcessId) {
@@ -1846,6 +1894,10 @@ $checks = @(
         }
         $decoded = Test-Recordings $c $printFiles -MinSeconds 2
         foreach ($problem in $decoded.Problems) { $problems.Add($problem) }
+        # T-213: print 1 with its outage (…mp4 and …-2.mp4) for mac.file-dialogs, which then records nothing of its own.
+        $start = @($printFiles | Where-Object { $first -and $_.Name -ceq $first.File })
+        $outage = @($printFiles | Where-Object { $second -and $_.Name -ceq $second.File })
+        if ($start.Count -eq 1 -and $outage.Count -eq 1 -and $decoded.Problems.Count -eq 0) { $c.Shared.FileDialogRecording = [pscustomobject]@{ Recording = $start[0]; Continuation = $outage[0] } }
 
         # 2. The dashcam: each trigger during a print saves the last minutes and 30 s after the event.
         Set-SimulatorScenario $simulator 'idle'
@@ -2179,6 +2231,8 @@ $checks = @(
         foreach ($file in $byTime) {
             $decoded = Test-Timelapse $c $file -Range $range
             foreach ($problem in $decoded.Problems) { $problems.Add("by time: $problem") }
+            # T-213: the timelapse for mac.file-dialogs, which then records nothing of its own.
+            if ($byTime.Count -eq 1 -and $decoded.Problems.Count -eq 0) { $c.Shared.FileDialogTimelapse = $file }
             if ($decoded.Note) { $notes.Add("by time ($([math]::Round($spans[0])) s, a pause of 30 s, $([math]::Round($spans[1])) s, every $($script:TimelapseInterval) s): $($decoded.Note)") }
         }
 
@@ -2628,6 +2682,375 @@ $checks = @(
         }
     }
 
+    New-VerifyCheck -Id 'mac.file-dialogs' -Needs Session, Accessibility -Kind Permission `
+        -Permission "Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to choose the menu items, type a path into the open panels (Cmd-Shift-G) and read the windows, and an unlocked screen; for the notification parts the notifications of 'LayerPeek E2E' allowed (mac.notifications)" `
+        -Title 'the system open panels (NSOpenPanel) through Accessibility: (a) Settings > Recording "Change…" (the chosen folder in the field and saved, an unwritable folder with its message); (b) "Export timelapse to JPEG…": a free-standing panel in front over another app with its title, folder and .mp4 filter, one panel only, the camera window keeps running, a recording refused, the progress, every frame, a cancel without leftovers; (c) "Create timelapse from recording…": the same with a recording with a camera outage, 30 fps, the JPEG export panel during the job (simulator x20)' `
+        -Closes 'T-146 („Změnit…“ otevře systémový dialog složky, nezapisovatelná složka ukáže hlášku)', 'T-165 (UI akce exportu do JPEG na Macu: volné okno v popředí, titulek, složka, jen .mp4, nahrávka odmítnuta, průběh, snímky, jedno okno, kamera běží, zrušení bez pozůstatků)', 'T-164 (UI akce timelapse z nahrávky na Macu: volné okno, titulek, průběh, soubor s částí po výpadku, 30 fps, timelapse odmítnut, zrušení bez pozůstatků, dialog exportu během vytváření)', 'T-213 kritéria 1–3' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $label = { param($Key) ConvertFrom-VerifyAccessText $texts[$Key] }
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            # Parts the script cannot judge here (notifications not allowed): a SKIP of the check with the reasons, never a PASS.
+            $skipped = [System.Collections.Generic.List[string]]::new()
+            $plain = { param([string] $Path) [System.IO.Path]::TrimEndingDirectorySeparator(($Path -replace '^/private/', '/')) }
+            $shown = { param($Node) @($Node.value, $Node.title, $Node.description) | Where-Object { $_ } | Select-Object -First 1 }
+            $movies = Get-MoviesRecordingsState
+            $bundle = Get-TestBundle $c
+            $permission = (Get-TestNotificationStatus $c).Permission
+            $toasts = $permission -eq 'Allowed'
+            $clear = { if ($toasts) { $null = Invoke-BundleTool $bundle @('--layerpeek-e2e-clear-toasts') } }
+
+            # The helper with its exit code; -Evidence keeps its output.
+            $run = {
+                param([string[]] $Arguments, [string] $Evidence)
+                $output = @(& (Get-Helper $c) @Arguments 2>&1 | ForEach-Object { "$_" })
+                $code = $LASTEXITCODE
+                if ($Evidence) { $null = Save-VerifyEvidence -Context $c -Name $Evidence -Content (@("$($Arguments -join ' '): exit code $code") + $output) }
+                [pscustomobject]@{ ExitCode = $code; Output = $output }
+            }
+            $panels = {
+                param([int] $AppId, [double] $Seconds)
+                $result = & $run @('panel', "$AppId", "$Seconds")
+                if ($result.ExitCode -ne 0) { throw "helper panel: $($result.Output -join ' ')" }
+                @($result.Output -join "`n" | ConvertFrom-Json -Depth 20)
+            }
+            # Chooses an item of the menu and waits for exactly one open panel; $null (and a problem) otherwise.
+            $openPanel = {
+                param([int] $AppId, [string] $Item, [string] $Evidence)
+                $press = Invoke-MenuPress $c $AppId $Item
+                if ($press.ExitCode -ne 0) { $problems.Add("${Evidence}: menupress '$Item': $($press.Output -join ' ')"); return $null }
+                $found = @(& $panels $AppId 10)
+                $null = Save-VerifyEvidence -Context $c -Name "panel-$Evidence.json" -Content (ConvertTo-Json -InputObject $found -Depth 20)
+                if ($found.Count -ne 1) { $problems.Add("${Evidence}: $($found.Count) open panel(s) after '$Item', expected 1"); return $null }
+                $found[0]
+            }
+            # Chooses a path in the open panel (helper panelgo); whether it was chosen.
+            $choose = {
+                param([int] $AppId, [string] $Path, [string] $Evidence)
+                $go = & $run @('panelgo', "$AppId", $Path) "panelgo-$Evidence.txt"
+                if ($go.ExitCode -ne 0) { $problems.Add("${Evidence}: panelgo '$(Split-Path -Leaf $Path)' ended with $($go.ExitCode): $($go.Output -join ' ')") }
+                $go.ExitCode -eq 0
+            }
+            # No panel and no menu left open (each closed if one is), before the app quits.
+            $leftOpen = {
+                param($App, [string] $Part)
+                if ($App.HasExited) { return }
+                try {
+                    $left = @(& $panels $App.Id 0)
+                    if ($left.Count -gt 0) { $problems.Add("${Part}: $($left.Count) panel(s) still open at the end"); $null = & $run @('panelcancel', "$($App.Id)") "panelcancel-$Part.txt" }
+                    if (@(Get-OpenMenuWindows $c $App.Id).Count -gt 0) { $problems.Add("${Part}: a menu is still open at the end"); $null = Invoke-Helper $c @('key', 'escape') -AllowFailure }
+                }
+                catch { $problems.Add("${Part}: the end state was not readable: $($_.Exception.Message)") }
+            }
+            $events = { param($Data) @(Get-VerifyFileJobEvents (Read-TestLog $Data)) }
+            $waitEvent = {
+                param($Data, [string] $Kind, [string] $Name, [int] $Seconds)
+                $script:fileJobEvent = $null
+                $null = Wait-VerifyCondition -TimeoutSeconds $Seconds -IntervalMilliseconds 500 -Condition {
+                    $script:fileJobEvent = @(& $events $Data | Where-Object { $_.Kind -ceq $Kind -and $_.Name -ceq $Name }) | Select-Object -Last 1
+                    $null -ne $script:fileJobEvent
+                }
+                $script:fileJobEvent
+            }
+            # The percentages of a running job the menu shows (helper menu, about once a second) until -Until is true.
+            $percents = {
+                param([int] $AppId, [string] $Format, [scriptblock] $Until, [int] $Seconds)
+                $seen = [System.Collections.Generic.List[int]]::new()
+                $clock = [System.Diagnostics.Stopwatch]::StartNew()
+                while ($clock.Elapsed.TotalSeconds -lt $Seconds -and -not (& $Until)) {
+                    $percent = Get-VerifyMenuPercent -Items @((Get-StatusMenu $c $AppId).items) -Format $Format
+                    if ($null -ne $percent -and ($seen.Count -eq 0 -or $seen[-1] -ne $percent)) { $seen.Add($percent) }
+                    Start-Sleep -Milliseconds 300
+                }
+                $seen.ToArray()
+            }
+            $grows = { param([int[]] $Seen) $Seen.Count -ge 2 -and @(for ($i = 1; $i -lt $Seen.Count; $i++) { if ($Seen[$i] -le $Seen[$i - 1]) { $i } }).Count -eq 0 }
+            # A delivered notification of the printer with that first line (and reason line); a skipped part without permission.
+            $notified = {
+                param([string] $Part, [string] $Title, [string] $Headline, [string] $Line)
+                if (-not $toasts) { $skipped.Add("$Part notification '$Headline': the notifications of 'LayerPeek E2E' are $permission (allow them once with 'pwsh tools/macos-verify.ps1 -Only mac.notifications')"); return }
+                $script:delivered = $null
+                $null = Wait-VerifyCondition -TimeoutSeconds 20 -IntervalMilliseconds 1000 -Condition {
+                    $result = Invoke-BundleTool $bundle @('--layerpeek-e2e-notification-list')
+                    $list = if ($result.ExitCode -eq 0) { ConvertFrom-VerifyNotificationList -Output $result.Output -BundleIdentifier $script:TestBundleId }
+                    $script:delivered = @($list.Notifications | Where-Object { $_.title -ceq $Title -and @("$($_.body)" -split "`n")[0] -ceq $Headline }) | Select-Object -First 1
+                    $null -ne $script:delivered
+                }
+                $expected = [ordered]@{ Title = $Title; BodyLine = $Headline }
+                if ($Line) { $expected.BodyLine = $Line }
+                $found = Get-VerifyNotificationProblems -Notification $script:delivered -Expected $expected
+                if (-not $script:delivered) { $problems.Add("$Part no notification '$Headline' of '$Title' within 20 s") }
+                elseif (@($found).Count -gt 0) { $problems.Add("$Part notification '$Headline': $($found -join '; ')") }
+                else { $notes.Add("$Part notification '$Headline$(if ($Line) { " / $Line" })'") }
+            }
+            $simulator = Get-Simulator $c -Speed 20 -Clip (Get-Buddy3DClip)
+            $waitIdle = {
+                param($App, $Name)
+                Wait-VerifyCondition -TimeoutSeconds 60 -IntervalMilliseconds 1000 -Condition { -not (Get-VerifyToolTipProblem -ToolTip ((Get-StatusToolTipLines $c $App.Id) -join "`n") -Texts $texts -Name $Name -State $texts['StateIdle']) }
+            }
+            # The test app; the file jobs read their file -DelayMs slower per item (LAYERPEEK_TEST_FILE_JOB_DELAY_MS), so
+            # that the menu shows their progress and a cancel comes in the middle. Through LaunchServices for notifications.
+            $startApp = {
+                param($Data, [int] $DelayMs)
+                $environment = @{ LAYERPEEK_TEST_FILE_JOB_DELAY_MS = "$DelayMs" }
+                if (-not $toasts) { return Start-TestApp -Context $c -TestData $Data -Environment $environment }
+                $environment.LAYERPEEK_TEST_TOASTS = '1'
+                Get-Process -Id (Start-TestAppViaOpen -Context $c -TestData $Data -Environment $environment)
+            }
+            # The media in the printer's folder of a test data folder, and a file of another type.
+            $prepare = {
+                param($Data, $Media)
+                $name = (Get-Content -LiteralPath (Join-Path $Data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+                $folder = Join-Path $Data.Recordings $name
+                $null = New-Item -ItemType Directory -Force -Path $folder
+                foreach ($file in $Media.Recording, $Media.Continuation, $Media.Timelapse) { Copy-Item -LiteralPath $file.FullName -Destination $folder }
+                [System.IO.File]::WriteAllText((Join-Path $folder 'notes.txt'), "not a recording`n")
+                [pscustomobject]@{
+                    Name = $name; Folder = $folder; Printer = $texts['MenuPrinter'] -f $name, $texts['StateIdle']
+                    Recording = Join-Path $folder $Media.Recording.Name; Continuation = Join-Path $folder $Media.Continuation.Name
+                    Timelapse = Join-Path $folder $Media.Timelapse.Name; Other = Join-Path $folder 'notes.txt'
+                }
+            }
+            $leftovers = { param([string] $Folder, [string] $Marker) @(Get-ChildItem -LiteralPath $Folder -Force | Where-Object { $_.Name -clike "*$Marker*" } | ForEach-Object Name) }
+
+            # (a) T-146: Settings > Recording > "Change…": an unwritable folder, then a folder that is taken and saved.
+            $data = New-TestData -Context $c -RecordingFolder 'Recordings'
+            $chosen = Join-Path $data.Data 'Chosen'
+            $locked = Join-Path $data.Data 'Locked'
+            $null = New-Item -ItemType Directory -Force -Path $chosen, $locked
+            & /bin/chmod 0500 $locked
+            Add-VerifyCleanup $c 'write permission of the locked folder' { param($p) if (Test-Path -LiteralPath $p) { & /bin/chmod 0700 $p } } -State $locked
+            $app = Start-TestApp -Context $c -TestData $data
+            try {
+                Send-TestCommand $data 'settings'
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsTabRecording') })) { throw 'no SettingsTabRecording in Settings within 15 s' }
+                $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabRecording')
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsRecordingFolderChange') })) { throw 'no SettingsRecordingFolderChange on the Recording tab within 10 s' }
+                foreach ($step in 'locked', 'chosen') {
+                    $folder = if ($step -eq 'locked') { $locked } else { $chosen }
+                    $press = & $run @('axpress', "$($app.Id)", 'SettingsRecordingFolderChange') "axpress-a-$step.txt"
+                    if ($press.ExitCode -ne 0) { $problems.Add("(a) ${step}: AXPress on '$($texts['SettingsRecordingFolderChange'])' failed"); continue }
+                    $found = @(& $panels $app.Id 10)
+                    $null = Save-VerifyEvidence -Context $c -Name "panel-a-$step.json" -Content (ConvertTo-Json -InputObject $found -Depth 20)
+                    if ($found.Count -ne 1) { $problems.Add("(a) ${step}: $($found.Count) open panel(s) after '$($texts['SettingsRecordingFolderChange'])', expected 1"); continue }
+                    if ($step -eq 'locked') {
+                        foreach ($problem in Get-VerifyPanelProblems -Panel $found[0] -Expected ([ordered]@{ Title = $texts['SettingsRecordingFolderPickerTitle'] })) { $problems.Add("(a) panel: $problem") }
+                        $notes.Add("(a) the folder panel is $(if ($found[0].sheet) { 'a sheet of Settings' } else { 'a free-standing window' }) ($($found[0].role) $($found[0].subrole)), buttons '$($found[0].defaultButton.title)' / '$($found[0].cancelButton.title)'")
+                    }
+                    if (-not (& $choose $app.Id $folder "a-$step")) { continue }
+                    if ($step -eq 'locked') {
+                        $script:folderError = $null
+                        $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:folderError = & $shown (Get-AxElement $c $app.Id 'SettingsRecordingFolderError'); $script:folderError -ceq $texts['SettingsRecordingFolderNotWritable'] }
+                        if ($script:folderError -cne $texts['SettingsRecordingFolderNotWritable']) { $problems.Add("(a) the unwritable folder shows '$($script:folderError)', expected '$($texts['SettingsRecordingFolderNotWritable'])'") }
+                        else { $notes.Add("(a) the unwritable folder shows '$($script:folderError)'") }
+                        continue
+                    }
+                    $script:field = $null
+                    $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:field = & $shown (Get-AxElement $c $app.Id 'SettingsRecordingFolder'); (& $plain $script:field) -ceq (& $plain $chosen) }
+                    if ((& $plain $script:field) -cne (& $plain $chosen)) { $problems.Add("(a) the field shows '$($script:field)' after choosing $chosen"); continue }
+                    $left = & $shown (Get-AxElement $c $app.Id 'SettingsRecordingFolderError')
+                    if ($left) { $problems.Add("(a) the chosen folder still shows '$left'") }
+                    $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsSave')
+                    $settings = Join-Path $data.Data 'settings.json'
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (& $plain (Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json).recording.folder) -ceq (& $plain $chosen) })) { $problems.Add('(a) Save did not write the chosen folder into settings.json within 10 s') }
+                    else { $notes.Add('(a) the chosen folder was in the field and saved') }
+                }
+            }
+            finally { & $leftOpen $app '(a)'; $null = Stop-TestApp $data $app }
+
+            # (b) T-165 and (c) T-164 on the media of the recording and timelapse checks (or a print of their own).
+            $media = Get-FileDialogMedia $c
+            $notes.Add("media: $($media.Recording.Name), $($media.Continuation.Name) and $($media.Timelapse.Name) from $($media.Source)")
+            $exportTitle = { param($Files) "$($Files.Printer)>$(& $label 'MenuExportTimelapseJpeg')" }
+            $exportCancel = { param($Files) "$($Files.Printer)>$(((ConvertFrom-VerifyAccessText $texts['MenuCancelTimelapseJpegExport']) -split '\{0\}')[0])*" }
+            Set-SimulatorScenario $simulator 'idle'
+
+            # (b) T-165: the JPEG export, 500 ms per item read (a timelapse of about ten frames takes about 10 s).
+            & $clear
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -RecordingFolder 'Recordings' -Notifications:$toasts -PollingSeconds 2
+            $files = & $prepare $data $media
+            $app = & $startApp $data 500
+            $other = $null
+            try {
+                if (-not (& $waitIdle $app $files.Name)) { throw "the tooltip did not show '$($files.Name)' ready within 60 s" }
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add('(b) no camera window within 20 s') }
+                $screen = @(Get-Screens $c | Where-Object main)[0]
+                $other = Start-HelperProcess $c @('front', "$($screen.visible.x + 16)", "$($screen.visible.y + 16)", '600') (Join-Path $c.RunFolder 'tmp' "front-$(New-ShortId).txt")
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $other.Id })) { $problems.Add("(b) the stand-in app did not come to the front ($(Get-FrontAppText) in front)") }
+
+                # The panel: free-standing, in front over the other app, its title, the printer's folder, only .mp4.
+                $panel = & $openPanel $app.Id (& $exportTitle $files) 'b-open'
+                if ($panel) {
+                    foreach ($problem in Get-VerifyPanelProblems -Panel $panel -Expected ([ordered]@{ Sheet = $false; Title = $texts['TimelapseExportPickerTitle']; Folder = $files.Folder; Front = $true })) { $problems.Add("(b) panel: $problem") }
+                    if ((Get-FrontProcessId) -ne $panel.pid) { $problems.Add("(b) $(Get-FrontAppText) is in front, not the app of the panel") }
+                    $notes.Add("(b) the panel ($($panel.role) $($panel.subrole)) is in $(if ($panel.pid -eq $app.Id) { 'the app process' } else { "$($panel.process) ($($panel.bundleIdentifier), pid $($panel.pid))" }), buttons '$($panel.defaultButton.title)' / '$($panel.cancelButton.title)'")
+                    $items = Get-VerifyPanelItemProblems -Items @($panel.items) -Allowed (Split-Path -Leaf $files.Recording), (Split-Path -Leaf $files.Timelapse) -Refused 'notes.txt'
+                    foreach ($problem in $items.Problems) { $problems.Add("(b) panel items: $problem") }
+                    if ($items.Unknown.Count -gt 0) { $notes.Add("(b) AX shows no enabled state of $($items.Unknown -join ', ') (the filter is judged by choosing notes.txt)") }
+                    # A second click while the panel is open opens nothing new.
+                    $again = Invoke-MenuPress $c $app.Id (& $exportTitle $files)
+                    Start-Sleep -Seconds 2
+                    $count = @(& $panels $app.Id 0).Count
+                    if ($again.ExitCode -ne 0) { $problems.Add("(b) the second menupress: $($again.Output -join ' ')") }
+                    elseif ($count -ne 1) { $problems.Add("(b) $count open panels after the second click, expected 1") }
+                    else { $notes.Add('(b) a second click opened no second panel') }
+                    # The camera window keeps running meanwhile (the app answers Accessibility, the stream stays connected).
+                    $tree = Get-AxTree $c $app.Id
+                    $null = Save-VerifyEvidence -Context $c -Name 'b-camera-ax.json' -Content ($tree | ConvertTo-Json -Depth 100)
+                    $connected = @(Get-RtspConnections $app.Id $simulator.CameraPort).Count
+                    if (-not (Get-CameraWindow $c $app.Id) -or -not (Find-AxElement $tree 'CameraOverlay')) { $problems.Add('(b) the camera window is gone or has no CameraOverlay while the panel is open') }
+                    elseif (Find-AxElement $tree 'CameraNextAttempt') { $problems.Add('(b) the camera window waits for a reconnect while the panel is open (CameraNextAttempt)') }
+                    elseif ($connected -lt 1) { $problems.Add('(b) no RTSP connection of the camera window while the panel is open') }
+                    else { $notes.Add('(b) the camera window kept running while the panel was open') }
+                    # Only .mp4: a text file cannot be chosen (the panel is cancelled), the app gets nothing.
+                    $go = & $run @('panelgo', "$($app.Id)", $files.Other) 'panelgo-b-other.txt'
+                    Start-Sleep -Seconds 2
+                    if ($go.ExitCode -eq 0) { $problems.Add('(b) notes.txt could be chosen in the panel') }
+                    elseif (@(& $events $data | Where-Object Name -CEQ 'notes.txt').Count -gt 0) { $problems.Add('(b) the app got notes.txt') }
+                    else { $notes.Add("(b) notes.txt could not be chosen (panelgo $($go.ExitCode))") }
+                }
+
+                # A recording instead of a timelapse: refused with its notification.
+                if (& $openPanel $app.Id (& $exportTitle $files) 'b-recording') {
+                    if (& $choose $app.Id $files.Recording 'b-recording') {
+                        $refused = & $waitEvent $data 'NotExported' (Split-Path -Leaf $files.Recording) 20
+                        if (-not $refused -or $refused.Problem -cne 'NotATimelapse') { $problems.Add("(b) the recording was not refused as NotATimelapse within 20 s ($(if ($refused) { $refused.Problem } else { 'no result' }))") }
+                        & $notified '(b)' $files.Name $texts['NotificationTimelapseExportFailed'] $texts['NotificationTimelapseExportNotATimelapse']
+                    }
+                }
+
+                # The timelapse: the progress in the menu, then a folder with every frame.
+                $timelapseName = Split-Path -Leaf $files.Timelapse
+                $output = Join-Path $files.Folder "$([System.IO.Path]::GetFileNameWithoutExtension($timelapseName))_jpg"
+                $decoded = Invoke-Decode $c $files.Timelapse 'decode-b-timelapse.json'
+                if (& $openPanel $app.Id (& $exportTitle $files) 'b-timelapse') {
+                    if (& $choose $app.Id $files.Timelapse 'b-timelapse') {
+                        $seen = & $percents $app.Id $texts['MenuCancelTimelapseJpegExport'] { $null -ne (@(& $events $data | Where-Object { $_.Kind -ceq 'Exported' }) | Select-Object -First 1) } 90
+                        $exported = & $waitEvent $data 'Exported' (Split-Path -Leaf $output) 10
+                        if (-not (& $grows $seen)) { $problems.Add("(b) the menu did not show a growing percentage (seen: $($seen -join ', '))") }
+                        else { $notes.Add("(b) '$((& $label 'MenuCancelTimelapseJpegExport') -f '…')' with $($seen -join ', ') %") }
+                        $jpegs = @(Get-ChildItem -LiteralPath $output -File -Filter '*.jpg' -ErrorAction SilentlyContinue | Sort-Object Name | ForEach-Object Name)
+                        $frames = if ($decoded.Report) { [int] $decoded.Report.decodedFrames } else { -1 }
+                        $names = @(1..([math]::Max(1, $frames)) | ForEach-Object { '{0:D4}.jpg' -f $_ })
+                        if (-not $exported) { $problems.Add("(b) no export into $(Split-Path -Leaf $output) within 90 s") }
+                        elseif ($jpegs.Count -ne $frames -or $exported.Frames -ne $frames -or ($jpegs -join '|') -cne ($names -join '|')) { $problems.Add("(b) $($jpegs.Count) JPEG file(s) ($(@($jpegs | Select-Object -First 3) -join ', ')…), the log $($exported.Frames), the timelapse decodes $frames frames") }
+                        else { $notes.Add("(b) $(Split-Path -Leaf $output) with $frames frames 0001.jpg…") }
+                        & $notified '(b)' $files.Name $texts['NotificationTimelapseExportDone'] ($texts['NotificationTimelapseExportFrames'] -f $frames)
+                    }
+                }
+
+                # A cancel in the middle leaves no folder, not even the hidden .….partial.
+                if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Recurse -Force }
+                $before = @(& $events $data | Where-Object Kind -CEQ 'NotExported').Count
+                if (& $openPanel $app.Id (& $exportTitle $files) 'b-cancel') {
+                    if (& $choose $app.Id $files.Timelapse 'b-cancel') {
+                        $null = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { $p = Get-VerifyMenuPercent -Items @((Get-StatusMenu $c $app.Id).items) -Format $texts['MenuCancelTimelapseJpegExport']; $null -ne $p -and $p -ge 1 }
+                        $cancel = Invoke-MenuPress $c $app.Id (& $exportCancel $files)
+                        if ($cancel.ExitCode -ne 0) { $problems.Add("(b) menupress cancel: $($cancel.Output -join ' ')") }
+                        $cancelled = & $waitEvent $data 'NotExported' $timelapseName 30
+                        Start-Sleep -Seconds 1
+                        $rest = & $leftovers $files.Folder '_timelapse_jpg'
+                        if (-not $cancelled -or $cancelled.Problem -cne 'Cancelled' -or @(& $events $data | Where-Object Kind -CEQ 'NotExported').Count -le $before) { $problems.Add("(b) the export was not cancelled within 30 s ($(if ($cancelled) { $cancelled.Problem } else { 'no result' }))") }
+                        elseif ($rest.Count -gt 0) { $problems.Add("(b) the cancelled export left $($rest -join ', ')") }
+                        else { $notes.Add('(b) the cancel in the middle left nothing (ls -a)') }
+                    }
+                }
+            }
+            finally {
+                & $leftOpen $app '(b)'
+                if ($other -and -not $other.HasExited) { $other.Kill(); $null = $other.WaitForExit(5000) }
+                $null = Stop-TestApp $data $app
+                & $clear
+            }
+
+            # (c) T-164: the timelapse from a recording, 20 ms per packet read (the recording with its outage takes about 25 s).
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -RecordingFolder 'Recordings' -RecordingOptions ([ordered]@{ timelapseIntervalSeconds = $script:TimelapseInterval }) -Notifications:$toasts -PollingSeconds 2
+            $files = & $prepare $data $media
+            $create = "$($files.Printer)>$(& $label 'MenuCreateTimelapseFromRecording')"
+            $createCancel = "$($files.Printer)>$(((ConvertFrom-VerifyAccessText $texts['MenuCancelTimelapseFromRecording']) -split '\{0\}')[0])*"
+            $recordingName = Split-Path -Leaf $files.Recording
+            $output = Join-Path $files.Folder "$([System.IO.Path]::GetFileNameWithoutExtension($recordingName))_recording_timelapse.mp4"
+            $app = & $startApp $data 20
+            try {
+                if (-not (& $waitIdle $app $files.Name)) { throw "the tooltip did not show '$($files.Name)' ready within 60 s" }
+                # The panel, then a timelapse instead of a recording: refused with its notification.
+                $panel = & $openPanel $app.Id $create 'c-timelapse'
+                if ($panel) {
+                    foreach ($problem in Get-VerifyPanelProblems -Panel $panel -Expected ([ordered]@{ Sheet = $false; Title = $texts['TimelapseFromRecordingPickerTitle']; Folder = $files.Folder; Front = $true })) { $problems.Add("(c) panel: $problem") }
+                    if (& $choose $app.Id $files.Timelapse 'c-timelapse') {
+                        $refused = & $waitEvent $data 'NotMade' (Split-Path -Leaf $files.Timelapse) 20
+                        if (-not $refused -or $refused.Problem -cne 'NotARecording') { $problems.Add("(c) the timelapse was not refused as NotARecording within 20 s ($(if ($refused) { $refused.Problem } else { 'no result' }))") }
+                        & $notified '(c)' $files.Name $texts['NotificationTimelapseFromRecordingFailed'] $texts['NotificationTimelapseFromRecordingNotARecording']
+                    }
+                }
+
+                # The recording with its outage: the progress, then a timelapse at 30 fps with the part after the outage.
+                if (& $openPanel $app.Id $create 'c-recording') {
+                    if (& $choose $app.Id $files.Recording 'c-recording') {
+                        $seen = & $percents $app.Id $texts['MenuCancelTimelapseFromRecording'] { $null -ne (@(& $events $data | Where-Object { $_.Kind -ceq 'Made' }) | Select-Object -First 1) } 120
+                        $made = & $waitEvent $data 'Made' $recordingName 10
+                        if (-not (& $grows $seen)) { $problems.Add("(c) the menu did not show a growing percentage (seen: $($seen -join ', '))") }
+                        else { $notes.Add("(c) '$((& $label 'MenuCancelTimelapseFromRecording') -f '…')' with $($seen -join ', ') %") }
+                        if (-not $made) { $problems.Add("(c) no timelapse from $recordingName within 120 s") }
+                        elseif (-not (Test-Path -LiteralPath $output)) { $problems.Add("(c) no $(Split-Path -Leaf $output) next to the recording ($(@(Get-ChildItem -LiteralPath $files.Folder -Name) -join ', '))") }
+                        else {
+                            $durations = @(foreach ($file in $files.Recording, $files.Continuation) { $d = Invoke-Decode $c $file "decode-c-$(Split-Path -LeafBase $file).json"; if ($d.Report) { [double] $d.Report.duration } else { 0 } })
+                            $interval = [double] $script:TimelapseInterval
+                            $total = $durations[0] + $durations[1]
+                            $result = Invoke-Decode $c $output 'decode-c-output.json'
+                            $frames = if ($result.Report) { [int] $result.Report.decodedFrames } else { -1 }
+                            $fps = if ($result.Report) { [double] $result.Report.nominalFrameRate } else { 0 }
+                            $min = [math]::Max([math]::Floor($durations[0] / $interval) + 2, [math]::Floor($total / $interval) - 2)
+                            $max = [math]::Ceiling($total / $interval) + 1
+                            foreach ($problem in $result.Problems) { $problems.Add("(c) $(Split-Path -Leaf $output): $problem") }
+                            if ($frames -lt $min -or $frames -gt $max) { $problems.Add("(c) $frames frame(s), expected $min to $max (every $interval s of $([math]::Round($durations[0], 1)) s and $([math]::Round($durations[1], 1)) s after the outage)") }
+                            elseif ([math]::Abs($fps - 30) -gt 0.5) { $problems.Add("(c) $fps fps, expected 30") }
+                            else { $notes.Add("(c) $(Split-Path -Leaf $output): $frames frames at $fps fps (the log: $($made.Frames) in $($made.Files) file(s)), with the part after the outage") }
+                            & $notified '(c)' $files.Name $texts['NotificationTimelapseFromRecordingDone'] ($texts['NotificationTimelapseFromRecordingFrames'] -f $made.Frames)
+                        }
+                    }
+                }
+
+                # During a job the JPEG export panel opens once, a second click opens nothing; a cancel leaves no file.
+                if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Force }
+                $before = @(& $events $data | Where-Object Kind -CEQ 'NotMade').Count
+                if (& $openPanel $app.Id $create 'c-cancel') {
+                    if (& $choose $app.Id $files.Recording 'c-cancel') {
+                        $null = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { $p = Get-VerifyMenuPercent -Items @((Get-StatusMenu $c $app.Id).items) -Format $texts['MenuCancelTimelapseFromRecording']; $null -ne $p -and $p -ge 1 }
+                        $export = & $openPanel $app.Id (& $exportTitle $files) 'c-export'
+                        if ($export) {
+                            foreach ($problem in Get-VerifyPanelProblems -Panel $export -Expected ([ordered]@{ Title = $texts['TimelapseExportPickerTitle'] })) { $problems.Add("(c) export panel during the job: $problem") }
+                            $null = Invoke-MenuPress $c $app.Id (& $exportTitle $files)
+                            Start-Sleep -Seconds 2
+                            $count = @(& $panels $app.Id 0).Count
+                            if ($count -ne 1) { $problems.Add("(c) $count open panels after a second click during the job, expected 1") }
+                            else { $notes.Add('(c) during the job the JPEG export panel opened once, a second click opened nothing') }
+                            $null = & $run @('panelcancel', "$($app.Id)") 'panelcancel-c-export.txt'
+                        }
+                        $cancel = Invoke-MenuPress $c $app.Id $createCancel
+                        if ($cancel.ExitCode -ne 0) { $problems.Add("(c) menupress cancel: $($cancel.Output -join ' ')") }
+                        $cancelled = & $waitEvent $data 'NotMade' $recordingName 30
+                        Start-Sleep -Seconds 1
+                        $rest = & $leftovers $files.Folder '_recording_timelapse'
+                        if (-not $cancelled -or $cancelled.Problem -cne 'Cancelled' -or @(& $events $data | Where-Object Kind -CEQ 'NotMade').Count -le $before) { $problems.Add("(c) the job was not cancelled within 30 s ($(if ($cancelled) { $cancelled.Problem } else { 'no result' }))") }
+                        elseif ($rest.Count -gt 0) { $problems.Add("(c) the cancelled job left $($rest -join ', ')") }
+                        else { $notes.Add('(c) the cancel in the middle left nothing (ls -a)') }
+                    }
+                }
+            }
+            finally { & $leftOpen $app '(c)'; $null = Stop-TestApp $data $app; & $clear }
+
+            if ((Get-MoviesRecordingsState) -cne $movies) { $problems.Add('~/Movies/LayerPeek changed during the check') }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            if ($skipped.Count -gt 0) { Skip-VerifyCheck "everything else as expected, not judged: $($skipped -join '; '). Done: $($notes -join '; ')." }
+            New-VerifyResult PASS "$($notes -join '; ')."
+        }
+    }
+
     New-VerifyCheck -Id 'mac.icons' -Kind Manual -Title 'menu bar icons on light and dark menu bars, app icon next to system app icons (contact sheet)' `
         -Closes 'T-018 kritérium 1 (čitelnost ve světlém i tmavém režimu)', 'T-098 kritérium 2 (velikost vedle systémových aplikací)' -Action {
         param($c)
@@ -3053,7 +3476,7 @@ $presets = [ordered]@{
         'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
         'mac.plist-localnetwork', 'mac.decode', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
         'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.recording-files', 'mac.recording', 'mac.dashcam',
-        'mac.timelapse-files', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.keys', 'mac.update-check',
+        'mac.timelapse-files', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.file-dialogs', 'mac.keys', 'mac.update-check',
         'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
     )
 }
@@ -3212,5 +3635,5 @@ $latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
 Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers or mac.notifications-content.'
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content or mac.file-dialogs.'
 exit (Get-VerifyExitCode -Results $results)

@@ -240,6 +240,9 @@ public sealed class AppEnvironmentTests
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationListJsonContext"));
         Assert.Null(typeof(AppEnvironment).GetField("NotificationListArgument", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.MacUserNotificationCenter")?.GetMethod("ListDeliveredAsync", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
+        // T-213: no slowed-down feeds of the file jobs.
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Cameras.Recording.TestPacedCameraFeedFactory"));
+        Assert.Null(typeof(AppEnvironment).GetProperty("TestFileJobDelay", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
         Assert.Equal(AppEnvironment.ProductionBundleIdentifier, AppEnvironment.Production.NotificationBundleIdentifier);
         Assert.Same(AppEnvironment.Production, AppEnvironment.FromProcess());
     }
