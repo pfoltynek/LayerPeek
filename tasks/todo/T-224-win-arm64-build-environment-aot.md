@@ -1,5 +1,5 @@
 ---
-id: T-223
+id: T-224
 title: Windows ARM64 – sestavovací prostředí a Native AOT publish `win-arm64` z x64 (bez FFmpeg)
 status: todo
 owner: core-dev
@@ -10,15 +10,15 @@ depends_on: []
 
 > **Rozhodnutí uživatele 2026-11-12:** LayerPeek se bude vydávat **i pro Windows ARM64 (`win-arm64`)**, vedle
 > `win-x64`, a má se připravit sestavovací prostředí pro Windows ARM64. Tím se ruší rozhodnutí z 2026-11-01 (T-130:
-> „Windows jen `win-x64`“). Série úkolů: **T-223** (prostředí a AOT publish), **T-224** (FFmpeg `win-arm64`),
-> **T-225** (vydání, instalátor, aktualizace, winget, dokumentace), **T-226** (ověření na zařízení ARM64).
+> „Windows jen `win-x64`“). Série úkolů: **T-224** (prostředí a AOT publish), **T-225** (FFmpeg `win-arm64`),
+> **T-226** (vydání, instalátor, aktualizace, winget, dokumentace), **T-227** (ověření na zařízení ARM64).
 > Zamítnuté T-057 a T-063 zůstávají v `tasks/rejected/` jako historie; jejich zjištění tato série přebírá.
 
 ## Cíl
 Na vývojovém stroji Windows x64 jde příkazem `dotnet publish src/LayerPeek.App -c Release -r win-arm64` vytvořit
 Native AOT `LayerPeek.exe` pro ARM64 bez trim/AOT varování a se všemi nativními knihovnami pro ARM64. Kamera (FFmpeg)
 v tomto úkolu ještě není: `build/FFmpeg.targets` pro RID `win-arm64` dnes FFmpeg vypíná (`_LayerPeekFFmpegPlatform`
-je prázdné), to řeší T-224. Skripty vydání tu RID ještě nepovolují (T-225), mění se jen kontrola toolchainu a
+je prázdné), to řeší T-225. Skripty vydání tu RID ještě nepovolují (T-226), mění se jen kontrola toolchainu a
 dokumentace prostředí.
 
 ## Rozsah
@@ -37,7 +37,7 @@ dokumentace prostředí.
 2. **Kontrola toolchainu ve skriptech:** `Get-NativeToolchainProblems` (`scripts/ReleaseTools/ReleaseTools.psm1`, tabulka
    `$components`) zná pro `win-arm64` komponentu `…VC.Tools.ARM64` (vrácení stavu před T-130) – chybějící komponenta =
    srozumitelná hláška s odkazem na `docs/prerequisites.md`. Samotné povolení RID v `$script:ReleaseRuntimes` je až
-   v T-225. Pester test kontroly upravit.
+   v T-226. Pester test kontroly upravit.
 3. **Publish `win-arm64`:** bez varování IL2xxx/IL3xxx z kódu projektu (stávající hlášky `ILC: Method … will always
    throw` z Avalonia DComposition zapsat, pokud se objeví stejně jako u x64). `LayerPeek.exe` i všechny nativní DLL
    v publish složce mají v hlavičce PE pole Machine `0xAA64`, žádná x64 DLL – kontrola funkcí v `ReleaseTools.psm1`
@@ -56,9 +56,9 @@ dokumentace prostředí.
    (velikosti struktur, `IntPtr.Size`, x64 specifické konstanty). Oba cíle jsou 64bitové, změny se nečekají – výsledek
    zapsat do poznámek.
 7. **Dokumentace:** `docs/prerequisites.md` – komponenta MSVC ARM64 (instalace jako správce, ověření `vswhere`,
-   `dotnet publish -r win-arm64`), odstranit řádek „`Unknown runtime 'win-arm64'` … nepodporuje (T-130)“ až s T-225;
-   věta „Vydávané RID“ na začátku souboru až s T-225. Spuštění na x64 nejde (Windows na x64 neumí emulovat ARM64),
-   ověření běhu je v T-226.
+   `dotnet publish -r win-arm64`), odstranit řádek „`Unknown runtime 'win-arm64'` … nepodporuje (T-130)“ až s T-226;
+   věta „Vydávané RID“ na začátku souboru až s T-226. Spuštění na x64 nejde (Windows na x64 neumí emulovat ARM64),
+   ověření běhu je v T-227.
 
 ## Akceptační kritéria
 - [ ] Komponenta MSVC ARM64 je nainstalovaná (na vývojovém stroji 2026-11-12, otázka 1) a `vswhere -requires
