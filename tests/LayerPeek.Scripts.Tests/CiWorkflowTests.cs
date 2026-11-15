@@ -252,6 +252,47 @@ public sealed partial class CiWorkflowTests
         Assert.True(exit > build && exit > arm64, "The result check exits after evaluating every job.");
     }
 
+    /// <summary>
+    /// T-220 (user decision 2026-11-15): the zero-allocation tests count the allocations of every thread, and in the
+    /// combined run the test platform is still sending thousands of earlier results to <c>dotnet test</c> while they run.
+    /// So the main test step leaves them out by their trait and a second step runs only them, over the same projects. That
+    /// step runs also when the main test step failed (only a failed or cancelled build skips it), and it ignores no exit
+    /// code: a project without such tests does not fail the solution run, a run in which no test matched does (exit 8).
+    /// </summary>
+    [Fact]
+    public void TheAllocationTestsRunInTheirOwnStepAfterTheOtherTests()
+    {
+        const string Trait = "Category=AllocationSensitive";
+        string probe = File.ReadAllText(Path.Combine(TestWorktree.Root, "tests", "Shared", "AllocationProbe.cs"));
+        Assert.Contains("TraitName = \"Category\"", probe, StringComparison.Ordinal);
+        Assert.Contains("TraitValue = \"AllocationSensitive\"", probe, StringComparison.Ordinal);
+
+        string[] job = [.. JobLines("build").Select(static line => line.Trim())];
+        int main = Array.IndexOf(job, "- name: Test (Debug, without the browser end-to-end tests)");
+        int allocation = Array.IndexOf(job, "- name: Test the allocation-sensitive tests (Debug, in their own processes)");
+        Assert.True(main >= 0, "No main test step in the build job.");
+        Assert.True(allocation > main, "The allocation-sensitive tests must run in their own step after the main test step.");
+
+        string mainTest = Assert.Single(StepAround(job, main), static line => line.StartsWith("dotnet test ", StringComparison.Ordinal));
+        Assert.Contains($"--filter-not-trait \"{Trait}\"", mainTest, StringComparison.Ordinal);
+        Assert.DoesNotContain("--filter-trait", mainTest, StringComparison.Ordinal);
+        Assert.DoesNotContain("--ignore-exit-code", mainTest, StringComparison.Ordinal);
+
+        string[] step = StepAround(job, allocation);
+        string allocationTest = Assert.Single(step, static line => line.StartsWith("dotnet test ", StringComparison.Ordinal));
+        Assert.Contains($"--filter-trait \"{Trait}\"", allocationTest, StringComparison.Ordinal);
+        Assert.DoesNotContain("--ignore-exit-code", allocationTest, StringComparison.Ordinal);
+        Assert.Contains("if: ${{ !cancelled() && steps.build-debug.outcome == 'success' }}", step);
+        int build = Array.IndexOf(job, "- name: Build (Debug)");
+        Assert.True(build >= 0 && build < main, "No Debug build before the test steps.");
+        Assert.Contains("id: build-debug", StepAround(job, build));
+        Assert.DoesNotContain("--filter-not-trait", allocationTest, StringComparison.Ordinal);
+        Assert.Contains("$filter = Join-Path $env:RUNNER_TEMP 'ci-tests.slnf'", step);
+        Assert.Contains("--solution $filter", allocationTest, StringComparison.Ordinal);
+        Assert.Contains("--results-directory $env:TEST_RESULTS", allocationTest, StringComparison.Ordinal);
+        Assert.Contains("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", step);
+    }
+
     [Fact]
     public void DependabotKeepsThePinnedActionsCurrent()
     {
