@@ -1247,7 +1247,8 @@ function Get-VerifyRecordingEvents {
     .SYNOPSIS
         The recording events in the app's log, in order (T-210): Writes (a file was started, File = its name), Ended (a
         recording ended, Files = its file count), DashcamSaved (Files), Failed (a recording or dashcam could not start or
-        failed, Text = the line). PrinterId of each.
+        failed, Text = the line), TimelapseStarted (T-211, File = its name, Mode = Manual or Automatic) and TimelapseFailed
+        (a timelapse could not start or stopped with an error). PrinterId of each.
     #>
     param([AllowNull()] [AllowEmptyString()] [string] $Log)
     foreach ($line in @("$Log" -split "`n")) {
@@ -1255,7 +1256,38 @@ function Get-VerifyRecordingEvents {
         elseif ($line -cmatch "Recording of printer '(?<id>[^']+)' ended \((?<n>\d+) file\(s\)\)") { [pscustomobject]@{ Kind = 'Ended'; PrinterId = $Matches.id; File = ''; Files = [int] $Matches.n; Text = $line.Trim() } }
         elseif ($line -cmatch "Dashcam of printer '(?<id>[^']+)' saved [\d.,]+ s into (?<n>\d+) file\(s\)") { [pscustomobject]@{ Kind = 'DashcamSaved'; PrinterId = $Matches.id; File = ''; Files = [int] $Matches.n; Text = $line.Trim() } }
         elseif ($line -cmatch "(?:Recording|Dashcam) of printer '(?<id>[^']+)' (?:could not start|could not save|failed)") { [pscustomobject]@{ Kind = 'Failed'; PrinterId = $Matches.id; File = ''; Files = 0; Text = $line.Trim() } }
+        elseif ($line -cmatch "Timelapse of printer '(?<id>[^']+)' started \((?<mode>\w+)\) into '(?<file>[^']+)'") { [pscustomobject]@{ Kind = 'TimelapseStarted'; PrinterId = $Matches.id; File = $Matches.file; Files = 0; Mode = $Matches.mode; Text = $line.Trim() } }
+        elseif ($line -cmatch "(?:Timelapse of printer '(?<id>[^']+)' could not start|Stopping the timelapse of printer '(?<id>[^']+)': )") { [pscustomobject]@{ Kind = 'TimelapseFailed'; PrinterId = $Matches.id; File = ''; Files = 0; Text = $line.Trim() } }
     }
+}
+
+function Get-VerifyTimelapseFrameRange {
+    <#
+    .SYNOPSIS
+        How many frames a timelapse by time (T-160) may have (T-211): each span in which frames were taken (from the start
+        or a resume after a pause to the pause or the stop, -Spans in seconds) gives one frame at once and one every
+        -IntervalSeconds. -SlackSeconds per span covers what the script cannot time exactly: the poll that notices a state,
+        the start of the timelapse and the key frame each frame waits for. Min (at least one per span) and Max.
+    #>
+    param([Parameter(Mandatory)] [double[]] $Spans, [Parameter(Mandatory)] [ValidateRange(1, 3600)] [int] $IntervalSeconds, [ValidateRange(0, 600)] [double] $SlackSeconds = 0)
+    $min = 0
+    $max = 0
+    foreach ($span in $Spans) {
+        $min += 1 + [math]::Floor([math]::Max(0, $span - $SlackSeconds) / $IntervalSeconds)
+        $max += 1 + [math]::Floor(($span + $SlackSeconds) / $IntervalSeconds)
+    }
+    [pscustomobject]@{ Min = [int] $min; Max = [int] $max }
+}
+
+function Get-VerifyLayerTimelapseFrames {
+    <#
+    .SYNOPSIS
+        The frames of a timelapse by layer (T-159) of a whole print of -Layers layers that rise evenly (the simulator's
+        --layers, T-211): one at the start, one at every -EveryNthLayer-th of the Layers - 1 layer changes and one of the
+        finished print. A pause adds none.
+    #>
+    param([Parameter(Mandatory)] [ValidateRange(1, 1000)] [int] $Layers, [ValidateRange(1, 100)] [int] $EveryNthLayer = 1)
+    [int] (2 + [math]::Floor(($Layers - 1) / $EveryNthLayer))
 }
 
 # ---------------------------------------------------------------------------------------------------------------------

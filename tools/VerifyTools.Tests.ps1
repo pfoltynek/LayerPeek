@@ -727,7 +727,7 @@ Describe 'macOS helpers (pure)' {
     }
 }
 
-Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashcam; T-210, pure)' {
+Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashcam; T-210; mac.timelapse*; T-211, pure)' {
     It 'reads the names of recordings, outage segments, dashcam saves and timelapses' {
         $print = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_0.4n_0.2mm_PLA.mp4'
         $print.Stamp | Should -BeExactly '2026-11-15_10-04-09'
@@ -815,11 +815,48 @@ Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashca
         @(Get-VerifyRecordingEvents '') | Should -HaveCount 0
     }
 
+    It 'reads the timelapse events of the app log (T-211)' {
+        $log = @(
+            "2026-11-15 10:00:01.000 +01:00 [INF] Timelapse of printer 'verify' started (Manual) into '2026-11-15_10-00-01_benchy_timelapse.mp4'."
+            "2026-11-15 10:00:02.000 +01:00 [INF] Recording of printer 'verify' writes '2026-11-15_10-00-01_benchy.mp4'."
+            "2026-11-15 10:01:00.000 +01:00 [WRN] Timelapse of printer 'verify' could not start (FolderUnavailable): Access denied"
+            "2026-11-15 10:02:00.000 +01:00 [WRN] Stopping the timelapse of printer 'other': WriteFailed."
+            "2026-11-15 10:03:00.000 +01:00 [DBG] Stopping the timelapse of printer 'verify'."
+        ) -join "`n"
+        $events = @(Get-VerifyRecordingEvents $log)
+        @($events.Kind) | Should -Be @('TimelapseStarted', 'Writes', 'TimelapseFailed', 'TimelapseFailed')
+        $events[0].File | Should -BeExactly '2026-11-15_10-00-01_benchy_timelapse.mp4'
+        $events[0].Mode | Should -BeExactly 'Manual'
+        $events[2].Text | Should -BeLike '*FolderUnavailable*'
+        $events[3].PrinterId | Should -BeExactly 'other'
+        # A timelapse failure is not a failure of the recording (mac.recording-files counts those).
+        @($events | Where-Object Kind -CEQ 'Failed') | Should -HaveCount 0
+    }
+
+    It 'tells how many frames a timelapse by time may have (T-211)' {
+        $exact = Get-VerifyTimelapseFrameRange -Spans 30, 20 -IntervalSeconds 5
+        $exact.Min | Should -Be 12
+        $exact.Max | Should -Be 12
+        $slack = Get-VerifyTimelapseFrameRange -Spans 30, 20 -IntervalSeconds 5 -SlackSeconds 7
+        $slack.Min | Should -Be 8
+        $slack.Max | Should -Be 14
+        # A pause of 30 s that took frames would give 6 more: outside the range.
+        (Get-VerifyTimelapseFrameRange -Spans 80 -IntervalSeconds 5).Max | Should -BeGreaterThan $slack.Max
+        # Every span gives at least its first frame.
+        (Get-VerifyTimelapseFrameRange -Spans 2, 1 -IntervalSeconds 5 -SlackSeconds 7).Min | Should -Be 2
+    }
+
+    It 'tells the frames of a timelapse by layer of a whole print (T-211)' {
+        Get-VerifyLayerTimelapseFrames -Layers 12 | Should -Be 13
+        Get-VerifyLayerTimelapseFrames -Layers 12 -EveryNthLayer 3 | Should -Be 5
+        Get-VerifyLayerTimelapseFrames -Layers 1 | Should -Be 2
+    }
+
     It 'puts the recording checks into the release preset' {
         $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
         $run.ExitCode | Should -Be 0 -Because $run.Text
-        foreach ($id in 'mac.decode', 'mac.recording-files') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
-        foreach ($id in 'mac.recording', 'mac.dashcam') {
+        foreach ($id in 'mac.decode', 'mac.recording-files', 'mac.timelapse-files') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
+        foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers') {
             @($run.Output | Where-Object { $_ -like "$id  *``[permission``]*" }) | Should -HaveCount 1 -Because $id
             $run.Output[0] | Should -BeLike "*allowed in advance:*$id*"
         }
