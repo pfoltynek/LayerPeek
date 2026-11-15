@@ -385,7 +385,9 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 7. Doplnit výsledky do T-125 / T-126 / T-127 a do tohoto úkolu. Každá chyba = nový úkol (případně `hotfix/1.0.1`).
 
 ## Akceptační kritéria
-- [ ] B1 (T-125 2r), B2 (T-125 2w a automatické body 2n, 2p, 2u, 2x), B3 (T-125 2v bod 1) odškrtnuté na Windows
+- [x] B1 (T-125 2r), B2 (T-125 2w a automatické body 2n, 2p, 2u, 2x), B3 (T-125 2v bod 1) odškrtnuté na Windows
+      – 2026-11-15/16: B1 a B2 generálkou B4 (celé `dotnet test`, smoke test, `release-build.ps1`), B3 `UpdateTests`
+      2 z 3 PASS, varianta MenuItem selhala jen na myši přes RDP (přijato uživatelem 2026-11-16)
 - [x] B5 (T-127 1c bod 1) ověřený a odškrtnutý na Macu
       → T-127 1c bod 1 odškrtnutý 2026-11-13; znovu ověřeno 2026-11-15 generálkou B4 (celý `dotnet test` s verzí 1.0.0:
       11 093 prošlo, 0 selhalo)
@@ -471,6 +473,10 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     provedeno; T-059 řádek po přijetí balíčku přepíše.
 
 ## Poznámky k implementaci
+- 2026-11-16 (Windows, hlavní agent): B3 – nainstalovaný LayerPeek 0.5.0 odinstalován (se souhlasem uživatele,
+  nastavení zůstalo), `UpdateTests` 2/3 PASS (viz T-125 2v). Rozhodnutí uživatele 2026-11-16: **win-arm64 se vydá
+  v 1.0.0 naplno** (mění rozhodnutí z 2026-11-12, T-226/T-227), README projít celé, ostré vydání hned po B3; B9
+  (kontrola veřejného repozitáře uživatelem) zůstává neodškrtnutý.
 - 2026-11-15 (Mac, hlavní agent, generálka B4 na Macu): samostatný worktree, místní větev `rehearsal/1.0.0`
   z `origin/develop` (db1fa919) s commitem `<Version>1.0.0</Version>` a sekcí `## [1.0.0] - 2026-11-15`
   (`ConvertTo-ReleaseChangelog`), čistý strom, LayerPeek neběžel. `caffeinate -d -i -u pwsh scripts/release-build.ps1
