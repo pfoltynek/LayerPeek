@@ -45,7 +45,7 @@ BeforeAll {
     [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, '')
 
     # Synthetic runtime tables (-Config) for the generic runtime rules, independent of the real table (T-226: win-x64 and
-    # win-arm64 on Windows, win-arm64 built but not uploadable until T-227; osx-arm64 on macOS).
+    # win-arm64 on Windows, both uploadable, user decision 2026-11-16; osx-arm64 on macOS).
     $script:TwoWindowsRuntimes = [ordered]@{
         'test-a' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
         'test-b' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
@@ -211,21 +211,21 @@ Describe 'Runtimes' {
         Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'win-arm64' -HostOs macos } "'win-arm64' cannot be built on macos"
         Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'win-x86' -HostOs windows } "Unknown runtime 'win-x86'. Released runtimes: win-x64, win-arm64, osx-arm64\."
     }
-    It 'releases win-x64, win-arm64 and osx-arm64; win-arm64 is built but not uploadable until T-227' {
+    It 'releases win-x64, win-arm64 and osx-arm64, all built by default and uploadable (win-arm64 since the user decision 2026-11-16)' {
         $config = Get-ReleaseRuntimeConfig
         @($config.Keys) | Should -BeExactly @('win-x64', 'win-arm64', 'osx-arm64')
-        $config['win-x64'].Uploadable | Should -BeTrue
-        $config['osx-arm64'].Uploadable | Should -BeTrue
+        foreach ($rid in $config.Keys) {
+            $config[$rid].Default | Should -BeTrue -Because $rid
+            $config[$rid].Uploadable | Should -BeTrue -Because $rid
+            $config[$rid].BlockedReason | Should -BeNullOrEmpty -Because $rid
+        }
         $config['win-arm64'].Os | Should -BeExactly 'windows'
-        $config['win-arm64'].Default | Should -BeTrue
-        $config['win-arm64'].Uploadable | Should -BeFalse
-        $config['win-arm64'].BlockedReason | Should -BeExactly 'not verified on an ARM64 device (T-227)'
     }
     It 'lists the RIDs a release build of an OS may upload, and the -Runtime it needs for that (T-226)' {
-        Get-UploadableReleaseRuntimes -HostOs windows | Should -BeExactly @('win-x64')
+        Get-UploadableReleaseRuntimes -HostOs windows | Should -BeExactly @('win-x64', 'win-arm64')
         Get-UploadableReleaseRuntimes -HostOs macos | Should -BeExactly @('osx-arm64')
-        # The default build of Windows has win-arm64 too, so a build for the upload names win-x64; macOS builds its default.
-        Get-ReleaseBuildRuntimeArguments -Os windows | Should -BeExactly @('-Runtime', 'win-x64')
+        # Every default RID is uploadable (win-arm64 since 2026-11-16), so the build for the upload is the default build.
+        @(Get-ReleaseBuildRuntimeArguments -Os windows) | Should -BeNullOrEmpty
         @(Get-ReleaseBuildRuntimeArguments -Os macos) | Should -BeNullOrEmpty
         @(Get-ReleaseBuildRuntimeArguments -Os windows -Config $script:BlockedRuntimeConfig) | Should -BeNullOrEmpty
         Get-UploadableReleaseRuntimes -HostOs windows -Config $script:TwoWindowsRuntimes | Should -BeExactly @('test-a', 'test-b')
@@ -615,9 +615,22 @@ Describe 'Build marker' {
     It 'refuses a build containing an unknown runtime' {
         Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-x86') })) "unknown runtime 'win-x86'"
     }
-    It 'refuses a build containing win-arm64 until it is verified on an ARM64 device, and names the build to upload (T-226, T-227)' {
-        Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-arm64') })) `
-            '^Build output contains win-arm64, which must not be uploaded: not verified on an ARM64 device \(T-227\)\. Rebuild without it: pwsh scripts/release-build\.ps1 -Runtime win-x64$'
+    It 'accepts a build containing win-arm64 next to win-x64 (uploadable, user decision 2026-11-16)' {
+        $arm = @(
+            [pscustomobject]@{ Name = 'P-0.1.0-win-arm64.zip'; Runtime = 'win-arm64'; Sha256 = '3' * 64 },
+            [pscustomobject]@{ Name = 'releases.win-arm64.json'; Runtime = 'win-arm64'; Sha256 = '4' * 64 },
+            [pscustomobject]@{ Name = 'releases.win-arm64.json.sig'; Runtime = 'win-arm64'; Sha256 = '5' * 64 }
+        )
+        $both = Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-arm64'); Files = @($script:Info.Files) + $arm }
+        Assert-Problems (Problems $both (@($script:DistNames) + @($arm.Name)))
+    }
+    It 'names the build that leaves out a default RID that must not be uploaded (generic rule, T-226)' {
+        $partly = [ordered]@{
+            'win-x64'    = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+            'test-later' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'test only' }
+        }
+        $problems = Get-BuildInfoProblems -BuildInfo (Copy-With $script:Info @{ Runtimes = @('win-x64', 'test-later') }) -Version '0.1.0' -Head $script:Head -DistFiles $script:DistNames -Config $partly
+        Assert-Problems $problems '^Build output contains test-later, which must not be uploaded: test only\. Rebuild without it: pwsh scripts/release-build\.ps1 -Runtime win-x64$'
     }
     It 'reports missing build output instead of failing when there is no dist folder (Get-ReleaseBuildOutput)' {
         $output = Get-ReleaseBuildOutput -RepoRoot (Join-Path $script:TempRoot 'no-build') -Version '0.1.0' -Head $script:Head
@@ -757,14 +770,18 @@ Describe 'Upload plan' {
 
 Describe 'Publish checks' {
     BeforeAll {
-        $script:WinSums = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json' = 'a' * 64; 'releases.win-x64.json.sig' = 'c' * 64 }
+        $script:WinSums = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json' = 'a' * 64; 'releases.win-x64.json.sig' = 'c' * 64
+            'P-0.1.0-win-arm64.zip' = '4' * 64; 'releases.win-arm64.json' = 'e' * 64; 'releases.win-arm64.json.sig' = 'f' * 64 }
         $script:MacSums = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json' = 'b' * 64; 'releases.osx-arm64.json.sig' = 'd' * 64 }
-        # The first four are the Windows files, the rest the macOS files.
+        # The first seven are the Windows files (win-x64 and win-arm64, T-226), the rest the macOS files.
         $script:Complete = @(
             [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; digest = "sha256:$('1' * 64)" },
             [pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = "sha256:$('7' * 64)" },
             [pscustomobject]@{ name = 'releases.win-x64.json'; digest = "sha256:$('a' * 64)" },
             [pscustomobject]@{ name = 'releases.win-x64.json.sig'; digest = "sha256:$('c' * 64)" },
+            [pscustomobject]@{ name = 'P-0.1.0-win-arm64.zip'; digest = "sha256:$('4' * 64)" },
+            [pscustomobject]@{ name = 'releases.win-arm64.json'; digest = "sha256:$('e' * 64)" },
+            [pscustomobject]@{ name = 'releases.win-arm64.json.sig'; digest = "sha256:$('f' * 64)" },
             [pscustomobject]@{ name = 'P-0.1.0-osx-arm64.tar.gz'; digest = "sha256:$('2' * 64)" },
             [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = "sha256:$('8' * 64)" },
             [pscustomobject]@{ name = 'releases.osx-arm64.json'; digest = "sha256:$('b' * 64)" },
@@ -781,7 +798,7 @@ Describe 'Publish checks' {
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) 'already published'
     }
     It 'refuses a draft without the macOS files unless incomplete releases are allowed' {
-        $windowsOnly = @($script:Complete | Select-Object -First 4)
+        $windowsOnly = @($script:Complete | Select-Object -First 7)
         $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = $script:WinSums }
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) 'no SHA256SUMS-macos.txt'
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
@@ -794,31 +811,44 @@ Describe 'Publish checks' {
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) `
             'P-0.1.0-osx-arm64.tar.gz is listed .* but not uploaded', 'Uploaded P-0.1.0-win-x64.zip does not match', 'stray.txt is uploaded but not listed'
     }
-    It 'needs no win-arm64 feed and refuses every win-arm64 file until T-227, also when it is listed (T-226)' {
-        # The complete draft above has no win-arm64 file: win-arm64 is not uploadable, so its feed is not expected.
-        Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums)
-        $arm = [ordered]@{ 'P-0.1.0-win-arm64.zip' = '4' * 64; 'P-0.1.0-win-arm64-Setup.exe' = '5' * 64; 'releases.win-arm64.json' = 'e' * 64; 'releases.win-arm64.json.sig' = 'f' * 64 }
+    It 'refuses a Windows release without the win-arm64 files (uploadable, user decision 2026-11-16)' {
+        # A Windows build of win-x64 only (release-build.ps1 -Runtime win-x64): installations of win-arm64 would find no update.
+        $x64Only = @($script:Complete | Where-Object { $_.name -notmatch 'win-arm64' })
+        $winSums = [ordered]@{}
+        foreach ($name in @($script:WinSums.Keys | Where-Object { $_ -notmatch 'win-arm64' })) { $winSums[$name] = $script:WinSums[$name] }
+        $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = $winSums; 'SHA256SUMS-macos.txt' = $script:MacSums }
+        Assert-Problems (Get-PublishProblems -Release (Release $x64Only) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) `
+            '^Release v0\.1\.0 has no releases\.win-arm64\.json: installations of win-arm64 would not find the update\.$'
+    }
+    It 'refuses every file of a RID that must not be released, also when it is listed (generic rule, T-055, T-226)' {
+        $blockedConfig = [ordered]@{
+            'win-x64'      = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+            'win-arm64'    = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+            'test-blocked' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'test only' }
+            'osx-arm64'    = [pscustomobject]@{ Os = 'macos'; Default = $true; Uploadable = $true; BlockedReason = $null }
+        }
+        # The complete draft has no file of the blocked RID, and its feed is not expected.
+        Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Config $blockedConfig)
+        $extra = [ordered]@{ 'P-0.1.0-test-blocked.zip' = '5' * 64; 'P-0.1.0-test-blocked-Setup.exe' = '6' * 64; 'releases.test-blocked.json' = '9' * 64; 'releases.test-blocked.json.sig' = '0' * 64 }
         $winSums = [ordered]@{}
         foreach ($name in $script:WinSums.Keys) { $winSums[$name] = $script:WinSums[$name] }
-        foreach ($name in $arm.Keys) { $winSums[$name] = $arm[$name] }
-        $assets = @($script:Complete) + @($arm.Keys | ForEach-Object { [pscustomobject]@{ name = $_; digest = "sha256:$($arm[$_])" } })
+        foreach ($name in $extra.Keys) { $winSums[$name] = $extra[$name] }
+        $assets = @($script:Complete) + @($extra.Keys | ForEach-Object { [pscustomobject]@{ name = $_; digest = "sha256:$($extra[$_])" } })
         $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = $winSums; 'SHA256SUMS-macos.txt' = $script:MacSums }
-        $blocked = 'belongs to win-arm64, which must not be released: not verified on an ARM64 device \(T-227\)\.$'
-        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) `
-            "^P-0\.1\.0-win-arm64\.zip $blocked", "^P-0\.1\.0-win-arm64-Setup\.exe $blocked", "^releases\.win-arm64\.json $blocked", "^releases\.win-arm64\.json\.sig $blocked"
+        $blocked = 'belongs to test-blocked, which must not be released: test only\.$'
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums -Config $blockedConfig) `
+            "^P-0\.1\.0-test-blocked\.zip $blocked", "^P-0\.1\.0-test-blocked-Setup\.exe $blocked", "^releases\.test-blocked\.json $blocked", "^releases\.test-blocked\.json\.sig $blocked"
     }
     It 'refuses a draft without the Velopack feed of a released RID (T-058: <Feed>)' -ForEach @(
         @{ Feed = 'releases.win-x64.json' },
+        @{ Feed = 'releases.win-arm64.json' },
         @{ Feed = 'releases.osx-arm64.json' }
     ) {
         $feed = $Feed
         $assets = @($script:Complete | Where-Object name -CNE $feed)
-        $sums = [ordered]@{
-            'SHA256SUMS-windows.txt' = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json.sig' = 'c' * 64 }
-            'SHA256SUMS-macos.txt'   = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json.sig' = 'd' * 64 }
-        }
-        $sums['SHA256SUMS-windows.txt']['releases.win-x64.json'] = 'a' * 64
-        $sums['SHA256SUMS-macos.txt']['releases.osx-arm64.json'] = 'b' * 64
+        $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = [ordered]@{}; 'SHA256SUMS-macos.txt' = [ordered]@{} }
+        foreach ($name in $script:WinSums.Keys) { $sums['SHA256SUMS-windows.txt'][$name] = $script:WinSums[$name] }
+        foreach ($name in $script:MacSums.Keys) { $sums['SHA256SUMS-macos.txt'][$name] = $script:MacSums[$name] }
         $sums[$(if ($feed -match 'win') { 'SHA256SUMS-windows.txt' } else { 'SHA256SUMS-macos.txt' })].Remove($feed)
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) "no $([regex]::Escape($feed)): installations of"
         # Allowed incomplete (a trial release): only the uploaded files are checked.
@@ -826,6 +856,7 @@ Describe 'Publish checks' {
     }
     It 'refuses a feed without its signature releases.<RID>.json.sig, also when incomplete releases are allowed (T-181: <Feed>)' -ForEach @(
         @{ Feed = 'releases.win-x64.json'; SumsFile = 'SHA256SUMS-windows.txt' },
+        @{ Feed = 'releases.win-arm64.json'; SumsFile = 'SHA256SUMS-windows.txt' },
         @{ Feed = 'releases.osx-arm64.json'; SumsFile = 'SHA256SUMS-macos.txt' }
     ) {
         $feed = $Feed
@@ -842,7 +873,7 @@ Describe 'Publish checks' {
     It 'checks a published release with -Published (the check after release-upload.ps1 -AddToPublished, T-113)' {
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published)
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published) 'is a draft, not published'
-        $macOnly = @($script:Complete | Select-Object -Skip 4)
+        $macOnly = @($script:Complete | Select-Object -Skip 7)
         Assert-Problems (Get-PublishProblems -Release (Release $macOnly $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums ([ordered]@{ 'SHA256SUMS-macos.txt' = $script:MacSums }) -Published) 'no SHA256SUMS-windows.txt'
     }
 }

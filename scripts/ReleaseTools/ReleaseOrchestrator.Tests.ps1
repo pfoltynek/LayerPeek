@@ -692,20 +692,20 @@ Describe 'Plan and resume detection (pure)' {
         $text | Should -Match 'then back to develop: git switch develop'
     }
     It 'names the OS that went first and how the other one follows (T-113, <HostOs>)' -ForEach @(
-        @{ HostOs = 'macos'; This = 'macOS'; Other = 'Windows'; Build = 'release-build\.ps1 -Runtime win-x64 -FeedSigningKey <key file>' }
+        @{ HostOs = 'macos'; This = 'macOS'; Other = 'Windows'; Build = 'release-build\.ps1 -FeedSigningKey <key file>' }
         @{ HostOs = 'windows'; This = 'Windows'; Other = 'macOS'; Build = 'release-build\.ps1 -FeedSigningKey <key file>' }
     ) {
         $text = (Get-ReleaseNextSteps -Version '0.2.0' -HostOs $HostOs) -join "`n"
         $text | Should -Match "release-publish\.ps1 -AllowIncomplete   # only the $This files so far"
         $text | Should -Match "The $Other files follow on a $Other machine"
-        # T-226: the Windows build for the upload leaves out win-arm64 (built by default, not uploadable until T-227).
+        # T-226: the default build is the build for the upload on both OSes (win-arm64 uploadable, user decision 2026-11-16).
         $text | Should -Match "git fetch origin --tags; git switch --detach v0\.2\.0; pwsh scripts/$Build"
         $text | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
         $text | Should -Not -Match 'Windows only|T-019'
     }
-    It 'plans the build of the uploadable RIDs only, with the -Runtime that leaves out win-arm64 on Windows (T-226)' {
+    It 'plans the default build, which has every uploadable RID, without -Runtime (T-226, win-arm64 uploadable since 2026-11-16)' {
         $windows = Plan $script:GitDone
-        ($windows.Steps | Where-Object Id -EQ 'Build').Detail | Should -Match 'pwsh scripts/release-build\.ps1 -Runtime win-x64 \(signing key'
+        ($windows.Steps | Where-Object Id -EQ 'Build').Detail | Should -Match 'pwsh scripts/release-build\.ps1 \(signing key'
         $mac = Plan (Copy-With $script:GitDone @{ HostOs = 'macos'; Runtimes = @('osx-arm64'); ChecksumFile = 'SHA256SUMS-macos.txt' })
         ($mac.Steps | Where-Object Id -EQ 'Build').Detail | Should -Match 'pwsh scripts/release-build\.ps1 \(signing key'
     }
@@ -716,7 +716,7 @@ Describe 'Plan and resume detection (pure)' {
         $text = (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n"
         $text | Should -Match 'already published'
         $text | Should -Match 'It has no SHA256SUMS-windows\.txt yet'
-        $text | Should -Match 'pwsh scripts/release-build\.ps1 -Runtime win-x64 -FeedSigningKey <key file>; pwsh scripts/release-upload\.ps1 -AddToPublished'
+        $text | Should -Match 'pwsh scripts/release-build\.ps1 -FeedSigningKey <key file>; pwsh scripts/release-upload\.ps1 -AddToPublished'
         $with = Copy-With $facts @{ ChecksumFile = 'SHA256SUMS-macos.txt' }
         (Format-ReleaseFlowPlan -Plan (Plan $with) -Facts $with) -join "`n" | Should -Not -Match 'AddToPublished'
     }
@@ -1237,9 +1237,9 @@ exit 0
         $result = Invoke-E @('-Version', '0.2.0') @('0.2.0', 'y', 'y')
         $result.ExitCode | Should -Be 0 -Because $result.Output
         $result.Output | Should -Match 'stand-in build done'
-        # T-226: on Windows the build for the upload names the uploadable RIDs (win-arm64 is built by default, not uploadable).
-        $result.Output | Should -Match "==> pwsh scripts/release-build\.ps1$(if ($IsWindows) { ' -Runtime win-x64' })\r?\n"
-        $result.Output | Should -Match "stand-in build arguments: $(if ($IsWindows) { '-Runtime win-x64' })\r?\n"
+        # T-226: the default build is the build for the upload (win-arm64 uploadable, user decision 2026-11-16).
+        $result.Output | Should -Match "==> pwsh scripts/release-build\.ps1\r?\n"
+        $result.Output | Should -Match "stand-in build arguments: \r?\n"
         $result.Output | Should -Match 'Draft release v0\.2\.0 is ready: https://example\.invalid/test-owner/ok/releases/tag/v0\.2\.0'
         $result.Output | Should -Match 'release-publish\.ps1 -AllowIncomplete'
         # T-113: the next steps name the OS of this machine (either OS can go first) and how the other one follows.
@@ -1290,12 +1290,13 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $null = G $script:T.Work switch --quiet --detach v0.1.0
         $script:TwoRelease = Join-Path $script:TwoState 'test-owner_two_v0.1.0.json'
 
-        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in', [switch] $SkipFeedSignature, [switch] $Arm64) {
+        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in', [switch] $SkipFeedSignature, [switch] $X64Only) {
             # The output release-build.ps1 would write for HEAD on that OS (the other OS too: the marker names its OS),
             # with the archive, the Velopack files, the feed signature (T-181; not with -SkipFeedSignature, like a trial
-            # build) and the checksum file. -Arm64: a Windows build of win-x64 and win-arm64 (the default build, T-226).
+            # build) and the checksum file. Windows: win-x64 and win-arm64 (the default build, T-226); -X64Only: a build
+            # of release-build.ps1 -Runtime win-x64.
             $root = $script:T.Work
-            $rids = if ($Os -ne 'windows') { @('osx-arm64') } elseif ($Arm64) { @('win-x64', 'win-arm64') } else { @('win-x64') }
+            $rids = if ($Os -ne 'windows') { @('osx-arm64') } elseif ($X64Only) { @('win-x64') } else { @('win-x64', 'win-arm64') }
             $releaseDir = Join-Path $root 'artifacts' 'release' '0.1.0'
             if (Test-Path -LiteralPath $releaseDir) { Remove-Item -LiteralPath $releaseDir -Recurse -Force }
             $dist = Join-Path $releaseDir 'dist'
@@ -1350,24 +1351,17 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
         @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload)' }) | Should -BeNullOrEmpty
     }
-    It 'refuses the default Windows build with win-arm64 until T-227, and accepts the build of win-x64 only (T-226)' {
-        $files = Write-StandInBuild 'windows' -Arm64
+    It 'accepts the default Windows build with win-x64 and win-arm64 (T-226, uploadable, user decision 2026-11-16)' {
+        $files = Write-StandInBuild 'windows'
         $files | Should -Contain 'LayerPeek-0.1.0-win-arm64-Setup.exe'
         $files | Should -Contain 'releases.win-arm64.json.sig'
         $calls = @(Get-GhCall).Count
-        foreach ($arguments in @('-DryRun'), @()) {
-            $result = Invoke-T 'release-upload.ps1' $arguments
-            $result.ExitCode | Should -Be 1 -Because $result.Output
-            $result.Output | Should -Match 'Build output contains win-arm64, which must not be uploaded: not verified on an ARM64 device \(T-227\)\. Rebuild without it: pwsh scripts/release-build\.ps1 -Runtime win-x64'
-        }
-        Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
-        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit)' }) | Should -BeNullOrEmpty
-
-        $null = Write-StandInBuild 'windows'
         $dry = Invoke-T 'release-upload.ps1' @('-DryRun')
         $dry.ExitCode | Should -Be 0 -Because $dry.Output
-        $dry.Output | Should -Match 'LayerPeek-0\.1\.0-win-x64-Setup\.exe'
-        $dry.Output | Should -Not -Match 'win-arm64'
+        $dry.Output | Should -Not -Match 'must not be uploaded'
+        foreach ($name in 'LayerPeek-0.1.0-win-x64-Setup.exe', 'LayerPeek-0.1.0-win-arm64-Setup.exe', 'LayerPeek-0.1.0-win-arm64.zip', 'releases.win-arm64.json.sig') {
+            $dry.Output | Should -Match "$([regex]::Escape($name))\s+upload"
+        }
         Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
         @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit)' }) | Should -BeNullOrEmpty
     }
@@ -1484,9 +1478,11 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64-full\.nupkg'
         # T-181: the feed signature goes with the packages, before the feed.
         $new[0] | Should -Match 'releases\.win-x64\.json\.sig'
-        $new[0] | Should -Not -Match 'SHA256SUMS|releases\.win-x64\.json(?!\.sig)|assets\.win-x64\.json|RELEASES-win-x64'
+        # T-226: the win-arm64 files go with the same build (uploadable since 2026-11-16).
+        foreach ($package in 'LayerPeek-0.1.0-win-arm64.zip', 'LayerPeek-0.1.0-win-arm64-Setup.exe', 'LayerPeek-0.1.0-win-arm64-full.nupkg', 'releases.win-arm64.json.sig') { $new[0] | Should -Match ([regex]::Escape($package)) }
+        $new[0] | Should -Not -Match 'SHA256SUMS|releases\.win-(x64|arm64)\.json(?!\.sig)|assets\.win-|RELEASES-win-'
         $new[1] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
-        foreach ($marker in 'SHA256SUMS-windows.txt', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64') { $new[1] | Should -Match ([regex]::Escape($marker)) }
+        foreach ($marker in 'SHA256SUMS-windows.txt', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64', 'releases.win-arm64.json', 'assets.win-arm64.json', 'RELEASES-win-arm64') { $new[1] | Should -Match ([regex]::Escape($marker)) }
         $new[1] | Should -Not -Match 'win-x64\.zip|full\.nupkg|Setup\.exe|\.sig'
         @(Get-GhCall | Where-Object { $_ -match '--clobber' }) | Should -BeNullOrEmpty
     }

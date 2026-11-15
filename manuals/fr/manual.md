@@ -1,6 +1,6 @@
 # Manuel d'utilisation de LayerPeek
 
-*Pour LayerPeek 0.5 sous Windows 10/11 et macOS (Apple Silicon).* · [Autres langues](../README.md)
+*Pour LayerPeek 1.0 sous Windows 10/11 et macOS (Apple Silicon).* · [Autres langues](../README.md)
 
 LayerPeek surveille vos imprimantes 3D Prusa via votre réseau local et affiche leur état dans la zone de notification de
 Windows ou dans la barre des menus de macOS. Il n'a pas de fenêtre principale : tout part du menu de son icône. Ce manuel
@@ -33,8 +33,8 @@ décrit les deux systèmes ; là où Windows et macOS diffèrent, le texte le p
 - **Une imprimante Prusa avec le firmware Buddy 6.x et PrusaLink** : CORE One (testée), MK4/MK4S, MK3.9/MK3.9S,
   MK3.5/MK3.5S, XL et MINI/MINI+. L'Original Prusa MK3/MK3S n'intègre pas PrusaLink et n'est pas prise en charge.
 - **Un ordinateur sur le même réseau local** que l'imprimante :
-  - Windows 10 ou 11, x64 (une version pour Windows sur ARM est en préparation),
-  - macOS sur Apple Silicon (M1 ou plus récent).
+  - Windows 10 ou 11 (x64), Windows 11 (ARM64),
+  - macOS 14 ou plus récent sur Apple Silicon (M1 ou plus récent).
 - **Une caméra (facultatif) :** n'importe quelle caméra avec un flux **RTSP H.264** accessible depuis votre ordinateur,
   par exemple la caméra Prusa Buddy3D. Sans caméra, vous avez quand même l'icône, les notifications et le diagnostic.
 
@@ -58,15 +58,15 @@ Vous avez le choix entre deux paquets :
 
 | Paquet | Ce qu'il fait |
 |---|---|
-| **Programme d'installation** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (recommandé) | Installe LayerPeek pour votre seul utilisateur, sans droits d'administrateur, dans `%LOCALAPPDATA%\LayerPeek`, l'ajoute au menu Démarrer, le lance après l'ouverture de session et peut se mettre à jour tout seul. |
-| **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Décompressez-le où vous voulez et lancez `LayerPeek.exe`. Il ne démarre pas après l'ouverture de session et ne se met pas à jour tout seul (il ouvre la page de la version à la place). |
+| **Programme d'installation** `LayerPeek-X.Y.Z-win-x64-Setup.exe` / `LayerPeek-X.Y.Z-win-arm64-Setup.exe` (recommandé) | Installe LayerPeek pour votre seul utilisateur, sans droits d'administrateur, dans `%LOCALAPPDATA%\LayerPeek`, l'ajoute au menu Démarrer, le lance après l'ouverture de session et peut se mettre à jour tout seul. |
+| **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` / `LayerPeek-X.Y.Z-win-arm64.zip` | Décompressez-le où vous voulez et lancez `LayerPeek.exe`. Il ne démarre pas après l'ouverture de session et ne se met pas à jour tout seul (il ouvre la page de la version à la place). |
 
-Les deux paquets sont destinés à Windows sur **x64** (processeurs Intel et AMD) : **Paramètres → Système → Informations
-système** indique *x64* sous **Type du système**. Une version pour Windows sur **ARM** (*ARM* sous **Type du système**,
-par exemple les portables avec Snapdragon) est en préparation et n'est pas encore proposée au téléchargement. Quand elle
-le sera, passez-y à la main : désinstallez la version x64 (**Paramètres → Applications → Applications installées →
-LayerPeek → Désinstaller**), puis installez la version ARM (`…-win-arm64-…`). Vos paramètres et mots de passe sont
-conservés ; une installation ne change jamais d'architecture d'elle-même.
+Chaque paquet existe pour Windows sur **x64** (`win-x64`, processeurs Intel et AMD) et pour Windows sur **ARM64**
+(`win-arm64`, par exemple les portables avec Snapdragon). **Paramètres → Système → Informations système** indique celui
+qu'il vous faut sous **Type du système** : *x64* correspond aux fichiers `win-x64`, *ARM* aux fichiers `win-arm64`. Pour
+passer d'une version x64 installée à la version ARM64, faites-le à la main : désinstallez la version x64 (**Paramètres
+→ Applications → Applications installées → LayerPeek → Désinstaller**), puis installez la version ARM64. Vos paramètres
+et mots de passe sont conservés ; une installation ne change jamais d'architecture d'elle-même.
 
 Au premier démarrage, Windows SmartScreen affiche **« Windows a protégé votre ordinateur »** avec un *Éditeur inconnu*.
 Cliquez sur **Informations complémentaires**, puis sur **Exécuter quand même**.

@@ -17,12 +17,14 @@ $ErrorActionPreference = 'Stop'
 #   Default     built when the build script gets no -Runtime
 #   Uploadable  its files may be uploaded to GitHub (a RID built for local verification only sets it to $false with a
 #               BlockedReason: release-upload.ps1 refuses a build containing it, release-publish.ps1 a release with its files)
-# Windows ARM64 (win-arm64, T-224 to T-227, user decision 2026-11-12, reverses T-130): built by default on Windows next to
-# win-x64, but not uploaded until it is verified on an ARM64 device (T-227 switches Uploadable on). Until then a build
-# for the upload names the uploadable RIDs (Get-ReleaseBuildRuntimeArguments: -Runtime win-x64).
+# Windows ARM64 (win-arm64, T-224 to T-226, user decision 2026-11-12, reverses T-130): built by default on Windows next to
+# win-x64 and uploaded with it from the first release after 1.0.0 (user decision 2026-11-16: shipped fully before the
+# check on an ARM64 device, which T-227 does afterwards; 1.0.0 itself was released from its tag without win-arm64).
+# While every default RID is uploadable, a build for the upload needs no -Runtime (Get-ReleaseBuildRuntimeArguments
+# returns nothing).
 $script:ReleaseRuntimes = [ordered]@{
     'win-x64'   = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
-    'win-arm64' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'not verified on an ARM64 device (T-227)' }
+    'win-arm64' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
     'osx-arm64' = [pscustomobject]@{ Os = 'macos'; Default = $true; Uploadable = $true; BlockedReason = $null }
 }
 
@@ -142,7 +144,7 @@ function Get-UploadableReleaseRuntimes {
     <#
     .SYNOPSIS
         The default RIDs of an OS whose files may be uploaded (Default and Uploadable), in the order of the table: what a
-        release build for the upload builds (T-226: Windows win-x64 until win-arm64 is verified, T-227).
+        release build for the upload builds (T-226: Windows win-x64 and win-arm64, macOS osx-arm64).
     #>
     param([Parameter(Mandatory)] [string] $HostOs, $Config = $script:ReleaseRuntimes)
     @($Config.Keys | Where-Object { $Config[$_].Os -eq $HostOs -and $Config[$_].Default -and $Config[$_].Uploadable })
@@ -153,7 +155,8 @@ function Get-ReleaseBuildRuntimeArguments {
     .SYNOPSIS
         Pure: the arguments of release-build.ps1 for a build that release-upload.ps1 accepts on an OS. None when the default
         RIDs of the OS are all uploadable; otherwise -Runtime with the uploadable ones (comma-separated: pwsh -File passes a
-        list as one string), e.g. -Runtime win-x64 while win-arm64 is built by default but not uploadable (T-226, T-227).
+        list as one string), e.g. -Runtime win-x64 for a RID table in which win-arm64 is built by default but not
+        uploadable (as until 2026-11-16, T-226).
         Throws when no RID of the OS may be uploaded.
     #>
     param([Parameter(Mandatory)] [string] $Os, $Config = $script:ReleaseRuntimes)
@@ -589,7 +592,7 @@ function Get-BuildInfoProblems {
     foreach ($rid in @($BuildInfo.Runtimes)) {
         if (-not $Config.Contains($rid)) { $problems.Add("Build output contains unknown runtime '$rid'."); continue }
         if (-not $Config[$rid].Uploadable) {
-            # T-226: name the build that leaves it out (Windows: -Runtime win-x64 while win-arm64 is not uploadable).
+            # T-226: name the build that leaves it out (e.g. -Runtime win-x64 for a win-arm64 that is not uploadable).
             $uploadable = @(Get-UploadableReleaseRuntimes -HostOs $Config[$rid].Os -Config $Config)
             $rebuild = if ($uploadable.Count -gt 0) { "Rebuild without it: pwsh scripts/release-build.ps1 -Runtime $($uploadable -join ',')" } else { 'Rebuild without it.' }
             $problems.Add("Build output contains $rid, which must not be uploaded: $($Config[$rid].BlockedReason). $rebuild")
@@ -3509,8 +3512,9 @@ function Get-ReleaseFlowFacts {
     $checksumFile = Get-ChecksumFileName $HostOs
 
     $toolchainProblems = [System.Collections.Generic.List[string]]::new()
-    # The RIDs release.ps1 builds for the upload (T-226: not win-arm64 until it is uploadable, T-227), so that a missing
-    # ARM64 toolchain does not stop a release of win-x64.
+    # The RIDs release.ps1 builds for the upload (T-226: on Windows win-x64 and win-arm64), so that the
+    # toolchain of every uploaded RID (also the MSVC ARM64 component) is checked before the release starts, and a RID
+    # that is not uploadable needs no toolchain.
     $runtimes = @(Get-UploadableReleaseRuntimes -HostOs $HostOs)
     $skipToolchain = Test-ReleaseTestToolchainSkip -RepoRoot $RepoRoot
     if (-not $skipToolchain) {
@@ -3836,7 +3840,7 @@ function Get-ReleaseNextSteps {
     $this = $names[$HostOs]
     $otherOs = if ($HostOs -eq 'windows') { 'macos' } else { 'windows' }
     $other = $names[$otherOs]
-    # T-226: the build of the other OS for the upload (Windows: -Runtime win-x64 while win-arm64 is not uploadable).
+    # T-226: the build of the other OS for the upload (the default build while all its default RIDs are uploadable).
     $otherBuild = (@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $otherOs)) -join ' '
     @(
         "Publishing is a separate manual step. Check the draft $tag on GitHub (text, files), then:"
@@ -4374,7 +4378,8 @@ $script:Winget = [pscustomobject]@{
     Repository         = 'pfoltynek/LayerPeek'
     Runtime            = 'win-x64'
     # T-226 (user decision 2026-11-12, question 3): the arm64 installer goes into the manifest only when the release has
-    # it, i.e. from the first release that uploads win-arm64 (T-227); the x64 installer is always required.
+    # it (from the first release after 1.0.0 that uploads win-arm64, user decision 2026-11-16); the x64 installer is
+    # always required.
     Arm64Runtime       = 'win-arm64'
     TemplateDirectory  = 'build/winget'
     PackagesRepository = 'microsoft/winget-pkgs'
