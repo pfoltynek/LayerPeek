@@ -1339,6 +1339,218 @@ function Get-VerifyLayerTimelapseFrames {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
+# Windows, the Dock and the camera image (T-215, mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live,
+# mac.camera-next-attempt; pure)
+# ---------------------------------------------------------------------------------------------------------------------
+
+function Format-VerifyBounds {
+    <# .SYNOPSIS "320 x 180 pt at 951, 619" of a window or frame (x, y, width, height in points). #>
+    param([AllowNull()] $Bounds)
+    if (-not $Bounds) { return 'no window' }
+    '{0:0.#} x {1:0.#} pt at {2:0.#}, {3:0.#}' -f [double] $Bounds.width, [double] $Bounds.height, [double] $Bounds.x, [double] $Bounds.y
+}
+
+function Get-VerifyBoundsProblem {
+    <#
+    .SYNOPSIS
+        How the bounds of a window (x, y, width, height in points) differ from the expected ones by more than -Tolerance
+        points, or $null when they match (-SizeOnly: the size only).
+    #>
+    param([AllowNull()] $Actual, [Parameter(Mandatory)] $Expected, [double] $Tolerance = 1, [switch] $SizeOnly)
+    if (-not $Actual) { return 'no window' }
+    $names = if ($SizeOnly) { 'width', 'height' } else { 'x', 'y', 'width', 'height' }
+    $off = @($names | Where-Object { [math]::Abs([double] $Actual.$_ - [double] $Expected.$_) -gt $Tolerance })
+    if ($off.Count -eq 0) { return $null }
+    "$(Format-VerifyBounds $Actual), expected $(Format-VerifyBounds $Expected) (off: $($off -join ', '); tolerance $Tolerance pt)"
+}
+
+function Get-VerifyWindowCorner {
+    <#
+    .SYNOPSIS
+        The corner of an area (a screen's usable area) a window is nearest to and its distances from the four edges
+        (Corner TopLeft / TopRight / BottomLeft / BottomRight, Left, Top, Right, Bottom in points; origin top left).
+    #>
+    param([Parameter(Mandatory)] $Window, [Parameter(Mandatory)] $Area)
+    $left = [double] $Window.x - [double] $Area.x
+    $top = [double] $Window.y - [double] $Area.y
+    $right = ([double] $Area.x + [double] $Area.width) - ([double] $Window.x + [double] $Window.width)
+    $bottom = ([double] $Area.y + [double] $Area.height) - ([double] $Window.y + [double] $Window.height)
+    [pscustomobject]@{
+        Corner = "$(if ($top -le $bottom) { 'Top' } else { 'Bottom' })$(if ($left -le $right) { 'Left' } else { 'Right' })"
+        Left   = [math]::Round($left, 1)
+        Top    = [math]::Round($top, 1)
+        Right  = [math]::Round($right, 1)
+        Bottom = [math]::Round($bottom, 1)
+    }
+}
+
+function Get-VerifyScreenOf {
+    <# .SYNOPSIS The screen of the helper's 'screens' list that contains the centre of a window, or $null. #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Screens, [AllowNull()] $Window)
+    if (-not $Window) { return $null }
+    $x = [double] $Window.x + [double] $Window.width / 2
+    $y = [double] $Window.y + [double] $Window.height / 2
+    @($Screens | Where-Object { $x -ge $_.frame.x -and $x -lt $_.frame.x + $_.frame.width -and $y -ge $_.frame.y -and $y -lt $_.frame.y + $_.frame.height }) | Select-Object -First 1
+}
+
+function Get-VerifyDockMenuProblems {
+    <#
+    .SYNOPSIS
+        The windows (their titles) the Dock menu of the app does not list (the helper's 'dock <app> menu' items), as
+        problems; empty when every one is there.
+    #>
+    param([AllowEmptyCollection()] [object[]] $MenuItems = @(), [Parameter(Mandatory)] [string[]] $WindowTitles)
+    $titles = @($MenuItems | Where-Object { $_ } | ForEach-Object { "$($_.title)" })
+    foreach ($title in $WindowTitles) {
+        if ($titles -cnotcontains $title) { "the Dock menu does not list the window '$title' (its items: $(@($titles | Where-Object { $_ } | ForEach-Object { "'$_'" }) -join ', '))" }
+    }
+}
+
+function Get-VerifyWindowOrder {
+    <#
+    .SYNOPSIS
+        Whether window -Number is above or below window -Other in the helper's 'windowsat' list (front to back): 'above',
+        'below', or 'unknown' when one of them is not at that point.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Windows, [int] $Number, [int] $Other)
+    $numbers = @($Windows | ForEach-Object { [int] $_.number })
+    $mine = [array]::IndexOf($numbers, $Number)
+    $theirs = [array]::IndexOf($numbers, $Other)
+    if ($mine -lt 0 -or $theirs -lt 0) { return 'unknown' }
+    if ($mine -lt $theirs) { 'above' } else { 'below' }
+}
+
+function Get-VerifyRtspPeers {
+    <#
+    .SYNOPSIS
+        The TCP connections ("127.0.0.1:52345->127.0.0.1:8554") of lsof lines (Get-RtspConnections): the same set before
+        and after shows that the stream was never opened again (T-184).
+    #>
+    param([AllowNull()] [AllowEmptyCollection()] [string[]] $Lines)
+    @(foreach ($line in @($Lines)) { if ("$line" -match '(\S+->\S+)') { $Matches[1] } }) | Sort-Object -Unique
+}
+
+function Get-VerifyLiveImageVerdict {
+    <#
+    .SYNOPSIS
+        Whether two captures of the camera image 1 s apart differ (the helper's 'regiondiff' JSON over the image area):
+        Live when at least -MinShare of the pixels differ by more than 8 levels (slightShare) or the mean difference is
+        at least -MinMean. A frozen image drawn again gives 0 for both. Live and Detail.
+    #>
+    param([AllowNull()] $Diff, [double] $MinShare = 0.002, [double] $MinMean = 0.3)
+    if (-not $Diff) { return [pscustomobject]@{ Live = $false; Detail = 'the captures could not be compared' } }
+    $share = [double] $Diff.slightShare
+    $mean = [double] $Diff.mean
+    $detail = '{0:0.###} % of {1} pixels changed by more than 8 levels, mean difference {2:0.###}' -f ($share * 100), $Diff.pixels, $mean
+    [pscustomobject]@{ Live = ($share -ge $MinShare -or $mean -ge $MinMean); Detail = $detail }
+}
+
+function Get-VerifyBlackFrames {
+    <#
+    .SYNOPSIS
+        The captures of the helper's 'lumawatch' (JSON lines: ms, file, mean, deviation or error) whose camera image is
+        black: a mean luminance below the larger of -Floor and -Share times the baseline (the median of the first
+        -BaselineCount captures without error, or -Baseline). Returns Baseline, Threshold, Frames (the captures with a
+        value), Errors (their count) and Black (the black ones).
+    #>
+    param([AllowEmptyCollection()] [object[]] $Frames = @(), [double] $Baseline = -1, [int] $BaselineCount = 5, [double] $Floor = 8, [double] $Share = 0.25)
+    $failed = { param($Frame) $Frame.PSObject.Properties['error'] -and $Frame.error }
+    $valid = @($Frames | Where-Object { $_ -and -not (& $failed $_) -and $_.PSObject.Properties['mean'] -and $null -ne $_.mean })
+    if ($Baseline -lt 0) {
+        $first = @($valid | Select-Object -First $BaselineCount | ForEach-Object { [double] $_.mean } | Sort-Object)
+        $Baseline = if ($first.Count -gt 0) { $first[[math]::Floor(($first.Count - 1) / 2)] } else { 0 }
+    }
+    $threshold = [math]::Max($Floor, $Baseline * $Share)
+    [pscustomobject]@{
+        Baseline  = [math]::Round($Baseline, 1)
+        Threshold = [math]::Round($threshold, 1)
+        Frames    = $valid.Count
+        Errors    = @($Frames | Where-Object { $_ -and (& $failed $_) }).Count
+        Black     = @($valid | Where-Object { [double] $_.mean -lt $threshold })
+    }
+}
+
+function ConvertFrom-VerifyNextAttemptText {
+    <#
+    .SYNOPSIS
+        The seconds of "Next attempt in about 5 s" / "… 1 min" (T-188): -SecondsFormat and -MinutesFormat are the resource
+        texts with "{0}" (CameraNextAttemptSeconds, CameraNextAttemptMinutes); minutes count as 60 s each. $null for any
+        other text.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Text, [Parameter(Mandatory)] [string] $SecondsFormat, [Parameter(Mandatory)] [string] $MinutesFormat)
+    if (-not $Text) { return $null }
+    foreach ($entry in @(@($SecondsFormat, 1), @($MinutesFormat, 60))) {
+        $parts = $entry[0] -split '\{0\}', 2
+        $pattern = '^' + (($parts | ForEach-Object { [regex]::Escape($_) -replace '\\ ', '[\s  ]' }) -join '(\d+)') + '$'
+        if ($Text.Trim() -cmatch $pattern) { return [int] $Matches[1] * $entry[1] }
+    }
+    $null
+}
+
+function Get-VerifyNextAttemptPauses {
+    <#
+    .SYNOPSIS
+        The pauses before the next camera attempts from the timeline of the helper's 'axwatch' on CameraNextAttempt
+        (ConvertFrom-VerifyAxWatch): a pause starts when the shown seconds grow (or first appear) and goes on while they
+        fall. Each pause: Start (seconds first shown), StartMs, LastMs, Values (ms, seconds, Gap: the line was hidden or
+        showed another text since the previous value). Entries without the line (mini preview, minimized, a new attempt)
+        only mark a gap; after a gap, seconds much lower than the time since the last value explains start a new pause.
+    #>
+    param([AllowEmptyCollection()] [object[]] $Timeline = @(), [Parameter(Mandatory)] [string] $SecondsFormat, [Parameter(Mandatory)] [string] $MinutesFormat)
+    $pauses = [System.Collections.Generic.List[object]]::new()
+    $current = $null
+    $gap = $false
+    foreach ($entry in @($Timeline | Where-Object { $_ })) {
+        $seconds = if ($entry.found) { ConvertFrom-VerifyNextAttemptText -Text "$($entry.text)" -SecondsFormat $SecondsFormat -MinutesFormat $MinutesFormat } else { $null }
+        if ($null -eq $seconds) { $gap = $true; continue }
+        # A new pause: the seconds grow, or after a gap they are much lower than the time since the last value explains
+        # (a new attempt in between, e.g. after the window was restored, starts again with 5 s).
+        $last = if ($current) { $current.Values[-1] }
+        if (-not $current -or $seconds -gt $last.Seconds -or ($gap -and $seconds -lt $last.Seconds - ([int] $entry.ms - $last.Ms) / 1000 - 2)) {
+            $current = [pscustomobject]@{ Start = $seconds; StartMs = [int] $entry.ms; LastMs = [int] $entry.ms; Values = [System.Collections.Generic.List[object]]::new() }
+            $pauses.Add($current)
+            $gap = $false
+        }
+        $current.Values.Add([pscustomobject]@{ Ms = [int] $entry.ms; Seconds = $seconds; Gap = $gap })
+        $current.LastMs = [int] $entry.ms
+        $gap = $false
+    }
+    $pauses.ToArray()
+}
+
+function Get-VerifyCountdownProblems {
+    <#
+    .SYNOPSIS
+        Problems of the camera's next attempt pauses (Get-VerifyNextAttemptPauses) against -Expected (seconds of the first
+        pauses, e.g. 5, 10, 20, 40, 60): each one starts with its value (or a second less: the first text may come a moment
+        late); under a minute the text falls by 1 s each second (two values without a gap between them: exactly 1 less,
+        600 to 1400 ms apart); every expected pause but the last lasts its full time (no mode switch shortens it: from its
+        first to its last value at least its start less 2 s).
+    #>
+    param([AllowEmptyCollection()] [object[]] $Pauses = @(), [Parameter(Mandatory)] [int[]] $Expected)
+    $shown = @($Pauses | ForEach-Object Start)
+    if ($Pauses.Count -lt $Expected.Count) { "$($Pauses.Count) pause(s) seen (starting with $($shown -join ', ') s), expected at least $($Expected.Count) ($($Expected -join ', ') s)" }
+    for ($i = 0; $i -lt [math]::Min($Pauses.Count, $Expected.Count); $i++) {
+        $pause = $Pauses[$i]
+        $want = $Expected[$i]
+        if ($pause.Start -gt $want -or $pause.Start -lt $want - 1) { "pause $($i + 1) started with $($pause.Start) s, expected $want s" }
+        $values = @($pause.Values)
+        for ($j = 1; $j -lt $values.Count; $j++) {
+            $previous = $values[$j - 1]
+            $value = $values[$j]
+            if ($value.Gap -or $previous.Seconds -ge 60) { continue }
+            $step = $previous.Seconds - $value.Seconds
+            $elapsed = $value.Ms - $previous.Ms
+            if ($step -ne 1 -or $elapsed -lt 600 -or $elapsed -gt 1400) { "pause $($i + 1) ($want s): $($previous.Seconds) s then $($value.Seconds) s after $elapsed ms (expected 1 s less after about 1000 ms)" }
+        }
+        $last = $values[-1].Seconds
+        if ($i -lt $Expected.Count - 1 -and $i + 1 -lt $Pauses.Count -and ($last -gt 2 -or ($pause.LastMs - $pause.StartMs) -lt ($want - 2) * 1000)) {
+            "pause $($i + 1) ($want s) ended early: last shown $last s, $([math]::Round(($pause.LastMs - $pause.StartMs) / 1000, 1)) s after its start"
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------
 
