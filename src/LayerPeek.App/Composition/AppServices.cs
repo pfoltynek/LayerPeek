@@ -146,8 +146,9 @@ internal static partial class AppServices
         // T-146: "Recording" in the tooltip of a printer whose camera is recorded.
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ICameraRecordings>()));
 #if DEBUG
-        // The test mode never starts a browser: the addresses go to a file of its data folder (T-067).
-        services.AddSingleton<IUrlLauncher>(sp => env.IsIsolated
+        // The test mode starts no browser: the addresses go to a file of its data folder (T-067), unless the macOS check
+        // mac.open-fake asks for the real launcher (T-238).
+        services.AddSingleton<IUrlLauncher>(sp => env.IsIsolated && !env.TestRealUrlLauncher
             ? new RecordingUrlLauncher(env.DataDirectory(), sp.GetRequiredService<ILogger<RecordingUrlLauncher>>())
             : new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
 #else

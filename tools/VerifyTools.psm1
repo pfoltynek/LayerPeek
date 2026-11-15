@@ -1773,6 +1773,17 @@ function Test-VerifyUrlsRecorded {
     "$Log" -match 'RecordingUrlLauncher: Test mode: an address on .+ was recorded instead of opening the browser'
 }
 
+function Get-VerifyOpenFakeEnvironment {
+    <#
+    .SYNOPSIS
+        The environment of the test app of mac.open-fake: the PATH with the fake open first, and the Debug switch that opens
+        the links through the real launcher (/usr/bin/open, T-238) instead of recording them in opened-urls.txt. An older
+        build ignores the switch and still records them (Test-VerifyUrlsRecorded, the SKIP of the check).
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    @{ PATH = $Path; LAYERPEEK_TEST_REAL_URL_LAUNCHER = '1' }
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------

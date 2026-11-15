@@ -1327,6 +1327,13 @@ Describe 'First run with an unlocked screen (2026-11-15, pure)' {
         Test-VerifyUrlsRecorded 'LayerPeek.App.Platform.ProcessUrlLauncher: opened' | Should -BeFalse
         Test-VerifyUrlsRecorded $null | Should -BeFalse
     }
+
+    It 'starts the test app of mac.open-fake with the fake open first in PATH and the real launcher of T-238' {
+        $environment = Get-VerifyOpenFakeEnvironment -Path '/tmp/fake-open:/usr/bin:/bin'
+        $environment.PATH | Should -BeExactly '/tmp/fake-open:/usr/bin:/bin'
+        $environment.LAYERPEEK_TEST_REAL_URL_LAUNCHER | Should -BeExactly '1'
+        @($environment.Keys) | Should -HaveCount 2
+    }
 }
 
 Describe 'Small checks (mac.camera-pin-ax, mac.detection-region, mac.appkit-language, mac.open-fake, mac.hw-decoding-switch, mac.keys-czech-layout; T-216, pure)' {
