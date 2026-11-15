@@ -171,6 +171,12 @@ Rozhodnuto uživatelem 2026-11-14:
     mezím T-189, core-dev, vazba na T-202). Do opravy se tyto testy přeskočí **jen v CI** (`LAYERPEEK_CI=1` z workflow,
     důvod s číslem úkolu), lokálně běží.
 
+**Rozhodnuto uživatelem 2026-11-15:** zbytek úkolu dokončí **relace na Windows**: zkontrolovat první celý zelený běh po
+opravě souběhu (merge `38e38809`, pushe se už neruší), zkušební PR s úmyslně rozbitým testem (uživatel ho schválil:
+založit, ověřit červený `CI result` a nahrané logy, pak zavřít bez merge a smazat větev) a povinná kontrola
+`CI result` v rulesetu (schváleno přes `gh api`, příkaz ale před odesláním ukázat uživateli; postup
+`docs/prerequisites.md`, „CI (GitHub Actions)“). Relace na Macu na tom dál nepracuje.
+
 ## Poznámky k implementaci
 Stav 2026-11-13 (qa-reviewer, na Macu): workflow, Dependabot, test pravidel a dokumentace hotové a lokálně ověřené.
 Úkol zůstává v `in-progress/`: zelený běh na GitHubu, cache při druhém běhu, červený běh s rozbitým testem a počty
@@ -354,3 +360,18 @@ proto nespustil. Doby: macOS build Release 144 s / Debug 78 s / testy 819 s, Win
 - **Zbývá:** zelený macOS po pushi této opravy (pak kritérium zeleného běhu s odkazy), PR s úmyslně rozbitým testem
   a povinná kontrola v rulesetu (uživatel). **Proces:** sloučení `origin/develop` z druhého stroje řešit třícestně, ne
   „vzít celý soubor“ – doporučení pro hlavního agenta.
+
+**Oprava návrhu souběhu (2026-11-15, qa-reviewer)** – běh 43722485576 (push s kódem z Windows) zrušil pozdější push jen
+s dokumentací (`bb75436d`); jeho běh 43723241377 přeskočil buildy a za 36 s byl zelený, takže kód nikdy neprošel testy.
+Příčina: `cancel-in-progress: true` i pro pushe a rychlé projití podle vlastního rozdílu pushe (`before..after`).
+Ani bez rušení by rozdíl pushe nestačil: GitHub drží ve skupině jen jeden čekající běh a novější push ho nahradí
+(zruší), takže běh může zastupovat pushe, jejichž běh se nespustil. Zvoleno nejjednodušší robustní řešení:
+- `cancel-in-progress: ${{ github.event_name == 'pull_request' }}` – PR ruší svůj starší běh, push nikdy nepřeruší
+  rozběhnutý běh;
+- rychlé projití jen pro PR (rozdíl slučovacího commitu `HEAD^1..HEAD` = celý PR bez ohledu na zrušené běhy); **push
+  a ruční spuštění vždy plný build a testy** (stojí minuty runnerů i u pushe jen s dokumentací; pro veřejný repozitář
+  zdarma). Varianta „porovnat s posledním commitem s úspěšným plným během“ by potřebovala API Actions s tokenem
+  (`actions: read`) – zamítnuto jako složitější.
+- `CiWorkflowTests.OnlyPullRequestsCancelOlderRunsAndSkipTheBuild` to hlídá (ověřeno mutací: `cancel-in-progress: true`
+  test shodí); klasifikátor znovu ověřen náhradním `git` (PR s dokumentací = přeskočit, PR s kódem / `CHANGELOG.md`,
+  push i ruční spuštění = plný běh). `docs/prerequisites.md` (oddíl CI) aktualizovaný.

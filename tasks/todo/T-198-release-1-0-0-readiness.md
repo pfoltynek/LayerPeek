@@ -398,8 +398,8 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 - [ ] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný
 - [ ] B10: T-202 hotový (vlastní minimální LGPL build FFmpeg na Windows s D3D11VA, zdroj Windows u vydání bez BtbN)
 - [ ] B11: T-201 hotový (přeinstalace respektuje vypnutý autostart)
-- [ ] Uživatel zapnul v GitHubu (Settings → Emails) „Keep my email addresses private“ a „Block command line pushes
-      that expose my email“ (otázka 11); první push po zapnutí projde
+- [ ] Uživatel zapnul v GitHubu (Settings → Emails) „Keep my email addresses private“ (otázka 11; „Block command line
+      pushes“ se **nezapíná**, rozhodnutí 2026-11-15)
 - [x] Odpovědi na otázky 2–4 a 6–10 zapsané
 - [x] `docs/release.md` po rozhodnutí o otázce 4 popisuje tok 1.0.0 (oba OS do konceptu), doplněný `caffeinate`
       a oprava věty o zkušebním vydání (2.2)
@@ -445,6 +445,11 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     GitHub při pushi kontroluje jen **nejnovější commit** („we'll check the most recent commit“), staré commity
     s osobní adresou v historii push neblokují, pokud špička větve má adresu noreply. Obě volby zapne **uživatel**
     v Settings → Emails (krit. níže).
+
+    **Změněno uživatelem 2026-11-15:** obě volby platí pro **celý účet** GitHub (ne jen pro tento repozitář), proto
+    zapnout **jen „Keep my email addresses private“**; **„Block command line pushes“ nezapínat** (blokoval by push
+    i v jiných projektech uživatele s osobní adresou). Adresu noreply pro LayerPeek zajišťuje lokální
+    `git config user.email` v každém klonu (Mac hotovo; Windows → T-125 2aa) a `user.useConfigOnly` (otázka 12).
 12. **`git config user.useConfigOnly true`** (globálně na obou počítačích): git pak odmítne commit bez nastaveného
     `user.email` místo odvození adresy ze jména počítače. Doporučuje se jako pojistka pro nové klony; zavést?
 

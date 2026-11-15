@@ -2,8 +2,9 @@
 # macOS for every push to develop / release/* / hotfix/* and every pull request into develop / main.
 #
 # The required status check of the ruleset is the job "CI result" (docs/prerequisites.md, section CI). It always
-# reports: a change that touches only files no build or test reads (task notes, most docs) passes it at once without
-# the expensive jobs, so a required check never waits for a run that does not start (no paths-ignore on purpose).
+# reports: a pull request that touches only files no build or test reads (task notes, most docs) passes it at once
+# without the expensive jobs, so a required check never waits for a run that does not start (no paths-ignore on
+# purpose). A push always builds and tests: its run may stand for earlier pushes whose runs never ran (see concurrency).
 #
 # Security: read-only token, no secrets, pull_request (never pull_request_target), every action pinned to the commit
 # of its release tag (the comment names the tag; .github/dependabot.yml proposes updates).
@@ -20,9 +21,14 @@ on:
 permissions:
   contents: read
 
+# Pull requests: a new push to the PR cancels the running check (each run covers the whole PR). Pushes to a branch: the
+# running run always finishes; GitHub keeps one pending run per group and a newer push replaces it, so the newest pending
+# run tests the tip, which contains the commits of the replaced runs. That is why a push never takes the docs-only
+# shortcut: its own diff (before..after) would not show the code of a replaced or cancelled run (T-218, run 43722485576
+# was cancelled by a docs-only push whose run then went green without testing that code).
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   DOTNET_NOLOGO: 'true'
@@ -41,8 +47,10 @@ jobs:
     outputs:
       code: ${{ steps.classify.outputs.code }}
     steps:
-      # Two commits: a pull request is checked out as its merge commit, whose first parent is the target branch.
+      # Pull requests only. Two commits: a pull request is checked out as its merge commit, whose first parent is the
+      # target branch, so HEAD^1..HEAD is the whole pull request whatever runs were cancelled before.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'pull_request'
         with:
           persist-credentials: false
           fetch-depth: 2
@@ -52,16 +60,13 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
           code=true
           files=""
+          # Push and workflow_dispatch: always everything (see concurrency above).
           if [ "$EVENT" = pull_request ]; then
             files=$(git diff --name-only HEAD^1 HEAD)
-          elif [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] \
-            && git fetch --quiet --no-tags --depth=1 origin "$BEFORE"; then
-            files=$(git diff --name-only "$BEFORE" HEAD)
           fi
           # Docs-only means: every changed file is one that no build or test reads. Tests do read manuals/*/manual.md
           # (UserManualTests: the anchors of the manual), docs/troubleshooting.md and CHANGELOG.md (the release notes
@@ -78,9 +83,9 @@ jobs:
               esac
             done <<< "$files"
           fi
-          # A new branch, a force push, workflow_dispatch or an empty diff: run everything.
+          # A push, workflow_dispatch or an empty diff: run everything.
           echo "Changed files:"
-          echo "${files:-(unknown, full run)}"
+          echo "${files:-(not a pull request or no diff: full run)}"
           echo "code=$code"
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
