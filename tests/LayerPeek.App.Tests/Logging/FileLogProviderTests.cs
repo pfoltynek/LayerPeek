@@ -148,11 +148,20 @@ public sealed partial class FileLogProviderTests : IDisposable
         const int PerThread = 1000;
         Parallel.For(0, 8, thread =>
         {
-            ILogger logger = (thread % 2 == 0 ? primary : secondary).CreateLogger($"W{thread}");
+            bool isPrimary = thread % 2 == 0;
+            ILogger logger = (isPrimary ? primary : secondary).CreateLogger($"W{thread}");
             string padding = new('x', 40 + thread);
             for (int i = 0; i < PerThread; i++)
             {
                 logger.Write(LogLevel.Information, $"{i} {padding}");
+                if (isPrimary && i % 100 == 99)
+                {
+                    // The writer appends its whole queue at once and rotates only a file that already has records. On a
+                    // loaded machine (the 4-CPU CI runner) its thread could get the CPU only after all the logging, write
+                    // everything in one append to a still empty file and never rotate. Waiting for the file every 100
+                    // records makes it append at least ten times while the secondary writes, so it rotates meanwhile.
+                    Assert.True(primary.Flush(Wait));
+                }
             }
         });
 

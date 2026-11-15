@@ -128,6 +128,50 @@ přeskočení v CI odstraněné. **Zbývá kritérium „3 zelené běhy CI po s
   0 varování, Core.Tests 2× a Camera.FFmpeg.Tests 1× zelené (bez zátěže).
 - Žádný nový balíček NuGet.
 
+### Selhání v CI po T-202 (běh 43712544910, 2026-11-15, větev `feature/ci-windows-ffmpeg-allocation`)
+- Selhaly tři testy hubu v `FFmpegCameraFeedAllocationTests`: `SteadyStateFramesThroughTheHubDoNotAllocate`
+  („Allocated 240 B“), `SteadyStateDisplayFramesThroughTheHubDoNotAllocate` a
+  `SteadyStateGrayscaleFramesThroughTheHubDoNotAllocate` („No pass measured a steady state.“). Ostatní alokační testy
+  FFmpeg (bez hubu) prošly.
+- **Vlastní build FFmpeg (T-202) příčinou není.** Porovnání A/B se stejnými testy a dočasnou diagnostikou (kopie
+  výstupu testů s DLL z mezipaměti BtbN `e907b01f…` proti vlastnímu buildu `win-x64-6363cabd…`): bez zátěže na 4 jádrech
+  obě sady ~2 ms na snímek, žádné selhání; na 2 jádrech s 8–10 zátěžovými procesy obě sady stejně – 240 B a průchody
+  „pozdě“. Dekodér běží v obou s `thread_count = 1` (`FFmpegDecoder`), takže w32threads/pthreads nehraje roli. V CI šlo
+  o zátěž souběžných sestav (Core.Tests, Detection.Tests běžely současně) a náhodu, že předchozí běh prošel.
+- Reprodukce: nativní runner `LayerPeek.Camera.FFmpeg.Tests.exe -method "*ThroughTheHub*"`, afinita `0x3` a 8–10
+  procesů `pwsh` s nekonečnou smyčkou na stejných jádrech: 5 z 5 běhů s původním testem červených (240 B v 4 bězích,
+  „No pass measured a steady state.“ ve 2), přesně jako v CI.
+- **Příčina A – hladovějící spotřebitel:** spotřebitel testu se točil přes `Thread.Yield()`; vedle vlákna dekodéru a
+  zátěže dostal tak málo CPU, že než vzal 3 snímky (podmínka zahřátí), soubor (71 snímků, přehrává se tak rychle, jak se
+  dekóduje) odehrál 40–71 snímků. Průchod pak neměl 30 snímků rezervy (`start + 30 > 71`) a nic neměřil; v CI všech
+  10 průchodů → „No pass measured a steady state.“ Diagnostika: `taken` 3–7 proti `dropped` 45–66.
+- **Příčina B – konec souboru uvnitř měření (240 B):** průchod, kterému rezerva zbyla, mohl přesto dojet na konec
+  souboru, protože spotřebitel byl mimo CPU, zatímco dekodér dohrál zbytek. Po posledním snímku `ReconnectingCameraFeed`
+  zavírá dekodér (čeká na jeho vlákno) a plánuje reconnect (propojený `CancellationTokenSource`, `Task.Delay`…) –
+  ~240 B – a stav „konec streamu“ hlásí až potom, takže kontrola `lease.Status.State == Streaming` po měření ještě
+  prošla. Důkaz: všech 11 průchodů s 240 B mělo po měření `taken + dropped` = 71 (celý soubor), žádný průchod s menším
+  počtem 240 B nenaměřil; vlákno testu i vlákno dekodéru (dočasný čítač `GetAllocatedBytesForCurrentThread` po každém
+  snímku) alokovaly 0 B. Nejde o alokaci na snímek ani o soupeření o `Lock` (`Monitor.LockContentionCount` = 0 během
+  průchodů; první soupeření o nový `Lock` by stálo 56 B, ověřeno zvlášť).
+- **Oprava měření** (`MeasureHubPassAsync`, mez 0 B beze změny, všechna vlákna se dál počítají): spotřebitel čeká na
+  `FrameAvailable` hubu přes `AutoResetEvent` (`WaitOne(10)`, jako okno kamery, které si nechá poslat oznámení) místo
+  aktivního točení – probuzené vlákno dostane CPU hned, takže zahřátí končí na 10 snímcích a spotřebitel vezme většinu
+  snímků; průchod je platný jen tehdy, když po měření (po převzetí posledního snímku) `taken + dropped` < 71, tedy konec
+  souboru v měření nenastal. Měřená smyčka má navíc časový limit („The frames stopped.“).
+- Ověření: 2 jádra + 10 zátěžových procesů, testy hubu 6 z 6 zelené (diagnostika: `start` většinou 10, `taken` 21–40
+  z 30–40, žádný průchod „pozdě“, ojedinělý šum 24 B / 98 KB v jednom průchodu pokryjí opakované průchody);
+  4 jádra + 8 procesů 4 z 4 zelené; `dotnet test --project tests/LayerPeek.Camera.FFmpeg.Tests` (jako v CI) bez omezení
+  1×, na 4 jádrech + 6 procesech 3×, na 2 jádrech + 8 procesech 2× zelené.
+- Souběžně opraven nestabilní `FileLogProviderTests.TwoIndependentWritersLoseAndSplitNoRecords` („The primary writer
+  rotated.“, v CI 14 ms): zapisovač zapíše celou frontu jedním `Append` a rotuje jen soubor, který už záznamy má
+  (`LogFile.Append`: `end > 0`). Když vlákno zapisovače primární instance dostalo CPU až po všem logování, zapsalo vše
+  jedním zápisem do ještě prázdného souboru a nerotovalo nikdy (případně jediný pokus o rotaci selhal a další zápis už
+  nepřišel). Chování aplikace je správné; test teď u primárních vláken po každých 100 záznamech volá `Flush`, takže
+  primární zapisovač zapíše aspoň desetkrát během zápisů sekundárního a rotace nastane vždy. Lokálně se selhání
+  nereprodukovalo (1 jádro + 6 procesů, 10 běhů původního testu zelených), příčina je odvozená z kódu a z doby běhu v CI.
+- Revize (qa-reviewer): `AutoResetEvent` v `MeasureHubPassAsync` se deklaruje před hubem, takže se uvolní až po
+  něm (snímek publikovaný během konce odběru ho ještě může signalizovat).
+
 ### Zbývá (hlavní agent)
 - Kritérium 2: po pushi aspoň 3 zelené běhy CI po sobě na `windows-2025` (bez přeskočení); teprve pak úkol do `done/`.
 - Kritérium 3: `dotnet build LayerPeek.slnx` je bez varování (ověřeno ve worktree); úplný `dotnet test` celého řešení
