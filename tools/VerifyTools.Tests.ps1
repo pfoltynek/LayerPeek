@@ -41,6 +41,16 @@ BeforeAll {
         $output = @(& $command[0] @prefix -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot $Name) @Arguments 2>&1 | ForEach-Object { "$_" })
         [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output; Text = $output -join "`n" }
     }
+
+    # The same read-only run (e.g. -ListChecks -Preset release) only once per test run: every child pwsh imports both
+    # modules and parses the whole script, which took 20-66 s each on the loaded 4-CPU Windows CI runner (T-246). The
+    # tests only read the result.
+    $script:ScriptRuns = @{}
+    function Invoke-ScriptOnce([string] $Name, [string[]] $Arguments) {
+        $key = (@($Name) + $Arguments) -join "`n"
+        if (-not $script:ScriptRuns.ContainsKey($key)) { $script:ScriptRuns[$key] = Invoke-Script $Name $Arguments }
+        $script:ScriptRuns[$key]
+    }
 }
 
 AfterAll {
@@ -83,6 +93,18 @@ Describe 'Check definitions' {
         $lines[0] | Should -Be 'a.one  [permission]  title'
         $lines | Should -Contain '    closes: T-002 kritérium 3'
         $lines | Should -Contain '    needs:  sudo'
+    }
+
+    It 'gives the same list as one text with -AsText, and nothing without checks (T-246)' {
+        $checks = @(
+            New-VerifyCheck -Id 'a.one' -Title 'one' -Closes 'T-001 kritérium 1', 'T-002 kritérium 3' -Kind Permission -Permission 'sudo' -Action { }
+            New-VerifyCheck -Id 'a.two' -Title 'two' -Closes 'T-003 kritérium 2' -Kind Auto -Needs Session -Action { }
+        )
+        $text = @(Format-VerifyCheckList -Checks $checks -AsText)
+        $text | Should -HaveCount 1
+        $text[0] | Should -BeOfType [string]
+        $text[0] | Should -BeExactly ((Format-VerifyCheckList -Checks $checks) -join [Environment]::NewLine)
+        @(Format-VerifyCheckList -Checks @() -AsText) | Should -HaveCount 0
     }
 }
 
@@ -722,7 +744,7 @@ Describe 'macOS helpers (pure)' {
         }
 
         It 'puts mac.menu-items into the release preset with its preconditions' {
-            $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+            $run = Invoke-ScriptOnce 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
             $run.ExitCode | Should -Be 0 -Because $run.Text
             $run.Output[0] | Should -BeLike '*allowed in advance:*mac.menu-items*'
             $line = @($run.Output | Where-Object { $_ -like 'mac.menu-items  *' })
@@ -858,7 +880,7 @@ Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashca
     }
 
     It 'puts the recording checks into the release preset' {
-        $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run = Invoke-ScriptOnce 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
         $run.ExitCode | Should -Be 0 -Because $run.Text
         foreach ($id in 'mac.decode', 'mac.recording-files', 'mac.timelapse-files') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
         foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.file-dialogs', 'mac.dock-windows', 'mac.mini-after-fullscreen', 'mac.camera-live', 'mac.camera-next-attempt') {
@@ -1067,13 +1089,17 @@ Describe 'The stand-in GitHub API (tools/fake-github-releases.ps1)' {
 
     It 'ends when its parent process ends' {
         $out = Join-Path $script:TempRoot 'github-parent.txt'
-        $parent = Start-ChildPwsh @('-Command', 'Start-Sleep -Seconds 6')
+        # The parent ends when the test kills it (as a killed verification run), not after a fixed sleep (T-246): the sleep
+        # made the test wait for it, and a server that took longer to start than the sleep (a loaded CI runner) would
+        # already have seen its parent gone.
+        $parent = Start-ChildPwsh @('-Command', 'Start-Sleep -Seconds 300')
         $server = Start-ChildPwsh @('-File', (Join-Path $PSScriptRoot 'fake-github-releases.ps1'), '-ParentProcessId', "$($parent.Id)") $out
         try {
             $deadline = [DateTime]::UtcNow.AddSeconds(30)
             while ([DateTime]::UtcNow -lt $deadline -and -not ((Test-Path -LiteralPath $out) -and (Select-String -LiteralPath $out -Pattern '^Address: ' -Quiet))) { Start-Sleep -Milliseconds 100 }
             Get-Content -LiteralPath $out -Raw | Should -Match 'Address: http://127\.0\.0\.1:\d+/'
             $server.HasExited | Should -BeFalse
+            $parent.Kill()
             $parent.WaitForExit(30000) | Should -BeTrue
             $server.WaitForExit(30000) | Should -BeTrue
         }
@@ -1113,7 +1139,7 @@ Describe 'The verification scripts' {
     }
 
     It 'macos-verify.ps1 -ListChecks -Preset release lists only Auto and Permission checks with their criteria (T-208)' {
-        $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run = Invoke-ScriptOnce 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
         $run.ExitCode | Should -Be 0 -Because $run.Text
         $run.Output[0] | Should -Match '^Preset release: \d+ checks, unattended; allowed in advance: mac\.'
         $listed = @($run.Output | Where-Object { $_ -match '^\S+  \[(auto|permission|manual)\]' })
@@ -1436,7 +1462,7 @@ Describe 'Small checks (mac.camera-pin-ax, mac.detection-region, mac.appkit-lang
     }
 
     It 'puts the small checks into the release preset' {
-        $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run = Invoke-ScriptOnce 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
         $run.ExitCode | Should -Be 0 -Because $run.Text
         foreach ($id in 'mac.camera-autoclose', 'mac.camera-pin-ax', 'mac.open-fake') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
         foreach ($id in 'mac.detection-region', 'mac.appkit-language', 'mac.hw-decoding-switch', 'mac.keys-czech-layout') {
