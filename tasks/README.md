@@ -274,6 +274,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-228 | Windows – 47 selhávajících testů na develop (snapshoty UI, proxy, porty E2E, FFmpeg, Pester) | windows | qa-reviewer | P1 | – |
 | T-232 | Windows – aktualizace nativních závislostí a nástrojů (FFmpeg, MSVC/Windows SDK, Playwright/Edge, runner CI) | windows | qa-reviewer | P2 | T-202 |
 | T-234 | Pole hesla – UI Automation hlásí IsPassword = False a délku hesla (Avalonia 12.1.6) | windows | ui-dev | P3 | T-054 |
+| T-236 | CI – křížový build win-arm64 (Native AOT publish + kontrola architektury, bez spuštění) | windows | qa-reviewer | P3 | T-225, T-226 |
 
 ### macOS (`macos`) – jen na Macu, později
 
