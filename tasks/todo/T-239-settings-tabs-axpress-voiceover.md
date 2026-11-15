@@ -40,8 +40,7 @@ asistenční nástroje; uživatel VoiceOveru tak záložky přepne jen klávesni
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
-1. Obejít chybu Avalonie vlastním automation peerem, nebo počkat na opravu v Avalonii (a do té doby záložky pro
-   VoiceOver jen klávesnicí)?
+1. ~~Obejít chybu vlastním peerem, nebo počkat?~~ **Rozhodnutí uživatele 2026-11-15: počkat na opravu v Avalonii.** Do té doby uživatelé VoiceOveru přepínají záložky klávesnicí; kontroly vybírají záložky klikem. Nahlášení chyby Avalonii jen s výslovným souhlasem uživatele. Úkol zůstává otevřený, dokud oprava v Avalonii nevyjde.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
