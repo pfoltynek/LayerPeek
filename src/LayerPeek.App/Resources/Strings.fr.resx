@@ -912,6 +912,9 @@
   <data name="LicensesComponentTmdsDBus" xml:space="preserve">
     <value>Tmds.DBus.Protocol (Linux uniquement)</value>
   </data>
+  <data name="LicensesComponentInter" xml:space="preserve">
+    <value>Inter (police, macOS uniquement)</value>
+  </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Fenêtre de la caméra</value>
   </data>

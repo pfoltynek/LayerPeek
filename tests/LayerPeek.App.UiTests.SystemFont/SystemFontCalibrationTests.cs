@@ -18,6 +18,10 @@ namespace LayerPeek.App.UiTests.SystemFont;
 /// the app does on macOS. The reference is the system font that Avalonia's own font manager picks on macOS
 /// (<c>.AppleSystemUIFont</c> through CoreText, what the app's default font resolves to; user decision 2026-11-14):
 /// sample texts in the weights the UI uses (regular, semibold, bold) at the common UI sizes must be exactly as wide.
+/// Since T-223 the app's default font on macOS is Inter, not San Francisco: this assembly then checks the layout for a
+/// return to San Francisco (once Avalonia lays it out like AppKit), not the shipped app; the check in the running app
+/// (T-127, item 1k) uses the Inter widths of <c>SettingsWindowTabWidthsUiTests</c> instead of
+/// <see cref="MainTabWidthsForTheCheckInTheRunningApp"/>.
 /// </summary>
 /// <remarks>
 /// AppKit lays the same texts out wider (macOS 27.2.1, 2026-11-14: 7 to 13 % regular, 14 to 21 % semibold and bold):

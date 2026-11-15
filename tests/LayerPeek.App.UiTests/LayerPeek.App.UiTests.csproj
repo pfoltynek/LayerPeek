@@ -12,7 +12,8 @@
       Headless UI tests (T-031): the plain Avalonia.Headless platform with an own xUnit v3 assembly fixture
       (Infrastructure/HeadlessSession.cs). Avalonia.Headless.XUnit is not used: 12.1.4 is built against
       xunit.v3.extensibility.core 3.2.2 and fails test discovery with xunit.v3 4.x. Skia renders the snapshot tests,
-      Inter is the only font they use (no installed system font). All test-only, not AOT relevant.
+      Inter is the only font they use (no installed system font; the same package and version as the app's default font
+      on macOS, T-223). All test-only, not AOT relevant.
     -->
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="Avalonia.Headless" />
