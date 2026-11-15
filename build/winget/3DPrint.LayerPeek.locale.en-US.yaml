@@ -1,0 +1,40 @@
+# Created by scripts/release-winget.ps1 from build/winget (LayerPeek, T-059)
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
+
+PackageIdentifier: 3DPrint.LayerPeek
+PackageVersion: @VERSION@
+PackageLocale: en-US
+Publisher: Petr Foltýnek
+PublisherUrl: https://github.com/pfoltynek
+PublisherSupportUrl: https://github.com/pfoltynek/LayerPeek/issues
+Author: Petr Foltýnek
+PackageName: LayerPeek
+PackageUrl: https://github.com/pfoltynek/LayerPeek
+License: GPL-3.0-only
+LicenseUrl: https://github.com/pfoltynek/LayerPeek/blob/v@VERSION@/LICENSE
+Copyright: Copyright © Petr Foltýnek
+ShortDescription: Watch your Prusa 3D printers from the system tray, with a live camera, print progress and notifications over your local network.
+Description: |-
+  LayerPeek lives in the Windows notification area (and the macOS menu bar) and shows the state and progress of every
+  Prusa printer you add. A click opens a live camera window with the print progress, temperatures and the finish time
+  on the picture, and system notifications tell you when a print finishes, the printer needs attention, an error occurs
+  or the printer goes offline. It talks to the printers directly over the local network through PrusaLink: no cloud
+  service, no account, no telemetry.
+  LayerPeek is an independent community project. It is not an official product of Prusa Research and is not affiliated
+  with or endorsed by Prusa Research a.s.
+Moniker: layerpeek
+Tags:
+- 3d-printer
+- 3d-printing
+- camera
+- monitoring
+- notifications
+- prusa
+- prusalink
+- system-tray
+ReleaseNotesUrl: https://github.com/pfoltynek/LayerPeek/releases/tag/v@VERSION@
+Documentations:
+- DocumentLabel: User manual
+  DocumentUrl: https://github.com/pfoltynek/LayerPeek/blob/main/manuals/en/manual.md
+ManifestType: defaultLocale
+ManifestVersion: 1.28.0

@@ -44,7 +44,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
-    public void FixedItemsOfferDiagnosticsSettingsAboutAndQuitWithAccessKeys()
+    public void FixedItemsOfferDiagnosticsSettingsManualAboutAndQuitWithAccessKeys()
     {
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
@@ -59,6 +59,8 @@ public sealed class TrayMenuViewModelTests : IDisposable
             },
             item => AssertCommand(item, TrayMenuCommand.Settings, "_Settings…", enabled: true),
             item => Assert.True(item.IsSeparator),
+            // T-172: "User manual" right above "About".
+            item => AssertCommand(item, TrayMenuCommand.Manual, "_User manual", enabled: true),
             item => AssertCommand(item, TrayMenuCommand.About, "_About", enabled: true),
             item => AssertCommand(item, TrayMenuCommand.Quit, "_Quit", enabled: true));
         Assert.All(_viewModel.FixedItems.Where(static item => !item.IsSeparator), static item => Assert.True(item.HasAccessKey));
@@ -258,7 +260,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher, _gateway), TrayMenuOptions.Default);
 
         Assert.Equal(
-            ["_Diagnostika…", "_Nastavení…", "_O aplikaci", "U_končit"],
+            ["_Diagnostika…", "_Nastavení…", "_Uživatelská příručka", "_O aplikaci", "U_končit"],
             viewModel.FixedItems.Where(item => !item.IsSeparator).Select(item => item.Header));
     }
 
@@ -421,7 +423,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         // Applied right away (UI thread), not posted.
         Assert.Equal(1, fixedChanges);
         Assert.Equal(
-            ["_Diagnostika…", "_Nastavení…", "_O aplikaci", "U_končit"],
+            ["_Diagnostika…", "_Nastavení…", "_Uživatelská příručka", "_O aplikaci", "U_končit"],
             _viewModel.FixedItems.Where(item => !item.IsSeparator).Select(item => item.Header));
         Assert.Equal("Beta: Tiskne – 42\u00A0%", _viewModel.PrinterItems[1].Header);
         // The cached submenu is formatted again too.

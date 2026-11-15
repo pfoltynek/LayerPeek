@@ -128,6 +128,49 @@ internal sealed partial class UserNotificationService : INotificationService, ID
     }
 
     /// <summary>
+    /// The notification about a refused update (T-181), queued like a printer notification, with the fixed identifier
+    /// <see cref="UpdateNotificationText.RejectedIdentifier"/> and the launch argument <see cref="ToastLaunchArgument.UpdateSettings"/>.
+    /// </summary>
+    public void ShowUpdateRejected(UpdateRejectedNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Writer.TryWrite(notification))
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _started = true;
+                _ = Task.Run(RunAsync, CancellationToken.None);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Withdraws the notification about a new version (T-181) by its identifier <see cref="UpdateNotificationText.Identifier"/>,
+    /// queued like a notification (after one about the offer that still waits); needs no permission.
+    /// </summary>
+    public void WithdrawUpdateAvailable()
+    {
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Writer.TryWrite(UpdateNotificationWithdrawal.Instance))
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _started = true;
+                _ = Task.Run(RunAsync, CancellationToken.None);
+            }
+        }
+    }
+
+    /// <summary>
     /// The notification about a failed camera recording (T-146), queued like a printer notification, with the launch argument
     /// <see cref="ToastLaunchArgument.RecordingSettings"/> (a click opens the settings window on the Recording tab).
     /// </summary>
@@ -228,6 +271,14 @@ internal sealed partial class UserNotificationService : INotificationService, ID
                     {
                         await ShowUpdateNowAsync(update, stop).ConfigureAwait(false);
                     }
+                    else if (notification is UpdateRejectedNotification rejected)
+                    {
+                        await ShowUpdateRejectedNowAsync(rejected, stop).ConfigureAwait(false);
+                    }
+                    else if (notification is UpdateNotificationWithdrawal)
+                    {
+                        WithdrawUpdateNow();
+                    }
                     else if (notification is RecordingNotification recording)
                     {
                         await ShowRecordingNowAsync(recording, stop).ConfigureAwait(false);
@@ -324,6 +375,48 @@ internal sealed partial class UserNotificationService : INotificationService, ID
         catch (Exception ex)
         {
             LogUpdateShowFailed(ex, notification.Version);
+        }
+    }
+
+    private async Task ShowUpdateRejectedNowAsync(UpdateRejectedNotification notification, CancellationToken stop)
+    {
+        if (!await IsAllowedAsync(stop).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            CultureInfo culture = _textCulture();
+            stop.ThrowIfCancellationRequested();
+            _center.Post(new UserNotificationRequest(
+                UpdateNotificationText.RejectedIdentifier,
+                UpdateNotificationText.RejectedTitle(culture),
+                UpdateNotificationText.RejectedBody(culture),
+                notification.PlaySound,
+                ToastLaunchArgument.UpdateSettings));
+            LogUpdateRejectedShown();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogUpdateRejectedShowFailed(ex);
+        }
+    }
+
+    private void WithdrawUpdateNow()
+    {
+        try
+        {
+            _center.Remove(UpdateNotificationText.Identifier);
+            LogUpdateWithdrawn();
+        }
+        catch (Exception ex)
+        {
+            LogUpdateWithdrawFailed(ex);
         }
     }
 
@@ -432,6 +525,18 @@ internal sealed partial class UserNotificationService : INotificationService, ID
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the new version {Version} could not be shown.")]
     private partial void LogUpdateShowFailed(Exception exception, string version);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the refused update.")]
+    private partial void LogUpdateRejectedShown();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the refused update could not be shown.")]
+    private partial void LogUpdateRejectedShowFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The notification about the update offer was withdrawn.")]
+    private partial void LogUpdateWithdrawn();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification about the update offer could not be withdrawn.")]
+    private partial void LogUpdateWithdrawFailed(Exception exception);
 
     /// <summary>Asks the OS (the user only the first time); a denial or a failure is logged when it changes.</summary>
     private async Task<bool> IsAllowedAsync(CancellationToken stop)

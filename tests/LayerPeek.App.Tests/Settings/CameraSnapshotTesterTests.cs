@@ -267,6 +267,52 @@ public sealed class CameraSnapshotTesterTests
         Assert.Null(result.Image);
     }
 
+    // ---- T-194 (user decision 2026-11-11): the test ends a reconnect wait like opening the camera window ----
+
+    /// <summary>Recording keeps the saved camera's connection, which failed twice and now waits 10 s.</summary>
+    private async Task<CameraPacketSubscription> RecordingWaitingAsync(CameraStreamHub hub)
+    {
+        CameraPacketSubscription recording = hub.SubscribePackets("mk4", StreamUri);
+        (await _factory.WaitForFeedAsync(1)).Fail(new CameraFeedException("Connection refused."));
+        await Waiting.UntilAsync(() => recording.Status.NextAttemptAt is not null, "waiting 5 s");
+        _time.Advance(CameraFeedOptions.Default.ReconnectDelay);
+        (await _factory.WaitForFeedAsync(2)).Fail(new CameraFeedException("Connection refused."));
+        await Waiting.UntilAsync(() => recording.Status.NextAttemptAt == _time.GetUtcNow() + TimeSpan.FromSeconds(10), "waiting 10 s");
+        return recording;
+    }
+
+    [Fact]
+    public async Task TestDuringTheReconnectWaitTriesAtOnceAndSucceeds()
+    {
+        await using CameraStreamHub hub = CreateHub();
+        await using CameraPacketSubscription recording = await RecordingWaitingAsync(hub);
+
+        // No time passes: the attempt starts now, and the old error does not fail the test.
+        Task<CameraTestResult> test = new CameraSnapshotTester(_factory, _time, _logger, hub: hub).TestAsync(StreamUri, "mk4", Ct);
+        FakeCameraFeed third = await _factory.WaitForFeedAsync(3);
+        Assert.False(test.IsCompleted);
+        third.Send(width: 1280, height: 720);
+        CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal((CameraTestOutcome.Success, 1280, 720), (result.Outcome, result.Width, result.Height));
+        Assert.False(recording.IsEnded);
+    }
+
+    [Fact]
+    public async Task TestDuringTheReconnectWaitResetsTheBackoff()
+    {
+        await using CameraStreamHub hub = CreateHub();
+        await using CameraPacketSubscription recording = await RecordingWaitingAsync(hub);
+
+        Task<CameraTestResult> test = new CameraSnapshotTester(_factory, _time, _logger, hub: hub).TestAsync(StreamUri, "mk4", Ct);
+        (await _factory.WaitForFeedAsync(3)).Fail(new CameraFeedException("Connection timed out."));
+        CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+
+        // The new attempt's reason, and the wait after it starts over at 5 s instead of 20 s.
+        Assert.Equal((CameraTestOutcome.Failed, "Connection timed out."), (result.Outcome, result.Reason));
+        await Waiting.UntilAsync(() => recording.Status.NextAttemptAt == _time.GetUtcNow() + CameraFeedOptions.Default.ReconnectDelay, "waiting 5 s");
+    }
+
     [Fact]
     public async Task StoppedHubFailsTheTestOfTheSavedCamera()
     {

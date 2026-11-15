@@ -3,10 +3,111 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Until 1.0.0, minor versions may contain breaking changes
-(settings format, behaviour).
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Updates within 1.x keep your settings; settings files of
+older versions always load.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-11-15
+
+The first stable release. The [user manual](https://github.com/pfoltynek/LayerPeek/blob/main/manuals/en/manual.md)
+(also in the other seven languages of the app, in
+[`manuals/`](https://github.com/pfoltynek/LayerPeek/tree/main/manuals)) explains the installation and every feature.
+The installers are not code-signed: on Windows, SmartScreen shows "Windows protected your PC" (**More info → Run
+anyway**); on macOS, Gatekeeper blocks the first start (**System Settings → Privacy & Security → Open Anyway**). Check
+your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this release
+(`Get-FileHash <file> -Algorithm SHA256` on Windows, `shasum -a 256 -c SHA256SUMS-macos.txt` on macOS).
+
+### Added
+
+- **User manual** in all eight languages of the app (English, Czech, Slovak, German, Spanish, French, Italian,
+  Polish) in `manuals/`, for Windows and macOS in one document, with screenshots rendered by the app in each language.
+  The README links to it.
+- **User manual** item in the tray / menu bar menu, above **About**: opens the manual in the language of the app's
+  texts (English for any other language).
+- **Printer compatibility report:** a GitHub issue form with a short checklist for printer models other than the
+  CORE One, linked from the README and the manuals.
+- **Securing access to PrusaLink:** a new manual chapter (all eight languages) on the risks of PrusaLink's plain HTTP,
+  separate networks and VPNs, HTTPS through a reverse proxy (Caddy and nginx examples) and trusting your own
+  certificate authority on Windows and macOS.
+- **Camera reconnect status:** the camera window shows roughly when the next connection attempt is due ("Next attempt
+  in about 20 s"); the time stays current while the window is visible.
+- **FFmpeg source code with every release** (LGPL): each release attaches `ffmpeg-source-<version>-windows.tar.xz` and
+  `ffmpeg-source-<version>-macos.tar.xz` with the exact FFmpeg source the camera libraries were built from, the build
+  scripts and the configure line. The About window says "This software uses libraries from the FFmpeg project under the
+  LGPLv3 or later." (in all eight languages) and links to the source of its version; the release notes and the README
+  link the source archives too.
+- **Windows on ARM64 (in preparation):** the release scripts now build and package a native Windows ARM64 version
+  (`win-arm64`: installer, ZIP and its own update channel, camera libraries included) next to the x64 one. It is not
+  offered for download yet, until it has been tested on an ARM64 device. The README and the manual explain how to tell
+  an x64 from an ARM PC and how to switch from the x64 version by hand (uninstall it, then install the ARM64 one).
+
+### Changed
+
+- **Camera window performance:** the mini preview and camera windows clearly smaller than the camera image (up to 70 % of
+  its width) convert the image at the size it is shown instead of the camera's full resolution, and each frame is copied
+  once, off the UI thread. A window only a little smaller keeps the full resolution and lets the display scale it, which
+  measured cheaper. Snapshots, recordings, timelapses and print failure detection keep the full resolution.
+- **Mini preview frame rate:** the mini preview shows at most 10 frames per second by default (the frames in between are
+  decoded but not converted, copied or drawn), which saves CPU; the normal window and full screen keep the camera's full
+  frame rate. A new **Camera** tab of the settings sets it for all cameras: Economy (5 fps), Balanced (10 fps), Smooth
+  (every frame) or a custom limit of 1–30 fps. Print failure detection, recordings and timelapses are not affected.
+- **Hardware decoding of the camera video (macOS):** the camera window and the mini preview are decoded by the graphics
+  hardware (VideoToolbox) when it is available, otherwise by the processor, which roughly halves the work of decoding.
+  **Settings → Camera → Hardware decoding** offers **Automatic** (the default) and **Off** (always the processor: less
+  memory, no system decoder; try it if the camera picture is damaged or black). A change applies after **Save** from the
+  camera's next key frame, without reconnecting. On Windows, **Automatic** still decodes on the processor for now.
+- **Camera window pauses while nobody can see it:** besides when minimised, the camera window and the mini preview stop
+  receiving and drawing the picture while the computer is locked or the display is off, on Windows while the window is
+  on another virtual desktop (a window merely covered by other windows keeps running) and on macOS while no part of it
+  can be seen (completely covered by other windows or on another Space, after about two seconds), and resume from the
+  camera's next key frame when you come back. Recording, the dashcam, timelapses and print failure detection are not
+  affected.
+- **Shorter settings tab names** in French ("Démarrage, MàJ"), Italian ("Riprese"), Polish ("Start i aktualizacje") and
+  Slovak ("Štart a aktualizácie"), so that the six tabs fit on one row.
+- **Print failure detection performance:** its samples are scaled straight from the brightness (luma) of the camera
+  image instead of being converted to full-resolution colour first: about a tenth of the work per sample and no
+  full-size colour buffer while only detection watches the camera. The detection thresholds are unchanged.
+- **Camera reconnects back off:** a camera that keeps failing is retried after 5 s, then 10, 20, 40 s and at most every
+  minute, instead of every 5 s; a successful stream starts over at 5 s. Opening or restoring the camera window, and
+  **Test camera** in the settings, try again at once.
+- **Built with the stable .NET 11** release instead of a release candidate.
+- **UI framework updated** to Avalonia 12.1.6 (from 12.1.4), with its fixes for menus, windows, text layout and
+  accessibility. Nothing changes in how LayerPeek looks or works.
+- **Windows: own minimal FFmpeg build.** The camera libraries are compiled from the official FFmpeg 9.0.2 source, the
+  same tarball as on macOS, with only what LayerPeek uses (RTSP, H.264, MP4 recording, Direct3D 11 video decoding for a
+  later hardware decoding option) instead of a prebuilt build with about 50 bundled third-party libraries: 6.4 MB
+  instead of 118 MB of DLLs, a smaller attack surface for camera data from the network, and the release's FFmpeg source
+  archive holds only the FFmpeg source and the build script. `swresample-7.dll` is no longer shipped (nothing loaded
+  it). The MinGW-w64 runtime linked into the DLLs is listed under **About → Third-party licences…**. Developers: the
+  first build on Windows needs MSYS2 with MinGW-w64 (see the README).
+- **Window font on macOS:** the settings, diagnostics, About and camera windows use the bundled Inter font instead of the
+  system font San Francisco, which the UI framework (Avalonia 12.1) laid out too tightly: text was 7–20 % narrower than
+  in native apps and semibold and bold letters touched. The menu bar menu, notifications and system dialogs keep the
+  system font; Windows is unchanged (Segoe UI). Inter (SIL Open Font License 1.1) is listed under **About →
+  Third-party licences…**. The macOS app is about 1.9 MB larger (about 0.9 MB in the download).
+
+### Fixed
+
+- Settings, the printer's **Camera** sub-tab: in Italian, Spanish, French and Polish the **Keep the last minutes
+  (dashcam)** check box was cut off; the labels are shorter now.
+- Windows: installing LayerPeek again over an existing installation (running `Setup.exe` again, or `winget upgrade`)
+  no longer switches **Start automatically when I sign in to Windows** back on after you switched it off. The settings
+  now remember your choice; a new installation still switches it on, and so does a reinstall when you never changed
+  the option. If you switched it off in an earlier version, the first start of this version remembers that, so the
+  next reinstall keeps it off too.
+
+### Security
+
+- **Updates are verified with a signature** (installations from `Setup.exe` on Windows and the app in Applications on
+  macOS): the update feed of every release is signed with an offline key that is never on GitHub, and LayerPeek refuses
+  an update whose feed is unsigned, changed or signed with another key, so that a taken-over GitHub account cannot ship
+  a malicious update. Versions before this one still accept any update, including this one; the protection starts once
+  this version runs. The first download of an installer is not covered: check it against `SHA256SUMS-*.txt`.
+- **Warning for unencrypted connections outside the local network:** the printer and camera settings show an
+  informative warning when a PrusaLink `http://` address or an RTSP camera address is not in a local network (private
+  or link-local ranges, `.local`, `.lan`, `.home.arpa` or a name without a dot), with a link to the new manual chapter.
+  Saving is not blocked.
 
 ## [0.5.0] - 2026-11-05
 
@@ -436,7 +537,8 @@ released, so the app does not migrate anything; developers who ran the old build
 - The PrusaLink web proxy rejects write requests from other origins.
 - Native libraries are loaded only from the application folder and the system folder.
 
-[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.0...v0.3.1

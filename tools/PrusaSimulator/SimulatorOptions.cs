@@ -17,7 +17,7 @@ public sealed record SimulatorOptions
 
     private static readonly HashSet<string> ValuedOptions = new(StringComparer.Ordinal)
     {
-        "--printers", "--port", "--models", "--scenario", "--speed", "--print-minutes", "--user", "--password", "--host",
+        "--printers", "--port", "--models", "--scenario", "--speed", "--print-minutes", "--layers", "--user", "--password", "--host",
         "--offline-mode", "--camera-port", "--camera-clip", "--clip", "--fps",
     };
 
@@ -33,6 +33,7 @@ public sealed record SimulatorOptions
                                   idle, printing, paused, finished, stopped, error, attention, offline, flaky, malformed
           --speed <x>             simulated time speed-up, e.g. 10 (default 1)
           --print-minutes <m>     duration of a simulated print (default 30)
+          --layers <n>            the Z axis of a print rises in n layers of 0.2 mm, 1-1000 (default: smoothly)
           --user <name>           PrusaLink user (default maker)
           --password <text>       PrusaLink password (default simulator)
           --host <ip>             address to listen on (default 127.0.0.1; 0.0.0.0 or :: = reachable from the network,
@@ -68,6 +69,9 @@ public sealed record SimulatorOptions
     public double Speed { get; init; } = 1;
 
     public TimeSpan PrintDuration { get; init; } = SimulationTiming.Default.Print;
+
+    /// <summary>Layers of a print (<see cref="SimulationTiming.Layers"/>); 0 = the Z axis climbs smoothly.</summary>
+    public int Layers { get; init; }
 
     public string UserName { get; init; } = SimulatedPrinterOptions.DefaultUserName;
 
@@ -188,6 +192,9 @@ public sealed record SimulatorOptions
                     break;
                 case "--print-minutes" when TryDouble(value, 0.1, 10000, out double minutes):
                     options = options with { PrintDuration = TimeSpan.FromMinutes(minutes) };
+                    break;
+                case "--layers" when TryInt(value, 1, 1000, out int layers):
+                    options = options with { Layers = layers };
                     break;
                 case "--fps" when TryDouble(value, 1, 120, out double fps):
                     options = options with { FramesPerSecond = fps };

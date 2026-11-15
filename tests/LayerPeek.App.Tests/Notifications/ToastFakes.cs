@@ -53,6 +53,7 @@ internal sealed class FakeToastSession : IToastSession
     private readonly Lock _lock = new();
     private readonly List<string> _shown = [];
     private readonly List<string?> _tags = [];
+    private readonly List<string> _removed = [];
     private readonly ManualResetEventSlim _gate = new(initialState: true);
     private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private volatile bool _disposed;
@@ -133,6 +134,35 @@ internal sealed class FakeToastSession : IToastSession
         {
             _shown.Add(toastXml);
             _tags.Add(tag);
+        }
+    }
+
+    /// <summary>The tags passed to <see cref="Remove"/>, in order.</summary>
+    public IReadOnlyList<string> Removed
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _removed];
+            }
+        }
+    }
+
+    /// <summary>Thrown by the next <see cref="Remove"/>.</summary>
+    public Exception? FailNextRemove { get; set; }
+
+    public void Remove(string tag)
+    {
+        if (FailNextRemove is { } failure)
+        {
+            FailNextRemove = null;
+            throw failure;
+        }
+
+        lock (_lock)
+        {
+            _removed.Add(tag);
         }
     }
 

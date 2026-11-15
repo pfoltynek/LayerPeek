@@ -305,6 +305,18 @@ internal sealed partial class MacUserNotificationCenter : IUserNotificationCente
         });
     }
 
+    public void Remove(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(identifier);
+        ObjCRuntime.InAutoreleasePool(() =>
+        {
+            nint identifiers = ObjCRuntime.Send(RequiredClass("NSArray"), ObjCRuntime.Selector("arrayWithObject:"), ObjCRuntime.NSString(identifier));
+            ObjCRuntime.Send(_center, ObjCRuntime.Selector("removePendingNotificationRequestsWithIdentifiers:"), identifiers);
+            ObjCRuntime.Send(_center, ObjCRuntime.Selector("removeDeliveredNotificationsWithIdentifiers:"), identifiers);
+            return true;
+        });
+    }
+
     public void RemoveAll() => ObjCRuntime.InAutoreleasePool(() =>
     {
         ObjCRuntime.SendVoid(_center, ObjCRuntime.Selector("removeAllPendingNotificationRequests"));

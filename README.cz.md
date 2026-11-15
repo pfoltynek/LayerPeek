@@ -16,11 +16,13 @@
   <a href="#jak-to-vypadá">Snímky</a> ·
   <a href="#funkce">Funkce</a> ·
   <a href="#experimentální-funkce">Experimentální</a> ·
+  <a href="manuals/cs/manual.md"><b>Příručka</b></a> ·
   <a href="README.md">English</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Poslední vydání"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml?query=branch%3Adevelop"><img src="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml/badge.svg?branch=develop" alt="Stav CI (develop)"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="Licence: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platforma: Windows 10/11 | macOS (Apple Silicon)">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
@@ -323,9 +325,9 @@ Každá tiskárna Prusa s **firmwarem Buddy 6.x a PrusaLink**:
 | Original Prusa MINI / MINI+ | 🟡 mělo by fungovat, zatím neotestováno |
 | Original Prusa MK3 / MK3S (8bitový firmware) | ❌ tiskárna nemá zabudovaný PrusaLink |
 
-Všechny tiskárny s firmwarem Buddy 6.x mají stejné PrusaLink API. Používáš aplikaci s jiným modelem? Dej prosím
-[vědět](https://github.com/pfoltynek/LayerPeek/issues), jestli funguje, ať ho můžeme označit jako
-otestovaný.
+Všechny tiskárny s firmwarem Buddy 6.x mají stejné PrusaLink API. Používáš aplikaci s jiným modelem? Vyplň prosím
+krátké [hlášení kompatibility tiskárny](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (zaškrtávací seznam v angličtině, stačí jedna zkouška
+na Windows nebo macOS), ať ho můžeme označit jako otestovaný.
 
 Kamera je volitelná. I bez ní máš ikonu, notifikace a diagnostiku. Kamera musí poskytovat stream **RTSP H.264**
 dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina IP kamer.
@@ -333,10 +335,14 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 | Platforma | Stav |
 |---|---|
 | Windows 10/11 x64 | ✅ podporováno |
-| Windows na ARM64 | ❌ nepodporováno |
+| Windows na ARM64 | 🚧 připravuje se: zatím ke stažení není, dokud se neověří na zařízení s ARM64 |
 | macOS (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
 
 ## Rychlý start
+
+> [!TIP]
+> Celá **[uživatelská příručka](manuals/cs/manual.md)** popisuje všechny funkce na Windows i macOS. Je i v dalších
+> jazycích: English, Slovenčina, Deutsch, Español, Français, Italiano a Polski, viz [všechny jazyky](manuals/README.md).
 
 ### 1. Stažení
 
@@ -346,9 +352,16 @@ Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/Laye
   `%LOCALAPPDATA%\LayerPeek` a přidá LayerPeek do nabídky Start. Odinstaluješ ho v **Nastavení → Aplikace**.
 - **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: rozbal ho kamkoli a spusť `LayerPeek.exe`.
 
+Oba soubory jsou pro Windows na **x64** (procesory Intel a AMD). Ověříš to v **Nastavení → Systém → O systému** u položky
+**Typ systému**: „procesor typu x64“ znamená tyto soubory. Nativní verze pro Windows na **ARM64** („procesor typu ARM“,
+např. notebooky se Snapdragonem) se připravuje a zatím ke stažení není. Až bude, její soubory ponesou v názvu
+`…-win-arm64-…`. Přechod z verze x64 na ni je ruční: odinstaluj verzi x64 v **Nastavení → Aplikace** a pak nainstaluj
+verzi ARM64. Obě používají stejnou složku, nastavení i hesla a instalace architekturu sama nikdy nezmění (každá se
+aktualizuje v rámci své verze).
+
 > [!IMPORTANT]
-> Verze 0.x jsou **předběžné**. Nastavení se mezi verzemi může změnit. Sestavení nejsou podepsaná, takže Windows
-> SmartScreen zobrazí „Systém Windows ochránil váš počítač“ s „Neznámým vydavatelem“. Klikni na
+> Aktualizace v rámci verzí 1.x zachovají tvoje nastavení; soubory nastavení starších verzí se vždy načtou.
+> Sestavení nejsou podepsaná, takže Windows SmartScreen zobrazí „Systém Windows ochránil váš počítač“ s „Neznámým vydavatelem“. Klikni na
 > **Další informace → Přesto spustit**, nebo si [aplikaci sestav sám](#sestavení-ze-zdrojových-kódů).
 
 Odinstalace ponechá tvoje nastavení (`%APPDATA%\LayerPeek`) a hesla (Správce pověření Windows) a instalátor po sobě
@@ -372,6 +385,11 @@ včetně notifikací a okna kamery.
 
 Od macOS 15 se první spojení s tiskárnou nebo kamerou zeptá na přístup do **místní sítě**: klikni na **Povolit**.
 Pokud jsi ho zamítl, zapni LayerPeek v **Nastavení systému → Soukromí a zabezpečení → Místní síť**.
+
+Tento software používá kód [FFmpeg](https://ffmpeg.org/) pod licencí LGPLv3 nebo novější a jeho zdrojový kód lze
+stáhnout zde: každé vydání na stránce [Releases](https://github.com/pfoltynek/LayerPeek/releases) ho obsahuje jako
+`ffmpeg-source-X.Y.Z-windows.tar.xz` a `ffmpeg-source-X.Y.Z-macos.tar.xz` (viz
+[Komponenty třetích stran](#komponenty-třetích-stran)).
 
 ### 2. Zapni PrusaLink na tiskárně
 
@@ -404,6 +422,8 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 - **Widgety:** které widgety se ukazují přes obraz, jejich nastavení (např. prahy vychladnutí trysky a podložky
   u každé tiskárny), neprůhlednost karet a rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
+- **Kamera:** nastavení pro všechny kamery: snímková frekvence malého náhledu (Úsporný 5 fps, ve výchozím stavu Vyvážený
+  10 fps, Plynulý s každým snímkem, nebo vlastní omezení 1–30 fps).
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu zapnuté – zapne ho instalátor;
   jen v nainstalované verzi). Na macOS: **Otevřít při přihlášení** (ve výchozím stavu vypnuté, jen pro LayerPeek.app
   zkopírovanou z obrazu disku, např. do Aplikací). Pokud jsi LayerPeek vypnul v Nastavení systému → Obecné → Položky
@@ -430,7 +450,7 @@ LayerPeeku, bez účtu a tokenu, a stažení aktualizace, kterou spustíš).
 
 ## Plán
 
-- `winget install` hned po zveřejnění prvního vydání
+- `winget install` po vydání 1.0.0
 - Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
   podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory
   projektu přibudou později.
@@ -459,13 +479,15 @@ Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web Prus
 ### Prerekvizity
 
 - [.NET SDK 11](https://dotnet.microsoft.com/download/dotnet/11.0). Přesná verze je v [`global.json`](global.json),
-  povolené jsou i preview verze.
+  používají se jen stabilní vydání SDK, žádné preview.
 - Git.
-- Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*,
-  na macOS Xcode Command Line Tools.
-- První build na Windows stáhne LGPL knihovny FFmpeg pro kameru (~77 MB, ověřené přes SHA-256). Na macOS první build
-  stáhne oficiální zdrojový kód FFmpeg (~12 MB, ověřený přes SHA-256) a přeloží z něj LGPL build přes Xcode Command
-  Line Tools (asi minuta).
+- Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*
+  (pro Windows ARM64 navíc komponenta *MSVC ARM64 build tools*), na macOS Xcode Command Line Tools.
+- První build stáhne oficiální zdrojový kód FFmpeg (~12 MB, ověřený přes SHA-256) a jednou z něj přeloží minimální
+  LGPL build knihoven kamery: na Windows přes [MSYS2](https://www.msys2.org/) a MinGW-w64 (`winget install
+  MSYS2.MSYS2`, pak balíčky `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; pár minut), na macOS přes
+  Xcode Command Line Tools (asi minuta). Bez toolchainu build hned skončí s návodem; `dotnet build
+  -p:LayerPeekFFmpegEnabled=false` sestaví aplikaci bez knihoven kamery.
 
 Podrobnosti jsou v [docs/prerequisites.md](docs/prerequisites.md).
 
@@ -486,10 +508,13 @@ Nemáš po ruce tiskárnu? V repozitáři je [simulátor](docs/simulator.md) tis
 
 ```bash
 dotnet publish src/LayerPeek.App -c Release -r win-x64     # na Windows
+dotnet publish src/LayerPeek.App -c Release -r win-arm64   # na Windows x64, pro Windows na ARM64
 dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # na macOS
 ```
 
 AOT nejde kompilovat napříč operačními systémy: binárky pro Windows se sestavují na Windows, pro macOS na macOS.
+Verze pro Windows ARM64 se překládá křížově na Windows x64 (knihovny kamery přes
+[llvm-mingw](https://github.com/mstorsjo/llvm-mingw), který se stáhne při prvním takovém buildu); spustit se tam nedá.
 
 ### Vydání
 
@@ -553,6 +578,10 @@ Bezpečnostní chyby prosím nehlas ve veřejných issues. Použij
 [soukromé hlášení zranitelností](https://github.com/pfoltynek/LayerPeek/security/advisories/new) na GitHubu.
 Viz [SECURITY.md](SECURITY.md) (anglicky).
 
+PrusaLink na tiskárně nabízí jen nešifrované HTTP s přihlášením Digest (MD5). Jak ho chránit (heslo tiskárny, oddělená
+síť, HTTPS přes reverzní proxy Caddy nebo nginx), popisuje příručka:
+[Zabezpečení přístupu k PrusaLinku](manuals/cs/manual.md#14-zabezpečení-přístupu-k-prusalinku).
+
 ## Licence
 
 Copyright © Petr Foltýnek
@@ -568,7 +597,9 @@ prodejnosti nebo vhodnosti pro určitý účel.
 
 Aplikace obsahuje nativní knihovny **FFmpeg** pod licencí LGPL. Jsou linkované dynamicky a dají se vyměnit. Text
 licence FFmpeg je přibalený jako `FFmpeg-LICENSE.txt`. Všechny komponenty třetích stran, jejich verze a plná znění
-licencí najdeš v aplikaci v okně **O aplikaci → Licence třetích stran…**.
+licencí najdeš v aplikaci v okně **O aplikaci → Licence třetích stran…**. Každé vydání obsahuje přesně ten zdrojový
+kód FFmpeg, ze kterého jsou knihovny sestavené, se skripty buildu a řádkem configure
+(`ffmpeg-source-<verze>-windows.tar.xz`, `ffmpeg-source-<verze>-macos.tar.xz`).
 
 ---
 

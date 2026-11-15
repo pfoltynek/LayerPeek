@@ -162,6 +162,18 @@ internal static class CameraMiniGeometry
     }
 
     /// <summary>
+    /// The whole window rectangle (pixels) for <paramref name="window"/> (position in pixels, client size in DIP), to set size
+    /// and position with one call (T-169, Windows <c>SetWindowPos</c>): the client size in pixels rounded like the height
+    /// correction compares it, plus the frame around the client area (<paramref name="frameWidth"/> ×
+    /// <paramref name="frameHeight"/> pixels, none for the borderless mini preview).
+    /// </summary>
+    public static PixelBounds WindowRect(CameraWindowPlacement window, double scaling, int frameWidth, int frameHeight) => new(
+        window.X,
+        window.Y,
+        ToPixels(window.Width, scaling) + Math.Max(frameWidth, 0),
+        ToPixels(window.Height, scaling) + Math.Max(frameHeight, 0));
+
+    /// <summary>
     /// <paramref name="from"/> resized to <paramref name="width"/> × <paramref name="height"/> pixels: the left edge stays,
     /// vertically it grows away from the nearest edge of <paramref name="workArea"/> (see remarks); then it is moved (and at
     /// most made as big as the work area) so that it is entirely on the work area. Without a work area the top left corner stays.

@@ -1,7 +1,8 @@
-# Snímky obrazovky v README
+# Snímky obrazovky v README a v příručce
 
-Obrázky v `README.md` (anglicky) a `README.cz.md` (česky) se negenerují ručně, ale vykresluje je přímo aplikace.
-Jsou v `docs/images/en/` a `docs/images/cs/`, se stejnými názvy souborů v obou jazycích.
+Obrázky v `README.md` (anglicky), `README.cz.md` (česky) a v uživatelské příručce `manuals/<jazyk>/manual.md` se
+negenerují ručně, ale vykresluje je přímo aplikace. Jsou v `docs/images/<jazyk>/` pro všech osm jazyků aplikace (en, cs,
+sk, de, es, fr, it, pl), se stejnými názvy souborů ve všech jazycích.
 
 ## Jak vznikají
 
@@ -20,11 +21,12 @@ Generátor je volitelný test `tests/LayerPeek.App.UiTests/Readme/ReadmeScreensh
   realistické teploty s historií od začátku tisku. Náhled z G-code je PNG, který generuje simulátor
   (`tools/PrusaSimulator`, `PreviewImages`, náhled jeho prvního souboru: plochý oranžový disk); vlastní asset nemá. Žádné IP adresy, sériová čísla ani osobní údaje (adresy jsou host names
   `*.local`).
-- Čeština: texty aplikace v češtině a formáty čísel a času podle `cs-CZ`; angličtina podle `en-US`. Čas je pevný
+- Jazyky: texty aplikace v daném jazyce a formáty čísel a času podle jeho země (`ReadmeScenario.Cultures`: `en-US`,
+  `cs-CZ`, `sk-SK`, `de-DE`, `es-ES`, `fr-FR`, `it-IT`, `pl-PL`). Čas je pevný
   (16. 10. 2026 12:00 UTC, zobrazený v UTC+2), takže výsledek je opakovatelný.
 - Obrázky s obrazem kamery jsou JPEG (kvalita 86; jako PNG by měla fotka megabajty), okna bez kamery PNG s nejvyšší
-  kompresí. JPEG je i podzáložka Detekce, protože ve výřezu podložky ukazuje snímek kamery. Všechny obrázky dohromady
-  mají asi 4 MB.
+  kompresí. JPEG je i podzáložka Detekce, protože ve výřezu podložky ukazuje snímek kamery. Jeden jazyk má asi 2 MB, všech osm
+  asi 15 MB.
 - Popupy (např. nabídka velikosti widgetu v režimu rozložení) jsou v UI testech samostatná okna (`OverlayPopups = false`,
   T-121), takže nejsou ve snímku okna: `ReadmeImage.Capture(window, popupContent)` je dokreslí na jejich místo.
 - Nahrávání, timelapse a detekce: `FakeCameraRecordings` (nahrávání a timelapse běží, indikátory REC a TL),
@@ -55,7 +57,8 @@ Na Windows v PowerShellu: `$env:LAYERPEEK_README_SCREENSHOTS = "1"` a potom stej
 
 Potřebné jsou nativní knihovny FFmpeg (na Windows x64 a macOS arm64 je dodá běžný build, viz
 [prerequisites.md](prerequisites.md)). Písmo je jen přibalené Inter, ale vyhlazování se mezi Windows a macOS mírně
-liší: obrázky v repozitáři jsou vygenerované na macOS. Po přegenerování každý obrázek zkontroluj (useknutý text,
+liší: obrázky v repozitáři jsou vygenerované na macOS. Okno nastavení se vykreslí s texty pro macOS
+(např. „Open at login“); rozdíly na Windows popisuje text příručky. Po přegenerování každý obrázek zkontroluj (useknutý text,
 prázdné stavy) a teprve potom commitni.
 
 Když se změní vzhled oken, stačí obrázky přegenerovat. Když přibude nový obrázek, přidej test do

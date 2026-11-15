@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Questions and ideas
+    url: https://github.com/pfoltynek/LayerPeek/discussions
+    about: Ask a question or discuss an idea before opening an issue.
   - name: Report a security vulnerability
     url: https://github.com/pfoltynek/LayerPeek/security/advisories/new
     about: Please report security issues privately, not in a public issue.

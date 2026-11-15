@@ -16,11 +16,13 @@
   <a href="#see-it-in-action">Screenshots</a> ·
   <a href="#features">Features</a> ·
   <a href="#experimental-features">Experimental</a> ·
+  <a href="manuals/en/manual.md"><b>User manual</b></a> ·
   <a href="README.cz.md">Česky</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Latest release"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml?query=branch%3Adevelop"><img src="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml/badge.svg?branch=develop" alt="CI status (develop)"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platform: Windows 10/11 | macOS (Apple Silicon)">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
@@ -327,7 +329,8 @@ Any Prusa printer with **Buddy firmware 6.x and PrusaLink**:
 | Original Prusa MK3 / MK3S (8-bit firmware) | ❌ the printer has no built-in PrusaLink |
 
 All printers with Buddy firmware 6.x share the same PrusaLink API. Do you run the app with another model? Please
-[let us know](https://github.com/pfoltynek/LayerPeek/issues) whether it works, so we can mark it as tested.
+fill in a short [printer compatibility report](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (a checklist, one run on Windows or macOS is
+enough), so we can mark it as tested.
 
 The camera is optional. Without it you still get the tray icon, notifications and diagnostics. The camera has to
 provide an **RTSP H.264** stream reachable from your computer, for example the Prusa Buddy3D camera or most IP
@@ -336,10 +339,14 @@ cameras.
 | Platform | Status |
 |---|---|
 | Windows 10/11 x64 | ✅ supported |
-| Windows on ARM64 | ❌ not supported |
+| Windows on ARM64 | 🚧 in preparation: no download yet, until it is tested on an ARM64 device |
 | macOS (Apple Silicon) | ✅ supported since 0.3.0 (menu bar app) |
 
 ## Quick start
+
+> [!TIP]
+> The full **[user manual](manuals/en/manual.md)** walks through every feature on Windows and macOS. It is also
+> available in Čeština, Slovenčina, Deutsch, Español, Français, Italiano and Polski: see [all languages](manuals/README.md).
 
 ### 1. Download
 
@@ -349,9 +356,16 @@ Get the latest build from the [Releases](https://github.com/pfoltynek/LayerPeek/
   `%LOCALAPPDATA%\LayerPeek` and adds LayerPeek to the Start menu. Uninstall it in **Settings → Apps**.
 - **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: unpack it anywhere and run `LayerPeek.exe`.
 
+Both files are for Windows on **x64** (Intel and AMD processors). To check, open **Settings → System → About** and look
+at **System type**: "x64-based processor" means these files. A native build for Windows on **ARM64** ("ARM-based
+processor", e.g. Snapdragon laptops) is in preparation and not offered for download yet. When it comes, its files will
+be named `…-win-arm64-…`. Switching from the x64 build to it is a manual step: uninstall the x64 version in
+**Settings → Apps**, then install the ARM64 version. Both use the same folder, settings and passwords, and an
+installation never switches the architecture by itself (each one updates within its own build).
+
 > [!IMPORTANT]
-> Versions 0.x are **previews**. Settings may change between versions. Builds are not code-signed, so Windows
-> SmartScreen shows "Windows protected your PC" with an "Unknown publisher". Click **More info → Run anyway**, or
+> Updates within 1.x keep your settings; settings files of older versions always load. Builds are not
+> code-signed, so Windows SmartScreen shows "Windows protected your PC" with an "Unknown publisher". Click **More info → Run anyway**, or
 > [build the app yourself](#building-from-source).
 
 Uninstalling keeps your settings (`%APPDATA%\LayerPeek`) and passwords (Windows Credential Manager), and the installer
@@ -376,6 +390,11 @@ the same features as on Windows, including notifications and the camera window.
 
 On macOS 15 and later, the first connection to a printer or camera asks for **Local Network** access: click **Allow**.
 If you denied it, turn LayerPeek on in **System Settings → Privacy & Security → Local Network**.
+
+This software uses code of [FFmpeg](https://ffmpeg.org/) licensed under the LGPLv3 or later and its source can be
+downloaded here: every release on the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page attaches it as
+`ffmpeg-source-X.Y.Z-windows.tar.xz` and `ffmpeg-source-X.Y.Z-macos.tar.xz` (see
+[Third-party components](#third-party-components)).
 
 ### 2. Enable PrusaLink on the printer
 
@@ -410,6 +429,8 @@ submenu.
 - **Widgets:** which overlay widgets are shown, their settings (e.g. the nozzle and bed cool-down thresholds of each
   printer), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
+- **Camera:** settings for all cameras: the frame rate of the mini preview (Economy 5 fps, Balanced 10 fps by default,
+  Smooth with every frame, or a custom limit of 1–30 fps).
 - **Startup and updates:** start LayerPeek after you sign in to Windows (on by default: the installer switches it on;
   only the installed version).
   On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of the disk image, e.g. to Applications).
@@ -436,7 +457,7 @@ LayerPeek releases, without any account or token, and the download of an update 
 
 ## Roadmap
 
-- `winget install` as soon as the first release is public
+- `winget install` after the 1.0.0 release
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
 
@@ -463,13 +484,15 @@ No. It asks for the state every few seconds (configurable), the same way the Pru
 ### Prerequisites
 
 - [.NET SDK 11](https://dotnet.microsoft.com/download/dotnet/11.0). The exact version is pinned in
-  [`global.json`](global.json) and preview versions are allowed.
+  [`global.json`](global.json); only stable SDK releases are used, no previews.
 - Git.
 - For a **Native AOT publish** only: on Windows the Visual Studio Build Tools with the *Desktop development with
-  C++* workload, on macOS the Xcode Command Line Tools.
-- The first build on Windows downloads the LGPL FFmpeg libraries for the camera (~77 MB, verified by SHA-256). On
-  macOS the first build downloads the official FFmpeg source (~12 MB, verified by SHA-256) and compiles an LGPL build
-  with the Xcode Command Line Tools (about a minute).
+  C++* workload (for Windows ARM64 also the component *MSVC ARM64 build tools*), on macOS the Xcode Command Line Tools.
+- The first build downloads the official FFmpeg source (~12 MB, verified by SHA-256) and compiles a minimal LGPL
+  build of the camera libraries from it, once: on Windows with [MSYS2](https://www.msys2.org/) and MinGW-w64
+  (`winget install MSYS2.MSYS2`, then the packages `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; a few
+  minutes), on macOS with the Xcode Command Line Tools (about a minute). Without the toolchain the build stops at once
+  with instructions; `dotnet build -p:LayerPeekFFmpegEnabled=false` builds without the camera libraries.
 
 See [docs/prerequisites.md](docs/prerequisites.md) for details (in Czech).
 
@@ -491,11 +514,13 @@ for development (in Czech).
 
 ```bash
 dotnet publish src/LayerPeek.App -c Release -r win-x64     # on Windows
+dotnet publish src/LayerPeek.App -c Release -r win-arm64   # on Windows x64, for Windows on ARM64
 dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # on macOS
 ```
 
 AOT code can't be cross-compiled between operating systems: build Windows binaries on Windows and macOS binaries on
-macOS.
+macOS. The Windows ARM64 build is cross-compiled on Windows x64 (its camera libraries with
+[llvm-mingw](https://github.com/mstorsjo/llvm-mingw), downloaded on the first such build); it cannot be started there.
 
 ### Making a release
 
@@ -560,6 +585,10 @@ Please don't report security issues in public issues. Use GitHub's
 [private vulnerability reporting](https://github.com/pfoltynek/LayerPeek/security/advisories/new) instead.
 See [SECURITY.md](SECURITY.md).
 
+PrusaLink on the printer offers only plain HTTP with an MD5 Digest login. How to protect it (the printer's password,
+a separate network, HTTPS through a Caddy or nginx reverse proxy) is described in the user manual:
+[Securing access to PrusaLink](manuals/en/manual.md#14-securing-access-to-prusalink).
+
 ## License
 
 Copyright © Petr Foltýnek
@@ -574,7 +603,9 @@ implied warranty of merchantability or fitness for a particular purpose.
 
 The app bundles the native **FFmpeg** libraries, which are licensed under the LGPL. They are dynamically linked and
 can be replaced. The FFmpeg license text ships with the app as `FFmpeg-LICENSE.txt`. All third-party components,
-their versions and full license texts are listed in the app under **About → Third-party licences…**.
+their versions and full license texts are listed in the app under **About → Third-party licences…**. Every release
+attaches the exact FFmpeg source the libraries were built from, with the build scripts and the configure line
+(`ffmpeg-source-<version>-windows.tar.xz`, `ffmpeg-source-<version>-macos.tar.xz`).
 
 ---
 

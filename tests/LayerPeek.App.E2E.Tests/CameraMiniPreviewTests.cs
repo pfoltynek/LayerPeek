@@ -64,18 +64,16 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
                 Native.Rect before = Native.FrameBounds(window);
 
                 // The name row with the real mouse.
-                Rectangle toggle = (await Ui.FindAsync(element, "CameraMiniToggleName")).BoundingRectangle;
-                Mouse.Click(new Point(toggle.Left + (toggle.Width / 2), toggle.Top + (toggle.Height / 2)));
+                await ClickToggleAsync(window, element, "CameraMiniToggleName", on: true);
                 await ExpectSizeAsync(window, StripCollapsed + NameRow, "the name row expanded");
-                Assert.True(CameraWidgets.IsOn(element, "CameraMiniToggleName"));
                 AssertGrewFrom(window, before, bottom: true, "name row");
                 await Wait.UntilAsync(() => Ui.IsShown(element, "CameraMiniNameRow"), WindowTimeout, "the name row");
 
                 // The chart row with the keyboard: Tab from the name toggle, Space.
                 await FocusAsync(window, "CameraMiniToggleChart");
                 WindowActivation.TypeInto(window, VirtualKeyShort.SPACE);
+                await ExpectToggleAsync(window, element, "CameraMiniToggleChart", on: true, "Space");
                 await ExpectSizeAsync(window, StripCollapsed + NameRow + ChartRow, "both rows expanded");
-                Assert.True(CameraWidgets.IsOn(element, "CameraMiniToggleChart"));
                 AssertGrewFrom(window, before, bottom: true, "chart row");
                 AssertStripBelowTheImage(window, element, StripCollapsed + NameRow + ChartRow);
                 Save(window, "mini-both-rows");
@@ -115,13 +113,13 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
 
                 await FocusAsync(window, "CameraMiniToggleChart");
                 WindowActivation.TypeInto(window, VirtualKeyShort.RETURN);
+                await ExpectToggleAsync(window, element, "CameraMiniToggleChart", on: true, "Enter");
                 await ExpectSizeAsync(window, StripCollapsed + ChartRow, "the chart row expanded with Enter");
                 AssertGrewFrom(window, before, bottom: false, "chart row at the top");
                 await Wait.UntilAsync(() => Ui.IsShown(element, "CameraMiniChart"), WindowTimeout, "the chart");
                 Save(window, "mini-top-chart");
 
-                Rectangle toggle = (await Ui.FindAsync(element, "CameraMiniToggleChart")).BoundingRectangle;
-                Mouse.Click(new Point(toggle.Left + (toggle.Width / 2), toggle.Top + (toggle.Height / 2)));
+                await ClickToggleAsync(window, element, "CameraMiniToggleChart", on: false);
                 await ExpectSizeAsync(window, StripCollapsed, "the chart row collapsed with the mouse");
                 Native.Rect after = Native.FrameBounds(window);
                 Assert.True(Math.Abs(after.Top - before.Top) <= 1, $"The top edge moved: {before} → {after}.");
@@ -154,9 +152,16 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
 
                 // Wider: the left edge 160 px to the left, in steps.
                 Native.Rect start = WindowRect(window);
-                List<Native.Rect> during = await DragAsync(window, new Point(start.Left + (int)Math.Round(2 * scale), start.Top + (int)Math.Round(90 * scale)), -160, 0, "mini-resize-dragging");
-                _report.AppendLine(CultureInfo.InvariantCulture, $"Start {start}; while dragging: {string.Join(", ", during)}");
+                (List<Native.Rect> during, Task<List<(double Ms, Native.Rect Rect)>>? releasing) = await DragAsync(window, new Point(start.Left + (int)Math.Round(2 * scale), start.Top + (int)Math.Round(90 * scale)), -160, 0, "mini-resize-dragging", traceRelease: true);
                 Assert.True(during.Last().Width > start.Width, $"The left grip did not resize the window: {string.Join(", ", during)}.");
+
+                // Right after the release: the correction sets size and position at once (T-169), so the corrected height
+                // appears in exactly one window rectangle, not first at the old top edge and then moved.
+                List<(double Ms, Native.Rect Rect)> released = await releasing!;
+                _report.AppendLine(CultureInfo.InvariantCulture, $"After the release: {string.Join(", ", released.Select(static change => $"{change.Ms:0.0} ms {change.Rect}"))}");
+                List<Native.Rect> corrected = [.. released.Select(static change => change.Rect).Where(rect => rect.Height != start.Height).Distinct()];
+                Assert.True(corrected.Count == 1, $"The height correction after the release showed {corrected.Count} window rectangles (expected 1, size and position at once): {string.Join(", ", released.Select(static change => $"{change.Ms:0.0} ms {change.Rect}"))}.");
+                _report.AppendLine(CultureInfo.InvariantCulture, $"Start {start}; while dragging: {string.Join(", ", during)}");
                 Assert.True(during.All(rect => rect.Height == start.Height), $"The height changed while dragging (it must be corrected only after the release): {string.Join(", ", during)}.");
                 (int width, int height) wider = await ExpectCorrectedAsync(window, "after the wider drag");
                 Assert.True(wider.width > ImageWidth + 100, $"The window is only {wider.width} DIP wide after the drag.");
@@ -355,6 +360,81 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
 
     private static int Px(int dip, double scale) => (int)Math.Round(dip * scale, MidpointRounding.AwayFromZero);
 
+    /// <summary>
+    /// Clicks a strip toggle with the real mouse and waits for its new state (T-169): the click point must be on the camera
+    /// window (nothing covers it), and a click that did not reach the toggle fails here, apart from a window that did not
+    /// follow the toggled row (<see cref="ExpectSizeAsync"/>).
+    /// </summary>
+    private static async Task ClickToggleAsync(nint window, AutomationElement element, string automationId, bool on)
+    {
+        Rectangle toggle = (await Ui.FindAsync(element, automationId)).BoundingRectangle;
+        Point center = new(toggle.Left + (toggle.Width / 2), toggle.Top + (toggle.Height / 2));
+        await WaitUncoveredAsync(window, center, $"the toggle '{automationId}'");
+        await PlaceCursorAsync(center, $"the toggle '{automationId}'");
+        Mouse.Click(MouseButton.Left);
+        await ExpectToggleAsync(window, element, automationId, on, $"a click at {center}");
+    }
+
+    /// <summary>
+    /// Waits until a click at <paramref name="point"/> reaches the camera window (T-169): a notification banner of Windows
+    /// or another app (<c>Windows.UI.Core.CoreWindow</c>, bottom right above the taskbar) may cover it for a few seconds and
+    /// would take the click.
+    /// </summary>
+    private static Task WaitUncoveredAsync(nint window, Point point, string what)
+    {
+        nint at = 0;
+        return Wait.UntilAsync(
+            () => (at = Native.TopLevelWindowAt(point)) == window,
+            TimeSpan.FromSeconds(30),
+            () => $"{what} at {point} uncovered (covered by the window 0x{at:X} '{Native.ClassName(at)}')");
+    }
+
+    /// <summary>The toggle has switched to <paramref name="on"/> after <paramref name="input"/>.</summary>
+    private static Task ExpectToggleAsync(nint window, AutomationElement element, string automationId, bool on, string input) =>
+        Wait.UntilAsync(
+            () => CameraWidgets.IsOn(element, automationId) == on,
+            WindowTimeout,
+            () => $"'{automationId}' {(on ? "on" : "off")} after {input} (the input did not reach the toggle{(Intruder(window) is { } intruder ? $"; another app is in the foreground: {intruder}" : string.Empty)})");
+
+    /// <summary>
+    /// Records the window rectangle after every change for <paramref name="duration"/> on a thread of its own, started just
+    /// before the grip is released (T-169), so that a state in between that lasts only a few milliseconds is seen too. For
+    /// the first <paramref name="busy"/> (the correction follows the release within a few to some tens of milliseconds) it
+    /// reads as often as possible, yielding the processor between reads; then every 5 ms. The first entry is the rectangle
+    /// at the start; times are milliseconds since the start.
+    /// </summary>
+    private static Task<List<(double Ms, Native.Rect Rect)>> StartTrace(nint window, TimeSpan duration, TimeSpan busy) =>
+        Task.Factory.StartNew(
+            () =>
+            {
+                System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+                List<(double Ms, Native.Rect Rect)> changes = [];
+                Native.Rect last = default;
+                while (clock.Elapsed < duration)
+                {
+                    Native.Rect rect = WindowRect(window);
+                    if (changes.Count == 0 || !rect.Equals(last))
+                    {
+                        changes.Add((clock.Elapsed.TotalMilliseconds, rect));
+                        last = rect;
+                    }
+
+                    if (clock.Elapsed < busy)
+                    {
+                        Thread.Yield();
+                    }
+                    else
+                    {
+                        Thread.Sleep(5);
+                    }
+                }
+
+                return changes;
+            },
+            TestContext.Current.CancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+
     /// <summary>The client size is the 320 DIP wide 16:9 image with a strip of <paramref name="strip"/> DIP below it.</summary>
     private static Task ExpectSizeAsync(nint window, int strip, string what) =>
         Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) == (ImageWidth, ImageHeight + strip), WindowTimeout, () => $"{what}: {ImageWidth} × {ImageHeight + strip} (now {WindowChecks.ClientSizeDip(window)})");
@@ -432,32 +512,114 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
 
     /// <summary>
     /// Presses the left button at <paramref name="from"/>, moves by (<paramref name="dx"/>, <paramref name="dy"/>) in 10 steps
-    /// and releases it; returns the window rectangle after each step (while the button is down).
+    /// and releases it; returns the window rectangle after each step (while the button is down) and, with
+    /// <paramref name="traceRelease"/>, the trace of <see cref="StartTrace"/> started just before the release.
     /// </summary>
-    private static async Task<List<Native.Rect>> DragAsync(nint window, Point from, int dx, int dy, string screenshot)
+    private static async Task<(List<Native.Rect> During, Task<List<(double Ms, Native.Rect Rect)>>? Released)> DragAsync(nint window, Point from, int dx, int dy, string screenshot, bool traceRelease = false)
     {
-        Assert.True(Native.TopLevelWindowAt(from) == window, $"The drag start {from} is not on the camera window.");
+        Task<List<(double Ms, Native.Rect Rect)>>? released = null;
+        await WaitUncoveredAsync(window, from, "the drag start");
         List<Native.Rect> during = [];
-        Mouse.Position = from;
-        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+        await PlaceCursorAsync(from, "the drag start");
         Mouse.Down(MouseButton.Left);
         try
         {
             for (int step = 1; step <= 10; step++)
             {
-                Mouse.Position = new Point(from.X + (dx * step / 10), from.Y + (dy * step / 10));
+                Point target = new(from.X + (dx * step / 10), from.Y + (dy * step / 10));
+                Mouse.Position = target;
                 await Task.Delay(TimeSpan.FromMilliseconds(60), TestContext.Current.CancellationToken);
                 during.Add(WindowRect(window));
+                // T-169: the press and every step must really happen where the test put the pointer; otherwise the
+                // input went to another window and the camera window cannot follow, which is not a fault of the app.
+                AssertInputReached(window, target, $"step {step} of the drag from {from}");
             }
 
             Screenshots.Save(window, screenshot);
         }
         finally
         {
+            if (traceRelease)
+            {
+                released = StartTrace(window, TimeSpan.FromSeconds(1.5), TimeSpan.FromMilliseconds(300));
+            }
+
             Mouse.Up(MouseButton.Left);
         }
 
-        return during;
+        return (during, released);
+    }
+
+    /// <summary>
+    /// Puts the pointer at <paramref name="point"/> and waits until it stays there (T-169): in a remote desktop session the
+    /// client moved the pointer back to where the user's own mouse rests (measured 2026-11-15: 30–160 ms after the pointer
+    /// first entered the camera window, when the cursor shape changed), so that the press went to the window below. Put
+    /// back while it moves, up to 10 times; it must then stay for 300 ms.
+    /// </summary>
+    private static async Task PlaceCursorAsync(Point point, string what)
+    {
+        Point now = point;
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            Mouse.Position = point;
+            System.Diagnostics.Stopwatch stable = System.Diagnostics.Stopwatch.StartNew();
+            while ((now = Mouse.Position) == point && stable.Elapsed < TimeSpan.FromMilliseconds(300))
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(10), TestContext.Current.CancellationToken);
+            }
+
+            if (now == point)
+            {
+                return;
+            }
+        }
+
+        Assert.Fail($"The pointer did not stay at {what} {point} (moved to {now}): something else moves it, e.g. a remote desktop client with the user's mouse.");
+    }
+
+    /// <summary>
+    /// The input of the test reached the camera window: the pointer is at <paramref name="expected"/> and no window of
+    /// another process took the foreground (T-169). Otherwise the press went to another window (the desktop was in use,
+    /// or a remote desktop client moved the pointer), which is not a fault of the app.
+    /// </summary>
+    private static void AssertInputReached(nint window, Point expected, string when)
+    {
+        Point cursor = Mouse.Position;
+        string? intruder = Intruder(window);
+        if (cursor != expected || intruder is not null)
+        {
+            Assert.Fail($"The input did not reach the camera window at {when}: the pointer is at {cursor} (expected {expected}){(intruder is not null ? $" and {intruder} is in the foreground" : string.Empty)}. The desktop was in use or something moved the pointer (e.g. a remote desktop client); not a fault of the app.");
+        }
+    }
+
+    /// <summary>The foreground window when it belongs to another process than <paramref name="window"/>, described; else <see langword="null"/>.</summary>
+    private static string? Intruder(nint window)
+    {
+        nint foreground = Native.GetForegroundWindow();
+        if (foreground == 0 || foreground == window)
+        {
+            return null;
+        }
+
+        Native.GetWindowThreadProcessId(window, out uint app);
+        Native.GetWindowThreadProcessId(foreground, out uint other);
+        if (other == app)
+        {
+            return null;
+        }
+
+        string process;
+        try
+        {
+            using System.Diagnostics.Process owner = System.Diagnostics.Process.GetProcessById((int)other);
+            process = owner.ProcessName;
+        }
+        catch (ArgumentException)
+        {
+            process = "ended";
+        }
+
+        return $"0x{foreground:X} '{Native.ClassName(foreground)}' of process {other} ({process})";
     }
 
     private static async Task<List<Native.Rect>> SampleAsync(nint window, TimeSpan duration)

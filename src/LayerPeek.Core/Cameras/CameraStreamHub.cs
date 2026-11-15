@@ -19,6 +19,22 @@ namespace LayerPeek.Core.Cameras;
 /// subscriber only the key frame that the earliest of them is due for is decoded.</item>
 /// <item>Every frame subscriber gets its own copy (<see cref="CameraFrameExchange"/>, newest frame wins), every packet
 /// subscriber its own bounded queue, so a slow subscriber never slows the stream or the others.</item>
+/// <item>T-184: display subscribers (<see cref="CameraFrameSubscriptionOptions.DisplaySize"/>) get frames scaled down in
+/// the decoder's conversion to the largest size any of them wants; the others get the camera's resolution. A frame is
+/// converted in full resolution only when a full-resolution subscriber takes it: every frame for one that wants every
+/// frame, only the one it is due for for one with a <see cref="CameraFrameSubscriptionOptions.MinFrameInterval"/>
+/// (the alarm snapshot beside an open camera window costs one full conversion, not one per frame).</item>
+/// <item>T-185: a display subscriber with a <see cref="CameraFrameSubscriptionOptions.MaxFrameRate"/> (the mini preview)
+/// takes only that many frames per second; while no other display subscriber wants every frame, the frames in between are
+/// decoded but not converted. Full-resolution, grayscale and packet subscribers (detection, recording, timelapse) keep their
+/// own pace.</item>
+/// <item>T-189: grayscale subscribers (<see cref="CameraFrameSubscriptionOptions.Grayscale"/>, print failure detection)
+/// get the frame the decoder scaled straight from the picture's luma, only the one they are due for; no BGRA frame is
+/// converted for them. A feed that yields only BGRA frames (or a subscriber of a second grayscale size) gets its samples
+/// converted from the full frame while copying.</item>
+/// <item>T-188, T-194: a lease of the camera window or the camera test
+/// (<see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>) taken while the connection waits between reconnect
+/// attempts ends the wait (<see cref="CameraReconnectSignal"/>); the other consumers join the connection as it is.</item>
 /// <item>All subscribers of a printer get the connection status; <see cref="Configure"/> restarts the connection when
 /// the camera address changed and ends all leases when the camera was switched off or the printer removed.</item>
 /// <item>A lease may name the address it expects: when it differs from the current one (a camera window opened right
@@ -275,9 +291,14 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
                     StopCore(stream, ref pending);
                 }
 
+                // T-188: before the status, so that a retried connection is not shown as waiting first.
+                bool retried = stream.Run is not null
+                    && subscription is CameraFrameSubscription { ShortensReconnectWait: true }
+                    && stream.Reconnect.Retry();
+
                 // The current status first (under the lock, before the stream can deliver anything to the new subscriber),
                 // so that it never overtakes a newer one.
-                subscription.OnConnectionStatus(stream.Run is null ? CameraStatus.Connecting : stream.Status);
+                subscription.OnConnectionStatus(stream.Run is null || retried ? CameraStatus.Connecting : stream.Status);
                 if (subscription is CameraPacketSubscription packets && stream.Info is { } info)
                 {
                     // A connection already runs: its description comes before its next packet.
@@ -350,34 +371,105 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             stream.Timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         }
 
-        ScheduleKeyFrame(stream);
+        ScheduleFrames(stream);
         KeepReading(stream);
     }
 
     /// <summary>
-    /// Under the lock: the key frame the earliest subscriber of key frames only is due for (T-153), or none. Without full
-    /// decoding the decoder decodes exactly that one; it is scheduled again after every frame such a subscriber took.
+    /// Under the lock: which conversions the subscribers need (T-153, T-184, T-189, T-185). The key frame the earliest
+    /// subscriber of key frames only is due for (without full decoding the decoder decodes exactly that one); the time the
+    /// earliest full-resolution subscriber, the earliest grayscale subscriber and the earliest display subscriber want their
+    /// next frame (every frame for one without an interval or frame rate limit); and the size that fits every display
+    /// subscriber. Scheduled again after every frame a subscriber with an interval or a frame rate limit took.
     /// </summary>
-    private static void ScheduleKeyFrame(PrinterStream stream)
+    private static void ScheduleFrames(PrinterStream stream)
     {
-        long due = long.MaxValue;
-        bool wanted = false;
+        long keyFrameDue = long.MaxValue;
+        bool keyFrameWanted = false;
+        long fullDue = long.MaxValue;
+        bool fullWanted = false;
+        long grayscaleDue = long.MaxValue;
+        CameraGrayscaleSize? grayscale = null;
+        CameraFrameSize? display = null;
+        long displayDue = long.MaxValue;
         foreach (CameraFrameSubscription subscriber in stream.Frames)
         {
-            if (subscriber.KeyFramesOnly && !subscriber.IsEnded)
+            if (subscriber.IsEnded)
             {
-                wanted = true;
-                due = Math.Min(due, subscriber.NextFrameDue);
+                continue;
+            }
+
+            long due = subscriber.IsThrottled ? subscriber.NextFrameDue : long.MinValue;
+            if (subscriber.KeyFramesOnly)
+            {
+                keyFrameWanted = true;
+                keyFrameDue = Math.Min(keyFrameDue, due);
+            }
+
+            if (subscriber.DisplaySize is { } size)
+            {
+                display = display is { } other ? CameraFrameSize.Union(other, size) : size;
+                displayDue = Math.Min(displayDue, due);
+            }
+            else if (subscriber.Grayscale is { } gray && (grayscale is null || grayscale == gray))
+            {
+                // The decoder converts one grayscale size; a subscriber of another one is served from full frames.
+                grayscale = gray;
+                grayscaleDue = Math.Min(grayscaleDue, due);
+            }
+            else
+            {
+                fullWanted = true;
+                fullDue = Math.Min(fullDue, due);
             }
         }
 
-        if (wanted && stream.Run is not null)
+        // The conversions first, the key frame last: a decoder that sees the new key frame request (every write is a full
+        // fence) also sees what that key frame is to be converted into.
+        CameraStreamDemand demand = stream.Demand;
+        if (fullWanted)
         {
-            stream.Demand.RequestKeyFrame(due);
+            demand.RequestFullResolution(fullDue);
         }
         else
         {
-            stream.Demand.CancelKeyFrame();
+            demand.CancelFullResolution();
+        }
+
+        if (grayscale is { } grayscaleSize)
+        {
+            demand.RequestGrayscale(grayscaleSize, grayscaleDue);
+        }
+        else
+        {
+            demand.CancelGrayscale();
+        }
+
+        // T-185: a display subscriber with a frame rate limit wants only the frames it is due for; without one, every frame.
+        demand.RequestDisplay(display is null ? long.MinValue : displayDue);
+        demand.DisplaySize = display;
+        if (keyFrameWanted && stream.Run is not null)
+        {
+            demand.RequestKeyFrame(keyFrameDue);
+        }
+        else
+        {
+            demand.CancelKeyFrame();
+        }
+    }
+
+    /// <summary>
+    /// A subscriber changed its display size or its frame rate limit (T-185): the running stream converts the next frame
+    /// accordingly.
+    /// </summary>
+    internal void OnScheduleChanged(CameraFrameSubscription subscription)
+    {
+        lock (_gate)
+        {
+            if (_streams.TryGetValue(subscription.PrinterId, out PrinterStream? stream) && Array.IndexOf(stream.Frames, subscription) >= 0)
+            {
+                ScheduleFrames(stream);
+            }
         }
     }
 
@@ -468,6 +560,10 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         stream.Demand.Frames = false;
         stream.Demand.Packets = false;
         stream.Demand.CancelKeyFrame();
+        stream.Demand.CancelFullResolution();
+        stream.Demand.CancelGrayscale();
+        stream.Demand.DisplaySize = null;
+        stream.Demand.RequestDisplay(long.MinValue);
         stream.FramesLinger = false;
         stream.StopLinger = false;
         // An idle printer keeps no timer.
@@ -485,7 +581,7 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
             if (!token.IsCancellationRequested)
             {
                 StatusSink status = new(this, stream, generation);
-                await foreach (CameraStreamItem item in _feed.ReadAsync(uri, stream.Demand, status, token).ConfigureAwait(false))
+                await foreach (CameraStreamItem item in _feed.ReadAsync(uri, stream.Demand, status, stream.Reconnect, token).ConfigureAwait(false))
                 {
                     if (stream.Generation != generation)
                     {
@@ -539,13 +635,29 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
                     return;
                 }
 
+                // T-184: display subscribers take the scaled frame; without one (the image already fits, or a feed that does
+                // not scale) the full one. Full-resolution subscribers never get a scaled frame. T-189: grayscale subscribers
+                // take the grayscale frame of their size; without one (a feed that does not convert, another size) the full
+                // one, converted while copying. Any of them may be empty.
+                CameraFrame full = item.Frame;
+                CameraFrame display = item.DisplayFrame.Width > 0 ? item.DisplayFrame : full;
+                CameraGrayscaleFrame grayscale = item.GrayscaleFrame;
                 long now = _timeProvider.GetTimestamp();
-                bool keyFrameTaken = false;
+                bool reschedule = false;
                 foreach (CameraFrameSubscription subscriber in subscribers)
                 {
+                    bool isDisplay = subscriber.IsDisplay;
+                    bool isGray = !isDisplay && subscriber.Grayscale is { } size && grayscale.Is(size);
+                    ref readonly CameraFrame frame = ref isDisplay ? ref display : ref full;
+                    if (!isGray && frame.Width == 0)
+                    {
+                        continue;
+                    }
+
                     try
                     {
-                        keyFrameTaken |= subscriber.Publish(item.Frame, now) && subscriber.KeyFramesOnly;
+                        bool taken = isGray ? subscriber.PublishGrayscale(grayscale, now) : subscriber.Publish(frame, now);
+                        reschedule |= taken && (subscriber.KeyFramesOnly || subscriber.IsThrottled);
                     }
                     catch (Exception ex)
                     {
@@ -557,14 +669,15 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
                     }
                 }
 
-                if (keyFrameTaken)
+                if (reschedule)
                 {
-                    // Before the next read: the decoder must not decode the next key frame before its subscriber is due.
+                    // Before the next read: the decoder must neither decode the next key frame nor convert the next frame in
+                    // full resolution before their subscriber is due.
                     lock (_gate)
                     {
                         if (stream.Generation == generation)
                         {
-                            ScheduleKeyFrame(stream);
+                            ScheduleFrames(stream);
                         }
                     }
                 }
@@ -723,6 +836,9 @@ public sealed partial class CameraStreamHub : IAsyncDisposable, IDisposable
         public Uri? Uri { get; set; }
 
         public CameraStreamDemand Demand { get; } = new(frames: false, packets: false, timeProvider);
+
+        /// <summary>Ends the reconnect wait of the running connection (T-188); one connection runs at a time.</summary>
+        public CameraReconnectSignal Reconnect { get; } = new();
 
         /// <summary>Read without the lock by the streaming thread (copy on write); also the subscribers of key frames only.</summary>
         public CameraFrameSubscription[] Frames => _frames;

@@ -44,8 +44,8 @@ BeforeAll {
     }
     [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, '')
 
-    # Synthetic runtime tables (-Config) for the generic runtime rules: the real table has one RID per OS (T-130), and
-    # no RID that is built but must not be uploaded.
+    # Synthetic runtime tables (-Config) for the generic runtime rules, independent of the real table (T-226: win-x64 and
+    # win-arm64 on Windows, win-arm64 built but not uploadable until T-227; osx-arm64 on macOS).
     $script:TwoWindowsRuntimes = [ordered]@{
         'test-a' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
         'test-b' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
@@ -88,6 +88,18 @@ BeforeAll {
         [System.IO.File]::WriteAllText($Path, $Content)
     }
 
+    # A minimal PE image (T-224): DOS header ("MZ", e_lfanew at 0x3C), the "PE\0\0" signature and the COFF file header,
+    # whose first field is the machine type. Enough for the architecture check, which reads only these fields.
+    function New-PeStandIn([string] $Path, [int] $Machine, [int] $HeaderOffset = 0x80) {
+        $bytes = [byte[]]::new($HeaderOffset + 24)
+        $bytes[0] = 0x4D; $bytes[1] = 0x5A
+        [BitConverter]::GetBytes([int] $HeaderOffset).CopyTo($bytes, 0x3C)
+        $bytes[$HeaderOffset] = 0x50; $bytes[$HeaderOffset + 1] = 0x45
+        [BitConverter]::GetBytes([uint16] $Machine).CopyTo($bytes, $HeaderOffset + 4)
+        $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path)
+        [System.IO.File]::WriteAllBytes($Path, $bytes)
+    }
+
     # A stand-in user profile for the AOT smoke check: data (settings, an image) and logs of the app, plus a neighbour
     # folder that must never be touched.
     function New-SmokeStandInProfile {
@@ -102,6 +114,8 @@ BeforeAll {
         New-StandInFile (Join-Path $root 'prefs' 'com.example.other.plist') 'other prefs'
         # Like ~/Library/Caches and ~/Library/HTTPStorages, which always exist.
         $null = New-Item -ItemType Directory -Path (Join-Path $root 'caches'), (Join-Path $root 'http')
+        # T-196: the FFmpeg build cache next to the cache of the app; never moved or deleted.
+        New-StandInFile (Join-Path $root 'caches' 'LayerPeek.Build' 'ffmpeg' 'osx-arm64-key' 'libavcodec.dylib') 'ffmpeg build'
         $root
     }
     # The identifier of build/macos/Info.plist: aot-smoke.ps1 -ProfileRoot uses it too.
@@ -172,8 +186,8 @@ Describe 'Version and tag' {
 }
 
 Describe 'Runtimes' {
-    It 'builds win-x64 on Windows and osx-arm64 on macOS by default' {
-        Resolve-ReleaseRuntimes -HostOs windows | Should -BeExactly @('win-x64')
+    It 'builds win-x64 and win-arm64 on Windows and osx-arm64 on macOS by default (T-226)' {
+        Resolve-ReleaseRuntimes -HostOs windows | Should -BeExactly @('win-x64', 'win-arm64')
         Resolve-ReleaseRuntimes -HostOs macos | Should -BeExactly @('osx-arm64')
     }
     It 'validates, normalizes and de-duplicates explicit runtimes' {
@@ -191,23 +205,59 @@ Describe 'Runtimes' {
         Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'osx-x64' -HostOs macos } "Unknown runtime 'osx-x64'"
         Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'linux-x64' -HostOs windows } 'Unknown runtime'
     }
-    It 'refuses win-arm64: Windows is released as win-x64 only (T-130)' {
-        Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'win-arm64' -HostOs windows } "Unknown runtime 'win-arm64'. Released runtimes: win-x64, osx-arm64\."
+    It 'builds win-arm64 on Windows only, alone or with win-x64 (T-226)' {
+        Resolve-ReleaseRuntimes -Requested 'win-arm64' -HostOs windows | Should -BeExactly @('win-arm64')
+        Resolve-ReleaseRuntimes -Requested 'win-arm64,win-x64' -HostOs windows | Should -BeExactly @('win-arm64', 'win-x64')
+        Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'win-arm64' -HostOs macos } "'win-arm64' cannot be built on macos"
+        Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'win-x86' -HostOs windows } "Unknown runtime 'win-x86'. Released runtimes: win-x64, win-arm64, osx-arm64\."
     }
-    It 'releases exactly win-x64 and osx-arm64, both uploadable' {
+    It 'releases win-x64, win-arm64 and osx-arm64; win-arm64 is built but not uploadable until T-227' {
         $config = Get-ReleaseRuntimeConfig
-        @($config.Keys) | Should -BeExactly @('win-x64', 'osx-arm64')
+        @($config.Keys) | Should -BeExactly @('win-x64', 'win-arm64', 'osx-arm64')
         $config['win-x64'].Uploadable | Should -BeTrue
         $config['osx-arm64'].Uploadable | Should -BeTrue
+        $config['win-arm64'].Os | Should -BeExactly 'windows'
+        $config['win-arm64'].Default | Should -BeTrue
+        $config['win-arm64'].Uploadable | Should -BeFalse
+        $config['win-arm64'].BlockedReason | Should -BeExactly 'not verified on an ARM64 device (T-227)'
+    }
+    It 'lists the RIDs a release build of an OS may upload, and the -Runtime it needs for that (T-226)' {
+        Get-UploadableReleaseRuntimes -HostOs windows | Should -BeExactly @('win-x64')
+        Get-UploadableReleaseRuntimes -HostOs macos | Should -BeExactly @('osx-arm64')
+        # The default build of Windows has win-arm64 too, so a build for the upload names win-x64; macOS builds its default.
+        Get-ReleaseBuildRuntimeArguments -Os windows | Should -BeExactly @('-Runtime', 'win-x64')
+        @(Get-ReleaseBuildRuntimeArguments -Os macos) | Should -BeNullOrEmpty
+        @(Get-ReleaseBuildRuntimeArguments -Os windows -Config $script:BlockedRuntimeConfig) | Should -BeNullOrEmpty
+        Get-UploadableReleaseRuntimes -HostOs windows -Config $script:TwoWindowsRuntimes | Should -BeExactly @('test-a', 'test-b')
+        $partly = [ordered]@{
+            'test-a' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+            'test-c' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'test only' }
+            'test-b' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+        }
+        # pwsh -File passes the list as one argument.
+        Get-ReleaseBuildRuntimeArguments -Os windows -Config $partly | Should -BeExactly @('-Runtime', 'test-a,test-b')
+        $none = [ordered]@{ 'test-c' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'test only' } }
+        @(Get-UploadableReleaseRuntimes -HostOs windows -Config $none) | Should -BeNullOrEmpty
+        Assert-ThrowsMatching { Get-ReleaseBuildRuntimeArguments -Os windows -Config $none } 'No runtime of windows may be uploaded'
+    }
+    It 'names the RID of this machine (T-226: the tools of an ARM64 device use win-arm64)' {
+        Get-HostRuntime -HostOs windows -HostArchitecture x64 | Should -BeExactly 'win-x64'
+        Get-HostRuntime -HostOs windows -HostArchitecture arm64 | Should -BeExactly 'win-arm64'
+        Get-HostRuntime -HostOs macos -HostArchitecture arm64 | Should -BeExactly 'osx-arm64'
+        Assert-ThrowsMatching { Get-HostRuntime -HostOs windows -HostArchitecture x86 } 'No runtime for windows x86'
+        if ($IsWindows -or $IsMacOS) { Get-HostRuntime | Should -BeExactly (Get-HostRuntime -HostOs (Get-HostOs) -HostArchitecture (Get-HostArchitecture)) }
     }
     It 'smoke-tests only the RID of this OS and architecture' {
         Test-RuntimeRunnable -Runtime win-x64 -HostOs windows -HostArchitecture x64 | Should -BeTrue
         Test-RuntimeRunnable -Runtime win-x64 -HostOs windows -HostArchitecture arm64 | Should -BeFalse
+        Test-RuntimeRunnable -Runtime win-arm64 -HostOs windows -HostArchitecture arm64 | Should -BeTrue
+        Test-RuntimeRunnable -Runtime win-arm64 -HostOs windows -HostArchitecture x64 | Should -BeFalse
         Test-RuntimeRunnable -Runtime osx-arm64 -HostOs macos -HostArchitecture arm64 | Should -BeTrue
         Test-RuntimeRunnable -Runtime win-x64 -HostOs macos -HostArchitecture x64 | Should -BeFalse
     }
     It 'names the archives and checksum files' {
         Get-ArchiveFileName -Version 0.1.0 -Runtime win-x64 | Should -BeExactly 'LayerPeek-0.1.0-win-x64.zip'
+        Get-ArchiveFileName -Version 0.1.0 -Runtime win-arm64 | Should -BeExactly 'LayerPeek-0.1.0-win-arm64.zip'
         Get-ArchiveFileName -Version 0.1.0 -Runtime osx-arm64 | Should -BeExactly 'LayerPeek-0.1.0-osx-arm64.tar.gz'
         Get-ChecksumFileName windows | Should -BeExactly 'SHA256SUMS-windows.txt'
     }
@@ -399,6 +449,13 @@ Describe 'Git state checks (throw-away repositories)' {
     It 'refuses a version bumped without a new tag' {
         Assert-Problems (Get-ReleaseGitProblems -State (State 'v0.2.0') -Version '0.2.0') 'HEAD is tagged v0.1.0 but the version .* is 0.2.0', 'v0.2.0 is not on origin'
     }
+    It 'checks only the local facts with -LocalOnly: no remote query, no remote problem (release-build.ps1 -SignOnly, T-197)' {
+        $local = Get-ReleaseGitState -RepoRoot $script:Work -Tag 'v0.1.0' -Remote 'no-such-remote' -LocalOnly
+        $local.RemoteQueried | Should -BeFalse
+        @($local.RemoteErrors) | Should -BeNullOrEmpty
+        Assert-Problems (Get-ReleaseGitProblems -State $local -Version '0.1.0')
+        Assert-Problems (Get-ReleaseGitProblems -State (Get-ReleaseGitState -RepoRoot $script:Work -Tag 'v0.2.0' -LocalOnly) -Version '0.2.0') 'HEAD is tagged v0.1.0 but the version .* is 0.2.0'
+    }
     It 'refuses an untracked file' {
         [System.IO.File]::WriteAllText((Join-Path $script:Work 'untracked.txt'), 'x')
         try { Assert-Problems (Get-ReleaseGitProblems -State (State) -Version '0.1.0') 'not clean \(1 .*untracked.txt' }
@@ -530,9 +587,14 @@ Describe 'Build marker' {
         $script:Head = 'a' * 40
         $script:Info = [pscustomobject]@{
             Version = '0.1.0'; Commit = $script:Head; Dirty = $false; Runtimes = @('win-x64'); ChecksumFile = 'SHA256SUMS-windows.txt'
-            Files = @([pscustomobject]@{ Name = 'P-0.1.0-win-x64.zip'; Runtime = 'win-x64'; Sha256 = '0' * 64 })
+            Files = @(
+                [pscustomobject]@{ Name = 'P-0.1.0-win-x64.zip'; Runtime = 'win-x64'; Sha256 = '0' * 64 },
+                [pscustomobject]@{ Name = 'releases.win-x64.json'; Runtime = 'win-x64'; Sha256 = '1' * 64 },
+                [pscustomobject]@{ Name = 'releases.win-x64.json.sig'; Runtime = 'win-x64'; Sha256 = '2' * 64 }
+            )
+            FeedSignature = [pscustomobject]@{ Status = 'signed'; PublicKeySha256 = 'f' * 64 }
         }
-        $script:DistNames = @('P-0.1.0-win-x64.zip', 'SHA256SUMS-windows.txt')
+        $script:DistNames = @('P-0.1.0-win-x64.zip', 'releases.win-x64.json', 'releases.win-x64.json.sig', 'SHA256SUMS-windows.txt')
         function Problems($Info, [string[]] $Dist = $script:DistNames) { Get-BuildInfoProblems -BuildInfo $Info -Version '0.1.0' -Head $script:Head -DistFiles $Dist }
     }
     It 'accepts a build of HEAD from a clean tree' {
@@ -550,8 +612,12 @@ Describe 'Build marker' {
         $problems = Get-BuildInfoProblems -BuildInfo (Copy-With $script:Info @{ Runtimes = @('win-x64', 'test-blocked') }) -Version '0.1.0' -Head $script:Head -DistFiles $script:DistNames -Config $script:BlockedRuntimeConfig
         Assert-Problems $problems 'contains test-blocked, which must not be uploaded: test only'
     }
-    It 'refuses a build containing an unknown runtime (win-arm64 is not supported, T-130)' {
-        Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-arm64') })) "unknown runtime 'win-arm64'"
+    It 'refuses a build containing an unknown runtime' {
+        Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-x86') })) "unknown runtime 'win-x86'"
+    }
+    It 'refuses a build containing win-arm64 until it is verified on an ARM64 device, and names the build to upload (T-226, T-227)' {
+        Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-arm64') })) `
+            '^Build output contains win-arm64, which must not be uploaded: not verified on an ARM64 device \(T-227\)\. Rebuild without it: pwsh scripts/release-build\.ps1 -Runtime win-x64$'
     }
     It 'reports missing build output instead of failing when there is no dist folder (Get-ReleaseBuildOutput)' {
         $output = Get-ReleaseBuildOutput -RepoRoot (Join-Path $script:TempRoot 'no-build') -Version '0.1.0' -Head $script:Head
@@ -560,7 +626,105 @@ Describe 'Build marker' {
     }
     It 'refuses files added to or missing in dist' {
         Assert-Problems (Problems $script:Info ($script:DistNames + 'old.zip')) 'not produced by the build: old.zip'
-        Assert-Problems (Problems $script:Info @('SHA256SUMS-windows.txt')) 'missing in dist: P-0.1.0-win-x64.zip'
+        Assert-Problems (Problems $script:Info @('releases.win-x64.json', 'releases.win-x64.json.sig', 'SHA256SUMS-windows.txt')) 'missing in dist: P-0.1.0-win-x64.zip'
+    }
+    It 'refuses a trial build of release-build.ps1 -SkipFeedSignature (T-181)' {
+        $trial = Copy-With $script:Info @{
+            FeedSignature = [pscustomobject]@{ Status = 'skipped'; PublicKeySha256 = $null }
+            Files         = @($script:Info.Files | Where-Object Name -CNE 'releases.win-x64.json.sig')
+        }
+        Assert-Problems (Problems $trial @($script:DistNames | Where-Object { $_ -cne 'releases.win-x64.json.sig' })) `
+            'made with -SkipFeedSignature \(a trial build\)', 'releases\.win-x64\.json without its signature releases\.win-x64\.json\.sig'
+    }
+    It 'refuses a build marker without the feed signature status (built before T-181) or with an unknown one' {
+        $old = $script:Info.PSObject.Copy()
+        $old.PSObject.Properties.Remove('FeedSignature')
+        Assert-Problems (Problems $old) 'has no update feed signature \(made before T-181\?\)'
+        Assert-Problems (Problems (Copy-With $script:Info @{ FeedSignature = [pscustomobject]@{ Status = 'maybe' } })) 'has no update feed signature'
+        Assert-Problems (Problems (Copy-With $script:Info @{ FeedSignature = $null })) 'has no update feed signature'
+    }
+    It 'refuses a build whose signing did not finish and names -SignOnly (pending record, T-197)' {
+        $pending = Copy-With $script:Info @{
+            FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = 'f' * 64 }
+            Files         = @($script:Info.Files | Where-Object Name -CNE 'releases.win-x64.json.sig')
+        }
+        Assert-Problems (Problems $pending @('P-0.1.0-win-x64.zip', 'releases.win-x64.json')) `
+            'is not signed yet: the signing at the end of release-build\.ps1 did not finish .*release-build\.ps1 -SignOnly', 'releases\.win-x64\.json without its signature',
+            'missing in dist: SHA256SUMS-windows\.txt'
+    }
+    It 'refuses a signed build whose feed has no signature file (T-181)' {
+        $unsigned = Copy-With $script:Info @{ Files = @($script:Info.Files | Where-Object Name -CNE 'releases.win-x64.json.sig') }
+        Assert-Problems (Problems $unsigned @($script:DistNames | Where-Object { $_ -cne 'releases.win-x64.json.sig' })) 'releases\.win-x64\.json without its signature'
+    }
+}
+
+Describe 'Sign only an existing dist (T-197, pure)' {
+    BeforeAll {
+        $script:SignHead = 'a' * 40
+        $script:Pending = [pscustomobject]@{
+            Version = '0.1.0'; Commit = $script:SignHead; Dirty = $false; Os = 'macos'; Runtimes = @('osx-arm64'); ChecksumFile = 'SHA256SUMS-macos.txt'
+            Files = @(
+                [pscustomobject]@{ Name = 'LayerPeek-0.1.0-osx-arm64.dmg'; Runtime = 'osx-arm64'; Step = 'app'; Sha256 = '0' * 64 },
+                [pscustomobject]@{ Name = 'releases.osx-arm64.json'; Runtime = 'osx-arm64'; Step = 'app'; Sha256 = '1' * 64 }
+            )
+            FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = 'f' * 64 }
+            Smoke = [pscustomobject]@{ 'osx-arm64' = 'passed' }; CreatedUtc = '2026-11-11T10:00:00.0000000Z'
+        }
+        $script:PendingDist = @(
+            [pscustomobject]@{ Name = 'LayerPeek-0.1.0-osx-arm64.dmg'; Sha256 = '0' * 64 },
+            [pscustomobject]@{ Name = 'releases.osx-arm64.json'; Sha256 = '1' * 64 }
+        )
+        function SignProblems($Info = $script:Pending, [object[]] $Dist = $script:PendingDist, [string] $Os = 'macos') {
+            Get-SignOnlyProblems -BuildInfo $Info -Version '0.1.0' -Head $script:SignHead -Os $Os -DistFiles $Dist
+        }
+        function DistFile([string] $Name, [string] $Hash) { [pscustomobject]@{ Name = $Name; Sha256 = $Hash } }
+        $script:Rebuild = 'Nothing was signed; build again with the signing key'
+    }
+    It 'accepts the unchanged dist of a pending build record of HEAD' {
+        Assert-Problems (SignProblems)
+    }
+    It 'refuses a missing, incomplete, signed, trial or unknown record without looking further' {
+        Assert-Problems (SignProblems $null) 'There is no build record \(build-info\.json\) of version 0\.1\.0 to sign'
+        $incomplete = $script:Pending.PSObject.Copy()
+        $incomplete.PSObject.Properties.Remove('Files')
+        Assert-Problems (SignProblems $incomplete) 'incomplete \(no Files\)'
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'signed'; PublicKeySha256 = 'f' * 64 } }) @()) 'already signed .* never signed again'
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'skipped'; PublicKeySha256 = $null } })) 'trial build of -SkipFeedSignature; it cannot be signed afterwards'
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'Pending' } })) "no pending signature \(FeedSignature\.Status 'Pending'\)"
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = $null })) "no pending signature \(FeedSignature\.Status ''\)"
+    }
+    It 'refuses another version, commit or OS and a build from a dirty tree' {
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Version = '0.0.9' })) 'of version 0\.0\.9, the source is 0\.1\.0', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Commit = 'c' * 40 })) 'built from commit c{40}, HEAD is a{40}', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Dirty = $true })) 'uncommitted or untracked files; it can never be uploaded', $script:Rebuild
+        Assert-Problems (SignProblems -Os 'windows') 'built on macos, this machine is windows', 'contains osx-arm64, a runtime of macos', "checksum file 'SHA256SUMS-macos\.txt', expected SHA256SUMS-windows\.txt", $script:Rebuild
+    }
+    It 'refuses a record without runtimes, with an unknown runtime or without the fingerprint of the checked key' {
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @() })) 'names no runtime', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @('osx-arm64', 'win-x86') })) "unknown runtime 'win-x86'", 'no update feed releases\.win-x86\.json', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @('osx-arm64', 'win-arm64') })) 'contains win-arm64, a runtime of windows', 'no update feed releases\.win-arm64\.json', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = $null } })) 'does not name the public key', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = 'F' * 64 } })) 'does not name the public key', $script:Rebuild
+    }
+    It 'refuses a record listing what only the signing writes, a file twice or no feed' {
+        $sig = DistFile 'releases.osx-arm64.json.sig' ('2' * 64)
+        $withSig = Copy-With $script:Pending @{ Files = @($script:Pending.Files) + [pscustomobject]@{ Name = $sig.Name; Runtime = 'osx-arm64'; Step = 'feed-signature'; Sha256 = $sig.Sha256 } }
+        Assert-Problems (SignProblems $withSig (@($script:PendingDist) + $sig)) 'lists releases\.osx-arm64\.json\.sig, which only the signing writes', $script:Rebuild
+        $twice = Copy-With $script:Pending @{ Files = @($script:Pending.Files) + $script:Pending.Files[0] }
+        Assert-Problems (SignProblems $twice) 'lists a file twice', $script:Rebuild
+        $noFeed = Copy-With $script:Pending @{ Files = @($script:Pending.Files[0]) }
+        Assert-Problems (SignProblems $noFeed @($script:PendingDist[0])) 'has no update feed releases\.osx-arm64\.json of osx-arm64 to sign', $script:Rebuild
+        $path = Copy-With $script:Pending @{ Files = @($script:Pending.Files) + [pscustomobject]@{ Name = '../x.zip'; Runtime = 'osx-arm64'; Step = 'app'; Sha256 = '3' * 64 } }
+        Assert-Problems (SignProblems $path (@($script:PendingDist) + (DistFile '../x.zip' ('3' * 64)))) 'without a plain file name', $script:Rebuild
+    }
+    It 'refuses a changed, a missing and an added file in dist' {
+        Assert-Problems (SignProblems -Dist @((DistFile 'LayerPeek-0.1.0-osx-arm64.dmg' ('9' * 64)), $script:PendingDist[1])) 'changed after the build \(SHA-256 differs from the build record\): LayerPeek-0\.1\.0-osx-arm64\.dmg', $script:Rebuild
+        Assert-Problems (SignProblems -Dist @($script:PendingDist[1])) 'missing in dist/: LayerPeek-0\.1\.0-osx-arm64\.dmg', $script:Rebuild
+        Assert-Problems (SignProblems -Dist (@($script:PendingDist) + (DistFile '.DS_Store' ('4' * 64)))) 'not produced by the build: \.DS_Store', $script:Rebuild
+        # A signature or checksum file left by an earlier signing attempt is a file the record does not list.
+        Assert-Problems (SignProblems -Dist (@($script:PendingDist) + (DistFile 'releases.osx-arm64.json.sig' ('2' * 64)) + (DistFile 'SHA256SUMS-macos.txt' ('5' * 64)))) `
+            'not produced by the build: releases\.osx-arm64\.json\.sig, SHA256SUMS-macos\.txt', $script:Rebuild
+        Assert-Problems (SignProblems -Dist @()) 'missing in dist/: LayerPeek-0\.1\.0-osx-arm64\.dmg, releases\.osx-arm64\.json', $script:Rebuild
     }
 }
 
@@ -593,15 +757,18 @@ Describe 'Upload plan' {
 
 Describe 'Publish checks' {
     BeforeAll {
-        $script:WinSums = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json' = 'a' * 64 }
-        $script:MacSums = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json' = 'b' * 64 }
+        $script:WinSums = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json' = 'a' * 64; 'releases.win-x64.json.sig' = 'c' * 64 }
+        $script:MacSums = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json' = 'b' * 64; 'releases.osx-arm64.json.sig' = 'd' * 64 }
+        # The first four are the Windows files, the rest the macOS files.
         $script:Complete = @(
             [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; digest = "sha256:$('1' * 64)" },
             [pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = "sha256:$('7' * 64)" },
             [pscustomobject]@{ name = 'releases.win-x64.json'; digest = "sha256:$('a' * 64)" },
+            [pscustomobject]@{ name = 'releases.win-x64.json.sig'; digest = "sha256:$('c' * 64)" },
             [pscustomobject]@{ name = 'P-0.1.0-osx-arm64.tar.gz'; digest = "sha256:$('2' * 64)" },
             [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = "sha256:$('8' * 64)" },
-            [pscustomobject]@{ name = 'releases.osx-arm64.json'; digest = "sha256:$('b' * 64)" }
+            [pscustomobject]@{ name = 'releases.osx-arm64.json'; digest = "sha256:$('b' * 64)" },
+            [pscustomobject]@{ name = 'releases.osx-arm64.json.sig'; digest = "sha256:$('d' * 64)" }
         )
         $script:BothSums = [ordered]@{ 'SHA256SUMS-windows.txt' = $script:WinSums; 'SHA256SUMS-macos.txt' = $script:MacSums }
         function Release([object[]] $Assets, [bool] $Draft = $true) { [pscustomobject]@{ isDraft = $Draft; assets = $Assets; url = 'https://example.invalid' } }
@@ -614,19 +781,31 @@ Describe 'Publish checks' {
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) 'already published'
     }
     It 'refuses a draft without the macOS files unless incomplete releases are allowed' {
-        $windowsOnly = @($script:Complete | Select-Object -First 3)
+        $windowsOnly = @($script:Complete | Select-Object -First 4)
         $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = $script:WinSums }
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) 'no SHA256SUMS-macos.txt'
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
     }
-    It 'refuses missing, different and unlisted files (also a stray win-arm64 file, T-130)' {
+    It 'refuses missing, different and unlisted files' {
         $assets = @($script:Complete | Where-Object name -NE 'P-0.1.0-osx-arm64.tar.gz') + @(
-            [pscustomobject]@{ name = 'stray.txt'; digest = "sha256:$('3' * 64)" },
-            [pscustomobject]@{ name = 'P-0.1.0-win-arm64.zip'; digest = "sha256:$('4' * 64)" }
+            [pscustomobject]@{ name = 'stray.txt'; digest = "sha256:$('3' * 64)" }
         )
         $assets[0] = [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; digest = "sha256:$('6' * 64)" }
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) `
-            'P-0.1.0-osx-arm64.tar.gz is listed .* but not uploaded', 'Uploaded P-0.1.0-win-x64.zip does not match', 'stray.txt is uploaded but not listed', 'P-0.1.0-win-arm64.zip is uploaded but not listed'
+            'P-0.1.0-osx-arm64.tar.gz is listed .* but not uploaded', 'Uploaded P-0.1.0-win-x64.zip does not match', 'stray.txt is uploaded but not listed'
+    }
+    It 'needs no win-arm64 feed and refuses every win-arm64 file until T-227, also when it is listed (T-226)' {
+        # The complete draft above has no win-arm64 file: win-arm64 is not uploadable, so its feed is not expected.
+        Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums)
+        $arm = [ordered]@{ 'P-0.1.0-win-arm64.zip' = '4' * 64; 'P-0.1.0-win-arm64-Setup.exe' = '5' * 64; 'releases.win-arm64.json' = 'e' * 64; 'releases.win-arm64.json.sig' = 'f' * 64 }
+        $winSums = [ordered]@{}
+        foreach ($name in $script:WinSums.Keys) { $winSums[$name] = $script:WinSums[$name] }
+        foreach ($name in $arm.Keys) { $winSums[$name] = $arm[$name] }
+        $assets = @($script:Complete) + @($arm.Keys | ForEach-Object { [pscustomobject]@{ name = $_; digest = "sha256:$($arm[$_])" } })
+        $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = $winSums; 'SHA256SUMS-macos.txt' = $script:MacSums }
+        $blocked = 'belongs to win-arm64, which must not be released: not verified on an ARM64 device \(T-227\)\.$'
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) `
+            "^P-0\.1\.0-win-arm64\.zip $blocked", "^P-0\.1\.0-win-arm64-Setup\.exe $blocked", "^releases\.win-arm64\.json $blocked", "^releases\.win-arm64\.json\.sig $blocked"
     }
     It 'refuses a draft without the Velopack feed of a released RID (T-058: <Feed>)' -ForEach @(
         @{ Feed = 'releases.win-x64.json' },
@@ -635,8 +814,8 @@ Describe 'Publish checks' {
         $feed = $Feed
         $assets = @($script:Complete | Where-Object name -CNE $feed)
         $sums = [ordered]@{
-            'SHA256SUMS-windows.txt' = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64 }
-            'SHA256SUMS-macos.txt'   = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64 }
+            'SHA256SUMS-windows.txt' = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json.sig' = 'c' * 64 }
+            'SHA256SUMS-macos.txt'   = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json.sig' = 'd' * 64 }
         }
         $sums['SHA256SUMS-windows.txt']['releases.win-x64.json'] = 'a' * 64
         $sums['SHA256SUMS-macos.txt']['releases.osx-arm64.json'] = 'b' * 64
@@ -645,10 +824,25 @@ Describe 'Publish checks' {
         # Allowed incomplete (a trial release): only the uploaded files are checked.
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
     }
+    It 'refuses a feed without its signature releases.<RID>.json.sig, also when incomplete releases are allowed (T-181: <Feed>)' -ForEach @(
+        @{ Feed = 'releases.win-x64.json'; SumsFile = 'SHA256SUMS-windows.txt' },
+        @{ Feed = 'releases.osx-arm64.json'; SumsFile = 'SHA256SUMS-macos.txt' }
+    ) {
+        $feed = $Feed
+        $assets = @($script:Complete | Where-Object name -CNE "$feed.sig")
+        $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = [ordered]@{}; 'SHA256SUMS-macos.txt' = [ordered]@{} }
+        foreach ($name in $script:WinSums.Keys) { $sums['SHA256SUMS-windows.txt'][$name] = $script:WinSums[$name] }
+        foreach ($name in $script:MacSums.Keys) { $sums['SHA256SUMS-macos.txt'][$name] = $script:MacSums[$name] }
+        $sums[$SumsFile].Remove("$feed.sig")
+        $pattern = "Release v0\.1\.0 has $([regex]::Escape($feed)) but no $([regex]::Escape($feed))\.sig: installed apps that verify the update feed would refuse"
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) $pattern
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums) $pattern
+        Assert-Problems (Get-PublishProblems -Release (Release $assets $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums -Published) $pattern
+    }
     It 'checks a published release with -Published (the check after release-upload.ps1 -AddToPublished, T-113)' {
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published)
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published) 'is a draft, not published'
-        $macOnly = @($script:Complete | Select-Object -Skip 3)
+        $macOnly = @($script:Complete | Select-Object -Skip 4)
         Assert-Problems (Get-PublishProblems -Release (Release $macOnly $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums ([ordered]@{ 'SHA256SUMS-macos.txt' = $script:MacSums }) -Published) 'no SHA256SUMS-windows.txt'
     }
 }
@@ -702,12 +896,528 @@ Describe 'Adding an OS to a published release (T-113)' {
         @{ Name = 'releases.osx-arm64.json'; Expected = $true }
         @{ Name = 'assets.osx-arm64.json'; Expected = $true }
         @{ Name = 'RELEASES-win-x64'; Expected = $true }
+        @{ Name = 'releases.win-x64.json.sig'; Expected = $false }
+        @{ Name = 'releases.osx-arm64.json.sig'; Expected = $false }
         @{ Name = 'LayerPeek-0.1.0-win-x64.zip'; Expected = $false }
         @{ Name = 'LayerPeek-0.1.0-win-x64-Setup.exe'; Expected = $false }
         @{ Name = 'LayerPeek-0.1.0-osx-arm64-full.nupkg'; Expected = $false }
         @{ Name = 'LayerPeek-0.1.0-osx-arm64.dmg'; Expected = $false }
     ) {
         Test-ReleaseMarkerFileName $Name | Should -Be $Expected
+    }
+}
+
+Describe 'Update feed signature (T-181)' {
+    BeforeAll {
+        # The shared test vector of the C# tests (tests/Shared/Fixtures/UpdateFeed): the PowerShell side must agree with
+        # LayerPeek.Core.Updates.UpdateFeedVerifier in both directions.
+        $script:Vector = Join-Path $script:RepoRoot 'tests' 'Shared' 'Fixtures' 'UpdateFeed'
+        $script:VectorFeed = [System.IO.File]::ReadAllBytes((Join-Path $script:Vector 'releases.osx-arm64.json'))
+        $script:VectorSignature = [System.IO.File]::ReadAllBytes((Join-Path $script:Vector 'releases.osx-arm64.json.sig'))
+        $script:TestPublic = ConvertFrom-FeedPublicKeyPem ([System.IO.File]::ReadAllText((Join-Path $script:Vector 'test-feed-key.public.pem')))
+        $script:EncryptedKeyPath = Join-Path $script:Vector 'test-feed-key.private.encrypted.pem'
+        $script:PlainKeyPath = Join-Path $script:Vector 'test-feed-key.private.pem'
+        $script:TestPassword = 'layerpeek-test-only'
+        $script:KeysSourcePath = Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Installer' 'UpdateFeedKeys.cs'
+        function SecurePassword([string] $Text = $script:TestPassword) { ConvertTo-SecureString $Text -AsPlainText -Force }
+        function Open-TestKey { Import-FeedSigningKey -EncryptedPem (Read-FeedSigningKeyFile $script:EncryptedKeyPath) -Password (SecurePassword) }
+        function Ascii([string] $Text) { , [System.Text.Encoding]::ASCII.GetBytes($Text) }
+        function Verify([byte[]] $Feed = $script:VectorFeed, [string] $Runtime = 'osx-arm64', [byte[]] $Signature = $script:VectorSignature, [object[]] $Keys = @($script:TestPublic)) {
+            Test-UpdateFeedSignature -Feed $Feed -Runtime $Runtime -SignatureFile $Signature -TrustedKeys $Keys
+        }
+        function Get-KeyListSource([string[]] $Pems, [string] $Extra = '') {
+            # A minimal UpdateFeedKeys.cs with the given keys in Production, written like the real one (raw string literals).
+            $items = @($Pems | ForEach-Object { "        `"`"`"`n" + (($_.Trim() -split "`n" | ForEach-Object { "        $($_.Trim())" }) -join "`n") + "`n        `"`"`"," })
+            "internal static class UpdateFeedKeys`n{`n    public static readonly IReadOnlyList<string> Production =`n    [`n$($items -join "`n")$Extra`n    ];`n}`n"
+        }
+        # Another P-256 key that nobody trusts, and a key of another curve. (Variable names unlike the -ForEach keys below:
+        # PowerShell variables ignore case.)
+        $otherKey = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+        try { $script:OtherPublic = ConvertFrom-FeedPublicKeyPem $otherKey.ExportSubjectPublicKeyInfoPem() } finally { $otherKey.Dispose() }
+        $curve384Key = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP384)
+        try { $script:P384Pem = $curve384Key.ExportSubjectPublicKeyInfoPem() } finally { $curve384Key.Dispose() }
+
+        # What must never appear in output, logs or files: the password, every base64 line of both private key files (so
+        # also no copy of the encrypted file) and the private scalar D.
+        $script:Secrets = [System.Collections.Generic.List[string]]::new()
+        $script:Secrets.Add($script:TestPassword)
+        foreach ($file in $script:EncryptedKeyPath, $script:PlainKeyPath) {
+            foreach ($line in [System.IO.File]::ReadAllLines($file)) { if ($line -cmatch '^[A-Za-z0-9+/=]{16,}$') { $script:Secrets.Add($line) } }
+        }
+        $secretKey = Open-TestKey
+        try {
+            $d = $secretKey.ExportParameters($true).D
+            $script:Secrets.Add([Convert]::ToBase64String($d))
+            $script:Secrets.Add([Convert]::ToHexString($d))
+        }
+        finally { $secretKey.Dispose() }
+        function Assert-NoSecret([AllowEmptyString()] [string] $Text, [string] $Where) {
+            foreach ($secret in $script:Secrets) { if ($Text.Contains($secret, [StringComparison]::OrdinalIgnoreCase)) { throw "A secret of the test key appears in $Where." } }
+        }
+        function Assert-NoSecretInFolder([string] $Folder) {
+            foreach ($file in @(Get-ChildItem -LiteralPath $Folder -Recurse -File -Force)) {
+                Assert-NoSecret ([System.IO.File]::ReadAllText($file.FullName)) $file.FullName
+            }
+        }
+    }
+
+    It 'verifies the signature of the shared test vector (made by PowerShell, verified by the C# tests too)' {
+        Verify | Should -BeTrue
+    }
+    It 'refuses the vector for a changed feed, another RID or another key, and accepts it during a rotation' {
+        $changed = [byte[]] $script:VectorFeed.Clone()
+        $changed[20] = $changed[20] -bxor 1
+        Verify -Feed $changed | Should -BeFalse
+        Verify -Runtime 'win-x64' | Should -BeFalse
+        Verify -Keys @($script:OtherPublic) | Should -BeFalse
+        Verify -Keys @() | Should -BeFalse
+        Verify -Keys @($script:OtherPublic, $script:TestPublic) | Should -BeTrue
+    }
+    It 'reads the signature file like the app: whitespace around it ignored, anything else malformed (never throws)' {
+        $base64 = [System.Text.Encoding]::ASCII.GetString($script:VectorSignature).Trim()
+        Verify -Signature (Ascii " `t$base64`r`n`n") | Should -BeTrue
+        Verify -Signature (Ascii $base64) | Should -BeTrue
+        $sixtyThree = [Convert]::ToBase64String([byte[]]::new(63))
+        foreach ($bad in @('', ' ', "`n", "$base64$base64", ($base64.Substring(0, 87) + '*'), ($base64 -replace '\+', '-' -replace '/', '_'),
+                $sixtyThree, "$base64 x", ((' ' * 200) + $base64))) {
+            Verify -Signature (Ascii $bad) | Should -BeFalse -Because "signature file '$bad'"
+        }
+        Verify -Signature ([byte[]]::new(0)) | Should -BeFalse
+        Verify -Signature (Ascii ($base64 + (' ' * 170))) | Should -BeFalse -Because 'more than 256 bytes'
+    }
+    It 'builds the signed data like the app: domain prefix, RID, LF, then the exact feed bytes' {
+        $data = Get-UpdateFeedSignedData -Feed (Ascii "{`"a`":1}`n") -Runtime 'osx-arm64'
+        $data.GetType() | Should -Be ([byte[]])
+        [System.Text.Encoding]::ASCII.GetString($data) | Should -BeExactly "LayerPeek-feed-v1`nosx-arm64`n{`"a`":1}`n"
+        foreach ($runtime in 'osx/arm64', 'a b', ('x' * 65), 'ü') {
+            Assert-ThrowsMatching { Get-UpdateFeedSignedData -Feed (Ascii 'x') -Runtime $runtime } 'must be a RID'
+        }
+    }
+    It 'signs in PowerShell so that the public key of the test vector verifies it (<_>)' -ForEach 'osx-arm64', 'win-x64' {
+        $runtime = $_
+        $key = Open-TestKey
+        try {
+            $first = New-UpdateFeedSignature -Key $key -Feed $script:VectorFeed -Runtime $runtime
+            $second = New-UpdateFeedSignature -Key $key -Feed $script:VectorFeed -Runtime $runtime
+        }
+        finally { $key.Dispose() }
+        $first | Should -Match '^[A-Za-z0-9+/]{86}==$'
+        # ECDSA signatures are randomized: two signatures differ, both verify.
+        $second | Should -Not -BeExactly $first
+        foreach ($signature in $first, $second) {
+            Verify -Runtime $runtime -Signature (Ascii "$signature`n") | Should -BeTrue
+            Verify -Runtime ($runtime -eq 'win-x64' ? 'osx-arm64' : 'win-x64') -Signature (Ascii "$signature`n") | Should -BeFalse
+        }
+    }
+    It 'reads the trusted keys from the source of the app: the Debug test key is the fixture key, never a production key' {
+        $source = [System.IO.File]::ReadAllText($script:KeysSourcePath)
+        $test = @(Get-TrustedFeedKeys $source -ListName 'Test')
+        $test.Count | Should -Be 1
+        $test[0].Sha256 | Should -BeExactly $script:TestPublic.Sha256
+        # Throws when the production list changes shape, so a change can never read as "no keys" silently.
+        $production = @(Get-TrustedFeedKeys $source)
+        @($production | Where-Object Sha256 -EQ $script:TestPublic.Sha256) | Should -BeNullOrEmpty -Because 'the test key must never sign a release'
+    }
+    It 'parses a production list with two keys during a rotation, comments included' {
+        $source = Get-KeyListSource @($script:OtherPublic.Pem, $script:TestPublic.Pem) "`n        // the old key goes in 1.2.0"
+        @(Get-TrustedFeedKeys $source | ForEach-Object Sha256) | Should -BeExactly @($script:OtherPublic.Sha256, $script:TestPublic.Sha256)
+        @(Get-TrustedFeedKeys (Get-KeyListSource @())) | Should -BeNullOrEmpty
+    }
+    It 'refuses a key list it cannot read completely (<Case>)' -ForEach @(
+        @{ Case = 'no list'; Source = 'internal static class UpdateFeedKeys { }'; Pattern = 'UpdateFeedKeys\.Production .* was not found' }
+        @{ Case = 'a reference to a constant'; Source = "public static readonly IReadOnlyList<string> Production = [ Key2026, ];"; Pattern = 'entries other than raw string PEM literals' }
+        @{ Case = 'a private key'; Plain = $true; Pattern = 'must be one PEM PUBLIC KEY' }
+        @{ Case = 'a P-384 key'; P384 = $true; Pattern = 'must be an ECDSA P-256 public key' }
+        @{ Case = 'a key twice'; Twice = $true; Pattern = 'lists a key twice' }
+        @{ Case = 'two declarations (#if DEBUG / #else)'; Conditional = $true; Pattern = 'UpdateFeedKeys\.Production is declared 2 times .*cannot tell which one a Release build trusts' }
+    ) {
+        $text = if ($Plain) { Get-KeyListSource @([System.IO.File]::ReadAllText($script:PlainKeyPath)) }
+        elseif ($P384) { Get-KeyListSource @($script:P384Pem) }
+        elseif ($Twice) { Get-KeyListSource @($script:TestPublic.Pem, $script:TestPublic.Pem) }
+        elseif ($Conditional) { "#if DEBUG`n" + (Get-KeyListSource @($script:OtherPublic.Pem)) + "#else`n" + (Get-KeyListSource @($script:TestPublic.Pem)) + "#endif`n" }
+        else { $Source }
+        Assert-ThrowsMatching { Get-TrustedFeedKeys $text } $Pattern
+    }
+    It 'refuses an empty trusted list and a signing key the list does not trust' {
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @()) 'UpdateFeedKeys\.Production\) trusts no key yet.*-SkipFeedSignature'
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @() -PublicKey $script:TestPublic.SubjectPublicKeyInfo) 'trusts no key yet'
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic) -PublicKey $script:TestPublic.SubjectPublicKeyInfo) `
+            "The signing key \(public key SHA-256 $($script:TestPublic.Sha256)\) is not trusted by .* which trusts $($script:OtherPublic.Sha256)"
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic, $script:TestPublic) -PublicKey $script:TestPublic.SubjectPublicKeyInfo)
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:TestPublic))
+    }
+    It 'checks the fingerprint of a build record against the trusted list like a public key (T-197)' {
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @() -PublicKeySha256 $script:TestPublic.Sha256) 'trusts no key yet'
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic) -PublicKeySha256 $script:TestPublic.Sha256) `
+            "The signing key \(public key SHA-256 $($script:TestPublic.Sha256)\) is not trusted by"
+        Assert-Problems (Get-FeedSigningTrustProblems -TrustedKeys @($script:OtherPublic, $script:TestPublic) -PublicKeySha256 $script:TestPublic.Sha256)
+    }
+    It 'refuses a missing, unencrypted or foreign key file' {
+        Assert-ThrowsMatching { Read-FeedSigningKeyFile (Join-Path $script:TempRoot 'no-such-key.pem') } 'does not exist\. Is the key medium connected\?'
+        Assert-ThrowsMatching { Read-FeedSigningKeyFile $script:PlainKeyPath } 'is an unencrypted private key.*encrypted PKCS#8 PEM'
+        Assert-ThrowsMatching { Read-FeedSigningKeyFile (Join-Path $script:Vector 'test-feed-key.public.pem') } 'expected one encrypted PKCS#8 PEM'
+        $large = New-TempFile 'large-key.pem' ('A' * 20000)
+        Assert-ThrowsMatching { Read-FeedSigningKeyFile $large } 'is no update feed signing key'
+        Read-FeedSigningKeyFile $script:EncryptedKeyPath | Should -Match '-----BEGIN ENCRYPTED PRIVATE KEY-----'
+    }
+    It 'refuses a wrong password without repeating it' {
+        $message = $null
+        try { $null = Import-FeedSigningKey -EncryptedPem (Read-FeedSigningKeyFile $script:EncryptedKeyPath) -Password (SecurePassword 'wrong-password-4711') }
+        catch { $message = "$_" }
+        $message | Should -Match 'cannot be decrypted: wrong password, or the key file is damaged'
+        $message | Should -Not -Match 'wrong-password-4711'
+    }
+    It 'signs every feed of the build in dist, verifies each with the trusted keys and leaves no secret in output or files' {
+        $dist = Join-Path $script:TempRoot 'sign-dist'
+        $null = New-Item -ItemType Directory -Path $dist
+        [System.IO.File]::WriteAllBytes((Join-Path $dist 'releases.osx-arm64.json'), $script:VectorFeed)
+        [System.IO.File]::WriteAllText((Join-Path $dist 'releases.win-x64.json'), '{"Assets":[]}')
+        [System.IO.File]::WriteAllText((Join-Path $dist 'LayerPeek-0.1.0-osx-arm64.dmg'), 'dmg')
+        $output = @(& {
+                $key = Open-TestKey
+                try { Add-UpdateFeedSignatures -Key $key -DistDirectory $dist -Runtimes 'osx-arm64', 'win-x64' -TrustedKeys @($script:OtherPublic, $script:TestPublic) }
+                finally { $key.Dispose() }
+            } *>&1)
+        @($output | ForEach-Object { Split-Path -Leaf "$_" }) | Should -BeExactly @('releases.osx-arm64.json.sig', 'releases.win-x64.json.sig')
+        foreach ($rid in 'osx-arm64', 'win-x64') {
+            $signature = [System.IO.File]::ReadAllBytes((Join-Path $dist "releases.$rid.json.sig"))
+            [System.Text.Encoding]::ASCII.GetString($signature) | Should -Match '^[A-Za-z0-9+/]{86}==\n$'
+            Verify -Feed ([System.IO.File]::ReadAllBytes((Join-Path $dist "releases.$rid.json"))) -Runtime $rid -Signature $signature | Should -BeTrue
+        }
+        Assert-NoSecret ($output | Out-String) 'the output of Add-UpdateFeedSignatures'
+        Assert-NoSecretInFolder $dist
+        @(Get-ChildItem -LiteralPath $dist -File | ForEach-Object Name | Sort-Object) | Should -BeExactly @('LayerPeek-0.1.0-osx-arm64.dmg', 'releases.osx-arm64.json', 'releases.osx-arm64.json.sig', 'releases.win-x64.json', 'releases.win-x64.json.sig')
+    }
+    It 'refuses a missing feed and an existing signature, and deletes a signature the trusted keys do not verify' {
+        $dist = Join-Path $script:TempRoot 'sign-refuse'
+        $null = New-Item -ItemType Directory -Path $dist
+        [System.IO.File]::WriteAllBytes((Join-Path $dist 'releases.osx-arm64.json'), $script:VectorFeed)
+        $key = Open-TestKey
+        try {
+            Assert-ThrowsMatching { Add-UpdateFeedSignatures -Key $key -DistDirectory $dist -Runtimes 'win-x64' -TrustedKeys @($script:TestPublic) } 'no update feed releases\.win-x64\.json of win-x64'
+            Assert-ThrowsMatching { Add-UpdateFeedSignatures -Key $key -DistDirectory $dist -Runtimes 'osx-arm64' -TrustedKeys @($script:OtherPublic) } 'does not verify with the keys of src/LayerPeek\.App/Installer/UpdateFeedKeys\.cs; nothing was signed'
+            Test-Path -LiteralPath (Join-Path $dist 'releases.osx-arm64.json.sig') | Should -BeFalse
+            [System.IO.File]::WriteAllText((Join-Path $dist 'releases.osx-arm64.json.sig'), 'old')
+            Assert-ThrowsMatching { Add-UpdateFeedSignatures -Key $key -DistDirectory $dist -Runtimes 'osx-arm64' -TrustedKeys @($script:TestPublic) } 'Release file already exists'
+        }
+        finally { $key.Dispose() }
+    }
+    It 'creates a key pair (encrypted private key, public key for UpdateFeedKeys.Production) that signs verifiable feeds' {
+        $folder = Join-Path $script:TempRoot 'new-key'
+        $null = New-Item -ItemType Directory -Path $folder
+        $private = Join-Path $folder 'feed-key.pem'
+        $public = Join-Path $folder 'feed-key.public.pem'
+        $password = 'correct horse battery staple'
+        Assert-ThrowsMatching { New-UpdateFeedSigningKey -Path $private -PublicKeyPath $public -Password (SecurePassword 'too-short') } 'at least 16 characters'
+        @(Get-ChildItem -LiteralPath $folder) | Should -BeNullOrEmpty
+        $created = New-UpdateFeedSigningKey -Path $private -PublicKeyPath $public -Password (SecurePassword $password)
+        $trusted = ConvertFrom-FeedPublicKeyPem ([System.IO.File]::ReadAllText($public))
+        $created.PublicKeySha256 | Should -BeExactly $trusted.Sha256
+        (ConvertFrom-FeedPublicKeyPem $created.PublicKeyPem).Sha256 | Should -BeExactly $trusted.Sha256
+        $text = Read-FeedSigningKeyFile $private
+        $text | Should -Not -Match 'BEGIN PRIVATE KEY'
+        if (-not $IsWindows) { (Get-Item -LiteralPath $private).UnixFileMode | Should -Be ([System.IO.UnixFileMode]'UserRead, UserWrite') }
+        $key = Import-FeedSigningKey -EncryptedPem $text -Password (SecurePassword $password)
+        try { $signature = New-UpdateFeedSignature -Key $key -Feed $script:VectorFeed -Runtime 'osx-arm64' }
+        finally { $key.Dispose() }
+        Verify -Signature (Ascii $signature) -Keys @($trusted) | Should -BeTrue
+        Assert-ThrowsMatching { New-UpdateFeedSigningKey -Path $private -PublicKeyPath (Join-Path $folder 'other.pem') -Password (SecurePassword $password) } 'already exists; a key file is never overwritten'
+    }
+    It 'uploads every feed signature before the feeds, with the packages (Get-UploadBatches)' {
+        $paths = @('d/LayerPeek-0.1.0-osx-arm64.dmg', 'd/releases.osx-arm64.json', 'd/releases.osx-arm64.json.sig', 'd/SHA256SUMS-macos.txt',
+            'd/assets.osx-arm64.json', 'd/LayerPeek-0.1.0-osx-arm64-full.nupkg', 'd/RELEASES-osx-arm64')
+        $batches = @(Get-UploadBatches -Paths $paths)
+        $batches.Count | Should -Be 2
+        @($batches[0].Files | Split-Path -Leaf) | Should -BeExactly @('LayerPeek-0.1.0-osx-arm64.dmg', 'releases.osx-arm64.json.sig', 'LayerPeek-0.1.0-osx-arm64-full.nupkg')
+        @($batches[1].Files | Split-Path -Leaf) | Should -BeExactly @('releases.osx-arm64.json', 'SHA256SUMS-macos.txt', 'assets.osx-arm64.json', 'RELEASES-osx-arm64')
+        @(Get-UploadBatches -Paths @('d/releases.osx-arm64.json')).Count | Should -Be 1
+        @(Get-UploadBatches -Paths @()) | Should -BeNullOrEmpty
+    }
+    Context 'the key twice: checked before the build, read and decrypted again for signing (decision of question 17)' {
+        BeforeAll {
+            function New-SigningSetup([string] $Name) {
+                # A key folder (the "key medium") with a copy of the encrypted test key, and a dist folder with one feed.
+                $root = Join-Path $script:TempRoot $Name
+                $medium = Join-Path $root 'medium'
+                $dist = Join-Path $root 'dist'
+                $null = New-Item -ItemType Directory -Path $medium, $dist
+                $keyPath = Join-Path $medium 'feed-key.pem'
+                Copy-Item -LiteralPath $script:EncryptedKeyPath -Destination $keyPath
+                [System.IO.File]::WriteAllBytes((Join-Path $dist 'releases.osx-arm64.json'), $script:VectorFeed)
+                [pscustomobject]@{ Root = $root; Medium = $medium; Dist = $dist; KeyPath = $keyPath }
+            }
+            function Assert-Disposed([System.Security.SecureString] $Password) {
+                { $null = $Password.Copy() } | Should -Throw -Because 'every password copy is disposed right after use'
+            }
+        }
+        BeforeEach {
+            # Every password "typed" into a prompt (the test password), kept here to prove that the scripts dispose it.
+            $script:Typed = [System.Collections.Generic.List[System.Security.SecureString]]::new()
+            $script:WrongFirst = $false
+            Mock Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } {
+                $text = if ($script:WrongFirst -and $script:Typed.Count -eq 0) { 'wrong-password-4711' } else { $script:TestPassword }
+                $typed = ConvertTo-SecureString $text -AsPlainText -Force
+                $script:Typed.Add($typed)
+                $typed
+            }
+        }
+
+        It 'checks the key before the build and keeps neither the key, its text nor the password' {
+            $setup = New-SigningSetup 'twice-check'
+            $output = @(& { Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:OtherPublic, $script:TestPublic) } *>&1)
+            $checked = @($output | Where-Object { $_ -is [pscustomobject] })
+            $checked.Count | Should -Be 1
+            @($checked[0].PSObject.Properties.Name) | Should -BeExactly @('KeyPath', 'PublicKeySha256')
+            $checked[0].KeyPath | Should -BeExactly $setup.KeyPath
+            $checked[0].PublicKeySha256 | Should -BeExactly $script:TestPublic.Sha256
+            Assert-NoSecret ($output | Out-String) 'the output of Confirm-FeedSigningKey'
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } -Times 1 -Exactly
+            Assert-Disposed $script:Typed[0]
+        }
+        It 'disposes the decrypted key and the copy of a given password, and leaves the given password to its owner' {
+            $setup = New-SigningSetup 'twice-dispose'
+            $script:Opened = [System.Collections.Generic.List[object]]::new()
+            Mock Import-FeedSigningKey -ModuleName ReleaseTools {
+                $key = [System.Security.Cryptography.ECDsa]::Create()
+                $key.ImportFromEncryptedPem($EncryptedPem, $script:TestPassword)
+                $script:Opened.Add([pscustomobject]@{ Key = $key; Password = $Password })
+                $key
+            }
+            $given = SecurePassword
+            try {
+                $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password $given
+                $null = Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) `
+                    -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password $given
+                $script:Opened.Count | Should -Be 2 -Because 'the key is decrypted once to check it and once to sign'
+                foreach ($opened in $script:Opened) {
+                    { $null = $opened.Key.ExportSubjectPublicKeyInfo() } | Should -Throw -Because 'the key is disposed after each step'
+                    [object]::ReferenceEquals($opened.Password, $given) | Should -BeFalse -Because 'the scripts work on a copy'
+                    Assert-Disposed $opened.Password
+                }
+                $given.Length | Should -Be $script:TestPassword.Length -Because 'the caller disposes its own password'
+                Should -Invoke Read-Host -ModuleName ReleaseTools -Times 0 -Exactly
+            }
+            finally { $given.Dispose() }
+        }
+        It 'reads the key file again and asks for the password a second time to sign' {
+            $setup = New-SigningSetup 'twice-sign'
+            Mock Read-FeedSigningKeyFile -ModuleName ReleaseTools { [System.IO.File]::ReadAllText($Path) }
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic)
+            Should -Invoke Read-FeedSigningKeyFile -ModuleName ReleaseTools -Times 1 -Exactly
+            $output = @(& { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' } *>&1)
+            Should -Invoke Read-FeedSigningKeyFile -ModuleName ReleaseTools -ParameterFilter { $Path -ceq $setup.KeyPath } -Times 2 -Exactly
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString -and $Prompt -match 'second time: sign the update feeds' } -Times 1 -Exactly
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } -Times 2 -Exactly
+            $script:Typed.Count | Should -Be 2
+            foreach ($typed in $script:Typed) { Assert-Disposed $typed }
+            $signature = [System.IO.File]::ReadAllBytes((Join-Path $setup.Dist 'releases.osx-arm64.json.sig'))
+            Verify -Signature $signature | Should -BeTrue
+            Assert-NoSecret ($output | Out-String) 'the output of Invoke-FeedSigning'
+            Assert-NoSecretInFolder $setup.Dist
+        }
+        It 'names the purpose of the signing in the password prompt (release-build.ps1 -SignOnly asks once, T-197)' {
+            $setup = New-SigningSetup 'twice-purpose'
+            $null = Invoke-FeedSigning -KeyPath $setup.KeyPath -ExpectedPublicKeySha256 $script:TestPublic.Sha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Purpose 'sign the update feeds of the finished build'
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString -and $Prompt -match '\(sign the update feeds of the finished build\)$' } -Times 1 -Exactly
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } -Times 1 -Exactly
+            Verify -Signature ([System.IO.File]::ReadAllBytes((Join-Path $setup.Dist 'releases.osx-arm64.json.sig'))) | Should -BeTrue
+        }
+        It 'lets a wrongly typed password be typed again, but tries a given password only once' {
+            $setup = New-SigningSetup 'twice-retype'
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
+            $script:WrongFirst = $true
+            $output = @(& { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' } *>&1)
+            ($output | Out-String) | Should -Match 'cannot be decrypted: wrong password.*Try again \(1 of 3 attempts failed\)'
+            Assert-NoSecret ($output | Out-String) 'the output of Invoke-FeedSigning'
+            $output | Should -Not -Match 'wrong-password-4711'
+            $script:Typed.Count | Should -Be 2
+            foreach ($typed in $script:Typed) { Assert-Disposed $typed }
+            Test-Path -LiteralPath (Join-Path $setup.Dist 'releases.osx-arm64.json.sig') | Should -BeTrue
+            Remove-Item -LiteralPath (Join-Path $setup.Dist 'releases.osx-arm64.json.sig')
+            Assert-ThrowsMatching { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password (SecurePassword 'wrong-password-4711') } 'cannot be decrypted: wrong password'
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { $AsSecureString } -Times 2 -Exactly
+        }
+        It 'refuses a key file at the end that is not the key checked before the build, and signs nothing' {
+            $setup = New-SigningSetup 'twice-swapped'
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
+            # Another key with the same password at the same path (another medium), even one the app trusts.
+            Remove-Item -LiteralPath $setup.KeyPath
+            $other = New-UpdateFeedSigningKey -Path $setup.KeyPath -PublicKeyPath (Join-Path $setup.Root 'other.public.pem') -Password (SecurePassword)
+            $trustedOther = ConvertFrom-FeedPublicKeyPem $other.PublicKeyPem
+            $message = $null
+            try { $null = Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic, $trustedOther) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password (SecurePassword) }
+            catch { $message = "$_" }
+            $message | Should -Match "\(public key SHA-256 $($other.PublicKeySha256)\) is not the key checked before the build \(public key SHA-256 $($script:TestPublic.Sha256)\).*Nothing was signed"
+            Assert-NoSecret $message 'the error'
+            Test-Path -LiteralPath (Join-Path $setup.Dist 'releases.osx-arm64.json.sig') | Should -BeFalse
+        }
+        It 'waits for a key medium disconnected before signing: asks to connect it and tries again' {
+            $setup = New-SigningSetup 'twice-reconnect'
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
+            Remove-Item -LiteralPath $setup.KeyPath
+            $script:Retries = 0
+            $script:Reconnect = $setup
+            Mock Read-Host -ModuleName ReleaseTools -ParameterFilter { -not $AsSecureString } {
+                # The first Enter comes before the medium is connected again, the second after it.
+                $script:Retries++
+                if ($script:Retries -ge 2) { Copy-Item -LiteralPath $script:EncryptedKeyPath -Destination $script:Reconnect.KeyPath }
+                ''
+            }
+            $output = @(& { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password (SecurePassword) } *>&1)
+            $script:Retries | Should -Be 2
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { -not $AsSecureString -and $Prompt -match 'is not there \(key medium disconnected\?\)\. Connect the key medium and press Enter to try again' } -Times 2 -Exactly
+            Verify -Signature ([System.IO.File]::ReadAllBytes((Join-Path $setup.Dist 'releases.osx-arm64.json.sig'))) | Should -BeTrue
+            Assert-NoSecret ($output | Out-String) 'the output of Invoke-FeedSigning'
+        }
+        It 'stops with a clear message when the key medium is missing at the end and the user aborts (<Case>)' -ForEach @(
+            @{ Case = 'non-interactive session'; Answer = 'throw'; Pattern = 'is not there for signing \(key medium disconnected\?\) and this session is not interactive, so the script cannot wait for it\. The packages are built, but the update feeds are not signed and this build cannot be uploaded yet\. Connect the key medium and sign the finished build without building it again: pwsh scripts/release-build\.ps1 -SignOnly' }
+            @{ Case = 'end of the input'; Answer = 'null'; Pattern = 'this session is not interactive, so the script cannot wait for it' }
+            @{ Case = 'abort'; Answer = ' Abort '; Pattern = 'Signing aborted: the update feed signing key .* is not there\. The packages are built, but the update feeds are not signed.*release-build\.ps1 -SignOnly' }
+        ) {
+            $setup = New-SigningSetup "twice-missing-$($Answer.Trim())"
+            $checked = Confirm-FeedSigningKey -KeyPath $setup.KeyPath -TrustedKeys @($script:TestPublic) -Password (SecurePassword)
+            Remove-Item -LiteralPath $setup.KeyPath
+            $script:Answer = $Answer
+            Mock Read-Host -ModuleName ReleaseTools -ParameterFilter { -not $AsSecureString } {
+                switch ($script:Answer) { 'throw' { throw 'PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.' } 'null' { $null } default { $script:Answer } }
+            }
+            Assert-ThrowsMatching { Invoke-FeedSigning -KeyPath $checked.KeyPath -ExpectedPublicKeySha256 $checked.PublicKeySha256 -TrustedKeys @($script:TestPublic) -DistDirectory $setup.Dist -Runtimes 'osx-arm64' -Password (SecurePassword) } $Pattern
+            Should -Invoke Read-Host -ModuleName ReleaseTools -ParameterFilter { -not $AsSecureString } -Times 1 -Exactly
+            Test-Path -LiteralPath (Join-Path $setup.Dist 'releases.osx-arm64.json.sig') | Should -BeFalse
+        }
+    }
+
+    It 'marks a build of -SkipFeedSignature in build-info.json and signs the feeds before the checksum file (release-build.ps1)' {
+        $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))
+        $script | Should -Match "Status = 'skipped'"
+        $script | Should -Match "FeedSignature = \`$feedSigning \? \[ordered\]@\{ Status = 'pending'"
+        # The signing (a function, shared with -SignOnly, T-197) comes before the checksum file; in the build it runs after
+        # packaging, right after the pending build record is written.
+        $script.IndexOf('Invoke-FeedSigning ') | Should -BeLessThan $script.IndexOf('Write-Sha256Sums')
+        $main = $script.Substring($script.IndexOf('foreach ($step in @($packagingSteps'))
+        $main.IndexOf('Write-BuildInfo $buildInfo $releaseDir') | Should -BeGreaterThan 0
+        $main.IndexOf('Add-FeedSignatureFiles ') | Should -BeGreaterThan $main.IndexOf('Write-BuildInfo $buildInfo $releaseDir')
+        $main.IndexOf('Complete-BuildOutput ') | Should -BeGreaterThan $main.IndexOf('Add-FeedSignatureFiles ')
+        # The key is checked before the long build, and only its path and fingerprint are kept until the signing (question 17).
+        $script.IndexOf('$feedSigning = Get-FeedSigning') | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
+        $script.IndexOf('Confirm-FeedSigningKey ') | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
+        $script | Should -Match '\[pscustomobject\]@\{ KeyPath = \$checked\.KeyPath; PublicKeySha256 = \$checked\.PublicKeySha256; TrustedKeys = \$trusted \}'
+        foreach ($kept in 'EncryptedPem', 'Import-FeedSigningKey', 'Read-FeedSigningKeyFile', '.Password', 'Copy()') {
+            $script.Contains($kept) | Should -BeFalse -Because "release-build.ps1 must not hold the key or the password itself ($kept)"
+        }
+    }
+
+    Context 'release-build.ps1: the signing key before the build (sandbox repository)' -Skip:(-not ($IsWindows -or $IsMacOS)) {
+        BeforeAll {
+            # A throw-away repository with only what release-build.ps1 reads before the build: the scripts, the version and
+            # UpdateFeedKeys.cs (its Production list set per test). There is no build/FFmpeg.targets (T-199: nothing is
+            # fetched), no solution, no package list and no tool manifest there, so a run that gets past the key check stops
+            # right after it, before anything is fetched, built or deleted.
+            $script:Sandbox = Join-Path $script:TempRoot 'sign-repo'
+            $null = New-Item -ItemType Directory -Path (Join-Path $script:Sandbox 'scripts' 'ReleaseTools'), (Join-Path $script:Sandbox 'src' 'LayerPeek.App' 'Installer')
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-build.ps1') -Destination (Join-Path $script:Sandbox 'scripts')
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'ReleaseTools' 'ReleaseTools.psm1') -Destination (Join-Path $script:Sandbox 'scripts' 'ReleaseTools')
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'Directory.Build.props') -Destination $script:Sandbox
+            $script:SandboxKeys = Join-Path $script:Sandbox 'src' 'LayerPeek.App' 'Installer' 'UpdateFeedKeys.cs'
+            $script:RealKeysSource = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Installer' 'UpdateFeedKeys.cs'))
+            $null = G $script:Sandbox init --quiet
+            $null = G $script:Sandbox add --all
+            $null = G $script:Sandbox commit --quiet --message 'sandbox'
+            $script:SandboxBuild = Join-Path $script:Sandbox 'scripts' 'release-build.ps1'
+            $script:KeyHash = Get-FileSha256 $script:EncryptedKeyPath
+
+            function Set-SandboxProductionKeys([string[]] $Pems) {
+                # The real UpdateFeedKeys.cs with another Production list (raw string literals, as written in the app).
+                $items = @($Pems | ForEach-Object { "        `"`"`"`n" + (($_.Trim() -split "`n" | ForEach-Object { "        $($_.Trim())" }) -join "`n") + "`n        `"`"`"," })
+                $list = if ($items.Count -gt 0) { "[`n$($items -join "`n")`n    ];" } else { '[];' }
+                $text = [regex]::Replace($script:RealKeysSource, '(?s)(IReadOnlyList<string>\s+Production\s*=\s*)\[.*?\];', { param($m) $m.Groups[1].Value + $list })
+                [System.IO.File]::WriteAllText($script:SandboxKeys, $text)
+            }
+            function Invoke-SandboxBuild {
+                # The build script in a child pwsh. -Password goes in as a SecureString made in the child from an environment
+                # variable of this test only (the test password is public); -KeyVariable sets LAYERPEEK_FEED_SIGNING_KEY.
+                param([string[]] $Arguments = @(), [string] $Password, [string] $KeyVariable)
+                $saved = @{}
+                $environment = @{ LAYERPEEK_FEED_SIGNING_KEY = $KeyVariable; LAYERPEEK_TEST_FEED_KEY_PASSWORD = $Password }
+                foreach ($name in $environment.Keys) { $saved[$name] = [Environment]::GetEnvironmentVariable($name); [Environment]::SetEnvironmentVariable($name, $environment[$name]) }
+                try {
+                    $quoted = @($Arguments | ForEach-Object { if ($_ -cmatch '^-[A-Za-z]+$') { $_ } else { "'$($_ -replace "'", "''")'" } }) -join ' '
+                    $passwordArgument = if ($Password) { '-FeedSigningKeyPassword (ConvertTo-SecureString $env:LAYERPEEK_TEST_FEED_KEY_PASSWORD -AsPlainText -Force)' } else { '' }
+                    $command = "& '$($script:SandboxBuild -replace "'", "''")' $quoted $passwordArgument; exit `$LASTEXITCODE"
+                    $output = Invoke-Pwsh -NoProfile -NonInteractive -Command $command 2>&1 | Out-String
+                    [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+                }
+                finally {
+                    foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) }
+                }
+            }
+            function Assert-NothingBuilt {
+                Test-Path -LiteralPath (Join-Path $script:Sandbox 'artifacts') | Should -BeFalse
+                Get-FileSha256 $script:EncryptedKeyPath | Should -BeExactly $script:KeyHash
+                Assert-NoSecretInFolder (Join-Path $script:Sandbox 'scripts')
+            }
+        }
+        BeforeEach { Set-SandboxProductionKeys @($script:TestPublic.Pem) }
+
+        It 'fails without a key, before anything is built' {
+            $result = Invoke-SandboxBuild
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'Release build FAILED: No update feed signing key\. Connect the key medium and pass -FeedSigningKey <path> or set LAYERPEEK_FEED_SIGNING_KEY'
+            $result.Output | Should -Match '-SkipFeedSignature'
+            Assert-NothingBuilt
+        }
+        It 'refuses -SkipFeedSignature together with a key' {
+            $result = Invoke-SandboxBuild @('-SkipFeedSignature', '-FeedSigningKey', $script:EncryptedKeyPath)
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'do not pass -FeedSigningKey or -FeedSigningKeyPassword with it'
+            Assert-NothingBuilt
+        }
+        It 'refuses a missing key file (environment variable) and an unencrypted key (parameter)' {
+            $missing = Invoke-SandboxBuild -KeyVariable (Join-Path $script:TempRoot 'unplugged' 'key.pem')
+            $missing.ExitCode | Should -Be 1 -Because $missing.Output
+            $missing.Output | Should -Match 'does not exist\. Is the key medium connected\?'
+            $plain = Invoke-SandboxBuild @('-FeedSigningKey', $script:PlainKeyPath)
+            $plain.ExitCode | Should -Be 1 -Because $plain.Output
+            $plain.Output | Should -Match 'is an unencrypted private key'
+            Assert-NoSecret $plain.Output 'the build output'
+            Assert-NothingBuilt
+        }
+        It 'refuses every key while UpdateFeedKeys.Production is empty, without asking for the password' {
+            Set-SandboxProductionKeys @()
+            $result = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath)
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'UpdateFeedKeys\.Production\) trusts no key yet'
+            $result.Output | Should -Not -Match 'not interactive'
+            Assert-NothingBuilt
+        }
+        It 'refuses a key that the app does not trust, without printing a secret' {
+            Set-SandboxProductionKeys @($script:OtherPublic.Pem)
+            $result = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath) -Password $script:TestPassword
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match "The signing key \(public key SHA-256 $($script:TestPublic.Sha256)\) is not trusted by"
+            Assert-NoSecret $result.Output 'the build output'
+            Assert-NothingBuilt
+        }
+        It 'needs the password: refuses a wrong one and a non-interactive run without one' {
+            $wrong = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath) -Password 'wrong-password-4711'
+            $wrong.ExitCode | Should -Be 1 -Because $wrong.Output
+            $wrong.Output | Should -Match 'cannot be decrypted: wrong password'
+            $wrong.Output | Should -Not -Match 'wrong-password-4711'
+            $none = Invoke-SandboxBuild -KeyVariable $script:EncryptedKeyPath
+            $none.ExitCode | Should -Be 1 -Because $none.Output
+            $none.Output | Should -Match 'this session is not interactive.*-FeedSigningKeyPassword'
+            Assert-NothingBuilt
+        }
+        It 'accepts a trusted key before the build and prints only the SHA-256 of its public key, never a secret' {
+            $result = Invoke-SandboxBuild @('-FeedSigningKey', $script:EncryptedKeyPath) -Password $script:TestPassword
+            $result.Output | Should -Match "Update feed signing key accepted \(public key SHA-256 $($script:TestPublic.Sha256), trusted by UpdateFeedKeys\.Production\)\. Keep the key medium connected: the feeds are signed with it at the end of the build, and the password is asked for again then\."
+            $result.Output | Should -Not -Match 'may be disconnected'
+            # The sandbox has nothing to build: the run stops right after the key check.
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'Release build FAILED'
+            Assert-NoSecret $result.Output 'the build output'
+            Assert-NothingBuilt
+        }
     }
 }
 
@@ -885,7 +1595,10 @@ Describe 'Velopack packaging (T-017)' {
         }
         $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = [ordered]@{ $name = '4' * 64 } }
         # Without expected OS: only the files are checked (a complete Windows draft would also need releases.win-x64.json).
-        Assert-Problems (Get-PublishProblems -Release $release -Tag v0.1.0 -ExpectedOs @() -Checksums $sums -Config $script:BlockedRuntimeConfig) 'belongs to test-blocked, which must not be released: test only'
+        # A feed alone also lacks its signature (T-181).
+        $patterns = @('belongs to test-blocked, which must not be released: test only')
+        if ($name -ceq 'releases.test-blocked.json') { $patterns += 'has releases\.test-blocked\.json but no releases\.test-blocked\.json\.sig' }
+        Assert-Problems (Get-PublishProblems -Release $release -Tag v0.1.0 -ExpectedOs @() -Checksums $sums -Config $script:BlockedRuntimeConfig) $patterns
     }
     It 'tells the files of a RID apart (<Name> / <Runtime> = <Expected>)' -ForEach @(
         @{ Name = 'releases.win-x64.json'; Runtime = 'osx-arm64'; Expected = $false },
@@ -1411,6 +2124,15 @@ Describe 'macOS packaging (T-019)' {
             (& /usr/bin/codesign -dv (Join-Path $macOS 'libavformat.63.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
         }
         It 'loads the ad-hoc signed libraries of the bundle under the hardened runtime and ignores DYLD_INSERT_LIBRARIES (T-108)' {
+            # The hardened runtime keeps DYLD_INSERT_LIBRARIES out only while System Integrity Protection and AMFI enforce it.
+            # GitHub's macOS runners (macOS 26 and 27) run with SIP off (T-218), where dyld honours the variable for every
+            # process and the check proves nothing. Only a plain "enabled." without AMFI boot arguments counts as enforcing.
+            $sip = ((& /usr/bin/csrutil status 2>&1) -join ' ').Trim()
+            $bootArgs = ((& /usr/sbin/nvram boot-args 2>$null) -join ' ')
+            if ($sip -notmatch 'status: enabled\.$' -or $bootArgs -match 'amfi_get_out_of_my_way|amfi=') {
+                Set-ItResult -Skipped -Because "dyld does not enforce the hardened runtime here ($sip$(if ($bootArgs) { "; nvram $bootArgs" }))"
+                return
+            }
             # A real executable and library (clang of the Xcode Command Line Tools, which the Native AOT build needs anyway):
             # the executable dlopens the library next to it, like the app loads Avalonia, Skia, HarfBuzz and FFmpeg.
             $destination = Join-Path $script:TempRoot "mac-runtime-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
@@ -1656,6 +2378,182 @@ __attribute__((constructor)) static void injected(void)
     }
 }
 
+Describe 'Native AOT toolchain check (T-224)' {
+    BeforeAll {
+        # A stand-in vswhere (a script, no Visual Studio needed): prints an installation path for the components in
+        # $Installed and exits with $ExitCode. Get-NativeToolchainProblems calls it like the real one.
+        function New-StandInVswhere([string[]] $Installed, [int] $ExitCode = 0) {
+            $path = Join-Path $script:TempRoot "vswhere-$([guid]::NewGuid().ToString('N').Substring(0, 8)).ps1"
+            $list = ($Installed | ForEach-Object { "'$_'" }) -join ', '
+            $text = "`$requires = `$args[[array]::IndexOf(`$args, '-requires') + 1]`nif (@($list) -contains `$requires) { 'C:\BuildTools' }`nexit $ExitCode`n"
+            [System.IO.File]::WriteAllText($path, $text)
+            $path
+        }
+        $script:X64Component = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
+        $script:Arm64Component = 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+    }
+    It 'knows the MSVC component of every Windows RID it builds' {
+        Get-MsvcToolchainComponent win-x64 | Should -BeExactly $script:X64Component
+        # The component Microsoft Learn names for cross-compiling to ARM64 ("C++ ARM64/ARM64EC build tools").
+        Get-MsvcToolchainComponent win-arm64 | Should -BeExactly $script:Arm64Component
+        Get-MsvcToolchainComponent win-x86 | Should -BeNullOrEmpty
+    }
+    It 'finds nothing missing when the components of all requested RIDs are installed' {
+        $vswhere = New-StandInVswhere $script:X64Component, $script:Arm64Component
+        Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $vswhere | Should -BeNullOrEmpty
+    }
+    It 'reports the missing ARM64 component for win-arm64 only' {
+        $vswhere = New-StandInVswhere $script:X64Component
+        Get-NativeToolchainProblems -Runtimes win-x64 -HostOs windows -VswherePath $vswhere | Should -BeNullOrEmpty
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $vswhere) `
+            "^The MSVC component Microsoft\.VisualStudio\.Component\.VC\.Tools\.ARM64 needed for the win-arm64 AOT publish is not installed\. See docs/prerequisites\.md\.$"
+    }
+    It 'reports the missing x64 component for win-x64' {
+        $vswhere = New-StandInVswhere $script:Arm64Component
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $vswhere) 'VC\.Tools\.x86\.x64 needed for the win-x64 AOT publish'
+    }
+    It 'counts a failing vswhere as a missing component' {
+        $vswhere = New-StandInVswhere $script:X64Component, $script:Arm64Component -ExitCode 87
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $vswhere) 'needed for the win-x64 AOT', 'needed for the win-arm64 AOT'
+    }
+    It 'reports a missing vswhere once' {
+        $missing = Join-Path $script:TempRoot 'no-such-folder' 'vswhere.exe'
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $missing) '^Visual Studio Build Tools are missing \(.*vswhere\.exe not found\)\. See docs/prerequisites\.md\.$'
+    }
+    It 'reports a Windows RID without a known MSVC component instead of querying vswhere with nothing' {
+        $vswhere = New-StandInVswhere $script:X64Component
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x86 -HostOs windows -VswherePath $vswhere) "No MSVC component is known for 'win-x86'"
+    }
+}
+
+Describe 'PE architecture of a publish folder (T-224)' {
+    BeforeAll {
+        function New-PublishStandIn([int] $Machine) {
+            $root = Join-Path $script:TempRoot "pe-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            New-PeStandIn (Join-Path $root 'LayerPeek.exe') $Machine
+            New-PeStandIn (Join-Path $root 'libSkiaSharp.dll') $Machine
+            New-PeStandIn (Join-Path $root 'av_libglesv2.DLL') $Machine -HeaderOffset 0x100
+            # Not checked: no PE file types.
+            New-StandInFile (Join-Path $root 'LayerPeek.pdb') 'symbols'
+            New-StandInFile (Join-Path $root 'FFmpeg-LICENSE.txt') 'license'
+            $root
+        }
+    }
+    It 'reads the machine type <Name> of a PE header' -ForEach @(
+        @{ Name = 'x64'; Machine = 0x8664 }
+        @{ Name = 'ARM64'; Machine = 0xAA64 }
+        @{ Name = 'x86'; Machine = 0x014C }
+    ) {
+        $path = Join-Path $script:TempRoot "machine-$Name.dll"
+        New-PeStandIn $path $Machine
+        Get-PeMachine $path | Should -Be $Machine
+    }
+    It 'reads no machine type from a file that is not a PE image (<Name>)' -ForEach @(
+        @{ Name = 'text'; Bytes = [System.Text.Encoding]::ASCII.GetBytes('not a binary at all, just text that is long enough for a DOS header ......') }
+        @{ Name = 'empty'; Bytes = [byte[]]::new(0) }
+        @{ Name = 'MZ only'; Bytes = [byte[]](0x4D, 0x5A, 0, 0) }
+    ) {
+        $path = Join-Path $script:TempRoot "not-pe-$($Name.Replace(' ', '-')).dll"
+        [System.IO.File]::WriteAllBytes($path, $Bytes)
+        Get-PeMachine $path | Should -BeNullOrEmpty
+    }
+    It 'reads no machine type when e_lfanew points outside the file or at no PE signature' {
+        $path = Join-Path $script:TempRoot 'bad-offset.dll'
+        New-PeStandIn $path 0xAA64
+        $bytes = [System.IO.File]::ReadAllBytes($path)
+        [BitConverter]::GetBytes([int] 0x7FFF0000).CopyTo($bytes, 0x3C)
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        Get-PeMachine $path | Should -BeNullOrEmpty
+        [BitConverter]::GetBytes([int] 0x40).CopyTo($bytes, 0x3C)
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        Get-PeMachine $path | Should -BeNullOrEmpty
+    }
+    It 'accepts a <Runtime> publish folder whose exe and DLLs are all <Name>' -ForEach @(
+        @{ Runtime = 'win-arm64'; Name = 'ARM64'; Machine = 0xAA64 }
+        @{ Runtime = 'win-x64'; Name = 'x64'; Machine = 0x8664 }
+    ) {
+        $root = New-PublishStandIn $Machine
+        $check = Get-PublishArchitectureCheck -Directory $root -Runtime $Runtime
+        $check.Problems | Should -BeNullOrEmpty
+        $check.Expected | Should -BeExactly ('{0} (0x{1:X4})' -f $Name, $Machine)
+        $check.Files | Should -BeExactly @('av_libglesv2.DLL', 'LayerPeek.exe', 'libSkiaSharp.dll')
+    }
+    It 'names every x64 or non-PE file in a win-arm64 publish folder, also in a subfolder' {
+        $root = New-PublishStandIn 0xAA64
+        New-PeStandIn (Join-Path $root 'avcodec-63.dll') 0x8664
+        New-PeStandIn (Join-Path $root 'sub' 'native.dll') 0x014C
+        New-StandInFile (Join-Path $root 'broken.dll') 'not a PE file'
+        $check = Get-PublishArchitectureCheck -Directory $root -Runtime win-arm64
+        Assert-Problems $check.Problems `
+            '^avcodec-63\.dll is x64 \(0x8664\), expected ARM64 \(0xAA64\) for win-arm64\.$', `
+            "^sub[\\/]native\.dll is x86 \(0x014C\), expected ARM64", `
+            '^broken\.dll is not a PE image\.$'
+    }
+    It 'names an ARM64 exe in a win-x64 publish folder and an unknown machine type by its number' {
+        $root = New-PublishStandIn 0x8664
+        New-PeStandIn (Join-Path $root 'LayerPeek.exe') 0xAA64
+        New-PeStandIn (Join-Path $root 'odd.dll') 0x1234
+        Assert-Problems (Get-PublishArchitectureCheck -Directory $root -Runtime win-x64).Problems `
+            '^LayerPeek\.exe is ARM64 \(0xAA64\), expected x64 \(0x8664\) for win-x64\.$', '^odd\.dll is 0x1234, expected x64'
+    }
+    It 'reports a missing exe' {
+        $root = New-PublishStandIn 0xAA64
+        Remove-Item -LiteralPath (Join-Path $root 'LayerPeek.exe')
+        Assert-Problems (Get-PublishArchitectureCheck -Directory $root -Runtime win-arm64).Problems '^LayerPeek\.exe is missing in '
+    }
+    It 'refuses a runtime without a known PE machine type (<_>)' -ForEach 'osx-arm64', 'win-x86' {
+        $root = New-PublishStandIn 0xAA64
+        Assert-Problems (Get-PublishArchitectureCheck -Directory $root -Runtime $_).Problems "No PE machine type is known for runtime '$_' \(known: win-x64, win-arm64\)\."
+    }
+    It 'hands the RID of the app to the camera library (FFmpeg of that RID, T-225) and builds LayerPeek.Core once' {
+        # The library is RID-agnostic (built without RuntimeIdentifier), so build/FFmpeg.targets would hand the libraries of
+        # the host to a win-arm64 publish; the App (and the FFmpeg tests) pass their RID as LayerPeekAppRuntimeIdentifier,
+        # build/FFmpeg.targets builds the libraries of that RID (win-arm64: cross build, T-225), and the library keeps the
+        # property from its reference to Core (else Core is a second project instance, T-224 review).
+        # Evaluation only (-getItem / -getProperty): nothing is built or written.
+        function Evaluate([string] $Project, [string[]] $Arguments) {
+            $path = Join-Path $script:RepoRoot 'src' $Project "$Project.csproj"
+            $json = (& dotnet msbuild $path -nologo -nr:false @Arguments 2>&1) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "dotnet msbuild failed: $json" }
+            $json
+        }
+        function Reference([string] $Project, [string] $Target, [string[]] $Arguments = @(), [string] $Folder = 'src') {
+            $path = Join-Path $script:RepoRoot $Folder $Project "$Project.csproj"
+            $json = (& dotnet msbuild $path -nologo -nr:false -getItem:ProjectReference @Arguments 2>&1) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "dotnet msbuild failed: $json" }
+            $references = @(($json | ConvertFrom-Json).Items.ProjectReference | Where-Object Filename -EQ $Target)
+            $references | Should -HaveCount 1
+            $references[0]
+        }
+        foreach ($rid in 'win-arm64', 'win-x64', 'osx-arm64') {
+            (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg' "-p:RuntimeIdentifier=$rid").AdditionalProperties | Should -BeExactly "LayerPeekAppRuntimeIdentifier=$rid"
+        }
+        (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg').AdditionalProperties | Should -BeNullOrEmpty
+        # dotnet test -r win-arm64 on an ARM64 machine (T-227) gets the ARM64 libraries the same way.
+        (Reference 'LayerPeek.Camera.FFmpeg.Tests' 'LayerPeek.Camera.FFmpeg' '-p:RuntimeIdentifier=win-arm64' -Folder 'tests').AdditionalProperties | Should -BeExactly 'LayerPeekAppRuntimeIdentifier=win-arm64'
+        (Reference 'LayerPeek.Camera.FFmpeg.Tests' 'LayerPeek.Camera.FFmpeg' -Folder 'tests').AdditionalProperties | Should -BeNullOrEmpty
+        $core = Reference 'LayerPeek.Camera.FFmpeg' 'LayerPeek.Core'
+        $core.UndefineProperties | Should -BeExactly 'LayerPeekAppRuntimeIdentifier'
+        $core.GlobalPropertiesToRemove | Should -BeExactly 'LayerPeekAppRuntimeIdentifier'
+        # -getProperty of one property prints the bare value. On Windows win-arm64 now has FFmpeg (T-225), like win-x64.
+        $default = (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled').Trim()
+        if ($IsWindows) {
+            (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled', '-p:LayerPeekAppRuntimeIdentifier=win-arm64').Trim() | Should -BeExactly 'true'
+            (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled', '-p:LayerPeekAppRuntimeIdentifier=win-x64').Trim() | Should -BeExactly 'true'
+        }
+        if ($IsWindows -and (Get-HostArchitecture) -eq 'x64') { $default | Should -BeExactly 'true' }
+        # The selection per RID and host in detail: build/FFmpeg.Tests.ps1.
+    }
+    It 'is called by release-build.ps1 before the smoke test and by aot-smoke.ps1 before the start' {
+        $build = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-build.ps1') -Raw
+        $build | Should -Match 'Get-PublishArchitectureCheck -Directory \$publishDir -Runtime \$rid'
+        $build.IndexOf('Get-PublishArchitectureCheck') | Should -BeLessThan $build.IndexOf('Invoke-Native "AOT smoke test $rid"')
+        $smoke = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1') -Raw
+        $smoke | Should -Match 'Get-PublishArchitectureCheck -Directory \$publishFolder -Runtime \$Runtime'
+        $smoke.IndexOf('Get-PublishArchitectureCheck') | Should -BeLessThan $smoke.IndexOf('Backup-SmokeProfile -SmokeProfile')
+    }
+}
+
 Describe 'Physical paths (symlinked working copy)' {
     BeforeAll {
         $script:LinkRoot = Join-Path $script:TempRoot 'links'
@@ -1765,13 +2663,40 @@ Describe 'AOT smoke script with an existing publish folder' {
         @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name) | Should -BeExactly $before
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
     }
-    It 'refuses a Windows runtime other than win-x64 (<_>, T-130) and starts nothing' -ForEach 'win-arm64', 'win-x86' {
+    It 'refuses a Windows runtime that is not released (<_>) and starts nothing' -ForEach 'win-x86', 'WIN-X86' {
         $profileRoot = New-SmokeStandInProfile
         $profileBefore = Get-TreeState $profileRoot
         $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -Runtime $_ -PublishDir $script:SmokeDir -Seconds 1 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
         $LASTEXITCODE | Should -Be 1
-        $output | Should -Match "runtime '$_' is not supported\. Windows is built as win-x64 only"
+        $output | Should -Match "AOT smoke check NOT RUN: runtime '$_' is not a released Windows runtime \(win-x64, win-arm64\)\."
         $output | Should -Not -Match 'Publishing|Starting'
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+    }
+    It 'says that win-arm64 cannot run on this x64 machine, and publishes and starts nothing (T-226)' -Skip:(-not ($IsWindows -and [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'X64')) {
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
+        $before = @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name)
+        foreach ($arguments in @(, @('-PublishDir', $script:SmokeDir)) + @(, @())) {
+            $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -Runtime win-arm64 @arguments -Seconds 1 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+            $LASTEXITCODE | Should -Be 1
+            $output | Should -Match "AOT smoke check NOT RUN: runtime 'win-arm64' cannot run on this machine \(windows-x64\): Windows on x64 cannot run ARM64 binaries\. Run it on a Windows ARM64 device \(T-227\)\."
+            $output | Should -Not -Match 'Publishing|Starting|FAILED'
+        }
+        @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name) | Should -BeExactly $before
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+    }
+    It 'refuses a publish folder with a DLL of another architecture before it starts anything (T-224)' -Skip:(-not $IsWindows) {
+        # The stand-in exe (hostname.exe of this x64 Windows) passes; the ARM64 DLL next to it does not.
+        $publish = Join-Path $script:TempRoot "smoke-arch-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $null = New-Item -ItemType Directory -Path $publish
+        Copy-Item -LiteralPath (Join-Path $script:SmokeDir 'LayerPeek.exe') -Destination $publish
+        New-PeStandIn (Join-Path $publish 'libSkiaSharp.dll') 0xAA64
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -Runtime win-x64 -PublishDir $publish -Seconds 1 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 1
+        $output | Should -Match 'FAILED: .*libSkiaSharp\.dll is ARM64 \(0xAA64\), expected x64 \(0x8664\) for win-x64\.'
+        $output | Should -Not -Match 'Starting|App exited'
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
     }
     It 'refuses -SkipShellIntegration without a stand-in profile and moves nothing' {
@@ -1804,6 +2729,57 @@ Describe 'AOT smoke script with an existing publish folder' {
         # T-020 (user decision 2026-10-29): every smoke start skips the notification center of macOS, with exactly this switch.
         @(Get-Content -LiteralPath $arguments) | Should -BeExactly @('--layerpeek-smoke-skip-notification-center')
     }
+    It 'starts the exe without the developer environment with -CleanEnvironment (T-217)' -Skip:(-not $IsMacOS) {
+        # A stand-in "app" that records its environment and keeps running; the folder has a space (quoted for env).
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
+        $publish = Join-Path $script:TempRoot "smoke clean-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $null = New-Item -ItemType Directory -Path $publish
+        $seen = Join-Path $script:TempRoot "smoke-env-$([guid]::NewGuid().ToString('N').Substring(0, 8)).txt"
+        $exe = Join-Path $publish 'LayerPeek'
+        [System.IO.File]::WriteAllText($exe, "#!/bin/sh`n/usr/bin/env > '$seen'`nprintf '%s\n' `"`$@`" >> '$seen'`nexec sleep 60`n")
+        & chmod +x $exe
+        $saved = @{ DOTNET_ROOT = $env:DOTNET_ROOT; LAYERPEEK_T217_MARKER = $env:LAYERPEEK_T217_MARKER }
+        try {
+            # What a developer shell has, and the app must not get.
+            $env:DOTNET_ROOT = '/opt/homebrew/opt/dotnet/libexec'
+            $env:LAYERPEEK_T217_MARKER = 'leaked'
+            $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $publish -Seconds 2 -CleanEnvironment -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+        }
+        finally { foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) } }
+        $LASTEXITCODE | Should -Be 0 -Because $output
+        $output | Should -Match 'PASSED'
+        $output | Should -Match 'No native library failed to load'
+        $lines = @(Get-Content -LiteralPath $seen)
+        $lines | Should -Contain 'PATH=/usr/bin:/bin:/usr/sbin:/sbin'
+        $lines | Should -Contain "HOME=$([Environment]::GetFolderPath('UserProfile'))"
+        @($lines | Where-Object { $_ -like 'TMPDIR=*' }).Count | Should -Be 1
+        $lines | Should -Contain '--layerpeek-smoke-skip-notification-center'
+        @($lines | Where-Object { $_ -match '^(DOTNET_|DYLD_|LAYERPEEK_T217_MARKER=|HOMEBREW_)' }) | Should -BeNullOrEmpty
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+    }
+    It 'fails -CleanEnvironment when the app reports a native library that failed to load (T-217)' -Skip:(-not $IsMacOS) {
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
+        $publish = Join-Path $script:TempRoot "smoke-dll-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $null = New-Item -ItemType Directory -Path $publish
+        $exe = Join-Path $publish 'LayerPeek'
+        # Like the app: the error lands in its log (the log folder of the stand-in profile) while it keeps running.
+        $log = (Get-SmokeProfile -ProfileRoot $profileRoot -BundleIdentifier $script:StandInBundleId).Folders[1]
+        [System.IO.File]::WriteAllText($exe, "#!/bin/sh`nmkdir -p '$log'`necho 'System.DllNotFoundException: Unable to load shared library libAvaloniaNative' > '$log/LayerPeek.log'`nexec sleep 60`n")
+        & chmod +x $exe
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $publish -Seconds 2 -CleanEnvironment -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 1
+        $output | Should -Match 'FAILED: A native library failed to load: System\.DllNotFoundException'
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+    }
+    It 'refuses -CleanEnvironment outside macOS and starts nothing' -Skip:$IsMacOS {
+        $profileRoot = New-SmokeStandInProfile
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 1 -CleanEnvironment -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 1
+        $output | Should -Match 'CleanEnvironment is for macOS only'
+        $output | Should -Not -Match 'Starting'
+    }
     It 'passes the switch the app knows for skipping the notification center' {
         # The same text as AppEnvironment.SkipNotificationCenterArgument (T-020), so a rename cannot silently stop working.
         $environment = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Composition' 'AppEnvironment.cs') -Raw
@@ -1824,7 +2800,7 @@ Describe 'AOT smoke script with an existing publish folder' {
         New-StandInFile (Join-Path $smokeProfile.Folders[1] 'LayerPeek.log') 'exe log'
         $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -RestoreOnly -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
         $LASTEXITCODE | Should -Be 0 -Because $output
-        $output | Should -Match 'Restored the data and log folders'
+        $output | Should -Match 'Restored the data, log and cache folders'
         $output | Should -Not -Match 'Publishing|Starting'
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
         $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -RestoreOnly -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
@@ -1849,16 +2825,18 @@ Describe 'AOT smoke backup of the data and log folders' {
                 (Join-Path $library 'Logs' 'LayerPeek'),
                 (Join-Path $library 'Saved Application State' "$id.savedState"),
                 (Join-Path $library 'Caches' $id),
-                (Join-Path $library 'HTTPStorages' $id))
+                (Join-Path $library 'HTTPStorages' $id),
+                (Join-Path $library 'Caches' 'LayerPeek'))
             @($smokeProfile.Preferences | ForEach-Object Domain) | Should -BeExactly @($id, 'LayerPeek')
             @($smokeProfile.Preferences | ForEach-Object Path) | Should -BeExactly @((Join-Path $library 'Preferences' "$id.plist"), (Join-Path $library 'Preferences' 'LayerPeek.plist'))
         }
         else {
-            $smokeProfile.Folders.Count | Should -Be 2
+            $smokeProfile.Folders.Count | Should -Be 3
             @($smokeProfile.Preferences).Count | Should -Be 0
             $smokeProfile.Folders[0] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek')
-            # Only the logs: %LOCALAPPDATA%\LayerPeek may hold the installed app (Velopack).
+            # Only the logs and the cache (T-196): %LOCALAPPDATA%\LayerPeek may hold the installed app (Velopack).
             $smokeProfile.Folders[1] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs')
+            $smokeProfile.Folders[2] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'cache')
         }
         $smokeProfile.Journal | Should -BeExactly "$($smokeProfile.Folders[0]).aot-smoke-journal.json"
     }
@@ -1889,6 +2867,40 @@ Describe 'AOT smoke backup of the data and log folders' {
         Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
         foreach ($folder in $smokeProfile.Folders) { Test-Path -LiteralPath $folder | Should -BeFalse }
         Test-Path -LiteralPath $smokeProfile.Journal | Should -BeFalse
+    }
+    It 'moves an existing cache of the app aside and back unchanged, never the FFmpeg build cache next to it (T-196)' {
+        $root = New-SmokeStandInProfile
+        $cache = Join-Path $root 'caches' 'LayerPeek'
+        New-StandInFile (Join-Path $cache 'last-frames' 'printer-1.jpg') 'user frame'
+        $build = Join-Path $root 'caches' 'LayerPeek.Build'
+        $before = Get-TreeState $root
+        $buildBefore = Get-TreeState $build
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root -BundleIdentifier $script:StandInBundleId
+        $smokeProfile.Folders | Should -Contain $cache
+        $smokeProfile.Folders | Should -Not -Contain $build
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        Test-Path -LiteralPath $cache | Should -BeFalse
+        Test-Path -LiteralPath (Get-SmokeBackupPath $cache) | Should -BeTrue
+        Get-TreeState $build | Should -BeExactly $buildBefore
+        # The exe writes its own cache.
+        New-StandInFile (Join-Path $cache 'last-frames' 'printer-1.jpg') 'exe frame'
+        New-StandInFile (Join-Path $cache 'notification-images' 'a.png') 'exe image'
+
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+        Get-TreeState $root | Should -BeExactly $before
+    }
+    It 'deletes a cache of the app the exe created although there was none, and keeps the FFmpeg build cache (T-196)' {
+        $root = New-SmokeStandInProfile
+        $cache = Join-Path $root 'caches' 'LayerPeek'
+        $before = Get-TreeState $root
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root -BundleIdentifier $script:StandInBundleId
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        Test-Path -LiteralPath (Get-SmokeBackupPath $cache) | Should -BeFalse
+        New-StandInFile (Join-Path $cache 'notification-images' 'a.png') 'exe image'
+
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+        Test-Path -LiteralPath $cache | Should -BeFalse
+        Get-TreeState $root | Should -BeExactly $before
     }
     It 'finishes a restore that was interrupted half way without losing the data' {
         $root = New-SmokeStandInProfile
@@ -2109,6 +3121,412 @@ Describe 'AOT smoke restore of the toast activator registration (T-133)' {
         $restore | Should -BeGreaterThan $finally
         # Never with -SkipShellIntegration (the tests of the script do not touch the real registration).
         $smoke | Should -Match ([regex]::Escape('$activatorSubKey = if ($IsWindows -and -not $SkipShellIntegration)'))
+    }
+}
+
+Describe 'FFmpeg source of a release (T-199)' {
+    BeforeAll {
+        $script:Targets = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'build' 'FFmpeg.targets'))
+        $script:FFmpegRoot = Join-Path $script:TempRoot 'ffsrc'
+        $null = New-Item -ItemType Directory -Path $script:FFmpegRoot
+
+        function Set-Pin([string] $Text, [string] $Name, [string] $Value) {
+            # The targets text with one property replaced (it must be there exactly once).
+            $pattern = "<$Name>[^<]*</$Name>"
+            [regex]::Matches($Text, $pattern).Count | Should -Be 1
+            [regex]::Replace($Text, $pattern, "<$Name>$Value</$Name>")
+        }
+        function New-LibraryBytes([string] $Version, [string] $Configuration) {
+            # What an avcodec library holds: NUL-terminated strings between binary noise.
+            $parts = @("`u{1}`u{2}binary`0") + @(if ($Version) { "FFmpeg version $Version`0" }) + @("Lavc63.1.100`0") + @(if ($Configuration) { "$Configuration`0" }) + @("`u{3}end")
+            [System.Text.Encoding]::Latin1.GetBytes(-join $parts)
+        }
+        function New-FileWith([string] $Path, [string] $Content) {
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path)
+            [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
+            $Path
+        }
+    }
+
+    It 'names the archive ffmpeg-source-(version)-(os).tar.xz' {
+        Get-FFmpegSourceFileName -Version '1.0.0' -Os 'windows' | Should -BeExactly 'ffmpeg-source-1.0.0-windows.tar.xz'
+        Get-FFmpegSourceFileName -Version '1.2.3' -Os 'macos' | Should -BeExactly 'ffmpeg-source-1.2.3-macos.tar.xz'
+    }
+    It 'links both source archives of the release in the FFmpeg sentence of the release notes (legal checklist point 9)' {
+        $notice = Get-FFmpegSourceNotice -Repository 'o/r' -Version '1.0.0'
+        $notice | Should -BeExactly ('This software uses code of [FFmpeg](https://ffmpeg.org/) licensed under the LGPLv3 or later and its source can be downloaded here: ' +
+            'Windows [`ffmpeg-source-1.0.0-windows.tar.xz`](https://github.com/o/r/releases/download/v1.0.0/ffmpeg-source-1.0.0-windows.tar.xz), ' +
+            'macOS [`ffmpeg-source-1.0.0-macos.tar.xz`](https://github.com/o/r/releases/download/v1.0.0/ffmpeg-source-1.0.0-macos.tar.xz).')
+        # Our builds are --enable-version3: the LGPLv2.1 of the ffmpeg.org template would not be true.
+        $notice | Should -Not -Match 'LGPLv2'
+    }
+    It 'appends the FFmpeg sentence to the CHANGELOG section in the release notes' {
+        $notes = Get-ReleaseNotes -ChangelogSection "### Added`n`n- First." -Repository 'o/r' -Version '1.2.3'
+        $notes | Should -BeExactly ("### Added`n`n- First.`n`n---`n`n" + (Get-FFmpegSourceNotice -Repository 'o/r' -Version '1.2.3'))
+    }
+    It 'creates the GitHub release with these notes (release-upload.ps1) but packs the plain section into Velopack (release-build.ps1)' {
+        $upload = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-upload.ps1'))
+        $upload | Should -Match '\$notes = Get-ReleaseNotes -ChangelogSection \$notes -Repository \$preflight\.Repository -Version \$version'
+        [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1')) | Should -Not -Match 'Get-ReleaseNotes|Get-FFmpegSourceNotice'
+    }
+
+    It 'keeps the inputs next to the FFmpeg build cache' -Skip:(-not ($IsWindows -or $IsMacOS)) {
+        $expected = if ($IsWindows) { Join-Path $env:LOCALAPPDATA 'LayerPeek.Build' 'ffmpeg-source' } else { Join-Path $HOME 'Library' 'Caches' 'LayerPeek.Build' 'ffmpeg-source' }
+        Get-FFmpegSourceCacheDirectory | Should -BeExactly $expected
+    }
+
+    It 'reads the pinned <Os> source of build/FFmpeg.targets: the official tarball and the build script of the OS' -ForEach @(
+        @{ Os = 'macos'; Rids = @('osx-arm64'); Script = 'build/macos/build-ffmpeg.sh' },
+        @{ Os = 'windows'; Rids = @('win-x64', 'win-arm64'); Script = 'build/windows/build-ffmpeg.sh' }
+    ) {
+        # T-202: both OS build the same tarball; only the build script differs. T-225: one Windows script for both RIDs.
+        $pins = Get-FFmpegSourcePins -TargetsText $script:Targets -Os $Os
+        $folder = [regex]::Match($script:Targets, '<LayerPeekFFmpegSourceFolder>([^<]+)<').Groups[1].Value
+        $pins.Os | Should -BeExactly $Os
+        $pins.Rids | Should -BeExactly $Rids
+        $pins.Version | Should -BeExactly ($folder -replace '^ffmpeg-')
+        $pins.Inputs.Count | Should -Be 1
+        $pins.Inputs[0].Kind | Should -BeExactly 'download'
+        $pins.Inputs[0].Name | Should -BeExactly "$folder.tar.xz"
+        $pins.Inputs[0].Url | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekFFmpegSourceUrl>([^<]+)<').Groups[1].Value)
+        $pins.Inputs[0].Sha256 | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekFFmpegSourceSha256>([^<]+)<').Groups[1].Value)
+        $pins.BuildScript | Should -BeExactly $Script
+        Test-Path -LiteralPath (Join-Path $script:RepoRoot $pins.BuildScript) -PathType Leaf | Should -BeTrue
+    }
+
+    It 'reads the llvm-mingw of the win-arm64 build for the Windows source only (T-225)' {
+        $windows = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'windows'
+        $windows.LlvmMingw.Url | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekLlvmMingwUrl>([^<]+)<').Groups[1].Value)
+        $windows.LlvmMingw.Sha256 | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekLlvmMingwSha256>([^<]+)<').Groups[1].Value)
+        $windows.LlvmMingw.Folder | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekLlvmMingwFolder>([^<]+)<').Groups[1].Value)
+        (Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'macos').LlvmMingw | Should -BeNullOrEmpty
+        $missing = $script:Targets -replace '<LayerPeekLlvmMingwSha256>[^<]*</LayerPeekLlvmMingwSha256>', ''
+        { Get-FFmpegSourcePins -TargetsText $missing -Os 'windows' } | Should -Throw -ExpectedMessage '*must contain <LayerPeekLlvmMingwSha256> exactly once (found 0)*'
+        (Get-FFmpegSourcePins -TargetsText $missing -Os 'macos').Os | Should -BeExactly 'macos'
+        $other = Set-Pin $script:Targets 'LayerPeekLlvmMingwFolder' 'llvm-mingw-20990101-ucrt-x86_64'
+        { Get-FFmpegSourcePins -TargetsText $other -Os 'windows' } | Should -Throw -ExpectedMessage '*LayerPeekLlvmMingwUrl * is not the zip of LayerPeekLlvmMingwFolder*'
+    }
+
+    It 'refuses a missing pin, a malformed hash and a URL that is not the tarball of the pinned folder' {
+        $missing = $script:Targets -replace '<LayerPeekFFmpegSourceSha256>[^<]*</LayerPeekFFmpegSourceSha256>', ''
+        { Get-FFmpegSourcePins -TargetsText $missing -Os 'windows' } | Should -Throw -ExpectedMessage '*must contain <LayerPeekFFmpegSourceSha256> exactly once (found 0)*'
+        $short = Set-Pin $script:Targets 'LayerPeekFFmpegSourceSha256' 'abc'
+        { Get-FFmpegSourcePins -TargetsText $short -Os 'macos' } | Should -Throw -ExpectedMessage "*<LayerPeekFFmpegSourceSha256> in build/FFmpeg.targets is 'abc'*"
+        $other = Set-Pin $script:Targets 'LayerPeekFFmpegSourceUrl' 'https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz'
+        { Get-FFmpegSourcePins -TargetsText $other -Os 'macos' } | Should -Throw -ExpectedMessage '*is not the tarball of LayerPeekFFmpegSourceFolder*'
+    }
+
+    It 'has no BtbN or git source pins any more (T-202)' {
+        $script:Targets | Should -Not -Match '<LayerPeekFFmpeg(Url|Sha256|ArchiveFolder|WindowsSource\w*|WindowsScripts\w*|MacSource\w*)>'
+        Get-Command New-GitSourceArchive -Module ReleaseTools -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
+        { Save-FFmpegSourceInput -SourceInput ([pscustomobject]@{ Kind = 'git'; Name = 'x.tar'; Sha256 = ('0' * 64) }) -CacheDirectory $script:FFmpegRoot } |
+            Should -Throw -ExpectedMessage "*Unsupported FFmpeg source input kind 'git'*"
+    }
+
+    It 'reads version and configure line of a library, without the prefix of the build machine' {
+        $facts = Get-FFmpegLibraryFacts -Bytes (New-LibraryBytes '9.0.2' "--prefix=/Users/someone/Library/Caches/x/prefix --enable-shared --enable-protocol='tcp,file'")
+        $facts.Version | Should -BeExactly '9.0.2'
+        $facts.Configuration | Should -BeExactly "--prefix=<prefix> --enable-shared --enable-protocol='tcp,file'"
+        $quoted = Get-FFmpegLibraryFacts -Bytes (New-LibraryBytes 'n9.0.2-39-g7adfbe40dc-20261031' "--prefix='/a b/prefix' --arch=x86_64")
+        $quoted.Version | Should -BeExactly 'n9.0.2-39-g7adfbe40dc-20261031'
+        $quoted.Configuration | Should -BeExactly '--prefix=<prefix> --arch=x86_64'
+        $none = Get-FFmpegLibraryFacts -Bytes (New-LibraryBytes $null $null)
+        $none.Version | Should -BeNullOrEmpty
+        $none.Configuration | Should -BeNullOrEmpty
+    }
+
+    It 'accepts only libraries built from the pinned source' {
+        $mac = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'macos'
+        $windows = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'windows'
+        @(Get-FFmpegLibraryVersionProblems -Pins $mac -LibraryVersion $mac.Version -LibraryName 'libavcodec.63.dylib').Count | Should -Be 0
+        @(Get-FFmpegLibraryVersionProblems -Pins $windows -LibraryVersion $windows.Version -LibraryName 'avcodec-63.dll').Count | Should -Be 0
+        Get-FFmpegLibraryVersionProblems -Pins $mac -LibraryVersion "$($mac.Version)-1" -LibraryName 'libavcodec.63.dylib' | Should -Match 'the published libraries and the attached source would differ'
+        # T-202: a library of the former BtbN build (git describe and build date) is not one of ours.
+        Get-FFmpegLibraryVersionProblems -Pins $windows -LibraryVersion 'n9.0.2-39-g7adfbe40dc-20261031' -LibraryName 'avcodec-63.dll' | Should -Match 'avcodec-63\.dll is FFmpeg n9\.0\.2-39-g7adfbe40dc-20261031, but the pinned source'
+        Get-FFmpegLibraryVersionProblems -Pins $mac -LibraryVersion $null -LibraryName 'libavcodec.63.dylib' | Should -Match 'names no FFmpeg version'
+    }
+
+    Context 'download inputs (cache, no network)' {
+        BeforeAll {
+            $script:TarballContent = 'official FFmpeg tarball'
+            $tarball = New-FileWith (Join-Path $script:FFmpegRoot 'fixture' 'ffmpeg-9.9.9.tar.xz') $script:TarballContent
+            $script:TarballSha256 = Get-FileSha256 $tarball
+            $script:TamperedSha256 = Get-FileSha256 (New-FileWith (Join-Path $script:FFmpegRoot 'fixture' 'tampered.txt') 'tampered tarball')
+        }
+        BeforeEach {
+            $script:Tarball = [pscustomobject]@{ Kind = 'download'; Name = 'ffmpeg-9.9.9.tar.xz'; Url = 'https://ffmpeg.org/releases/ffmpeg-9.9.9.tar.xz'; Sha256 = $script:TarballSha256 }
+            $script:Cache = Join-Path $script:FFmpegRoot "cache-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $script:Cache
+            $script:DownloadContent = $script:TarballContent
+            # The only network access of the step: replaced, so nothing is downloaded.
+            Mock Invoke-FFmpegSourceDownload -ModuleName ReleaseTools { [System.IO.File]::WriteAllText($OutFile, $script:DownloadContent) }
+        }
+
+        It 'downloads once and then uses the verified file of the cache' {
+            $path = Save-FFmpegSourceInput -SourceInput $script:Tarball -CacheDirectory $script:Cache
+            $path | Should -BeExactly (Join-Path $script:Cache 'ffmpeg-9.9.9.tar.xz')
+            Get-FileSha256 $path | Should -BeExactly $script:TarballSha256
+            Should -Invoke Invoke-FFmpegSourceDownload -ModuleName ReleaseTools -Times 1 -Exactly -ParameterFilter { $Uri -ceq 'https://ffmpeg.org/releases/ffmpeg-9.9.9.tar.xz' }
+
+            Save-FFmpegSourceInput -SourceInput $script:Tarball -CacheDirectory $script:Cache | Should -BeExactly $path
+            Should -Invoke Invoke-FFmpegSourceDownload -ModuleName ReleaseTools -Times 1 -Exactly
+            @(Get-ChildItem -LiteralPath $script:Cache -Force | ForEach-Object Name) | Should -Be @('ffmpeg-9.9.9.tar.xz')
+        }
+
+        It 'replaces a cached file with another SHA-256' {
+            $null = New-FileWith (Join-Path $script:Cache 'ffmpeg-9.9.9.tar.xz') 'truncated'
+            $path = Save-FFmpegSourceInput -SourceInput $script:Tarball -CacheDirectory $script:Cache
+            Get-FileSha256 $path | Should -BeExactly $script:TarballSha256
+            Should -Invoke Invoke-FFmpegSourceDownload -ModuleName ReleaseTools -Times 1 -Exactly
+        }
+
+        It 'discards a download with another SHA-256 and caches nothing' {
+            $script:DownloadContent = 'tampered tarball'
+            { Save-FFmpegSourceInput -SourceInput $script:Tarball -CacheDirectory $script:Cache } |
+                Should -Throw -ExpectedMessage "ffmpeg-9.9.9.tar.xz (https://ffmpeg.org/releases/ffmpeg-9.9.9.tar.xz) has SHA-256 $($script:TamperedSha256), build/FFmpeg.targets pins $($script:TarballSha256). It was discarded."
+            @(Get-ChildItem -LiteralPath $script:Cache -Force).Count | Should -Be 0
+        }
+
+        It 'fails cleanly when the download fails' {
+            Mock Invoke-FFmpegSourceDownload -ModuleName ReleaseTools { throw 'Response status code does not indicate success: 404 (Not Found).' }
+            { Save-FFmpegSourceInput -SourceInput $script:Tarball -CacheDirectory $script:Cache } | Should -Throw -ExpectedMessage '*404*'
+            @(Get-ChildItem -LiteralPath $script:Cache -Force).Count | Should -Be 0
+        }
+
+        It 'reads the pins and fills the cache of every input (Get-FFmpegSourceInputs)' {
+            $repo = Join-Path $script:FFmpegRoot "repo-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $targets = Set-Pin (Set-Pin (Set-Pin $script:Targets 'LayerPeekFFmpegSourceFolder' 'ffmpeg-9.9.9') 'LayerPeekFFmpegSourceUrl' 'https://ffmpeg.org/releases/ffmpeg-9.9.9.tar.xz') 'LayerPeekFFmpegSourceSha256' $script:TarballSha256
+            $null = New-FileWith (Join-Path $repo 'build' 'FFmpeg.targets') $targets
+            $source = Get-FFmpegSourceInputs -RepoRoot $repo -Os 'macos' -CacheDirectory (Join-Path $script:Cache 'new')
+            $source.Pins.Version | Should -BeExactly '9.9.9'
+            $source.Files | Should -Be @(Join-Path $script:Cache 'new' 'ffmpeg-9.9.9.tar.xz')
+            Should -Invoke Invoke-FFmpegSourceDownload -ModuleName ReleaseTools -Times 1 -Exactly
+            # The same tarball for Windows: taken from the cache, not downloaded again.
+            $windows = Get-FFmpegSourceInputs -RepoRoot $repo -Os 'windows' -CacheDirectory (Join-Path $script:Cache 'new')
+            $windows.Files | Should -Be @(Join-Path $script:Cache 'new' 'ffmpeg-9.9.9.tar.xz')
+            Should -Invoke Invoke-FFmpegSourceDownload -ModuleName ReleaseTools -Times 1 -Exactly
+        }
+    }
+
+    Context 'the archive' {
+        BeforeAll {
+            $script:MacPins = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'macos'
+            $script:WindowsPins = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'windows'
+            $tarball = New-FileWith (Join-Path $script:FFmpegRoot 'inputs' $script:MacPins.Inputs[0].Name) 'tarball'
+            $script:MacSource = [pscustomobject]@{ Pins = $script:MacPins; Files = @($tarball) }
+            $script:WindowsSource = [pscustomobject]@{ Pins = $script:WindowsPins; Files = @($tarball) }
+            function New-Publish([string] $Name, [string] $Library, [string] $Version, [string] $Configure = '--enable-version3 --enable-shared') {
+                $folder = Join-Path $script:FFmpegRoot $Name
+                $null = New-Item -ItemType Directory -Path $folder
+                [System.IO.File]::WriteAllBytes((Join-Path $folder $Library), (New-LibraryBytes $Version "--prefix=/build/prefix $Configure"))
+                $null = New-FileWith (Join-Path $folder 'LayerPeek') 'app'
+                $folder
+            }
+            function Get-Entries([string] $Archive) { @(& (Get-TarCommand) -tf $Archive | ForEach-Object { "$_".TrimEnd('/') } | Sort-Object -CaseSensitive) }
+            function Get-Member([string] $Archive, [string] $Name) { (& (Get-TarCommand) -xOf $Archive $Name) -join "`n" }
+        }
+
+        It 'packs the macOS source: the official tarball, build-ffmpeg.sh and README.txt in one top folder' {
+            $publish = New-Publish 'publish-mac' 'libavcodec.63.dylib' $script:MacPins.Version
+            $archive = Join-Path $script:FFmpegRoot 'dist-mac' 'ffmpeg-source-1.0.0-macos.tar.xz'
+            $null = New-Item -ItemType Directory -Path (Split-Path -Parent $archive)
+            $work = Join-Path $script:FFmpegRoot 'work-mac'
+            New-FFmpegSourceArchive -Source $script:MacSource -PublishDirectories ([ordered]@{ 'osx-arm64' = $publish }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory $work -RepoRoot $script:RepoRoot | Should -BeExactly $archive
+            Get-Entries $archive | Should -Be (@('ffmpeg-source-1.0.0-macos', 'ffmpeg-source-1.0.0-macos/README.txt', 'ffmpeg-source-1.0.0-macos/build-ffmpeg.sh', "ffmpeg-source-1.0.0-macos/$($script:MacPins.Inputs[0].Name)") | Sort-Object -CaseSensitive)
+            Test-Path -LiteralPath $work | Should -BeFalse
+            $buildScript = Get-Member $archive 'ffmpeg-source-1.0.0-macos/build-ffmpeg.sh'
+            $buildScript.TrimEnd() | Should -BeExactly ([System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'build' 'macos' 'build-ffmpeg.sh')).Replace("`r`n", "`n").TrimEnd())
+            $readme = Get-Member $archive 'ffmpeg-source-1.0.0-macos/README.txt'
+            $readme | Should -Match 'FFmpeg source code of LayerPeek 1\.0\.0 for macOS \(osx-arm64\)'
+            $readme | Should -Match 'GNU Lesser General Public\s+License version 3 or later'
+            $readme | Should -Match ([regex]::Escape("The official FFmpeg source release, unchanged: $($script:MacPins.Inputs[0].Url)"))
+            $readme | Should -Match ([regex]::Escape("SHA-256: $($script:MacPins.Inputs[0].Sha256)"))
+            $readme | Should -Match 'build/macos/build-ffmpeg\.sh of LayerPeek, tag v1\.0\.0'
+            $readme | Should -Match ([regex]::Escape("FFmpeg version of the shipped libraries: $($script:MacPins.Version)"))
+            $readme | Should -Match ([regex]::Escape('Configure line of the shipped osx-arm64 libraries (read from libavcodec.63.dylib; the installation prefix replaced by <prefix>):'))
+            $readme | Should -Not -Match 'llvm-mingw|win-'
+            $readme | Should -Match ([regex]::Escape('--prefix=<prefix> --enable-version3 --enable-shared'))
+            $readme | Should -Not -Match '/build/prefix'
+        }
+
+        It 'packs the Windows source: the same official tarball, the Windows build-ffmpeg.sh and README.txt (T-202)' {
+            $publish = New-Publish 'publish-win' 'avcodec-63.dll' $script:WindowsPins.Version
+            $archive = Join-Path $script:FFmpegRoot 'dist-win' 'ffmpeg-source-1.0.0-windows.tar.xz'
+            $null = New-Item -ItemType Directory -Path (Split-Path -Parent $archive)
+            New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'win-x64' = $publish }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-win') -RepoRoot $script:RepoRoot | Should -BeExactly $archive
+            Get-Entries $archive | Should -Be (@('ffmpeg-source-1.0.0-windows', 'ffmpeg-source-1.0.0-windows/README.txt', 'ffmpeg-source-1.0.0-windows/build-ffmpeg.sh', "ffmpeg-source-1.0.0-windows/$($script:WindowsPins.Inputs[0].Name)") | Sort-Object -CaseSensitive)
+            $buildScript = Get-Member $archive 'ffmpeg-source-1.0.0-windows/build-ffmpeg.sh'
+            $buildScript.TrimEnd() | Should -BeExactly ([System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'build' 'windows' 'build-ffmpeg.sh')).Replace("`r`n", "`n").TrimEnd())
+            $readme = Get-Member $archive 'ffmpeg-source-1.0.0-windows/README.txt'
+            $readme | Should -Match 'for Windows \(win-x64\)'
+            $readme | Should -Match ([regex]::Escape("The official FFmpeg source release, unchanged: $($script:WindowsPins.Inputs[0].Url)"))
+            $readme | Should -Match ([regex]::Escape("SHA-256: $($script:WindowsPins.Inputs[0].Sha256)"))
+            $readme | Should -Match 'build/windows/build-ffmpeg\.sh of LayerPeek, tag v1\.0\.0'
+            $readme | Should -Match 'MSYS2 and MinGW-w64'
+            $readme | Should -Match ([regex]::Escape("bash build-ffmpeg.sh win-x64 $($script:WindowsPins.Inputs[0].Name) ffmpeg-$($script:WindowsPins.Version)"))
+            $readme | Should -Match ([regex]::Escape('Configure line of the shipped win-x64 libraries (read from avcodec-63.dll; the installation prefix replaced by <prefix>):'))
+            $readme | Should -Not -Match 'BtbN|git archive|swresample'
+            # Only the build that is shipped (no win-arm64 in this release).
+            $readme | Should -Not -Match 'win-arm64|llvm-mingw'
+        }
+
+        It 'packs one Windows source for both architectures: README.txt with both configure lines and the ARM64 toolchain (T-225)' {
+            $x64 = New-Publish 'publish-win-both-x64' 'avcodec-63.dll' $script:WindowsPins.Version '--enable-d3d11va --arch=x86_64'
+            $arm = New-Publish 'publish-win-both-arm64' 'avcodec-63.dll' $script:WindowsPins.Version '--enable-d3d11va --arch=aarch64 --enable-cross-compile'
+            $archive = Join-Path $script:FFmpegRoot 'dist-win-both' 'ffmpeg-source-1.0.0-windows.tar.xz'
+            $null = New-Item -ItemType Directory -Path (Split-Path -Parent $archive)
+            New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'win-x64' = $x64; 'win-arm64' = $arm }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-win-both') -RepoRoot $script:RepoRoot | Should -BeExactly $archive
+            # The same four files: one tarball and one script for both builds.
+            Get-Entries $archive | Should -Be (@('ffmpeg-source-1.0.0-windows', 'ffmpeg-source-1.0.0-windows/README.txt', 'ffmpeg-source-1.0.0-windows/build-ffmpeg.sh', "ffmpeg-source-1.0.0-windows/$($script:WindowsPins.Inputs[0].Name)") | Sort-Object -CaseSensitive)
+            $readme = Get-Member $archive 'ffmpeg-source-1.0.0-windows/README.txt'
+            $readme | Should -Match 'for Windows \(win-x64, win-arm64\)'
+            $readme | Should -Match ([regex]::Escape("bash build-ffmpeg.sh win-x64 $($script:WindowsPins.Inputs[0].Name) ffmpeg-$($script:WindowsPins.Version) <work folder> <output folder>"))
+            $readme | Should -Match ([regex]::Escape("bash build-ffmpeg.sh win-arm64 $($script:WindowsPins.Inputs[0].Name) ffmpeg-$($script:WindowsPins.Version) <work folder> <output folder> <llvm-mingw folder>"))
+            $readme | Should -Match ([regex]::Escape("llvm-mingw: $($script:WindowsPins.LlvmMingw.Url)"))
+            $readme | Should -Match ([regex]::Escape("SHA-256: $($script:WindowsPins.LlvmMingw.Sha256)"))
+            $readme | Should -Match 'cross-compiled on Windows x64'
+            $readme | Should -Match "(?s)Configure line of the shipped win-x64 libraries \(read from avcodec-63\.dll; [^\n]*\n    --prefix=<prefix> --enable-d3d11va --arch=x86_64\n"
+            $readme | Should -Match "(?s)Configure line of the shipped win-arm64 libraries \(read from avcodec-63\.dll; [^\n]*\n    --prefix=<prefix> --enable-d3d11va --arch=aarch64 --enable-cross-compile\n"
+        }
+
+        It 'refuses a runtime identifier of another OS or none, and an ARM64 library of another version, and writes no archive' {
+            $archive = Join-Path $script:FFmpegRoot 'dist-bad-rid' 'ffmpeg-source-1.0.0-windows.tar.xz'
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $archive)
+            $good = New-Publish "publish-rid-$([guid]::NewGuid().ToString('N').Substring(0, 8))" 'avcodec-63.dll' $script:WindowsPins.Version
+            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'osx-arm64' = $good }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad-rid') -RepoRoot $script:RepoRoot } |
+                Should -Throw -ExpectedMessage '*The FFmpeg source of windows covers win-x64, win-arm64, not osx-arm64.*'
+            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{}) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad-rid') -RepoRoot $script:RepoRoot } |
+                Should -Throw -ExpectedMessage '*No publish folder*'
+            $old = New-Publish "publish-rid-$([guid]::NewGuid().ToString('N').Substring(0, 8))" 'avcodec-63.dll' '9.0.1'
+            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'win-x64' = $good; 'win-arm64' = $old }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad-rid') -RepoRoot $script:RepoRoot } |
+                Should -Throw -ExpectedMessage '*win-arm64: avcodec-63.dll is FFmpeg 9.0.1, but the pinned source*'
+            Test-Path -LiteralPath $archive | Should -BeFalse
+        }
+
+        It 'refuses <Name> and writes no archive' -ForEach @(
+            @{ Name = 'a library of another FFmpeg version'; Library = 'avcodec-63.dll'; Version = 'n9.0.2-39-g7adfbe40dc-20261031'; Pattern = 'the published libraries and the attached source would differ' },
+            @{ Name = 'a publish folder without avcodec'; Library = 'avutil-61.dll'; Version = '9.0.2'; Pattern = 'Expected exactly one FFmpeg avcodec library' }
+        ) {
+            $publish = New-Publish "publish-bad-$([guid]::NewGuid().ToString('N').Substring(0, 8))" $Library $Version
+            $archive = Join-Path $script:FFmpegRoot 'dist-bad' 'ffmpeg-source-1.0.0-windows.tar.xz'
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $archive)
+            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'win-x64' = $publish }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad') -RepoRoot $script:RepoRoot } | Should -Throw -ExpectedMessage "*$Pattern*"
+            Test-Path -LiteralPath $archive | Should -BeFalse
+        }
+    }
+
+    It 'release-build.ps1 fetches the source before the build and packs it on both OS (step ffmpeg-source)' {
+        $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))
+        $script | Should -Match "Name\s+=\s+'ffmpeg-source'\s+Os\s+=\s+@\('windows', 'macos'\)"
+        $fetch = $script.IndexOf('Get-FFmpegSourceInputs -RepoRoot $repoRoot -Os $hostOs')
+        $fetch | Should -BeGreaterThan 0
+        $fetch | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
+        # T-225: one archive per OS for all its RIDs (win-x64 and win-arm64), packed with the last RID of the OS.
+        $script | Should -Match ([regex]::Escape('if ($Context.Runtime -cne $Context.Runtimes[-1]) { return }'))
+        $script | Should -Match ([regex]::Escape('foreach ($rid in $Context.Runtimes) { $publish[$rid] = Join-Path $Context.PublishRoot $rid }'))
+        $script | Should -Match ([regex]::Escape('New-FFmpegSourceArchive -Source $ffmpegSource -PublishDirectories $publish'))
+        $script | Should -Match 'Runtimes\s+=\s+\$runtimes'
+        $script | Should -Match 'PublishRoot\s+=\s+\$publishRoot'
+    }
+}
+
+Describe 'Downloaded macOS release bundle (T-217, pure)' {
+    BeforeAll {
+        $script:LoadRules = Get-MacLoadPathRules -RepoRoot '/r/LayerPeek' -HomePath '/Users/u'
+    }
+    It 'forbids the places of a build machine and allows only the bundle and the system' {
+        @($script:LoadRules.Forbidden.Keys) | Should -BeExactly @('/opt/homebrew/', '/usr/local/', '/opt/', '/r/LayerPeek/artifacts/', '/Users/u/Library/Caches/LayerPeek.Build/')
+        @($script:LoadRules.Allowed) | Should -BeExactly @('@rpath/', '@loader_path/', '@executable_path/', '/usr/lib/', '/System/Library/')
+        @($script:LoadRules.RpathPrefixes) | Should -BeExactly @('@executable_path', '@loader_path')
+        # A trailing slash of the given folders makes no difference.
+        @((Get-MacLoadPathRules -RepoRoot '/r/LayerPeek/' -HomePath '/Users/u/').Forbidden.Keys) | Should -BeExactly @($script:LoadRules.Forbidden.Keys)
+    }
+    It 'names where a forbidden reference points and accepts the bundle and the system' {
+        foreach ($reference in '@rpath/libSkiaSharp.dylib', '@loader_path/libavcodec.63.dylib', '@executable_path/../Frameworks/x.dylib', '/usr/lib/libSystem.B.dylib', '/System/Library/Frameworks/VideoToolbox.framework/Versions/A/VideoToolbox') {
+            Get-MacLoadPathProblem -Reference $reference -Rules $script:LoadRules | Should -BeNullOrEmpty -Because $reference
+        }
+        Get-MacLoadPathProblem -Reference '/opt/homebrew/opt/x264/lib/libx264.164.dylib' -Rules $script:LoadRules | Should -Match '\(Homebrew\)$'
+        Get-MacLoadPathProblem -Reference '/usr/local/lib/libavcodec.62.dylib' -Rules $script:LoadRules | Should -Match '/usr/local'
+        Get-MacLoadPathProblem -Reference '/opt/x/lib.dylib' -Rules $script:LoadRules | Should -Match '\(/opt\)$'
+        Get-MacLoadPathProblem -Reference '/r/LayerPeek/artifacts/release/0.5.0/publish/osx-arm64/libavutil.61.dylib' -Rules $script:LoadRules | Should -Match 'build output artifacts/'
+        Get-MacLoadPathProblem -Reference '/Users/u/Library/Caches/LayerPeek.Build/ffmpeg/k/lib/libavutil.61.dylib' -Rules $script:LoadRules | Should -Match 'LayerPeek\.Build'
+        Get-MacLoadPathProblem -Reference '/Users/u/lib/libz.dylib' -Rules $script:LoadRules | Should -Match 'outside the bundle and the system'
+        # A prefix match on whole folders only: /usr/libexec is not /usr/lib/.
+        Get-MacLoadPathProblem -Reference '/usr/libexec/x.dylib' -Rules $script:LoadRules | Should -Match 'outside the bundle and the system'
+        Get-MacLoadPathProblem -Reference '/r/LayerPeek/artifacts-old/x.dylib' -Rules $script:LoadRules | Should -Match 'outside the bundle and the system'
+    }
+    It 'checks the otool -L references except the install name, and the LC_RPATH entries of otool -l' {
+        $list = @('/x/libAvaloniaNative.dylib:',
+            "`t/usr/local/lib/libAvalonia.Native.OSX.dylib (compatibility version 0.0.0, current version 0.0.0)",
+            "`t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1700.255.5)",
+            "`t/opt/homebrew/lib/libpng16.16.dylib (compatibility version 1.0.0, current version 1.0.0)")
+        $commands = @('Load command 12', '          cmd LC_RPATH', '      cmdsize 32', '         path @executable_path/../Frameworks (offset 12)',
+            'Load command 13', '          cmd LC_RPATH', '      cmdsize 48', '         path /Users/u/Library/Caches/LayerPeek.Build/lib (offset 12)',
+            'Load command 14', '          cmd LC_LOAD_DYLIB', '      cmdsize 56', '         name /usr/lib/libSystem.B.dylib (offset 24)',
+            'Load command 15', '          cmd LC_RPATH', '      cmdsize 32', '         path @loader_path (offset 12)')
+        @(Get-MacLoadCommandRpaths $commands) | Should -BeExactly @('@executable_path/../Frameworks', '/Users/u/Library/Caches/LayerPeek.Build/lib', '@loader_path')
+        @(Get-MacMachOLoadPathProblems -File 'Contents/MacOS/libAvaloniaNative.dylib' -OtoolList $list -OtoolLoadCommands $commands -InstallName '/usr/local/lib/libAvalonia.Native.OSX.dylib' -Rules $script:LoadRules) | Should -BeExactly @(
+            'Contents/MacOS/libAvaloniaNative.dylib loads /opt/homebrew/lib/libpng16.16.dylib (Homebrew).',
+            'Contents/MacOS/libAvaloniaNative.dylib has the LC_RPATH /Users/u/Library/Caches/LayerPeek.Build/lib (only @executable_path and @loader_path are allowed).')
+        # A universal file: one header line per architecture, never taken for a reference.
+        $fat = @('/x/libSkiaSharp.dylib (architecture x86_64):',
+            "`t@rpath/libSkiaSharp.dylib (compatibility version 0.0.0, current version 0.0.0)",
+            "`t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1700.255.5)",
+            '/x/libSkiaSharp.dylib (architecture arm64):',
+            "`t@rpath/libSkiaSharp.dylib (compatibility version 0.0.0, current version 0.0.0)",
+            "`t/usr/local/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.3.1)")
+        @(Get-MacMachOLoadPathProblems -File 'f' -OtoolList $fat -InstallName '@rpath/libSkiaSharp.dylib' -Rules $script:LoadRules) | Should -BeExactly @(
+            'f loads /usr/local/lib/libz.1.dylib (/usr/local (Homebrew on Intel, hand-built libraries)).')
+        # Without the install name exemption the identifier itself would count.
+        @(Get-MacMachOLoadPathProblems -File 'f' -OtoolList $list[0..1] -Rules $script:LoadRules) | Should -Match '/usr/local'
+        # @executable_path_x is no bundle path.
+        @(Get-MacMachOLoadPathProblems -File 'f' -OtoolLoadCommands @('cmd LC_RPATH', 'path @executable_pathx (offset 12)') -Rules $script:LoadRules) | Should -Match 'LC_RPATH @executable_pathx'
+        @(Get-MacMachOLoadPathProblems -File 'f' -Rules $script:LoadRules) | Should -BeNullOrEmpty
+    }
+    It 'checks the version, the identifier and LSUIElement of the Info.plist' {
+        $template = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'build' 'macos' 'Info.plist') -Raw
+        $identifier = Get-MacBundleIdentifier (Join-Path $script:RepoRoot 'build' 'macos' 'Info.plist')
+        $plist = ConvertTo-MacInfoPlist -TemplateText $template -Version '1.2.3'
+        @(Get-MacReleasePlistProblems -PlistText $plist -Version '1.2.3' -BundleIdentifier $identifier) | Should -BeNullOrEmpty
+        Assert-Problems @(Get-MacReleasePlistProblems -PlistText $plist -Version '1.2.4' -BundleIdentifier $identifier) @('CFBundleShortVersionString is .1\.2\.3., expected the build version 1\.2\.4', 'CFBundleVersion is .1\.2\.3.')
+        Assert-Problems @(Get-MacReleasePlistProblems -PlistText $plist -Version '1.2.3' -BundleIdentifier 'io.example.Other') @('CFBundleIdentifier is')
+        $agent = $plist -replace '<key>LSUIElement</key>\s*<true/>', '<key>LSUIElement</key><false/>'
+        Assert-Problems @(Get-MacReleasePlistProblems -PlistText $agent -Version '1.2.3' -BundleIdentifier $identifier) @('LSUIElement')
+        $none = $plist -replace '<key>LSUIElement</key>\s*<true/>', ''
+        Assert-Problems @(Get-MacReleasePlistProblems -PlistText $none -Version '1.2.3' -BundleIdentifier $identifier) @('LSUIElement')
+        Assert-Problems @(Get-MacReleasePlistProblems -PlistText 'not xml' -Version '1.2.3' -BundleIdentifier $identifier) @('no property list')
+    }
+    It 'starts the app through env -i with only HOME, the system PATH and TMPDIR' {
+        Get-SmokeCleanEnvironmentArguments -Executable '/t/c/LayerPeek.app/Contents/MacOS/LayerPeek' -Arguments @('--a', '--b') -HomePath '/Users/u' -TempPath '/var/folders/x/T/' | Should -BeExactly @(
+            '-i', 'HOME=/Users/u', 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', 'TMPDIR=/var/folders/x/T/', '/t/c/LayerPeek.app/Contents/MacOS/LayerPeek', '--a', '--b')
+        Get-SmokeCleanEnvironmentArguments -Executable '/x/LayerPeek' -HomePath '/Users/u' -TempPath '/tmp' | Should -BeExactly @('-i', 'HOME=/Users/u', 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', 'TMPDIR=/tmp', '/x/LayerPeek')
+        # Never Homebrew, the .NET SDK or a dyld variable.
+        (Get-SmokeCleanEnvironmentArguments -Executable '/x/LayerPeek' -HomePath '/Users/u' -TempPath '/tmp') -join ' ' | Should -Not -Match 'homebrew|/usr/local|DOTNET|DYLD'
+        Assert-ThrowsMatching { Get-SmokeCleanEnvironmentArguments -Executable '/x/LayerPeek' -HomePath 'relative' -TempPath '/tmp' } 'no absolute path'
+        Assert-ThrowsMatching { Get-SmokeCleanEnvironmentArguments -Executable '/x/LayerPeek' -HomePath '/Users/u' -TempPath '/tmp/a=b' } 'no absolute path'
+    }
+    It 'finds the native library load errors in the output and the log' {
+        $lines = @(
+            '2026-11-14 10:00:00 [INF] LayerPeek 0.5.0 started',
+            'dyld[4242]: Library not loaded: /opt/homebrew/opt/x264/lib/libx264.164.dylib',
+            'System.DllNotFoundException: Unable to load shared library ''libAvaloniaNative'' or one of its dependencies.',
+            'LayerPeek.Core.Cameras.CameraFeedException: The video decoder (FFmpeg) is not available.',
+            'System.TypeInitializationException: The type initializer for ''SkiaSharp.SKImageInfo'' threw an exception.',
+            'System.EntryPointNotFoundException: Unable to find an entry point named ''avformat_version''',
+            'System.BadImageFormatException: bad image',
+            '2026-11-14 10:00:01 [INF] No printers configured')
+        @(Get-SmokeNativeLoadErrors $lines) | Should -BeExactly @($lines[1..6])
+        @(Get-SmokeNativeLoadErrors @('[INF] started', '', '[WRN] printer offline')) | Should -BeNullOrEmpty
+        @(Get-SmokeNativeLoadErrors @()) | Should -BeNullOrEmpty
+    }
+    It 'documents -CleanEnvironment and starts through /usr/bin/env only with it' {
+        $smoke = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1') -Raw
+        "$((Get-Help (Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1') -Parameter CleanEnvironment).description.Text)" | Should -Match 'env -i'
+        $smoke | Should -Match ([regex]::Escape("Start-Process -FilePath '/usr/bin/env' -ArgumentList `$quoted "))
+        $smoke | Should -Match 'Get-SmokeNativeLoadErrors'
+        # LaunchServices records the physical path: a bundle in the temp folder (/var -> /private/var) must still be
+        # recognised, so that the registration of the start is removed.
+        $smoke | Should -Match ([regex]::Escape("`$bundle = Resolve-PhysicalPath (Split-Path -Parent `$contents)"))
     }
 }
 

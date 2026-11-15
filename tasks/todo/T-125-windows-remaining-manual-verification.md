@@ -13,11 +13,11 @@ Doplněno 2026-11-04 (architekt). Všechny funkce od 0.4.0 (T-143 až T-166) vzn
 nepřeložily ani neotestovaly. `scripts/release-build.ps1` spouští celý `dotnet test`, takže soubory Windows pro 0.5.0
 jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrtávají tam. Co blokuje vydání, rozhodne uživatel.
 
-1. **Build a testy (blokuje build vydání):** 2d · **T-162** (prázdná cache FFmpeg, nový build BtbN) → `dotnet test` na
+1. **Build a testy (blokuje build vydání):** 2d · **T-162** (prázdná cache FFmpeg; od T-202 se FFmpeg na Windows překládá ze zdrojů, BtbN odpadl) → `dotnet test` na
    Windows (testovací body 2c–2q: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165,
    T-159, T-163, T-167).
 2. **Snímky UI sady Windows (blokuje build vydání; bez nich selžou snímkové testy nastavení):** jeden běh
-   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · detekce experimentální, 2o · T-159, 2p · T-163 a kontrola souborů
+   `LAYERPEEK_UPDATE_SNAPSHOTS=1` pro 2b · T-151, 2e · T-146, 2f · T-148, 2g · T-154, 2k · T-161 a 2n · detekce experimentální, 2o · T-159, 2p · T-163, 2v · T-185, 2ac · T-204 a kontrola souborů
    vyjmenovaných u těchto bodů.
 3. **Native AOT `win-x64`:** jeden `dotnet publish src/LayerPeek.App -c Release -r win-x64` uzavře body AOT v 2b–2q.
 4. **E2E:** 2b · **T-151** (`CameraWindowAutoCloseTests`, `*Camera*`), 2e · **T-146** (`*CameraRecording*`,
@@ -365,6 +365,263 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       (`AirPrintingDetectorCostTests` s `LAYERPEEK_DETECTION_REPORT=<soubor>`), zapsat ms na vzorek. Mac: 0,58 ms (výřez
       Core One) a 1,27 ms (celý snímek).
 
+### 2r. Stabilní .NET 11 (z T-193, ověřeno na Macu 2026-11-10)
+- [x] **T-193** (Windows): nainstalovat SDK `11.0.100` (GA; `global.json` už nepovoluje RC). `dotnet --version` = `11.0.100`,
+      `dotnet build` a `dotnet test` bez chyb a varování, `pwsh scripts/aot-smoke.ps1` PASS (win-x64, runtime 11.0.0),
+      `pwsh scripts/release-build.ps1` projde (Velopack `Setup.exe`, zip, feed). Výsledek zapsat do poznámek T-193.
+      Hotovo 2026-11-15 (Windows, generálka B4 v T-198): `dotnet --version` 11.0.100, celé `dotnet test` (Release) zelené, AOT smoke
+      test win-x64 PASS a celé `release-build.ps1 -FeedSigningKey …` prošlo (Setup.exe, zip, feed, podpis).
+
+### 2s. Kamera v rozlišení zobrazení (z T-184, implementováno na Macu 2026-11-11)
+- [ ] **T-184** (krit. „Kvalita obrazu na celé obrazovce se viditelně nezhorší“, ruční, simulátor stačí): okno kamery
+      na celé obrazovce, v normálním okně a v malém náhledu při 100 %, 125 % a 150 % DPI – obraz je ostrý, bez zubatých
+      hran a bez posunu barev oproti verzi před T-184 (normální okno menší než 1280 × 720 px a malý náhled se teď
+      převádějí zmenšené, `SWS_BILINEAR`). Tažení okraje okna, přepnutí režimu (malý náhled ↔ okno ↔ celá obrazovka) a
+      přesun okna na monitor s jiným škálováním stream nepřeruší; obraz se asi 0,25 s po uklidnění velikosti zaostří na novou
+      velikost, nic nebliká a nezčerná. `dotnet test` na Windows bez chyb, hlavně `CameraViewModelDisplaySizeTests`,
+      `BgraPixelsTests` a UiTests `CameraWindowDisplaySizeUiTests`.
+- [ ] **T-184** (volitelně, měření x64): převod na Windows má jiné SIMD cesty swscale než Apple Silicon. Simulátor 720p,
+      malý náhled a normální okno 960 × 540 při 100 %: CPU a working set procesu, fps (porovnat s `develop` před T-184),
+      zapsat do poznámek T-184.
+
+### 2t. Čas do dalšího pokusu kamery (z T-188 a T-194, implementováno na Macu 2026-11-11)
+- [ ] **T-188** (ruční, simulátor stačí; automaticky pokryto `CameraViewModelNextAttemptTests` a UiTests
+      `CameraWindowNextAttemptUiTests`, `dotnet test` na Windows bez chyb): simulátor s kamerou, otevřené
+      okno kamery a v konzoli simulátoru `camera offline`: pod „Chyba kamery“ / „Bez signálu“ a důvodem je řádek „Další
+      pokus asi za 5 s“, po dalších pokusech 10, 20, 40 s a „asi za 1 min“; od T-194 se text odpočítává (pod minutou po
+      sekundách). V malém náhledu řádek chybí, po návratu do okna je zpět s aktuální hodnotou. Minimalizovat okno a během
+      minutové pauzy ho obnovit: hned „Připojuji se ke kameře…“ (nový pokus); přepnutí režimu (okno ↔ malý náhled ↔ celá
+      obrazovka) pauzu nezkrátí. **T-194:** okno zavřít, během minutové pauzy (drží ji detekce nebo nahrávání) kliknout
+      v nastavení na „Otestovat kameru“: test hned zkusí nové připojení (s `camera online` uspěje bez čekání na pauzu). Po `camera online`
+      a dalším pokusu obraz běží a řádek zmizí. Aspoň v češtině a v nejdelším jazyce (es / fr) se text vejde.
+
+### 2u. Smoke profil – mezipaměť aplikace (z T-196, implementováno na Macu 2026-11-11)
+- [ ] **T-196** (automaticky): `dotnet test` na Windows bez chyb; Pester test „names the data and log folders of the app,
+      never the installation folder“ (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`) ověří, že smoke profil na Windows
+      obsahuje `%LOCALAPPDATA%\LayerPeek\cache` (3 složky). Volitelně `pwsh scripts/aot-smoke.ps1`: PASSED, potom
+      `%LOCALAPPDATA%\LayerPeek\cache` a `%LOCALAPPDATA%\LayerPeek.Build` stejné jako před během (cache buildu FFmpeg se
+      nepřesouvá ani nemaže).
+
+### 2v. Podepsaný feed aktualizací (z T-181, implementováno na Macu 2026-11-10)
+- [ ] **T-181** (krit. „E2E test aktualizace … s feedem podepsaným testovacím klíčem“, část Windows): `pwsh tools/run-e2e.ps1
+      -Class '*UpdateTests*'` PASS (feed podepsaný testovacím klíčem přijat, nepodepsaný odmítnut); notifikace o odmítnutí
+      (toast) a kliknutí otevře záložku „Spuštění a aktualizace“.
+- [ ] **T-181** (rozhodnutí 2026-11-11, část Windows): toast „Je dostupná nová verze“ z dřívější platné kontroly zmizí
+      z centra oznámení, jakmile se feed odmítne (`RemoveGroupedTagWithId`, tag `layerpeek-update-available`, i toast
+      z dřívějšího běhu); v menu ikony je místo nabídky „Aktualizace odmítnuta…“ a otevře záložku „Spuštění a aktualizace“.
+
+### 2w. Záložka Kamera a snímková frekvence malého náhledu (z T-185, implementováno na Macu 2026-11-11)
+- [x] **T-185** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
+      a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) šestou hlavní záložku „Kamera“
+      a kratší záhlaví (fr „Démarrage, MàJ“, it „Riprese“, pl „Start i aktualizacje“, sk „Štart a aktualizácie“) v řádku
+      záložek: `settings-camera-notice.png`, `settings-camera-preview-4x3-de.png`, `settings-camera-preview.png`, `settings-camera-window-error-normal-size.png`, `settings-camera-window-errors-fr.png`, `settings-camera-window-off-cs.png`, `settings-camera-window.png`, `settings-camera.png`, `settings-detection-camera-off-fr.png`, `settings-detection.png`, `settings-errors-dark.png`, `settings-errors-fr.png`, `settings-general-errors-dark.png`, `settings-general-errors-focused.png`, `settings-general-errors.png`, `settings-general-test-sent-dark.png`, `settings-general-test-sent-fr.png`, `settings-general-turned-off-de.png`, `settings-general.png`, `settings-invalid-address-focused.png`, `settings-maximized.png`, `settings-printer-images.png`, `settings-prusalink.png`, `settings-recording.png`, `settings-startup-updates-not-installed.png`, `settings-startup-updates.png`, `settings-validation-cs.png`, `settings-validation.png`, `settings-widgets-camera-off-it.png`, `settings-widgets-cooldown-de.png`, `settings-widgets-cooldown-error-fr.png`, `settings-widgets-cooldown-error-nozzle.png`, `settings-widgets-dark.png`, `settings-widgets-mini-strip-camera-off-it.png`, `settings-widgets-mini-strip-dark.png`, `settings-widgets-mini-strip-de.png`, `settings-widgets-mini-strip-fr.png`, `settings-widgets-mini-strip.png`, `settings-widgets-no-printers.png`, `settings-widgets.png`.
+      Hotovo v T-228 (2026-11-12): všech 40 snímků přegenerovaných a zkontrolovaných (šest záložek v jednom řádku, kratší
+      záhlaví fr / it, jinak beze změny; pl a sk nemají snímek Windows, šířku jejich záhlaví hlídá
+      `SettingsWindowLayoutTests.SixMainTabHeadersFitOnOneRowWithTheErrorMarker` pro všechny jazyky).
+- [x] **T-185** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
+      `SettingsWindowLayoutTests.SixMainTabHeadersFitOnOneRowWithTheErrorMarker` (šest záhlaví v jednom řádku při 780 DIP
+      s rezervou ≥ 12 DIP i se značkou „!“; na macOS s Inter nejmenší rezerva 19 DIP ve španělštině), `SettingsWindowCameraTabUiTests`,
+      `CameraFrameRateLimitTests`, `CameraStreamHubFrameRateTests`, `CameraViewModelFrameRateTests`.
+      Hotovo v T-228 (2026-11-12): plný `dotnet test` na Windows 2× bez chyb (11 056 testů, 0 selhání), uvedené testy
+      proběhly (nepřeskočené).
+- [ ] **T-185** (volitelně, měření): malý náhled se simulátorem (1280 × 720, 25 fps) před / po – CPU procesu při
+      Vyvážený (10 fps) a Úsporný (5 fps) proti Plynulý; na Macu −31 % / −42 % (poznámky T-185).
+
+### 2x. Práh zmenšení obrazu kamery (z T-195, implementováno na Macu 2026-11-11)
+- [x] **T-195** (automaticky): `dotnet test` na Windows bez chyb, hlavně `CameraDisplayScalerTests` a
+      `FFmpegCameraFeedDisplayTests.ADisplaySizeOnlyALittleSmallerThanTheCameraIsConvertedInFullResolution`.
+      Hotovo v T-228 (2026-11-12): plný `dotnet test` na Windows 2× bez chyb (11 056 testů, 0 selhání), uvedené testy
+      proběhly (nepřeskočené).
+- [ ] **T-195** (volitelně, měření x64): práh 70 % / 75 % strany zdroje je změřený na Macu (Skia na Metalu, swscale
+      s NEON). Na Windows má renderer (Skia přes Direct3D/ANGLE) i swscale (x64 SIMD) jiné cesty. Simulátor 720p
+      (`--camera-clip` s klipem 1280 × 720), normální okno při 100 % DPI s plochou obrazu 1152, 960, 928, 896 a 640 px
+      široké a malý náhled: CPU a working set procesu, výsledek zapsat do poznámek T-195. Pokud by na Windows
+      vycházel jiný práh, založit nový úkol (práh podle OS), T-195 se znovu neotevírá.
+
+### 2y. HTTPS přes reverzní proxy s CA v úložišti Windows (z T-183, připraveno na Macu 2026-11-11)
+- [ ] **T-183** (krit. „Ověřeno … s `https://` a certifikátem soukromé CA v úložišti OS“, část Windows; mění úložiště
+      certifikátů uživatele, po bodu vrátit): simulátor (`--port 18080 --no-camera`) a Caddy nebo nginx jen na
+      `127.0.0.1` (bez instalace, nastavení jako v `docs/api/prusalink.md`, oddíl „HTTPS přes reverzní proxy (T-183)“),
+      certifikát pro `localhost` podle receptu v kapitole 14.4 příručky. CA přidat postupem z kapitoly 14.5 (`certmgr.msc`
+      podle popisu, nebo `certutil -user -addstore Root ca.crt`; u českých / jiných Windows zkontrolovat názvy položek
+      z příručky). V aplikaci tiskárna `https://localhost:<port>/`: **Otestovat spojení** projde, monitoring ukazuje stav,
+      **Otevřít PrusaLink** načte web, widget Název tisku ukáže náhled G-code. Pak CA odebrat (`certutil -user -delstore
+      Root "Printer proxy CA"`) a ověřit, že test spojení hlásí „Zabezpečené spojení (https) selhalo…“. Výsledek zapsat do
+      poznámek T-183 a `docs/api/prusalink.md`.
+
+### 2z. Varování u nešifrované adresy mimo místní síť (z T-182, implementováno na Macu 2026-11-11)
+- [ ] **T-182** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
+      `SettingsWindowLayoutTests.EverythingFitsWithoutScrollingInEveryState` se stavy „address warning + …“ a „camera
+      warning + …“ (varování nejvýš na dva řádky vedle odkazu „Více informací“; na macOS s Inter nejmenší rezerva 5 DIP
+      v němčině na podzáložce Kamera, 11 DIP na podzáložce Tiskárna), `EveryButtonIsAtLeast32DipHighInEveryState`
+      a `SettingsWindowUntrustedNetworkUiTests`.
+- [ ] **T-182** (ručně, `dotnet run --project src/LayerPeek.App`): v Nastavení → Tiskárny zadat adresu
+      `http://203.0.113.10` → pod adresou místo nápovědy varování a rámeček pole v barvě varování (`#8A4B00`, v tmavém motivu `#FFC56B`),
+      po `192.168.1.20` zmizí; uložení projde. Na podzáložce Kamera totéž s `rtsp://203.0.113.10/live`. Předčítání
+      (Narrator): pole adresy čte text varování jako nápovědu. Odkaz „Více informací“ vedle varování otevře v prohlížeči
+      kapitolu 14 příručky v jazyce aplikace (zkontrolovat aspoň en a cs, že GitHub skočí přímo na nadpis kapitoly).
+
+### 2aa. Identita v gitu – adresa noreply (z T-198, rozhodnutí uživatele 2026-11-11, otázka 1)
+- [x] **T-198** (krit. B8, `user.email` nastavený na obou počítačích): v každém klonu LayerPeek na Windows
+      `git config user.email 12541813+pfoltynek@users.noreply.github.com` (`docs/prerequisites.md`, „Identita v gitu“),
+      kontrola `git config user.email`; po prvním commitu na Windows `git log -1 --format='%an <%ae> | %cn <%ce>'`
+      ukazuje autora i committera s adresou noreply. Výsledek zapsat do T-198 (Poznámky).
+- [x] **T-198** (otázka 12): globálně `git config --global user.name "Petr Foltýnek"` a `git config --global user.useConfigOnly true` (`docs/prerequisites.md`), kontrola
+      `git config --global --get user.useConfigOnly` vypíše `true`.
+      Ověřeno 2026-11-15 na Windows (D:\00-Source\LayerPeek): lokálně `user.email` = adresa noreply (přebíjí globální
+      `pfoltynek@outlook.cz`), globálně `user.name` = Petr Foltýnek a `user.useConfigOnly` = `true`; commit c23597c8:
+      autor i committer `Petr Foltýnek <12541813+pfoltynek@users.noreply.github.com>`. Commity z Windows z 2026-11-12 až
+      2026-11-15 15:03 (46, už pushnuté v `develop`) mají ještě `pfoltynek@outlook.cz`; historie se nepřepisuje.
+
+### 2ab. Zdroj FFmpeg u vydání a věta o FFmpeg v okně O aplikaci (z T-199, implementováno na Macu 2026-11-11)
+> Doplněno 2026-11-12: balení zdroje Windows z commitu FFmpeg a skriptů BtbN (`git archive`, 3. bod) je přechodný stav,
+> nahradí ho T-202 (vlastní build FFmpeg na Windows). Pokud T-202 skončí dřív než toto ověření, 3. bod se ověří už
+> podle T-202 (archiv jen s tarballem FFmpeg a skriptem buildu). Text vydání z `release-upload.ps1 -DryRun` má na konci
+> větu o FFmpeg s odkazy na oba archivy (T-199, rozhodnutí 2026-11-12).
+> Doplněno 2026-11-15 (T-202 hotový): 3. bod je přepsaný podle T-202; `git archive` a tary BtbN odpadly.
+- [x] **T-199** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*AboutWindowLayoutTests"`
+      a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) blok licence s větou o FFmpeg
+      drobným písmem a řádek odkazů se třemi odkazy (třetí „FFmpeg source code of this version“ na dalším řádku):
+      `about-support.png`, `about-support-copied.png`, `about-support-error-de.png`.
+      Hotovo v T-228 (2026-11-12): 3 snímky přegenerované a zkontrolované (448 × 506 místo 484, věta o FFmpeg a třetí odkaz).
+- [x] **T-199** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
+      `AboutWindowLayoutTests.FitsTheSmallestScreenWithTheSameSizeInEveryState` (na macOS s Inter 506 z 508 DIP ve všech
+      jazycích, rezerva jen 2 DIP) a `TabMovesFromTheLinksThroughTheSupportActionsToClose`; Pester
+      `FFmpeg source of a release (T-199)` v `scripts/ReleaseTools/ReleaseTools.Tests.ps1` (mimo jiné `System32\tar.exe`
+      zapíše a přečte `.tar.xz`, `git archive` bez převodu konců řádků i s `core.autocrlf=true`).
+      Hotovo v T-228 (2026-11-12): plný `dotnet test` na Windows 2× bez chyb (11 056 testů, 0 selhání), uvedené testy
+      proběhly (nepřeskočené).
+- [ ] **T-199 / T-202** (vydání, bez nahrání): `pwsh scripts/release-build.ps1 -SkipFeedSignature` (MSYS2 s MinGW-w64
+      nainstalovaný, `docs/prerequisites.md`) vytvoří `dist/ffmpeg-source-<verze>-windows.tar.xz` se třemi soubory:
+      `ffmpeg-9.0.2.tar.xz` (stejný tarball jako macOS, SHA-256 `8c385028…e002e` z `build/FFmpeg.targets`, před buildem
+      v `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\`), `build-ffmpeg.sh` (= `build/windows/build-ffmpeg.sh`) a
+      `README.txt` (MSYS2 / MinGW-w64, statický runtime, řádek configure z `avcodec-63.dll` s `--enable-d3d11va`, žádné
+      BtbN ani `git archive`). Kontrola verze `avcodec-63.dll` (`9.0.2`) projde, `SHA256SUMS-windows.txt` a
+      `build-info.json` soubor uvádějí, v publish složce nejsou `swresample-7.dll` ani DLL MSYS2. Druhý běh nic nestahuje.
+      Sbalení s reálným tarballem a reálnou publish složkou (bez celého `release-build.ps1`) ověřil T-202 2026-11-15.
+
+### 2ac. Nastavení > Kamera – Hardwarové dekódování (z T-204, implementováno na Macu 2026-11-12)
+- [x] **T-204** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
+      a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) nový snímek `settings-camera-tab.png`
+      (záložka Kamera: snímková frekvence malého náhledu, pod ní „Hardware decoding“ s volbou „Automatic“, popisem
+      a na Windows druhým řádkem „On Windows, Automatic still decodes in software for now.“); nic se neořezává.
+      Hotovo 2026-11-15 na Windows 11 (26300): snímek vytvořený a zkontrolovaný, odpovídá popisu, nic se neořezává.
+- [ ] **T-204** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně `SettingsWindowCameraTabUiTests`,
+      `SettingsWindowLayoutTests.EverythingFitsWithoutScrollingInEveryState` (první stav má na záložce Kamera „Vypnuto“
+      s poznámkou Windows) a `HardwareDecodingRuleTests.AutomaticUsesHardwareOnlyWhereTheRuleSelectsADevice`.
+- [ ] **T-204** (ruční, krátce): v nainstalované / spuštěné aplikaci Nastavení > Kamera ukazuje poznámku Windows;
+      „Vypnuto“ uložit, v `%APPDATA%\LayerPeek\settings.json` je `"cameraHardwareDecoding": "Off"`, okno kamery dál
+      ukazuje obraz; zpět „Automaticky“ hodnotu ze souboru odebere.
+
+### 2ad. Avalonia 12.1.6 (z T-229, ověřeno na Macu 2026-11-15)
+- [ ] **T-229** (automaticky): `dotnet build` a `dotnet test` na Windows bez chyb a varování (snímky sady Windows se
+      nemají změnit – vykreslení textu a Skia jsou mezi 12.1.4 a 12.1.6 beze změny, na Macu snímky prošly bez
+      přegenerování), `pwsh scripts/aot-smoke.ps1` PASS (win-x64).
+- [ ] **T-229** (ruční, krátce): spuštěná aplikace – ikona v oznamovací oblasti, menu tiskárny, okna Nastavení
+      a O aplikaci → Licence třetích stran (Avalonia „Verze 12.1.6“) se otevřou a zavřou bez ukončení aplikace.
+- [ ] **T-229** (informativní): Avalonia 12.1.5 opravuje `Screen.DisplayName` na Windows (#22593); v okně kamery
+      (volba monitoru pro celou obrazovku) zapsat do poznámek T-229, zda `DisplayName` Avalonie už vrací název monitoru
+      (např. „DELL U2719D“) – pak by šlo v novém úkolu zvážit odstranění vlastního čtení názvu (`MonitorNameNative`,
+      T-035). Nic neměnit v tomto bodě.
+
+### 2ae. Aktualizace spravovaných závislostí (z T-230, ověřeno na Macu 2026-11-15)
+- [x] **T-230** (automaticky): `dotnet build` a `dotnet test` na Windows bez chyb a varování (TimeProvider.Testing 11.0.0,
+      Playwright 1.64.1, xunit.v3 4.0.3 – jen testy) a `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez
+      varování AOT. Známé selhání `ProxyOriginGuardTests.ClassicFormPostOfTheProxiedPageReachesThePrinter` řeší T-233;
+      zapsat, zda selhává i s Edge na Windows.
+      Ověřeno v T-232 (2026-11-15, Edge 157.0.4341.46): build 0 varování, `dotnet test` 11 468 testů, 0 selhání, AOT
+      publish `win-x64` bez varování AOT/trim; `ProxyOriginGuardTests` na Windows prochází (s úpravou z T-233).
+- [x] **T-233** (automaticky): `dotnet test --project tests/LayerPeek.E2E.Tests` na Windows s aktuálním Edge bez chyb,
+      hlavně `ProxyOriginGuardTests` (3 testy). Do poznámek T-233 zapsat verzi Edge a jak hlásí formulářový POST
+      zodpovězený 204 – jako dokončený (`requestfinished`, Edge 157 na Macu) nebo zrušený (`net::ERR_ABORTED`); test
+      přijímá obojí.
+      Ověřeno v T-232 (2026-11-15, Edge 157.0.4341.46): 3/3, POST hlášen jako dokončený (`requestfinished`); zapsáno v T-233.
+
+### 2af. Pozastavení kamery při zamčení, vypnutém displeji a na jiné virtuální ploše (z T-186, implementováno na Windows 2026-11-15)
+Postup: simulátor (`docs/simulator.md`) nebo tiskárna s kamerou, otevřené okno kamery s obrazem. Že se obraz
+nedekóduje, je vidět ve Správci úloh (CPU procesu LayerPeek klesne téměř na nulu, pokud kameru nedrží nahrávání,
+dashcam, timelapse ani detekce; spojení se pak po 10 s zavře).
+- [ ] **T-186** (krit. „Při zamčení počítače a při vypnutí displeje okno kamery přestane přijímat snímky a po odemčení
+      nebo zapnutí se obnoví“): Win+L, po ~15 s odemknout → obraz se do pár sekund vrátí (od dalšího klíčového snímku),
+      okno zůstane na místě a v aplikaci nic nespadne. Totéž s malým náhledem „vždy navrchu“ a s celou obrazovkou.
+- [ ] **T-186** (vypnutý displej): Nastavení Windows > Napájení > vypnout obrazovku po 1 min (pak vrátit), počkat na
+      zhasnutí, pohnout myší → obraz se obnoví. Ztmavení displeje obraz nezastaví.
+- [ ] **T-186** (jiná virtuální plocha, rozhodnutí uživatele 2026-11-11, otázka 2): Win+Ctrl+D (nová plocha) → CPU klesne;
+      Win+Ctrl+← zpět → obraz se obnoví. Okno přesunuté na jinou plochu přes Win+Tab se pozastaví také. Okno jen zakryté
+      jiným oknem se nepozastavuje (záměrně).
+- [ ] **T-186** (nahrávání pokračuje): během zamčení běží nahrávání / dashcam / timelapse; po odemčení je nahrávka
+      souvislá (bez mezery v době zamčení). Automaticky pokrývá
+      `CameraViewModelVisibilityTests.RecordingTimelapseAndDetectionLeasesGoOnWhileTheScreenIsLocked`.
+
+### 2ag. Vlastní build FFmpeg na Windows (z T-202, implementováno na Windows 2026-11-15)
+- [ ] **T-202** (E2E na klidné ploše): `pwsh tools/run-e2e.ps1 -Class '*Camera*' -NoSystemChanges -PublishAot` bez
+      jiné práce na počítači (žádní souběžní agenti, odemčená plocha, myš v klidu). Na sdílené ploše 2026-11-15 prošly
+      testy videa (okno kamery, nahrávání a timelapse i proti Native AOT exe, malý náhled, widgety, monitory při opakování),
+      selhávaly jen testy ukazatele a hlavního panelu (`CameraPinTests` 3, `CameraMiniOutlineTests` 2,
+      `CameraTaskbarAndModeSwitchTests` 1 – pokaždé jiný; pod ukazatelem byl kurzor textového pole cizího okna, `QueryDisplayConfig`
+      chyba 5 při zamčené ploše). Ověřit, že na klidné ploše projdou všechny; kdyby ne, porovnat s `develop` před T-202.
+- [ ] **T-202** (ruční, krátce): aplikace z `dotnet publish src/LayerPeek.App -c Release -r win-x64` se skutečnou kamerou
+      (Buddy3D) ukazuje živý obraz, nahrává a O aplikaci > Licence třetích stran ukazuje u FFmpeg odkazy na tarball
+      ffmpeg.org a `build/windows/build-ffmpeg.sh` a položku „MinGW-w64 runtime“.
+
+### 2ah. Hardwarové dekódování D3D11VA – měření pro výchozí stav a robustnost (z T-206, implementováno na Windows 2026-11-15)
+Postup: [docs/hw-decoding.md](../../docs/hw-decoding.md), oddíl „Windows – měření pro přepnutí výchozího stavu“.
+Aplikace Debug v izolovaném testovacím režimu (T-044), simulátor (`docs/simulator.md`, `idle`, `--fps 25`), D3D11VA =
+`LAYERPEEK_TEST_HW_DECODER=d3d11va` (log „Camera video decoding: d3d11va.“), proti tomu `"cameraHardwareDecoding": "Off"`.
+Rychlé orientační měření na vývojovém PC (jen dekodér bez okna aplikace, RTX 4060) je v T-206, „Poznámky k implementaci“:
+D3D11VA tam vyšlo **hůř** než software, takže bez lepšího výsledku na jiném počítači zůstává software.
+- [ ] **T-206** (měření, normální okno): 720p a 1080p (klipy z T-192), 100 % DPI, obraz v plném rozlišení; 15 s zahřátí,
+      30 s měření, 2 kola se střídaným pořadím, D3D11VA proti `Off`. Metriky: cykly procesu (`QueryProcessCycleTime`),
+      CPU % procesu, `\GPU Engine(pid_<pid>_*engtype_VideoDecode)\Utilization Percentage`, private bytes a working set,
+      `\GPU Process Memory(pid_<pid>_*)\Dedicated Usage` a `Shared Usage`, dekódované a převedené snímky/s. Na **integrované
+      GPU (Intel / AMD) i dedikované GPU** (NVIDIA / AMD), pokud jsou k dispozici; zapsat model GPU a verzi ovladače.
+- [ ] **T-206** (měření, malý náhled): totéž s malým náhledem 720p a 1080p (10 fps).
+- [ ] **T-206** (měření, bez okna): tiskárna s kamerou, okno zavřené – žádné zařízení D3D11VA (log bez „d3d11va“),
+      stejné hodnoty jako `Off`.
+- [ ] **T-206** (`map` proti `transfer`): FFmpeg 9.0 textury D3D11 namapovat neumí (`av_hwframe_map` vrací ENOSYS, test
+      `HardwareDecodingD3D11VATests.FFmpegCannotMapD3D11Frames`), měří se jen kopie. Kdyby test po aktualizaci FFmpeg
+      selhal (mapování funguje), změřit `map` proti `transfer` na obou GPU a podle výsledku upravit
+      `HardwareDecoderSelection.MapsFrames`.
+- [ ] **T-206** (krit. „Ztráta zařízení … + ruční `Win+Ctrl+Shift+B`“): s otevřeným oknem kamery (D3D11VA) stisknout
+      `Win+Ctrl+Shift+B` (restart ovladače grafiky) → obraz pokračuje nejvýš po krátkém výpadku do dalšího klíčového
+      snímku, v logu jeden `Warning` „Hardware video decoding (d3d11va) failed while …“ a „Camera video decoding: software
+      (hardware decoding failed on this connection).“, okno nehlásí chybu. Totéž s malým náhledem.
+- [ ] **T-206** (robustnost): spánek / probuzení, odpojení a připojení přes vzdálenou plochu, přepnutí GPU (notebook
+      s hybridní grafikou, pokud je), aktualizace ovladače za běhu – vždy obraz (případně software), okno kamery nezůstane
+      černé ani v chybě.
+- [ ] **T-206** (VM bez GPU): ve virtuálním počítači jen s Microsoft Basic Render Driver – obraz ze softwaru, v logu
+      „… software (hardware decoding failed …)“ nebo „(the hardware decoder is not available)“; testy
+      `[HardwareDecodingFact]` se tam přeskočí (`dotnet test --project tests/LayerPeek.Camera.FFmpeg.Tests`).
+- [ ] **T-206** (návrh pro přepnutí, rozhoduje uživatel): cykly procesu klesnou aspoň o 30 % v normálním okně i malém
+      náhledu na každé změřené GPU, doba CPU nevzroste, paměť navíc ≤ 50 MB na stream, v robustních scénářích žádný trvalý
+      návrat k softwaru ani chyba. Splněno → uživatel rozhodne o přepnutí (nový úkol: pravidlo
+      `HardwareDecoderSelection`, příručky, volba na Windows podle T-204 otázky 1); nesplněno → software zůstává.
+
+### 2ai. Vydání win-arm64 – plný běh na konzoli (z T-226, implementováno na Windows 2026-11-15)
+Rozhodnutí uživatele 2026-11-15: E2E testy s myší nejdou přes RDP (klient vrací ukazatel, T-169), proto se plné běhy
+dělají u konzole Windows.
+- [ ] **T-226** (automaticky): plné `dotnet test` včetně `tests/LayerPeek.E2E.Tests` na konzoli bez chyb (hlavně
+      `UpdateTests`, `VelopackInstallerTests`, `IconAndBuildTests` s `HostRuntime`).
+- [ ] **T-226** (automaticky): celé `pwsh scripts/release-build.ps1 -SkipFeedSignature` na Windows x64 (testy řešení,
+      smoke test `win-x64`, krok `ffmpeg-source`) projde; výstup `win-x64` i `win-arm64`, kontrola architektury PE bez
+      problémů, `SHA256SUMS-windows.txt` odpovídá `Get-FileHash`. Výstup pak smazat.
+
+### 2aj. Nativní závislosti Windows – zbytek na konzoli (z T-232, ověřeno na Windows přes RDP 2026-11-15)
+Build Tools 2026 18.12.0 (MSVC 14.52), Windows 11 SDK 10.0.26100, Edge 157.0.4341.46, Playwright 1.64.1. `dotnet build`,
+`dotnet test` (včetně testů prohlížeče) a AOT publish `win-x64` / `win-arm64` prošly už v T-232; zbývá:
+- [ ] **T-232** (automaticky): `pwsh scripts/aot-smoke.ps1 -Runtime win-x64` projde bez chyb (v T-232 nespuštěno:
+      běžela nainstalovaná LayerPeek uživatele a skript se s běžící instancí odmítne spustit; aplikaci před během ukončit).
+- [ ] **T-232** (automaticky, na konzoli – testy s myší přes RDP nejdou, T-169): plné `pwsh tools/run-e2e.ps1` s MSVC 14.52,
+      Playwright 1.64.1 a aktuálním Edge bez chyb; verzi Edge zapsat do poznámek T-232
+      (v T-232 157.0.4341.46, Mac v T-230 už .60 – ověřit, že se Edge mezitím sám aktualizoval).
+
+### 2ak. Kontextové menu textových polí (z T-242, implementováno na Macu 2026-11-15)
+- [ ] **T-242** (krit. „Kontextové menu textových polí je v jazyce aplikace…“, část Windows): LayerPeek v němčině
+      (Nastavení → Obecné), pravé tlačítko do pole „Name“ v Nastavení › Drucker: „Ausschneiden“, „Kopieren“,
+      „Einfügen“ (Windows varianta, ne „Einsetzen“), „Alles auswählen“ se zkratkami Ctrl+X / C / V / A; samotné písmeno
+      (`A`, `K`, `I`, `W`) položku spustí (T-121); u pole hesla jen „Einfügen“ a „Alles auswählen“; Ctrl+A / Ctrl+C
+      v poli dál fungují. Headless UI testy (`TextBoxContextMenuUiTests`) prošly na Macu.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
@@ -392,6 +649,14 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       → ověřeno uživatelem 2026-11-03 (0.3.1 → 0.4.0, viz poznámky).
 - [ ] **T-017** (otevřená otázka SmartScreen): stažení `Setup.exe` z GitHub vydání v Edge – zapsat varování SmartScreen
       při stahování a doplnit ho do `docs/release.md` (spuštění se značkou Mark-of-the-Web ověřil T-056).
+
+- [ ] **T-181** / **T-198** (otázka 3, rozhodnutí uživatele 2026-11-11; uživatel, hned po zveřejnění 1.0.0, až po
+      aktualizaci nainstalované 0.5.0 na 1.0.0): místní Release build **0.9.9** z tagu `v1.0.0` nainstalovaný přes
+      `Setup.exe` se z GitHubu aktualizuje na 1.0.0 – ověří skutečné stažení a ověření `releases.win-x64.json.sig`.
+      Postup `docs/release.md`, „Kontrola aktualizace z GitHubu buildem 0.9.9“ (dočasný worktree, verze jen v pracovním
+      stromu, `release-build.ps1 -SkipFeedSignature`, odinstalace a instalace, kontrola, úklid). Očekáváno: nabídka
+      „Je dostupná nová verze 1.0.0“, ne „Aktualizace odmítnuta…“, po aktualizaci O aplikaci 1.0.0, v logu žádné
+      odmítnutí feedu. Výsledek zapsat do T-198.
 
 ### 5. Závěr (z T-114, oddíl 6)
 - [ ] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; profil vrácený

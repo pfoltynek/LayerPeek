@@ -173,6 +173,17 @@ public sealed class TrayMenuPresenterTests : IDisposable
     }
 
     [Fact]
+    public void ClickOnUserManualOpensTheManual()
+    {
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Fixed(TrayMenuCommand.Manual));
+
+        Assert.Equal(1, _commands.ManualCount);
+        Assert.Equal(0, _commands.AboutCount);
+    }
+
+    [Fact]
     public void ClickOnDisabledItemDoesNothing()
     {
         _viewModel.SetPrinters([Definition() with { Address = "ftp://nope" }]);
@@ -209,7 +220,7 @@ public sealed class TrayMenuPresenterTests : IDisposable
 
         // 2026-10-21: one global "Diagnostics…" in the main menu, none in the printer submenus.
         Assert.Equal(
-            [TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.None, TrayMenuCommand.About, TrayMenuCommand.Quit],
+            [TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.None, TrayMenuCommand.Manual, TrayMenuCommand.About, TrayMenuCommand.Quit],
             _target.Fixed.Select(static item => item.Command));
         Assert.True(_target.Fixed[2].IsSeparator);
         Assert.DoesNotContain(_target.Printers[0].Submenu!, static item => item.Command == TrayMenuCommand.Diagnostics);

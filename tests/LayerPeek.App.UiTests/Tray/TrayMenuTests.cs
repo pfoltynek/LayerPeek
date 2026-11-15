@@ -34,7 +34,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
 
             // "Diagnostics…" above "Settings…" (2026-10-21), disabled until printers are shown.
             Assert.Equal(
-                [Strings.ToolTipStarting, "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
+                [Strings.ToolTipStarting, "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuManual, Strings.MenuAbout, Strings.MenuQuit],
                 tray.Headers());
             Assert.False(tray.Item(0).IsEnabled);
             Assert.False(tray.ItemWithHeader(Strings.MenuDiagnostics).IsEnabled);
@@ -54,7 +54,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             Dispatcher.UIThread.RunJobs();
 
             Assert.Equal(
-                [Strings.ToolTipNoPrinter, Strings.MenuAddPrinter, "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
+                [Strings.ToolTipNoPrinter, Strings.MenuAddPrinter, "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuManual, Strings.MenuAbout, Strings.MenuQuit],
                 tray.Headers());
             Assert.False(tray.Item(0).IsEnabled);
             Assert.False(tray.ItemWithHeader(Strings.MenuDiagnostics).IsEnabled);
@@ -69,7 +69,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             // A printer saved: the item goes away.
             tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4")]);
             Dispatcher.UIThread.RunJobs();
-            Assert.Equal(7, tray.Menu.Items.Count);
+            Assert.Equal(8, tray.Menu.Items.Count);
             Assert.DoesNotContain(Strings.MenuAddPrinter, tray.Headers());
             Assert.True(tray.ItemWithHeader(Strings.MenuDiagnostics).IsEnabled);
             return Task.CompletedTask;
@@ -117,7 +117,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4"), TestPrinters.Definition("xl", "XL")]);
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(8, tray.Menu.Items.Count);
+            Assert.Equal(9, tray.Menu.Items.Count);
             Assert.IsType<NativeMenuItemSeparator>(tray.Menu.Items[2]);
             foreach ((int index, string name) in new[] { (0, "MK4"), (1, "XL") })
             {
@@ -133,7 +133,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             tray.ViewModel.SetPrinters([TestPrinters.Definition("xl", "XL")]);
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(7, tray.Menu.Items.Count);
+            Assert.Equal(8, tray.Menu.Items.Count);
             Assert.NotNull(tray.Item(0).Menu);
             Assert.StartsWith("XL", tray.Item(0).Header, StringComparison.Ordinal);
             return Task.CompletedTask;
@@ -202,7 +202,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
 
             // The item is enabled in place (2026-10-21): the fixed part is not rebuilt, so an open menu stays open.
             Assert.Equal(
-                [TrayMenuFormatter.PrinterHeader("MK4", default), TrayMenuFormatter.PrinterHeader("XL", default), "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
+                [TrayMenuFormatter.PrinterHeader("MK4", default), TrayMenuFormatter.PrinterHeader("XL", default), "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuManual, Strings.MenuAbout, Strings.MenuQuit],
                 tray.Headers());
             Assert.Same(diagnostics, tray.ItemWithHeader(Strings.MenuDiagnostics));
             Assert.Same(settings, tray.ItemWithHeader(Strings.MenuSettings));
@@ -239,10 +239,12 @@ public sealed class TrayMenuTests(HeadlessSession session)
             TrayMenu.ClickLikeThePlatform(tray.Item(0));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuDiagnostics));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuSettings));
+            TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuManual));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuAbout));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuQuit));
 
             Assert.Equal(1, tray.Commands.SettingsCount);
+            Assert.Equal(1, tray.Commands.ManualCount);
             Assert.Empty(tray.Commands.DiagnosticsRequests);
             Assert.Equal(1, tray.Commands.AboutCount);
             Assert.Equal(1, tray.Commands.QuitCount);

@@ -220,9 +220,10 @@ switch ($a[1]) {
         <#
         A bare origin with main (v0.1.0, annotated) and develop (one more changelog entry), reachable as
         https://github.com/test-owner/<Name>.git, and a clone on develop. -WithScripts adds the release scripts, so that
-        scripts/release.ps1 of the clone works on the clone.
+        scripts/release.ps1 of the clone works on the clone. ExtraFiles (relative path -> text) are part of every commit.
         #>
-        param([Parameter(Mandatory)] [string] $Name, [switch] $WithScripts, [string] $BuildScript = "Write-Host 'simulated build failure'`nexit 1`n")
+        param([Parameter(Mandatory)] [string] $Name, [switch] $WithScripts, [string] $BuildScript = "Write-Host 'simulated build failure'`nexit 1`n",
+            [hashtable] $ExtraFiles = @{})
         $root = Join-Path $script:TempRoot $Name
         $origin = Join-Path $root 'o.git'
         $seed = Join-Path $root 's'
@@ -250,6 +251,11 @@ switch ($a[1]) {
             Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-upload.ps1') -Destination (Join-Path $seed 'scripts')
             Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-publish.ps1') -Destination (Join-Path $seed 'scripts')
             [System.IO.File]::WriteAllText((Join-Path $seed 'scripts' 'release-build.ps1'), $BuildScript)
+        }
+        foreach ($relative in $ExtraFiles.Keys) {
+            $path = Join-Path $seed $relative
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path)
+            [System.IO.File]::WriteAllText($path, $ExtraFiles[$relative])
         }
         $null = G $seed add --all
         $null = G $seed commit --quiet --message 'Release 0.1.0'
@@ -686,15 +692,22 @@ Describe 'Plan and resume detection (pure)' {
         $text | Should -Match 'then back to develop: git switch develop'
     }
     It 'names the OS that went first and how the other one follows (T-113, <HostOs>)' -ForEach @(
-        @{ HostOs = 'macos'; This = 'macOS'; Other = 'Windows' }
-        @{ HostOs = 'windows'; This = 'Windows'; Other = 'macOS' }
+        @{ HostOs = 'macos'; This = 'macOS'; Other = 'Windows'; Build = 'release-build\.ps1 -Runtime win-x64 -FeedSigningKey <key file>' }
+        @{ HostOs = 'windows'; This = 'Windows'; Other = 'macOS'; Build = 'release-build\.ps1 -FeedSigningKey <key file>' }
     ) {
         $text = (Get-ReleaseNextSteps -Version '0.2.0' -HostOs $HostOs) -join "`n"
         $text | Should -Match "release-publish\.ps1 -AllowIncomplete   # only the $This files so far"
         $text | Should -Match "The $Other files follow on a $Other machine"
-        $text | Should -Match 'git fetch origin --tags; git switch --detach v0\.2\.0; pwsh scripts/release-build\.ps1'
+        # T-226: the Windows build for the upload leaves out win-arm64 (built by default, not uploadable until T-227).
+        $text | Should -Match "git fetch origin --tags; git switch --detach v0\.2\.0; pwsh scripts/$Build"
         $text | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
         $text | Should -Not -Match 'Windows only|T-019'
+    }
+    It 'plans the build of the uploadable RIDs only, with the -Runtime that leaves out win-arm64 on Windows (T-226)' {
+        $windows = Plan $script:GitDone
+        ($windows.Steps | Where-Object Id -EQ 'Build').Detail | Should -Match 'pwsh scripts/release-build\.ps1 -Runtime win-x64 \(signing key'
+        $mac = Plan (Copy-With $script:GitDone @{ HostOs = 'macos'; Runtimes = @('osx-arm64'); ChecksumFile = 'SHA256SUMS-macos.txt' })
+        ($mac.Steps | Where-Object Id -EQ 'Build').Detail | Should -Match 'pwsh scripts/release-build\.ps1 \(signing key'
     }
     It 'tells how to add this OS to a release that the other OS published without it (T-113)' {
         $facts = Copy-With $script:GitDone @{ ChecksumFile = 'SHA256SUMS-windows.txt'; Release = (Release $false -Assets @([pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = 'sha256:x' })) }
@@ -703,7 +716,7 @@ Describe 'Plan and resume detection (pure)' {
         $text = (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n"
         $text | Should -Match 'already published'
         $text | Should -Match 'It has no SHA256SUMS-windows\.txt yet'
-        $text | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
+        $text | Should -Match 'pwsh scripts/release-build\.ps1 -Runtime win-x64 -FeedSigningKey <key file>; pwsh scripts/release-upload\.ps1 -AddToPublished'
         $with = Copy-With $facts @{ ChecksumFile = 'SHA256SUMS-macos.txt' }
         (Format-ReleaseFlowPlan -Plan (Plan $with) -Facts $with) -join "`n" | Should -Not -Match 'AddToPublished'
     }
@@ -912,8 +925,14 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
         $info = [ordered]@{
             Version = '0.2.0'; Commit = $tagCommit; Dirty = $false; Os = 'windows'; Runtimes = @('win-x64'); ChecksumFile = 'SHA256SUMS-windows.txt'
             Files = @([ordered]@{ Name = 'LayerPeek-0.2.0-win-x64.zip'; Runtime = 'win-x64'; Step = 'archive'; Sha256 = Get-FileSha256 (Join-Path $dist 'LayerPeek-0.2.0-win-x64.zip') })
+            FeedSignature = [ordered]@{ Status = 'skipped'; PublicKeySha256 = $null }
         }
-        $info | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $script:Work 'artifacts' 'release' '0.2.0' 'build-info.json') -Encoding utf8NoBOM
+        $infoPath = Join-Path $script:Work 'artifacts' 'release' '0.2.0' 'build-info.json'
+        # T-181: a trial build without the feed signature is no current build; the build step stays to do.
+        $info | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $infoPath -Encoding utf8NoBOM
+        (Facts).BuildCurrent | Should -BeFalse
+        $info.FeedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = '0' * 64 }
+        $info | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $infoPath -Encoding utf8NoBOM
         $facts = Facts
         $facts.BuildCurrent | Should -BeTrue
         $plan = Get-ReleaseFlowPlan -Facts $facts
@@ -1197,8 +1216,10 @@ $name = Get-ArchiveFileName -Version $version -Runtime $rid
 $sums = Get-ChecksumFileName $os
 $null = Write-Sha256Sums -Directory $dist -FileName $sums -Files $name
 [ordered]@{ Version = $version; Commit = (Get-GitHead $root); Dirty = $false; Os = $os; Runtimes = @($rid); ChecksumFile = $sums
-    Files = @([ordered]@{ Name = $name; Runtime = $rid; Step = 'archive'; Sha256 = (Get-FileSha256 (Join-Path $dist $name)) }) } |
+    Files = @([ordered]@{ Name = $name; Runtime = $rid; Step = 'archive'; Sha256 = (Get-FileSha256 (Join-Path $dist $name)) })
+    FeedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = ('0' * 64) } } |
     ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
+Write-Host "stand-in build arguments: $($args -join ' ')"
 Write-Host 'stand-in build done'
 exit 0
 '@
@@ -1216,6 +1237,9 @@ exit 0
         $result = Invoke-E @('-Version', '0.2.0') @('0.2.0', 'y', 'y')
         $result.ExitCode | Should -Be 0 -Because $result.Output
         $result.Output | Should -Match 'stand-in build done'
+        # T-226: on Windows the build for the upload names the uploadable RIDs (win-arm64 is built by default, not uploadable).
+        $result.Output | Should -Match "==> pwsh scripts/release-build\.ps1$(if ($IsWindows) { ' -Runtime win-x64' })\r?\n"
+        $result.Output | Should -Match "stand-in build arguments: $(if ($IsWindows) { '-Runtime win-x64' })\r?\n"
         $result.Output | Should -Match 'Draft release v0\.2\.0 is ready: https://example\.invalid/test-owner/ok/releases/tag/v0\.2\.0'
         $result.Output | Should -Match 'release-publish\.ps1 -AllowIncomplete'
         # T-113: the next steps name the OS of this machine (either OS can go first) and how the other one follows.
@@ -1266,23 +1290,30 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $null = G $script:T.Work switch --quiet --detach v0.1.0
         $script:TwoRelease = Join-Path $script:TwoState 'test-owner_two_v0.1.0.json'
 
-        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in') {
+        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in', [switch] $SkipFeedSignature, [switch] $Arm64) {
             # The output release-build.ps1 would write for HEAD on that OS (the other OS too: the marker names its OS),
-            # with the archive, the Velopack files and the checksum file.
+            # with the archive, the Velopack files, the feed signature (T-181; not with -SkipFeedSignature, like a trial
+            # build) and the checksum file. -Arm64: a Windows build of win-x64 and win-arm64 (the default build, T-226).
             $root = $script:T.Work
-            $rid = if ($Os -eq 'windows') { 'win-x64' } else { 'osx-arm64' }
+            $rids = if ($Os -ne 'windows') { @('osx-arm64') } elseif ($Arm64) { @('win-x64', 'win-arm64') } else { @('win-x64') }
             $releaseDir = Join-Path $root 'artifacts' 'release' '0.1.0'
             if (Test-Path -LiteralPath $releaseDir) { Remove-Item -LiteralPath $releaseDir -Recurse -Force }
             $dist = Join-Path $releaseDir 'dist'
             $null = New-Item -ItemType Directory -Path $dist
-            $names = @(Get-ArchiveFileName -Version '0.1.0' -Runtime $rid) + @((Get-VelopackOutputMap -Version '0.1.0' -Runtime $rid).Values)
-            if ($Os -eq 'macos') { $names += (Get-MacReleaseFileNames -Version '0.1.0' -Runtime $rid).DiskImage }
-            $names = @($names | Sort-Object -Unique)
+            $owner = [ordered]@{}
+            foreach ($rid in $rids) {
+                $ridNames = @(Get-ArchiveFileName -Version '0.1.0' -Runtime $rid) + @((Get-VelopackOutputMap -Version '0.1.0' -Runtime $rid).Values)
+                if ($Os -eq 'macos') { $ridNames += (Get-MacReleaseFileNames -Version '0.1.0' -Runtime $rid).DiskImage }
+                if (-not $SkipFeedSignature) { $ridNames += Get-UpdateFeedSignatureFileName $rid }
+                foreach ($name in $ridNames) { $owner[$name] = $rid }
+            }
+            $names = @($owner.Keys | Sort-Object -Unique)
             foreach ($name in $names) { [System.IO.File]::WriteAllText((Join-Path $dist $name), "$Content $name") }
             $sums = Get-ChecksumFileName $Os
             $null = Write-Sha256Sums -Directory $dist -FileName $sums -Files $names
-            [ordered]@{ Version = '0.1.0'; Commit = (Get-GitHead $root); Dirty = $false; Os = $Os; Runtimes = @($rid); ChecksumFile = $sums
-                Files = @($names | ForEach-Object { [ordered]@{ Name = $_; Runtime = $rid; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $dist $_)) } }) } |
+            [ordered]@{ Version = '0.1.0'; Commit = (Get-GitHead $root); Dirty = $false; Os = $Os; Runtimes = $rids; ChecksumFile = $sums
+                Files = @($names | ForEach-Object { [ordered]@{ Name = $_; Runtime = $owner[$_]; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $dist $_)) } })
+                FeedSignature = [ordered]@{ Status = ($SkipFeedSignature ? 'skipped' : 'signed'); PublicKeySha256 = ($SkipFeedSignature ? $null : ('0' * 64)) } } |
                 ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
             $names + $sums
         }
@@ -1307,11 +1338,69 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $result.Output | Should -Match 'There is no release for v0\.1\.0\. -AddToPublished only adds files to a published release'
         Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
     }
+    It 'refuses a trial build of release-build.ps1 -SkipFeedSignature before anything is uploaded (T-181)' {
+        $null = Write-StandInBuild 'macos' -SkipFeedSignature
+        $calls = @(Get-GhCall).Count
+        foreach ($arguments in @(), @('-DryRun')) {
+            $result = Invoke-T 'release-upload.ps1' $arguments
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'Build output was made with -SkipFeedSignature \(a trial build\)'
+            $result.Output | Should -Match 'releases\.osx-arm64\.json without its signature releases\.osx-arm64\.json\.sig'
+        }
+        Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload)' }) | Should -BeNullOrEmpty
+    }
+    It 'refuses the default Windows build with win-arm64 until T-227, and accepts the build of win-x64 only (T-226)' {
+        $files = Write-StandInBuild 'windows' -Arm64
+        $files | Should -Contain 'LayerPeek-0.1.0-win-arm64-Setup.exe'
+        $files | Should -Contain 'releases.win-arm64.json.sig'
+        $calls = @(Get-GhCall).Count
+        foreach ($arguments in @('-DryRun'), @()) {
+            $result = Invoke-T 'release-upload.ps1' $arguments
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'Build output contains win-arm64, which must not be uploaded: not verified on an ARM64 device \(T-227\)\. Rebuild without it: pwsh scripts/release-build\.ps1 -Runtime win-x64'
+        }
+        Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit)' }) | Should -BeNullOrEmpty
+
+        $null = Write-StandInBuild 'windows'
+        $dry = Invoke-T 'release-upload.ps1' @('-DryRun')
+        $dry.ExitCode | Should -Be 0 -Because $dry.Output
+        $dry.Output | Should -Match 'LayerPeek-0\.1\.0-win-x64-Setup\.exe'
+        $dry.Output | Should -Not -Match 'win-arm64'
+        Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit)' }) | Should -BeNullOrEmpty
+    }
     It 'first machine: uploads its OS into a new draft, refuses -AddToPublished into the draft and publishes with -AllowIncomplete' {
         $macFiles = Write-StandInBuild 'macos'
+        $calls = @(Get-GhCall).Count
         $upload = Invoke-T 'release-upload.ps1'
         $upload.ExitCode | Should -Be 0 -Because $upload.Output
         $upload.Output | Should -Match 'add the other OS later with -AddToPublished'
+        # T-181: an empty draft, then the packages with the feed signature, then the checksum file and the feed.
+        $new = @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload)' })
+        $new.Count | Should -Be 3 -Because ($new -join ' / ')
+        $new[0] | Should -Match '^release create v0\.1\.0 --repo test-owner/two --draft --verify-tag '
+        $new[0] | Should -Not -Match '\.nupkg|\.dmg|\.json|\.sig|SHA256SUMS'
+        $new[1] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two .*releases\.osx-arm64\.json\.sig'
+        $new[1] | Should -Match 'LayerPeek-0\.1\.0-osx-arm64-full\.nupkg'
+        $new[1] | Should -Not -Match 'releases\.osx-arm64\.json(?!\.sig)|SHA256SUMS'
+        $new[2] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two .*releases\.osx-arm64\.json'
+        $new[2] | Should -Not -Match '\.sig|\.nupkg|\.dmg'
+        # T-199 (ffmpeg.org legal checklist point 9): the release text links the FFmpeg source archives of the release.
+        $body = (Get-TwoRelease).body
+        $body | Should -Match '(?m)^- '
+        $body | Should -Match 'licensed under the LGPLv3 or later and its source can be downloaded here'
+        $body | Should -Match ([regex]::Escape('(https://github.com/test-owner/two/releases/download/v0.1.0/ffmpeg-source-0.1.0-macos.tar.xz)'))
+
+        # T-181: publishing refuses a feed without its signature, also with -AllowIncomplete.
+        $uploaded = [System.IO.File]::ReadAllText($script:TwoRelease)
+        Set-TwoRelease { param($r) $r.assets = @($r.assets | Where-Object { $_.name -cne 'releases.osx-arm64.json.sig' }) }
+        $unsigned = Invoke-T 'release-publish.ps1' @('-AllowIncomplete')
+        $unsigned.ExitCode | Should -Be 1 -Because $unsigned.Output
+        $unsigned.Output | Should -Match 'has releases\.osx-arm64\.json but no releases\.osx-arm64\.json\.sig'
+        (Get-TwoRelease).isDraft | Should -BeTrue
+        [System.IO.File]::WriteAllText($script:TwoRelease, $uploaded)
 
         $draft = Invoke-T 'release-upload.ps1' @('-AddToPublished')
         $draft.ExitCode | Should -Be 1 -Because $draft.Output
@@ -1322,6 +1411,7 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $complete.Output | Should -Match 'has no SHA256SUMS-windows\.txt'
         $publish = Invoke-T 'release-publish.ps1' @('-AllowIncomplete')
         $publish.ExitCode | Should -Be 0 -Because $publish.Output
+        $publish.Output | Should -Match 'winget: 0\.1\.0 is a pre-release, it is not submitted'
         $release = Get-TwoRelease
         $release.isDraft | Should -BeFalse
         $release.isPrerelease | Should -BeTrue
@@ -1377,6 +1467,8 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
         $result.ExitCode | Should -Be 0 -Because $result.Output
         $result.Output | Should -Match 'The windows files are added to the published release v0\.1\.0; the release is complete'
+        # T-059: the winget offer runs after the check; a 0.x release is never offered (no question, no gh call for it).
+        $result.Output | Should -Match 'winget: 0\.1\.0 is a pre-release, it is not submitted'
 
         $release = Get-TwoRelease
         $release.isDraft | Should -BeFalse
@@ -1390,10 +1482,12 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $new[0] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
         $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64\.zip'
         $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64-full\.nupkg'
-        $new[0] | Should -Not -Match 'SHA256SUMS|releases\.win-x64\.json|assets\.win-x64\.json|RELEASES-win-x64'
+        # T-181: the feed signature goes with the packages, before the feed.
+        $new[0] | Should -Match 'releases\.win-x64\.json\.sig'
+        $new[0] | Should -Not -Match 'SHA256SUMS|releases\.win-x64\.json(?!\.sig)|assets\.win-x64\.json|RELEASES-win-x64'
         $new[1] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
         foreach ($marker in 'SHA256SUMS-windows.txt', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64') { $new[1] | Should -Match ([regex]::Escape($marker)) }
-        $new[1] | Should -Not -Match 'win-x64\.zip|full\.nupkg|Setup\.exe'
+        $new[1] | Should -Not -Match 'win-x64\.zip|full\.nupkg|Setup\.exe|\.sig'
         @(Get-GhCall | Where-Object { $_ -match '--clobber' }) | Should -BeNullOrEmpty
     }
     It 'refuses the OS whose checksum file is already in the release and changes nothing' {
@@ -1450,5 +1544,244 @@ Describe 'Script help of release.ps1' {
         $help = Get-Help (Join-Path $script:RepoRoot 'scripts' 'release.ps1')
         "$($help.Synopsis)" | Should -Match 'DRAFT'
         @($help.parameters.parameter | ForEach-Object Name) | Should -Contain 'DryRun'
+    }
+}
+
+Describe 'scripts/release-build.ps1 -SignOnly: sign a finished dist/ without a new build (T-197, fake GitHub)' -Skip:(-not ($IsWindows -or $IsMacOS)) {
+    BeforeAll {
+        $null = Use-GhLog 'sign'
+        # The committed test key of tests/Shared/Fixtures/UpdateFeed (never the production key) and its public password.
+        $vector = Join-Path $script:RepoRoot 'tests' 'Shared' 'Fixtures' 'UpdateFeed'
+        $script:SignKey = Join-Path $vector 'test-feed-key.private.encrypted.pem'
+        $script:SignPlainKey = Join-Path $vector 'test-feed-key.private.pem'
+        $script:SignPassword = 'layerpeek-test-only'
+        $script:SignPublic = ConvertFrom-FeedPublicKeyPem ([System.IO.File]::ReadAllText((Join-Path $vector 'test-feed-key.public.pem')))
+        $script:SignKeyHash = Get-FileSha256 $script:SignKey
+        # Another encrypted P-256 key with the same password (another key medium).
+        $keys = Join-Path $script:TempRoot 'sign-keys'
+        $null = New-Item -ItemType Directory -Path $keys
+        $other = New-UpdateFeedSigningKey -Path (Join-Path $keys 'other.pem') -PublicKeyPath (Join-Path $keys 'other.public.pem') `
+            -Password (ConvertTo-SecureString $script:SignPassword -AsPlainText -Force)
+        $script:OtherKey = $other.Path
+        $script:OtherPublic = ConvertFrom-FeedPublicKeyPem $other.PublicKeyPem
+
+        # What must never appear in output or files: the password, every base64 line of both private key files of the
+        # test key and of the other key, and the private scalar D of the test key.
+        $script:SignSecrets = [System.Collections.Generic.List[string]]::new()
+        $script:SignSecrets.Add($script:SignPassword)
+        foreach ($file in $script:SignKey, $script:SignPlainKey, $script:OtherKey) {
+            foreach ($line in [System.IO.File]::ReadAllLines($file)) { if ($line -cmatch '^[A-Za-z0-9+/=]{16,}$') { $script:SignSecrets.Add($line) } }
+        }
+        $secretKey = Import-FeedSigningKey -EncryptedPem (Read-FeedSigningKeyFile $script:SignKey) -Password (ConvertTo-SecureString $script:SignPassword -AsPlainText -Force)
+        try { $d = $secretKey.ExportParameters($true).D; $script:SignSecrets.Add([Convert]::ToBase64String($d)); $script:SignSecrets.Add([Convert]::ToHexString($d)) }
+        finally { $secretKey.Dispose() }
+        function Assert-NoSecret([AllowEmptyString()] [string] $Text, [string] $Where) {
+            foreach ($secret in $script:SignSecrets) { if ($Text.Contains($secret, [StringComparison]::OrdinalIgnoreCase)) { throw "A secret of the test key appears in $Where." } }
+        }
+
+        # UpdateFeedKeys.cs of the app with another Production list (raw string literals, as written in the app).
+        $script:RealKeysSource = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Installer' 'UpdateFeedKeys.cs'))
+        $script:KeysPath = 'src/LayerPeek.App/Installer/UpdateFeedKeys.cs'
+        function Get-KeysSource([string[]] $Pems) {
+            $items = @($Pems | ForEach-Object { "        `"`"`"`n" + (($_.Trim() -split "`n" | ForEach-Object { "        $($_.Trim())" }) -join "`n") + "`n        `"`"`"," })
+            $list = if ($items.Count -gt 0) { "[`n$($items -join "`n")`n    ];" } else { '[];' }
+            [regex]::Replace($script:RealKeysSource, '(?s)(IReadOnlyList<string>\s+Production\s*=\s*)\[.*?\];', { param($m) $m.Groups[1].Value + $list })
+        }
+
+        # The released commit v0.1.0 with the real release-build.ps1 and the test key in Production, checked out clean.
+        $script:S = New-ReleaseTestRepository -Name 'sign' -WithScripts -BuildScript ([System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))) `
+            -ExtraFiles @{ $script:KeysPath = (Get-KeysSource @($script:SignPublic.Pem)) }
+        $null = G $script:S.Work switch --quiet --detach v0.1.0
+        $script:Tagged = G $script:S.Work rev-parse HEAD | Select-Object -First 1
+        $script:SignOs = Get-HostOs
+        $script:SignRid = @(Resolve-ReleaseRuntimes -HostOs $script:SignOs)[0]
+        $script:SignRelease = Join-Path $script:S.Work 'artifacts' 'release' '0.1.0'
+        $script:SignDist = Join-Path $script:SignRelease 'dist'
+        $script:SignRecord = Get-BuildInfoPath $script:SignRelease
+        $script:FeedName = Get-UpdateFeedFileName $script:SignRid
+        $script:SigName = Get-UpdateFeedSignatureFileName $script:SignRid
+        $script:SumsName = Get-ChecksumFileName $script:SignOs
+
+        function Write-PendingBuild([string] $Commit) {
+            # What release-build.ps1 leaves when the signing at the end fails: the packaged files of this OS in dist/ and the
+            # pending build record of HEAD (or Commit) naming the key checked before the build.
+            if (Test-Path -LiteralPath $script:SignRelease) { Remove-Item -LiteralPath $script:SignRelease -Recurse -Force }
+            $null = New-Item -ItemType Directory -Path $script:SignDist
+            $names = @(Get-ArchiveFileName -Version '0.1.0' -Runtime $script:SignRid) + @((Get-VelopackOutputMap -Version '0.1.0' -Runtime $script:SignRid).Values)
+            if ($script:SignOs -eq 'macos') { $names += (Get-MacReleaseFileNames -Version '0.1.0' -Runtime $script:SignRid).DiskImage }
+            $names = @($names | Sort-Object -Unique)
+            foreach ($name in $names) { [System.IO.File]::WriteAllText((Join-Path $script:SignDist $name), "stand-in $name") }
+            [ordered]@{ Version = '0.1.0'; Commit = ($Commit ? $Commit : (G $script:S.Work rev-parse HEAD | Select-Object -First 1)); Dirty = $false
+                Os = $script:SignOs; Runtimes = @($script:SignRid); ChecksumFile = $script:SumsName
+                Files = @($names | ForEach-Object { [ordered]@{ Name = $_; Runtime = $script:SignRid; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $script:SignDist $_)) } })
+                FeedSignature = [ordered]@{ Status = 'pending'; PublicKeySha256 = $script:SignPublic.Sha256 }
+                Smoke = [ordered]@{ $script:SignRid = 'passed' }; CreatedUtc = '2026-11-11T10:00:00.0000000Z' } |
+                ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $script:SignRecord -Encoding utf8NoBOM
+        }
+        function Invoke-SignOnly {
+            # release-build.ps1 of the clone in a child pwsh. -Password goes in as a SecureString made in the child from an
+            # environment variable of this test only (the test password is public).
+            param([string[]] $Arguments = @('-SignOnly', '-FeedSigningKey', $script:SignKey), [string] $Password = $script:SignPassword)
+            # LAYERPEEK_FEED_SIGNING_KEY of the developer's session must not reach the child.
+            $saved = @{}
+            $environment = @{ LAYERPEEK_TEST_FEED_KEY_PASSWORD = $Password; LAYERPEEK_FEED_SIGNING_KEY = $null }
+            foreach ($name in $environment.Keys) { $saved[$name] = [Environment]::GetEnvironmentVariable($name); [Environment]::SetEnvironmentVariable($name, $environment[$name]) }
+            try {
+                $quoted = @($Arguments | ForEach-Object { if ($_ -cmatch '^-[A-Za-z]+$') { $_ } else { "'$($_ -replace "'", "''")'" } }) -join ' '
+                $passwordArgument = if ($Password) { '-FeedSigningKeyPassword (ConvertTo-SecureString $env:LAYERPEEK_TEST_FEED_KEY_PASSWORD -AsPlainText -Force)' } else { '' }
+                $build = Join-Path $script:S.Work 'scripts' 'release-build.ps1'
+                $output = Invoke-Pwsh -NoProfile -NonInteractive -Command "& '$($build -replace "'", "''")' $quoted $passwordArgument; exit `$LASTEXITCODE" 2>&1 | Out-String
+                [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+            }
+            finally { foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) } }
+        }
+        function Get-TreeHashes([string] $Root) {
+            @(Get-ChildItem -LiteralPath $Root -Recurse -File | ForEach-Object { "$([System.IO.Path]::GetRelativePath($Root, $_.FullName)) $(Get-FileSha256 $_.FullName)" } | Sort-Object -CaseSensitive)
+        }
+        function Assert-NothingSigned($Result, [string] $Pattern) {
+            # Refused with a clear message, nothing written: no .sig, no checksum file, the pending record unchanged.
+            $Result.ExitCode | Should -Be 1 -Because $Result.Output
+            $Result.Output | Should -Match "Release build FAILED: .*$Pattern"
+            Test-Path -LiteralPath (Join-Path $script:SignDist $script:SigName) | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $script:SignDist $script:SumsName) | Should -BeFalse
+            if (Test-Path -LiteralPath $script:SignRecord) { (Get-Content -LiteralPath $script:SignRecord -Raw | ConvertFrom-Json).FeedSignature.Status | Should -BeExactly 'pending' }
+            Assert-NoSecret $Result.Output 'the output of release-build.ps1 -SignOnly'
+            Get-FileSha256 $script:SignKey | Should -BeExactly $script:SignKeyHash
+        }
+        function Set-TaggedKeys([string[]] $Pems) {
+            # A release commit whose app trusts other keys: committed on the detached HEAD and tagged v0.1.0 locally (the
+            # remote tag is not checked by -SignOnly). Restore-Tagged goes back to the real release commit.
+            [System.IO.File]::WriteAllText((Join-Path $script:S.Work $script:KeysPath), (Get-KeysSource $Pems))
+            $null = G $script:S.Work commit --quiet --all --message 'other keys'
+            $null = G $script:S.Work tag --force --annotate --message 'Release 0.1.0' v0.1.0
+        }
+        function Restore-Tagged {
+            $null = G $script:S.Work switch --quiet --detach $script:Tagged
+            $null = G $script:S.Work tag --force --annotate --message 'Release 0.1.0' v0.1.0 $script:Tagged
+        }
+    }
+    AfterEach { Restore-Tagged }
+
+    It 'signs the unchanged dist/ of the tagged clean checkout like a normal build; release-upload.ps1 -DryRun accepts it, a second -SignOnly is refused' {
+        Write-PendingBuild
+        $packaged = @(Get-ChildItem -LiteralPath $script:SignDist -File | ForEach-Object { "$($_.Name) $(Get-FileSha256 $_.FullName)" })
+        $result = Invoke-SignOnly
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Match "dist/ matches the build record of commit $($script:Tagged) \(tag v0\.1\.0, clean tree\)"
+        $result.Output | Should -Match "$([regex]::Escape($script:SigName)) verified with the keys of UpdateFeedKeys\.Production"
+        $result.Output | Should -Match 'Next step: pwsh scripts/release-upload\.ps1 -DryRun'
+        Assert-NoSecret $result.Output 'the output of release-build.ps1 -SignOnly'
+
+        # The packaged files are unchanged; the signature verifies with the trusted key; the checksum file covers everything.
+        foreach ($line in $packaged) { $name, $hash = $line -split ' '; Get-FileSha256 (Join-Path $script:SignDist $name) | Should -BeExactly $hash }
+        $feed = [System.IO.File]::ReadAllBytes((Join-Path $script:SignDist $script:FeedName))
+        $signature = [System.IO.File]::ReadAllBytes((Join-Path $script:SignDist $script:SigName))
+        Test-UpdateFeedSignature -Feed $feed -Runtime $script:SignRid -SignatureFile $signature -TrustedKeys @($script:SignPublic) | Should -BeTrue
+        @(Get-Sha256SumsProblems (Join-Path $script:SignDist $script:SumsName)) | Should -BeNullOrEmpty
+        @((Read-Sha256Sums (Join-Path $script:SignDist $script:SumsName)).Keys | Sort-Object) | Should -BeExactly @(@($packaged | ForEach-Object { ($_ -split ' ')[0] }) + $script:SigName | Sort-Object)
+        # build-info.json as after a signed build: status signed with the key of the record, the .sig listed, the rest kept.
+        $info = Get-Content -LiteralPath $script:SignRecord -Raw | ConvertFrom-Json
+        $info.FeedSignature.Status | Should -BeExactly 'signed'
+        $info.FeedSignature.PublicKeySha256 | Should -BeExactly $script:SignPublic.Sha256
+        $info.Commit | Should -BeExactly $script:Tagged
+        $info.Dirty | Should -BeFalse
+        $info.ChecksumFile | Should -BeExactly $script:SumsName
+        @($info.Files | Where-Object Name -CEQ $script:SigName | ForEach-Object Step) | Should -BeExactly @('feed-signature')
+        $info.Smoke.$($script:SignRid) | Should -BeExactly 'passed'
+        foreach ($file in @(Get-ChildItem -LiteralPath $script:SignRelease -Recurse -File)) { Assert-NoSecret ([System.IO.File]::ReadAllText($file.FullName)) $file.FullName }
+        @(G $script:S.Work status --porcelain --untracked-files=all) | Should -BeNullOrEmpty
+
+        # release-upload.ps1 unchanged (fake gh, no release yet): would create the draft with every file.
+        $upload = Invoke-Pwsh -NoProfile -NonInteractive -File (Join-Path $script:S.Work 'scripts' 'release-upload.ps1') -DryRun 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0 -Because $upload
+        $upload | Should -Match ([regex]::Escape($script:SigName))
+        $upload | Should -Match ([regex]::Escape($script:SumsName))
+        @(Get-GhCall | Where-Object { $_ -match '^release (create|upload)' }) | Should -BeNullOrEmpty
+
+        $signed = Get-TreeHashes $script:SignRelease
+        $again = Invoke-SignOnly
+        $again.ExitCode | Should -Be 1 -Because $again.Output
+        $again.Output | Should -Match 'is already signed .* a signed dist/ is never signed again\. Upload it'
+        Get-TreeHashes $script:SignRelease | Should -BeExactly $signed
+    }
+    It 'refuses a changed, an added and a missing file in dist/' {
+        Write-PendingBuild
+        $feed = Join-Path $script:SignDist $script:FeedName
+        [System.IO.File]::AppendAllText($feed, ' ')
+        Assert-NothingSigned (Invoke-SignOnly) "Files in dist/ changed after the build \(SHA-256 differs from the build record\): $([regex]::Escape($script:FeedName))"
+
+        Write-PendingBuild
+        [System.IO.File]::WriteAllText((Join-Path $script:SignDist 'extra.zip'), 'extra')
+        Assert-NothingSigned (Invoke-SignOnly) 'dist/ contains files not produced by the build: extra\.zip'
+
+        Write-PendingBuild
+        Remove-Item -LiteralPath $feed
+        Assert-NothingSigned (Invoke-SignOnly) "Files of the build are missing in dist/: $([regex]::Escape($script:FeedName))"
+    }
+    It 'refuses a dist/ of another commit, an untagged commit and a dirty working tree' {
+        $develop = G $script:S.Work rev-parse origin/develop | Select-Object -First 1
+        Write-PendingBuild -Commit $develop
+        Assert-NothingSigned (Invoke-SignOnly) "dist/ was built from commit $develop, HEAD is $($script:Tagged)\. Sign only in the checkout of the commit it was built from"
+
+        $null = G $script:S.Work switch --quiet --detach $develop
+        Write-PendingBuild
+        Assert-NothingSigned (Invoke-SignOnly) 'HEAD has no tag v0\.1\.0'
+        Restore-Tagged
+
+        Write-PendingBuild
+        [System.IO.File]::WriteAllText((Join-Path $script:S.Work 'untracked.txt'), 'x')
+        try { Assert-NothingSigned (Invoke-SignOnly) 'Working tree is not clean \(1 changed or untracked files: \?\? untracked\.txt\)' }
+        finally { Remove-Item -LiteralPath (Join-Path $script:S.Work 'untracked.txt') }
+    }
+    It 'refuses a missing build record, a trial build and a build from a dirty tree' {
+        Write-PendingBuild
+        Remove-Item -LiteralPath $script:SignRecord
+        Assert-NothingSigned (Invoke-SignOnly) 'There is no build record \(build-info\.json\) of version 0\.1\.0 to sign'
+        Remove-Item -LiteralPath $script:SignRelease -Recurse
+        Assert-NothingSigned (Invoke-SignOnly) 'There is no build record'
+
+        Write-PendingBuild
+        $record = Get-Content -LiteralPath $script:SignRecord -Raw | ConvertFrom-Json
+        $record.FeedSignature.Status = 'skipped'
+        $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $script:SignRecord
+        $trial = Invoke-SignOnly
+        $trial.ExitCode | Should -Be 1 -Because $trial.Output
+        $trial.Output | Should -Match 'trial build of -SkipFeedSignature; it cannot be signed afterwards'
+        Test-Path -LiteralPath (Join-Path $script:SignDist $script:SigName) | Should -BeFalse
+
+        Write-PendingBuild
+        $record = Get-Content -LiteralPath $script:SignRecord -Raw | ConvertFrom-Json
+        $record.Dirty = $true
+        $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $script:SignRecord
+        Assert-NothingSigned (Invoke-SignOnly) 'built from a working tree with uncommitted or untracked files'
+    }
+    It 'refuses -SignOnly with build options and without a key' {
+        Write-PendingBuild
+        Assert-NothingSigned (Invoke-SignOnly @('-SignOnly', '-SkipFeedSignature', '-Runtime', $script:SignRid)) '-SignOnly signs the finished build as it is; do not pass -Runtime, -SkipFeedSignature with it'
+        Assert-NothingSigned (Invoke-SignOnly @('-SignOnly') -Password '') 'No update feed signing key\. Connect the key medium and pass -FeedSigningKey <path> or set LAYERPEEK_FEED_SIGNING_KEY .*without a key nothing can be signed'
+    }
+    It 'applies the key checks of the build: empty list and untrusted key before the password' {
+        Set-TaggedKeys @()
+        Write-PendingBuild
+        $empty = Invoke-SignOnly -Password ''
+        Assert-NothingSigned $empty 'UpdateFeedKeys\.Production\) trusts no key yet'
+        $empty.Output | Should -Not -Match 'not interactive'
+        Restore-Tagged
+
+        Set-TaggedKeys @($script:OtherPublic.Pem)
+        Write-PendingBuild
+        $untrusted = Invoke-SignOnly -Password ''
+        Assert-NothingSigned $untrusted "The signing key \(public key SHA-256 $($script:SignPublic.Sha256)\) is not trusted by"
+        $untrusted.Output | Should -Not -Match 'not interactive'
+    }
+    It 'applies the key checks of the build: unencrypted key, another key, wrong and missing password' {
+        Write-PendingBuild
+        Assert-NothingSigned (Invoke-SignOnly @('-SignOnly', '-FeedSigningKey', $script:SignPlainKey)) 'is an unencrypted private key'
+        # Another key, even with the same password: only the key checked before the build signs its dist/.
+        Assert-NothingSigned (Invoke-SignOnly @('-SignOnly', '-FeedSigningKey', $script:OtherKey)) "\(public key SHA-256 $($script:OtherPublic.Sha256)\) is not the key checked before the build \(public key SHA-256 $($script:SignPublic.Sha256)\)"
+        $wrong = Invoke-SignOnly -Password 'wrong-password-4711'
+        Assert-NothingSigned $wrong 'cannot be decrypted: wrong password'
+        $wrong.Output | Should -Not -Match 'wrong-password-4711'
+        Assert-NothingSigned (Invoke-SignOnly -Password '') 'this session is not interactive.*-FeedSigningKeyPassword'
     }
 }

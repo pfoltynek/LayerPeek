@@ -41,6 +41,16 @@ BeforeAll {
         $output = @(& $command[0] @prefix -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot $Name) @Arguments 2>&1 | ForEach-Object { "$_" })
         [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output; Text = $output -join "`n" }
     }
+
+    # The same read-only run (e.g. -ListChecks -Preset release) only once per test run: every child pwsh imports both
+    # modules and parses the whole script, which took 20-66 s each on the loaded 4-CPU Windows CI runner (T-246). The
+    # tests only read the result.
+    $script:ScriptRuns = @{}
+    function Invoke-ScriptOnce([string] $Name, [string[]] $Arguments) {
+        $key = (@($Name) + $Arguments) -join "`n"
+        if (-not $script:ScriptRuns.ContainsKey($key)) { $script:ScriptRuns[$key] = Invoke-Script $Name $Arguments }
+        $script:ScriptRuns[$key]
+    }
 }
 
 AfterAll {
@@ -83,6 +93,18 @@ Describe 'Check definitions' {
         $lines[0] | Should -Be 'a.one  [permission]  title'
         $lines | Should -Contain '    closes: T-002 kritérium 3'
         $lines | Should -Contain '    needs:  sudo'
+    }
+
+    It 'gives the same list as one text with -AsText, and nothing without checks (T-246)' {
+        $checks = @(
+            New-VerifyCheck -Id 'a.one' -Title 'one' -Closes 'T-001 kritérium 1', 'T-002 kritérium 3' -Kind Permission -Permission 'sudo' -Action { }
+            New-VerifyCheck -Id 'a.two' -Title 'two' -Closes 'T-003 kritérium 2' -Kind Auto -Needs Session -Action { }
+        )
+        $text = @(Format-VerifyCheckList -Checks $checks -AsText)
+        $text | Should -HaveCount 1
+        $text[0] | Should -BeOfType [string]
+        $text[0] | Should -BeExactly ((Format-VerifyCheckList -Checks $checks) -join [Environment]::NewLine)
+        @(Format-VerifyCheckList -Checks @() -AsText) | Should -HaveCount 0
     }
 }
 
@@ -221,8 +243,10 @@ Describe 'Report' {
         $standIns = Join-Path $script:TempRoot 'standins.ps1'
         $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/x.ps1' -StandIns $standIns -Git { param($Arguments) $null }
         $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
-        (Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json).Run.StandIns | Should -Be $standIns
-        Get-Content -LiteralPath $report.Markdown -Raw | Should -Match ([regex]::Escape("- **Stand-ins:** ``$standIns`` (test run with stand-in checks, not a real verification)"))
+        # As every path of the report, with the home folder as ~ (T-208): on Windows the temp folder lies in the profile.
+        $shown = Hide-VerifyHomePath $standIns
+        (Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json).Run.StandIns | Should -Be $shown
+        Get-Content -LiteralPath $report.Markdown -Raw | Should -Match ([regex]::Escape("- **Stand-ins:** ``$shown`` (test run with stand-in checks, not a real verification)"))
     }
 
     It 'loads a stand-in file only from inside an allowed root' {
@@ -238,6 +262,180 @@ Describe 'Report' {
     }
 }
 
+Describe 'Presets and preconditions (T-208)' {
+    BeforeAll {
+        $script:PresetChecks = @(
+            New-VerifyCheck -Id 'pre.one' -Title 'one' -Closes 'T-208 a' -Kind Auto -Action { New-VerifyResult PASS 'one' }
+            New-VerifyCheck -Id 'pre.ask' -Title 'ask' -Closes 'T-208 b' -Kind Permission -Permission 'stand-in' -Needs Session -Action { New-VerifyResult PASS 'ask' }
+            New-VerifyCheck -Id 'pre.human' -Title 'human' -Closes 'T-208 c' -Kind Manual -Action { New-VerifyResult MANUAL 'human' }
+            New-VerifyCheck -Id 'pre.two' -Title 'two' -Closes 'T-208 d' -Kind Auto -Needs Session, Accessibility -Action { New-VerifyResult PASS 'two' }
+        )
+    }
+
+    It 'validates a preset: known ids, no Manual check, no id twice, criteria filled' {
+        @(Test-VerifyPreset -Checks $script:PresetChecks -Name 'ok' -Ids 'pre.two', 'pre.one', 'pre.ask') | Should -HaveCount 0
+        $problems = @(Test-VerifyPreset -Checks $script:PresetChecks -Name 'bad' -Ids 'pre.one', 'pre.one', 'pre.human', 'pre.nothing')
+        $problems | Should -HaveCount 3
+        $problems -join "`n" | Should -Match 'lists pre.one twice'
+        $problems -join "`n" | Should -Match 'the Manual check pre.human'
+        $problems -join "`n" | Should -Match 'pre.nothing, which is no check'
+        @(Test-VerifyPreset -Checks $script:PresetChecks -Name 'empty' -Ids @()) | Should -Match 'lists no check'
+        $noCriteria = New-VerifyCheck -Id 'pre.bare' -Title 'bare' -Closes 'T-208 x' -Kind Auto -Action { }
+        $noCriteria.Closes = [string[]] @()
+        @(Test-VerifyPreset -Checks @($noCriteria) -Name 'bare' -Ids 'pre.bare') | Should -Match 'closes no criterion'
+    }
+
+    It 'selects a preset in definition order, honours -Skip and refuses a broken preset' {
+        (@(Select-VerifyPreset -Checks $script:PresetChecks -Name 'p' -Ids 'pre.two', 'pre.one').Id -join ',') | Should -Be 'pre.one,pre.two'
+        (@(Select-VerifyPreset -Checks $script:PresetChecks -Name 'p' -Ids 'pre.two', 'pre.one' -Skip 'pre.one').Id -join ',') | Should -Be 'pre.two'
+        { Select-VerifyPreset -Checks $script:PresetChecks -Name 'p' -Ids 'pre.human' } | Should -Throw '*Manual check pre.human*'
+        { Select-VerifyPreset -Checks $script:PresetChecks -Name 'p' -Ids 'pre.one' -Skip 'pre.two' } | Should -Throw "*No check matches 'pre.two'*"
+    }
+
+    It 'refuses a precondition name that is not a word starting upper case' {
+        { New-VerifyCheck -Id 'pre.x' -Title 'x' -Closes 'T-208 x' -Kind Auto -Needs 'screen locked' -Action { } } | Should -Throw '*not a precondition name*'
+        (Get-VerifyNeeds $script:PresetChecks) -join ',' | Should -Be 'Accessibility,Session'
+    }
+
+    It 'skips a check whose precondition is not met with the reason, without running or asking, also an allowed Permission check' {
+        $context = New-TestContext -Answers 'y', 'y' -Allow 'pre.ask'
+        $context.Unmet['Session'] = 'the screen is locked'
+        $ran = [System.Collections.Generic.List[string]]::new()
+        $check = New-VerifyCheck -Id 'pre.run' -Title 'run' -Closes 'T-208 e' -Kind Auto -Needs Session -Action { $ran.Add('ran'); New-VerifyResult FAIL 'ran' }.GetNewClosure()
+        $results = Invoke-VerifyRun -Checks @($script:PresetChecks[1], $check, $script:PresetChecks[0]) -Context $context
+        ($results | ForEach-Object Status) -join ',' | Should -Be 'SKIP,SKIP,PASS'
+        $results[0].Detail | Should -Be 'precondition not met at the start of the run: Session (the screen is locked).'
+        $ran | Should -HaveCount 0
+        $context.Asked | Should -HaveCount 0
+    }
+
+    It 'names every unmet precondition once with the checks it skips, and none without checks' {
+        $lines = @(Format-VerifyUnmetNeeds -Checks $script:PresetChecks -Unmet ([ordered]@{ Session = 'locked'; Accessibility = 'no permission'; Unused = 'nothing needs it' }))
+        $lines | Should -Be @(
+            'Not met: Accessibility - no permission'
+            '    SKIP: pre.two'
+            'Not met: Session - locked'
+            '    SKIP: pre.ask, pre.two'
+        )
+        @(Format-VerifyUnmetNeeds -Checks $script:PresetChecks -Unmet @{}) | Should -HaveCount 0
+        Get-VerifyUnmetReason -Check $script:PresetChecks[0] -Unmet ([ordered]@{ Session = 'locked' }) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Report of a preset run (T-208)' {
+    It 'writes report.json in its documented shape with the run header' {
+        $context = New-TestContext -Unattended
+        $context.Unmet['Session'] = 'the screen is locked'
+        $checks = @(
+            New-VerifyCheck -Id 'rep.pass' -Title 'passes' -Closes 'T-208 a', 'T-127 b' -Kind Auto -Action { New-VerifyResult PASS 'fine' }
+            New-VerifyCheck -Id 'rep.locked' -Title 'locked' -Closes 'T-208 c' -Kind Auto -Needs Session -Action { New-VerifyResult PASS 'never' }
+        )
+        $started = [DateTimeOffset]::new(2026, 11, 13, 20, 0, 0, [TimeSpan]::FromHours(1))
+        $results = Invoke-VerifyRun -Checks $checks -Context $context
+        $git = { param($Arguments) switch ($Arguments[0]) { 'rev-parse' { if ($Arguments[1] -eq 'HEAD') { '0123abc' } else { 'feature/T-208' } } 'status' { @() } } }
+        $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/macos-verify.ps1' -Unattended -Selected $checks.Id -Allow 'rep.none' -Preset 'release' `
+            -Preconditions ([ordered]@{ Awake = 'met'; Session = 'not met: the screen is locked' }) -Started $started -Git $git
+        $info.Seconds = 1830
+        $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
+        $json = Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json
+
+        @($json.PSObject.Properties.Name) | Should -Be @('Format', 'Run', 'Summary', 'Results')
+        $json.Format | Should -Be 1
+        foreach ($field in 'Script', 'Started', 'Commit', 'Branch', 'Dirty', 'AppVersion', 'Os', 'Machine', 'PowerShell', 'Mode', 'Preset', 'Selected', 'Allowed', 'Preconditions', 'Seconds') {
+            $json.Run.PSObject.Properties.Name | Should -Contain $field
+        }
+        $json.Run.Commit | Should -Be '0123abc'
+        $json.Run.Dirty | Should -BeFalse
+        $json.Run.Preset | Should -Be 'release'
+        $json.Run.Mode | Should -Be 'unattended'
+        $json.Run.Seconds | Should -Be 1830
+        $json.Run.Preconditions.Session | Should -Be 'not met: the screen is locked'
+        # ConvertFrom-Json turns the ISO string into a DateTime; [DateTimeOffset]::Parse would get it back as text in the
+        # invariant format and parse it with the current culture (fails on cs-CZ). A cast compares the instant on any culture.
+        ([DateTimeOffset] $json.Run.Started).UtcDateTime | Should -Be $started.UtcDateTime
+        if ($IsMacOS) {
+            $json.Run.Os | Should -Match '^macOS \d+(\.\d+)* \S+ \('
+            $json.Run.Machine | Should -Not -Be 'unknown'
+        }
+        @($json.Summary.PSObject.Properties.Name) | Should -Be @('PASS', 'FAIL', 'SKIP', 'MANUAL')
+        $json.Summary.SKIP | Should -Be 1
+        $json.Results | Should -HaveCount 2
+        foreach ($entry in $json.Results) { @($entry.PSObject.Properties.Name) | Should -Be @('Id', 'Title', 'Kind', 'Closes', 'Status', 'Detail', 'Seconds', 'Evidence') }
+        $json.Results[0].Closes | Should -Be @('T-208 a', 'T-127 b')
+        $json.Results[1].Status | Should -Be 'SKIP'
+        $json.Results[1].Detail | Should -Match 'Session \(the screen is locked\)'
+        $json.Results[1].Seconds | Should -BeOfType [double]
+
+        $markdown = Get-Content -LiteralPath $report.Markdown -Raw
+        foreach ($line in '- Duration: 30 min 30 s', '- Commit: `0123abc` on `feature/T-208`', '- Clean tree: yes', '- Preset: release', '- Mode: unattended', '- Preconditions: Awake met; Session not met: the screen is locked') {
+            $markdown | Should -Match ([regex]::Escape($line))
+        }
+        $markdown | Should -Match '- Machine: '
+        $markdown | Should -Match ([regex]::Escape('| `rep.locked` | Auto | **SKIP** |'))
+    }
+
+    It 'says "Clean tree: no" with local changes and "Preset: none" without a preset' {
+        $context = New-TestContext
+        $results = @(Invoke-VerifyCheck -Check (New-VerifyCheck -Id 'rep.x' -Title 'x' -Closes 'T-208 x' -Kind Auto -Action { New-VerifyResult PASS 'x' }) -Context $context)
+        $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/x.ps1' -Git { param($Arguments) if ($Arguments[0] -eq 'status') { '?? new.txt' } }
+        $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
+        $markdown = Get-Content -LiteralPath $report.Markdown -Raw
+        $markdown | Should -Match '- Clean tree: no'
+        $markdown | Should -Match '- Preset: none'
+        (Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json).Run.Preset | Should -BeNullOrEmpty
+    }
+
+    It 'writes the home folder as ~ in the report, but not a longer folder name' {
+        $homePath = [Environment]::GetFolderPath('UserProfile')
+        $sep = [System.IO.Path]::DirectorySeparatorChar
+        Hide-VerifyHomePath "at $homePath${sep}Movies and $homePath" | Should -Be "at ~${sep}Movies and ~"
+        Hide-VerifyHomePath "${homePath}2${sep}x" | Should -Be "${homePath}2${sep}x"
+        Hide-VerifyHomePath "/Users/me/a, '/Users/me'" -HomePath '/Users/me/' | Should -Be "~/a, '~'"
+        $nested = Hide-VerifyHomePath ([ordered]@{ A = @('/Users/me/x', 3); B = [ordered]@{ C = '/Users/me' }; D = $true }) -HomePath '/Users/me'
+        $nested.A | Should -Be @('~/x', 3)
+        $nested.B.C | Should -Be '~'
+        $nested.D | Should -BeTrue
+
+        $context = New-TestContext
+        $results = @(Invoke-VerifyCheck -Check (New-VerifyCheck -Id 'rep.home' -Title "in $homePath" -Closes 'T-208 x' -Kind Auto -Action { New-VerifyResult PASS "file $([System.IO.Path]::Combine([Environment]::GetFolderPath('UserProfile'), 'Movies', 'a.mp4'))" }) -Context $context)
+        $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/x.ps1' -StandIns (Join-Path $homePath 'standins.ps1') -Git { param($Arguments) $null }
+        $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
+        foreach ($file in $report.Markdown, $report.Json) {
+            $text = Get-Content -LiteralPath $file -Raw
+            # JSON writes \ for every \ of a Windows path; compared as the text it encodes.
+            if ($file -eq $report.Json) { $text = [regex]::Unescape($text) }
+            $text | Should -Not -Match ([regex]::Escape($homePath) + '(?=[/\\])')
+            $text | Should -Match ([regex]::Escape("~${sep}Movies"))
+        }
+        $results[0].Detail | Should -Match ([regex]::Escape($homePath)) -Because 'the results of the run stay unchanged'
+    }
+
+    It 'points latest at the last run folder and never replaces a real folder' -Skip:$IsWindows {
+        $root = Join-Path $script:TempRoot 'latest-root'
+        $first = New-VerifyRunFolder -Root $root -Now ([DateTime]::new(2026, 11, 13, 20, 0, 0))
+        $second = New-VerifyRunFolder -Root $root -Now ([DateTime]::new(2026, 11, 13, 21, 0, 0))
+        $link = Set-VerifyLatestLink -Root $root -RunFolder $first
+        $link | Should -Be (Join-Path $root 'latest')
+        (Get-Item -LiteralPath $link).Target | Should -Be (Split-Path -Leaf $first)
+        Set-VerifyLatestLink -Root $root -RunFolder $second | Should -Be $link
+        (Get-Item -LiteralPath $link).Target | Should -Be (Split-Path -Leaf $second)
+        Test-Path -LiteralPath $first | Should -BeTrue -Because 'replacing the link keeps the older run'
+        Test-Path -LiteralPath (Join-Path $link 'report.md') | Should -BeFalse
+        $null = New-Item -ItemType File -Path (Join-Path $second 'report.md')
+        Test-Path -LiteralPath (Join-Path $link 'report.md') | Should -BeTrue
+
+        $other = Join-Path $script:TempRoot 'latest-real'
+        $null = New-Item -ItemType Directory -Path (Join-Path $other 'latest')
+        Set-VerifyLatestLink -Root $other -RunFolder (Join-Path $other 'run') | Should -BeNullOrEmpty
+        (Get-Item -LiteralPath (Join-Path $other 'latest')).LinkType | Should -BeNullOrEmpty
+    }
+
+    It 'formats a duration' {
+        Format-VerifyDuration 42.4 | Should -Be '42 s'
+        Format-VerifyDuration 1805 | Should -Be '30 min 5 s'
+    }
+}
+
 Describe 'Parsers' {
     It 'sums the per-assembly totals of dotnet test in any UI language' {
         $czech = @('x.dll (net11.0|arm64) úspěch [+14/x0/?11] (4s 477ms)', 'Souhrn testovacího běhu: Úspěšné!', '  celkem: 25')
@@ -250,6 +448,22 @@ Describe 'Parsers' {
         $totals.Failed | Should -Be 2
         $totals.Assemblies | Should -Be 2
         Get-VerifyTestTotals @('error CS1002: ; expected') | Should -BeNullOrEmpty
+    }
+
+    It 'counts an assembly once although the summary of a solution run repeats its line (T-208)' {
+        $solution = @(
+            '/r/a/bin/A.Tests.dll (net11.0|arm64) failed with 1 error(s) [+3342/x1/?8] (42s)'
+            '/r/b/bin/B.Tests.dll (net11.0|arm64) passed [+10/x0/?2] (3s)'
+            ''
+            'Test run summary: Failed!'
+            '  /r/b/bin/B.Tests.dll (net11.0|arm64) passed [+10/x0/?2] (3s)'
+            '  /r/a/bin/A.Tests.dll (net11.0|arm64) failed with 1 error(s) [+3342/x1/?8] (42s)'
+            '  total: 3363'
+        )
+        $totals = Get-VerifyTestTotals $solution
+        $totals.Total | Should -Be 3363
+        $totals.Failed | Should -Be 1
+        $totals.Assemblies | Should -Be 2
     }
 
     It 'sums the passes of tools/run-e2e.ps1' {
@@ -382,6 +596,515 @@ Describe 'macOS helpers (pure)' {
         Get-VerifyMenuBarOwners $menuBar | Should -Be @('BetterDisplay (2359) x 1', 'ControlCenter (527) x 2')
         @(Get-VerifyMenuBarOwners @($menuBar[3])) | Should -HaveCount 0
     }
+
+    It 'finds the window a click reaches, past the overlays above the menu bar' {
+        $windows = '[{"pid":991,"owner":"BetterDisplay","layer":2147483629},{"pid":42,"owner":"LayerPeek","layer":0,"number":7},{"pid":1,"owner":"Finder","layer":0}]' | ConvertFrom-Json
+        (Get-VerifyTopWindow $windows).pid | Should -Be 42
+        Get-VerifyTopWindow @($windows[0]) | Should -BeNullOrEmpty
+        # The Dock's window over a whole display lets clicks through; the Dock itself (a strip) does not.
+        $dock = '[{"pid":1270,"owner":"Dock","layer":20,"number":29,"width":1287,"height":900},{"pid":42,"owner":"LayerPeek","layer":0,"number":7,"width":780,"height":532}]' | ConvertFrom-Json
+        (Get-VerifyTopWindow $dock).pid | Should -Be 42
+        $strip = '[{"pid":1270,"owner":"Dock","layer":20,"number":30,"width":1100,"height":70},{"pid":42,"owner":"LayerPeek","layer":0,"number":7,"width":780,"height":532}]' | ConvertFrom-Json
+        (Get-VerifyTopWindow $strip).pid | Should -Be 1270
+    }
+
+    Context 'the result of "Check now" (mac.update-check)' {
+        BeforeAll {
+            $script:Expected = 'Version 9.9.0 is available'
+            function New-Watch([string[]] $Lines) { @(ConvertFrom-VerifyAxWatch $Lines) }
+            $script:Hidden = '{"ms":0,"found":false,"text":"","frame":{}}'
+            $script:Checking = '{"ms":420,"found":true,"text":"Checking…","frame":{"x":300,"y":400,"width":70,"height":16}}'
+            $script:Shown = '{"ms":1990,"found":true,"text":"Version 9.9.0 is available; the tray menu offers it.","frame":{"x":300,"y":400,"width":290,"height":16}}'
+        }
+
+        It 'reads the watch lines and skips anything else' {
+            $timeline = New-Watch @($script:Hidden, 'macos-verify-helper: something', '', $script:Checking)
+            $timeline | Should -HaveCount 2
+            $timeline[1].text | Should -Be 'Checking…'
+            $timeline[1].frame.width | Should -Be 70
+        }
+
+        It 'passes when the text appears after the press and stays' {
+            $verdict = Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden, $script:Checking, $script:Shown)) -Requests 1 -Expected $script:Expected
+            $verdict.Passed | Should -BeTrue
+            $verdict.Shown.ms | Should -Be 1990
+            $verdict.Detail | Should -BeLike "*shown 1990 ms*'Checking…' at 420 ms*1 request(s)*"
+        }
+
+        It 'says that a press ran no check (no request, no "Checking…")' {
+            $verdict = Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden)) -Requests 0 -Expected $script:Expected
+            $verdict.Passed | Should -BeFalse
+            $verdict.Detail | Should -BeLike 'the press ran no check*stayed no element (hidden)*'
+        }
+
+        It 'says that the check ran but its result was never shown' {
+            $verdict = Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden, $script:Checking, '{"ms":1990,"found":false,"text":"","frame":{}}')) -Requests 1 -Expected $script:Expected
+            $verdict.Passed | Should -BeFalse
+            $verdict.Detail | Should -BeLike "the check ran (1 request(s)*never showed 'Version 9.9.0 is available'*"
+            # A text without a visible frame is not shown either.
+            $zero = '{"ms":1990,"found":true,"text":"Version 9.9.0 is available; the tray menu offers it.","frame":{"x":0,"y":0,"width":0,"height":0}}'
+            (Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden, $script:Checking, $zero)) -Requests 1 -Expected $script:Expected).Passed | Should -BeFalse
+        }
+
+        It 'fails a result that vanishes again' {
+            $verdict = Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($script:Hidden, $script:Checking, $script:Shown, '{"ms":2400,"found":false,"text":"","frame":{}}')) -Requests 1 -Expected $script:Expected
+            $verdict.Passed | Should -BeFalse
+            $verdict.Detail | Should -BeLike 'the result was shown at 1990 ms but then changed to no element (hidden)*'
+        }
+
+        It 'counts a result shown before the press only when it is shown again after "Checking…"' {
+            $before = $script:Shown -replace '"ms":1990', '"ms":0'
+            (Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($before)) -Requests 0 -Expected $script:Expected).Passed | Should -BeFalse
+            $again = $script:Shown -replace '"ms":1990', '"ms":2100'
+            (Get-VerifyUpdateCheckVerdict -Timeline (New-Watch @($before, $script:Checking, $again)) -Requests 1 -Expected $script:Expected).Passed | Should -BeTrue
+        }
+
+        It 'fails an empty watch' {
+            (Get-VerifyUpdateCheckVerdict -Timeline @() -Requests 0 -Expected $script:Expected).Detail | Should -BeLike 'the Accessibility watch recorded nothing*'
+        }
+    }
+
+    Context 'the menu of the status item (mac.menu-items, T-209)' {
+        BeforeAll {
+            $script:Texts = Get-VerifyResxStrings (Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $script:Name = 'LP verify 1a2b3c4d'
+            function New-MenuItem([string] $Title, [bool] $Enabled = $true, [string] $Help = '', $Submenu = $null) {
+                [pscustomobject]@{ title = $Title; enabled = $Enabled; checked = $false; mark = ''; shortcut = ''; help = $Help; separator = $false; submenu = $Submenu }
+            }
+            $script:Separator = [pscustomobject]@{ title = ''; enabled = $false; checked = $false; mark = ''; shortcut = ''; help = ''; separator = $true; submenu = $null }
+            # The menu as the helper prints it for one printer with a camera (titles as NSMenu shows them).
+            function New-Menu([string] $Header, [switch] $NoCamera, [string[]] $Fixed = @('Diagnostics…', 'Settings…', 'User manual', 'About', 'Quit')) {
+                $sub = @(New-MenuItem 'Open PrusaLink')
+                if (-not $NoCamera) {
+                    $sub += @(
+                        (New-MenuItem 'Show camera'), $script:Separator, (New-MenuItem 'Start recording'),
+                        (New-MenuItem 'Start timelapse (experimental)' $false 'The camera is not connected.'),
+                        (New-MenuItem 'Play last recording' $false 'No recording yet'), (New-MenuItem 'Play last timelapse' $false ''),
+                        (New-MenuItem 'Open recordings folder'))
+                }
+                $items = @((New-MenuItem $Header $true '' $sub), $script:Separator)
+                foreach ($title in $Fixed) { $items += New-MenuItem $title; if ($title -eq 'Settings…') { $items += $script:Separator } }
+                # Through JSON, like the check reads the helper's output.
+                @((ConvertTo-Json -InputObject ([pscustomobject]@{ items = $items }) -Depth 10 | ConvertFrom-Json -Depth 10).items)
+            }
+        }
+
+        It 'reads the resources and shows their menu texts like NSMenu' {
+            $script:Texts['MenuQuit'] | Should -BeExactly '_Quit'
+            ConvertFrom-VerifyAccessText $script:Texts['MenuQuit'] | Should -BeExactly 'Quit'
+            ConvertFrom-VerifyAccessText 'Add _printer…' | Should -BeExactly 'Add printer…'
+            ConvertFrom-VerifyAccessText "MK4_$([char] 0x2060)__lab" | Should -BeExactly 'MK4_lab'
+            ConvertFrom-VerifyAccessText 'a__b_c' | Should -BeExactly 'a_bc'
+            ConvertFrom-VerifyAccessText 'plain' | Should -BeExactly 'plain'
+            ConvertFrom-VerifyAccessText '' | Should -BeExactly ''
+        }
+
+        It 'accepts the menu of every state, with progress only where it may be shown' {
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Ready") -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera) | Should -HaveCount 0
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Printing – 42%") -Texts $script:Texts -Name $script:Name -State 'Printing' -Progress -Camera) | Should -HaveCount 0
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Printing") -Texts $script:Texts -Name $script:Name -State 'Printing' -Progress -Camera) | Should -HaveCount 0
+            $problems = @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Ready – 42%") -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera)
+            $problems | Should -HaveCount 1
+            $problems[0] | Should -BeLike "the printer item is '*Ready – 42%', expected '$($script:Name): Ready'"
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Error") -Texts $script:Texts -Name $script:Name -State 'Offline' -Camera) | Should -HaveCount 1
+            @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Ready" -NoCamera) -Texts $script:Texts -Name $script:Name -State 'Ready') | Should -HaveCount 0
+        }
+
+        It 'names missing camera items, an enabled "Play last …" and a wrong order of the fixed items' {
+            $problems = @(Get-VerifyMenuProblems -Items (New-Menu "$($script:Name): Ready" -NoCamera) -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera)
+            $problems | Should -Contain "no enabled 'Show camera' in the submenu (Open PrusaLink)"
+            $problems | Should -Contain "no 'Start recording' in the submenu (Open PrusaLink)"
+            $problems | Should -Contain 'no separator before the recording items in the submenu'
+            $menu = New-Menu "$($script:Name): Ready"
+            ($menu[0].submenu | Where-Object title -EQ 'Play last recording').enabled = $true
+            @(Get-VerifyMenuProblems -Items $menu -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera) | Should -Be @("'Play last recording' is enabled without any file")
+            $moved = New-Menu "$($script:Name): Ready" -Fixed 'Diagnostics…', 'Settings…', 'User manual', 'Quit', 'About'
+            @(Get-VerifyMenuProblems -Items $moved -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera) | Should -BeLike "the items after the printer are 'Diagnostics…', 'Settings…', 'User manual', 'Quit', 'About', expected*'About', 'Quit'"
+            $disabled = New-Menu "$($script:Name): Ready"
+            ($disabled | Where-Object title -EQ 'Settings…').enabled = $false
+            @(Get-VerifyMenuProblems -Items $disabled -Texts $script:Texts -Name $script:Name -State 'Ready' -Camera) | Should -Be @("'Settings…' is disabled")
+            @(Get-VerifyMenuProblems -Items @() -Texts $script:Texts -Name $script:Name -State 'Ready') | Should -Be @('the menu has no items')
+        }
+
+        It 'lists the help (AXHelp) of every disabled item with its path' {
+            $helps = @(Get-VerifyMenuHelps -Items (New-Menu "$($script:Name): Ready"))
+            $helps | Should -Be @(
+                "$($script:Name): Ready>Start timelapse (experimental): disabled, help 'The camera is not connected.'"
+                "$($script:Name): Ready>Play last recording: disabled, help 'No recording yet'"
+                "$($script:Name): Ready>Play last timelapse: disabled, help none"
+            )
+        }
+
+        It 'checks the tooltip of the status item: [E2E] name, then the state' {
+            Get-VerifyToolTipProblem -ToolTip "[E2E] $($script:Name)`nReady" -Texts $script:Texts -Name $script:Name -State 'Ready' | Should -BeNullOrEmpty
+            Get-VerifyToolTipProblem -ToolTip "[E2E] $($script:Name)`nPrinting – 7%`n28 min remaining`nbox.bgcode" -Texts $script:Texts -Name $script:Name -State 'Printing' -Progress | Should -BeNullOrEmpty
+            Get-VerifyToolTipProblem -ToolTip "[E2E] $($script:Name)`nPrinting – 7%" -Texts $script:Texts -Name $script:Name -State 'Printing' | Should -BeLike "the tooltip is '* | Printing – 7%', expected '* | Printing'"
+            Get-VerifyToolTipProblem -ToolTip "$($script:Name)`nReady" -Texts $script:Texts -Name $script:Name -State 'Ready' | Should -Not -BeNullOrEmpty
+            Get-VerifyToolTipProblem -ToolTip $null -Texts $script:Texts -Name $script:Name -State 'Ready' | Should -Not -BeNullOrEmpty
+        }
+
+        It 'puts mac.menu-items into the release preset with its preconditions' {
+            $run = Invoke-ScriptOnce 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+            $run.ExitCode | Should -Be 0 -Because $run.Text
+            $run.Output[0] | Should -BeLike '*allowed in advance:*mac.menu-items*'
+            $line = @($run.Output | Where-Object { $_ -like 'mac.menu-items  *' })
+            $line | Should -HaveCount 1
+            $line[0] | Should -BeLike '*`[permission`]*'
+        }
+    }
+}
+
+Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashcam; T-210; mac.timelapse*; T-211, pure)' {
+    It 'reads the names of recordings, outage segments, dashcam saves and timelapses' {
+        $print = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_0.4n_0.2mm_PLA.mp4'
+        $print.Stamp | Should -BeExactly '2026-11-15_10-04-09'
+        $print.Title | Should -BeExactly 'benchy_0.4n_0.2mm_PLA'
+        $print.Kind | Should -BeExactly 'print'
+        $print.Segment | Should -Be 1
+        $outage = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_Phone stand-2.mp4'
+        $outage.Title | Should -BeExactly 'Phone stand'
+        $outage.Segment | Should -Be 2
+        (ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy-12.mp4').Segment | Should -Be 12
+        $untitled = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09.mp4'
+        $untitled.Title | Should -BeExactly ''
+        $untitled.Kind | Should -BeExactly 'print'
+        $dash = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_dashcam-attention.mp4'
+        $dash.Kind | Should -BeExactly 'dashcam'
+        $dash.Trigger | Should -BeExactly 'attention'
+        $dash.Title | Should -BeExactly 'benchy'
+        $dashTwo = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_dashcam-manual-2.mp4'
+        $dashTwo.Trigger | Should -BeExactly 'manual'
+        $dashTwo.Title | Should -BeExactly ''
+        $dashTwo.Segment | Should -Be 2
+        (ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_timelapse.mp4').Kind | Should -BeExactly 'timelapse'
+        (ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_recording_timelapse.mp4').Kind | Should -BeExactly 'timelapse'
+        # No segment is numbered 1: "-1" belongs to the title.
+        (ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_x-1.mp4').Title | Should -BeExactly 'x-1'
+        foreach ($name in 'benchy.mp4', '2026-11-15_10-04.mp4', '2026-11-15_10-04-09_benchy.mov', '.layerpeek-recordings') {
+            ConvertFrom-VerifyRecordingFileName $name | Should -BeNullOrEmpty -Because $name
+        }
+    }
+
+    It 'judges the JSON of the helper decode' {
+        $seek = { param($At) [pscustomobject]@{ at = $At; time = 0; actualTime = 0; mean = 100; stdDev = 60 } }
+        $ok = [pscustomobject]@{ codec = 'avc1'; decodedFrames = 5; samples = 5; duration = 0.167; problems = @(); seeks = @('0 %', '25 %', '50 %', '75 %', 'end' | ForEach-Object { & $seek $_ }) }
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 0 -Frames 5) | Should -HaveCount 0
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 0 -Frames 4) | Should -Be @('5 decoded frame(s), expected 4')
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 0 -MinSeconds 1) | Should -Be @('duration 0.167 s, expected at least 1 s')
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 0 -MaxSeconds 0.1) | Should -Be @('duration 0.167 s, expected at most 0.1 s')
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 1) | Should -Be @('exit code 1 without a problem')
+        $failed = [pscustomobject]@{ codec = 'hvc1'; decodedFrames = 0; samples = 2; duration = 0.1; problems = @('no frame decoded'); seeks = @() }
+        $problems = @(Get-VerifyDecodeProblems -Report $failed -ExitCode 1)
+        $problems | Should -Contain 'no frame decoded'
+        $problems | Should -Contain "codec 'hvc1', expected avc1"
+        @(Get-VerifyDecodeProblems -Report $failed -ExitCode 0) | Should -Contain 'exit code 0 despite the problems'
+        $fewSeeks = [pscustomobject]@{ codec = 'avc1'; decodedFrames = 5; duration = 1; problems = @(); seeks = @(& $seek '0 %') }
+        @(Get-VerifyDecodeProblems -Report $fewSeeks -ExitCode 0) | Should -Be @('1 seek(s), expected 5 (0, 25, 50, 75 % and the end)')
+        @(Get-VerifyDecodeProblems -Report $null -ExitCode 1) | Should -Be @('the helper printed no JSON (exit code 1)')
+    }
+
+    It 'cuts an MP4 file in the middle of its middle mdat box' {
+        function New-Box([string] $Type, [int] $Size, [switch] $Large) {
+            $bytes = [byte[]]::new($Size)
+            if ($Large) {
+                $bytes[3] = 1
+                $bytes[15] = [byte] $Size
+            }
+            else { $bytes[2] = [byte] ($Size -shr 8); $bytes[3] = [byte] ($Size -band 0xFF) }
+            [System.Text.Encoding]::ASCII.GetBytes($Type).CopyTo($bytes, 4)
+            $bytes
+        }
+        $file = [byte[]] @((New-Box 'ftyp' 24) + (New-Box 'moov' 40) + (New-Box 'moof' 16) + (New-Box 'mdat' 100) + (New-Box 'moof' 16) + (New-Box 'mdat' 200 -Large) + (New-Box 'moof' 16) + (New-Box 'mdat' 60))
+        # The mdat boxes start at 80, 196 and 412; the middle one (200 bytes, a 64-bit size) is cut at 196 + 100.
+        Get-VerifyMdatCut -Bytes $file | Should -Be 296
+        Get-VerifyMdatCut -Bytes ([byte[]] @((New-Box 'ftyp' 24) + (New-Box 'mdat' 50))) | Should -Be 49
+        Get-VerifyMdatCut -Bytes ([byte[]] (New-Box 'ftyp' 24)) | Should -BeNullOrEmpty
+        Get-VerifyMdatCut -Bytes ([byte[]] @(0, 0, 0)) | Should -BeNullOrEmpty
+    }
+
+    It 'reads the recording events of the app log in order' {
+        $log = @(
+            "2026-11-15 10:00:01.000 +01:00 [INF] Recording of printer 'verify' started (Automatic) into '2026-11-15_10-00-01_benchy.mp4'."
+            "2026-11-15 10:00:01.500 +01:00 [INF] Recording of printer 'verify' writes '2026-11-15_10-00-01_benchy.mp4'."
+            "2026-11-15 10:00:30.000 +01:00 [INF] Recording of printer 'verify' writes '2026-11-15_10-00-01_benchy-2.mp4'."
+            "2026-11-15 10:02:00.000 +01:00 [INF] Recording of printer 'verify' ended (2 file(s))."
+            "2026-11-15 10:03:00.000 +01:00 [INF] Dashcam of printer 'verify' saved 45.2 s into 1 file(s)."
+            "2026-11-15 10:04:00.000 +01:00 [WRN] Recording of printer 'verify' could not start (FolderUnavailable): Access denied"
+            "2026-11-15 10:05:00.000 +01:00 [INF] Something else."
+        ) -join "`n"
+        $events = @(Get-VerifyRecordingEvents $log)
+        @($events.Kind) | Should -Be @('Writes', 'Writes', 'Ended', 'DashcamSaved', 'Failed')
+        $events[1].File | Should -BeExactly '2026-11-15_10-00-01_benchy-2.mp4'
+        $events[2].Files | Should -Be 2
+        $events[3].Files | Should -Be 1
+        $events[4].Text | Should -BeLike '*FolderUnavailable*'
+        @($events.PrinterId | Select-Object -Unique) | Should -Be @('verify')
+        @(Get-VerifyRecordingEvents '') | Should -HaveCount 0
+    }
+
+    It 'reads the timelapse events of the app log (T-211)' {
+        $log = @(
+            "2026-11-15 10:00:01.000 +01:00 [INF] Timelapse of printer 'verify' started (Manual) into '2026-11-15_10-00-01_benchy_timelapse.mp4'."
+            "2026-11-15 10:00:02.000 +01:00 [INF] Recording of printer 'verify' writes '2026-11-15_10-00-01_benchy.mp4'."
+            "2026-11-15 10:01:00.000 +01:00 [WRN] Timelapse of printer 'verify' could not start (FolderUnavailable): Access denied"
+            "2026-11-15 10:02:00.000 +01:00 [WRN] Stopping the timelapse of printer 'other': WriteFailed."
+            "2026-11-15 10:03:00.000 +01:00 [DBG] Stopping the timelapse of printer 'verify'."
+        ) -join "`n"
+        $events = @(Get-VerifyRecordingEvents $log)
+        @($events.Kind) | Should -Be @('TimelapseStarted', 'Writes', 'TimelapseFailed', 'TimelapseFailed')
+        $events[0].File | Should -BeExactly '2026-11-15_10-00-01_benchy_timelapse.mp4'
+        $events[0].Mode | Should -BeExactly 'Manual'
+        $events[2].Text | Should -BeLike '*FolderUnavailable*'
+        $events[3].PrinterId | Should -BeExactly 'other'
+        # A timelapse failure is not a failure of the recording (mac.recording-files counts those).
+        @($events | Where-Object Kind -CEQ 'Failed') | Should -HaveCount 0
+    }
+
+    It 'tells how many frames a timelapse by time may have (T-211)' {
+        $exact = Get-VerifyTimelapseFrameRange -Spans 30, 20 -IntervalSeconds 5
+        $exact.Min | Should -Be 12
+        $exact.Max | Should -Be 12
+        $slack = Get-VerifyTimelapseFrameRange -Spans 30, 20 -IntervalSeconds 5 -SlackSeconds 7
+        $slack.Min | Should -Be 8
+        $slack.Max | Should -Be 14
+        # A pause of 30 s that took frames would give 6 more: outside the range.
+        (Get-VerifyTimelapseFrameRange -Spans 80 -IntervalSeconds 5).Max | Should -BeGreaterThan $slack.Max
+        # Every span gives at least its first frame.
+        (Get-VerifyTimelapseFrameRange -Spans 2, 1 -IntervalSeconds 5 -SlackSeconds 7).Min | Should -Be 2
+    }
+
+    It 'tells the frames of a timelapse by layer of a whole print (T-211)' {
+        Get-VerifyLayerTimelapseFrames -Layers 12 | Should -Be 13
+        Get-VerifyLayerTimelapseFrames -Layers 12 -EveryNthLayer 3 | Should -Be 5
+        Get-VerifyLayerTimelapseFrames -Layers 1 | Should -Be 2
+    }
+
+    It 'puts the recording checks into the release preset' {
+        $run = Invoke-ScriptOnce 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run.ExitCode | Should -Be 0 -Because $run.Text
+        foreach ($id in 'mac.decode', 'mac.recording-files', 'mac.timelapse-files') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
+        foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.file-dialogs', 'mac.dock-windows', 'mac.mini-after-fullscreen', 'mac.camera-live', 'mac.camera-next-attempt') {
+            @($run.Output | Where-Object { $_ -like "$id  *``[permission``]*" }) | Should -HaveCount 1 -Because $id
+            $run.Output[0] | Should -BeLike "*allowed in advance:*$id*"
+        }
+    }
+}
+
+Describe 'Delivered notifications (mac.notifications-content; T-212, pure)' {
+    BeforeAll {
+        $script:bundleId = 'io.github.pfoltynek.LayerPeek.E2E'
+        $script:listJson = @'
+{
+  "bundleIdentifier": "io.github.pfoltynek.LayerPeek.E2E",
+  "notifications": [
+    {
+      "identifier": "0f3c", "title": "LP verify 1", "subtitle": null,
+      "body": "Possible print failure – Detector e2e-alarm\nbenchy.bgcode",
+      "categoryIdentifier": "layerpeek.with-action", "threadIdentifier": "", "hasSound": true,
+      "attachments": [ { "identifier": "snapshot", "type": "public.jpeg" } ],
+      "launchArgument": "camera=verify", "actionArgument": "false-alarm=a1", "deliveredAt": "2026-11-15T10:20:30+00:00"
+    }
+  ],
+  "categories": [
+    { "identifier": "layerpeek.with-action", "actions": [ { "identifier": "layerpeek.action", "title": "False alarm", "options": 0 } ] }
+  ]
+}
+'@ -split "`n"
+    }
+
+    It 'reads the list of the test bundle only' {
+        $list = ConvertFrom-VerifyNotificationList -Output $listJson -BundleIdentifier $bundleId
+        $list.Notifications | Should -HaveCount 1
+        $list.Categories | Should -HaveCount 1
+        $list.Notifications[0].attachments[0].type | Should -Be 'public.jpeg'
+        ConvertFrom-VerifyNotificationList -Output $listJson -BundleIdentifier 'io.github.pfoltynek.LayerPeek' | Should -BeNullOrEmpty
+        ConvertFrom-VerifyNotificationList -Output @('The notifications are listed only in the test bundle: x.') -BundleIdentifier $bundleId | Should -BeNullOrEmpty
+        $empty = ConvertFrom-VerifyNotificationList -Output @('{ "bundleIdentifier": "io.github.pfoltynek.LayerPeek.E2E", "notifications": [], "categories": [] }') -BundleIdentifier $bundleId
+        @($empty.Notifications) | Should -HaveCount 0
+        @($empty.Categories) | Should -HaveCount 0
+    }
+
+    It 'finds nothing wrong with the alarm as designed' {
+        $list = ConvertFrom-VerifyNotificationList -Output $listJson -BundleIdentifier $bundleId
+        $expected = [ordered]@{
+            Title = 'LP verify 1'; BodyPrefix = 'Possible print failure – '; HasSound = $true; Attachments = 1; AttachmentType = 'public.jpeg'
+            LaunchArgument = 'camera=verify'; ActionArgumentPrefix = 'false-alarm='; Category = 'layerpeek.with-action'; ActionTitle = 'False alarm'
+        }
+        @(Get-VerifyNotificationProblems -Notification $list.Notifications[0] -Expected $expected -Categories $list.Categories) | Should -HaveCount 0
+        @(Get-VerifyNotificationProblems -Notification $list.Notifications[0] -Expected @{ BodyLine = 'benchy.bgcode' }) | Should -HaveCount 0
+    }
+
+    It 'names every difference' {
+        $list = ConvertFrom-VerifyNotificationList -Output $listJson -BundleIdentifier $bundleId
+        $alarm = $list.Notifications[0]
+        @(Get-VerifyNotificationProblems -Notification $null -Expected @{}) | Should -Be @('no such notification was delivered')
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Title = 'Other' }) | Should -Be @("title 'LP verify 1', expected 'Other'")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ BodyPrefix = 'Camera' }) | Should -Be @("text 'Possible print failure – Detector e2e-alarm / benchy.bgcode' does not start with 'Camera'")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ BodyLine = 'Timelapse failed' }) | Should -HaveCount 1
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ HasSound = $false }) | Should -Be @('sound on, expected off')
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Attachments = 0 }) | Should -Be @('1 attachment(s), expected 0')
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ AttachmentType = 'public.png' }) | Should -Be @("attachment of type 'public.jpeg', expected 'public.png'")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ LaunchArgument = 'settings=recording' }) | Should -Be @("click argument 'camera=verify', expected 'settings=recording'")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ ActionArgumentPrefix = 'x=' }) | Should -HaveCount 1
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Category = 'layerpeek.with-action'; ActionTitle = 'False alarm' }) | Should -Be @("the category 'layerpeek.with-action' is not registered")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Category = 'layerpeek.with-action'; ActionTitle = 'Falešný poplach' } -Categories $list.Categories) | Should -Be @("the category 'layerpeek.with-action' has no button 'Falešný poplach' (buttons: 'False alarm')")
+        $foreground = @([pscustomobject]@{ identifier = 'layerpeek.with-action'; actions = @([pscustomobject]@{ identifier = 'layerpeek.action'; title = 'False alarm'; options = 4 }) })
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Category = 'layerpeek.with-action'; ActionTitle = 'False alarm' } -Categories $foreground) | Should -Be @("the button 'False alarm' brings the app to the front (options 4)")
+    }
+}
+
+Describe 'Open panels (mac.file-dialogs; T-213, pure)' {
+    BeforeAll {
+        $script:panel = @'
+{
+  "pid": 4242, "process": "LayerPeek", "bundleIdentifier": "io.github.pfoltynek.LayerPeek.E2E",
+  "role": "AXWindow", "subrole": "AXDialog", "sheet": false,
+  "title": "", "texts": ["Choose a timelapse to export to JPEG (experimental)"],
+  "main": true, "focused": true, "frontmost": true,
+  "folder": "/private/var/folders/xy/lpv-1/Recordings/LP verify 1/", "folderTitle": "LP verify 1",
+  "defaultButton": { "title": "Open", "enabled": false }, "cancelButton": { "title": "Cancel", "enabled": true },
+  "items": [
+    { "name": "2026-11-15_10-00-00_Benchy.mp4", "role": "AXGroup", "enabled": true, "alpha": 0.8470588235294118 },
+    { "name": "2026-11-15_10-00-00_Benchy_timelapse.mp4", "role": "AXGroup", "enabled": true, "alpha": 0.8470588235294118 },
+    { "name": "notes.txt", "role": "AXGroup", "enabled": true, "alpha": 0.24705882352941178 },
+    { "name": "other.mp4", "role": "AXGroup", "enabled": true, "alpha": null },
+    { "name": "old.mov", "role": "AXRow", "enabled": false }
+  ],
+  "frame": { "x": 100, "y": 100, "width": 800, "height": 500 }
+}
+'@ | ConvertFrom-Json
+    }
+
+    It 'accepts the free-standing panel in front with its message and folder' {
+        $expected = [ordered]@{ Sheet = $false; Title = 'Choose a timelapse to export to JPEG (experimental)'; Folder = '/var/folders/xy/lpv-1/Recordings/LP verify 1'; Front = $true }
+        Get-VerifyPanelProblems -Panel $script:panel -Expected $expected | Should -BeNullOrEmpty
+    }
+
+    It 'names a sheet, another title, another folder and a panel behind' {
+        $other = $script:panel | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        $other.sheet = $true; $other.role = 'AXSheet'; $other.texts = @('Something else'); $other.folder = '/Users/me/Movies'; $other.frontmost = $false; $other.focused = $false
+        $problems = @(Get-VerifyPanelProblems -Panel $other -Expected ([ordered]@{ Sheet = $false; Title = 'Choose'; Folder = '/var/x'; Front = $true }))
+        $problems | Should -HaveCount 5
+        $problems[0] | Should -BeLike 'a sheet (AXSheet*expected a free-standing window'
+        $problems[1] | Should -BeLike "title '' and texts 'Something else' without 'Choose'"
+        $problems[2] | Should -Be "shows the folder '/Users/me/Movies', expected '/var/x'"
+        $problems[3..4] | Should -Be @('its app is not in front', 'it is not the key window of its app')
+        Get-VerifyPanelProblems -Panel $null -Expected @{} | Should -Be @('no open panel')
+    }
+
+    It 'takes the title of the window and the path pop-up without a document' {
+        $other = $script:panel | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        $other.title = 'Choose'; $other.texts = @(); $other.folder = ''
+        Get-VerifyPanelProblems -Panel $other -Expected ([ordered]@{ Title = 'Choose'; Folder = '/tmp/LP verify 1' }) | Should -BeNullOrEmpty
+        $other.folderTitle = 'Movies'
+        Get-VerifyPanelProblems -Panel $other -Expected ([ordered]@{ Folder = '/tmp/LP verify 1' }) | Should -Be @("shows the folder 'Movies', expected '/tmp/LP verify 1'")
+    }
+
+    It 'judges which items can be chosen by the dimmed name and reports what AX does not tell' {
+        # T-243: NSOpenPanel reports AXEnabled true also for notes.txt, which its filter dims (alpha 0.25).
+        $result = Get-VerifyPanelItemProblems -Items @($script:panel.items) -Allowed '2026-11-15_10-00-00_Benchy.mp4', 'other.mp4', 'missing.mp4' -Refused 'notes.txt', 'old.mov'
+        $result.Problems | Should -BeNullOrEmpty
+        $result.Unknown | Should -Be @('other.mp4', 'missing.mp4')
+        (Get-VerifyPanelItemProblems -Items @($script:panel.items) -Allowed 'notes.txt', 'old.mov' -Refused '2026-11-15_10-00-00_Benchy.mp4').Problems |
+            Should -Be @("'notes.txt' is disabled, expected enabled", "'old.mov' is disabled, expected enabled", "'2026-11-15_10-00-00_Benchy.mp4' is enabled, expected disabled")
+    }
+
+    It 'does not take AXEnabled true alone for an item that can be chosen' {
+        $items = @([pscustomobject]@{ name = 'notes.txt'; role = 'AXRow'; enabled = $true }, [pscustomobject]@{ name = 'a.mp4'; role = 'AXRow' })
+        $result = Get-VerifyPanelItemProblems -Items $items -Allowed 'a.mp4' -Refused 'notes.txt'
+        $result.Problems | Should -BeNullOrEmpty
+        $result.Unknown | Should -Be @('a.mp4', 'notes.txt')
+        (Get-VerifyPanelItemProblems -Items @() -Refused 'notes.txt').Unknown | Should -Be @('notes.txt')
+    }
+
+    It 'reads the results of the file jobs from the log' {
+        $log = @(
+            "2026-11-15 10:00:01.000 +01:00 [INF] LayerPeek.Core.Cameras.Timelapse.CameraTimelapseJpegExporter: The JPEG export of '2026-11-15_10-00-00_Benchy.mp4' ended without a folder (NotATimelapse).",
+            "2026-11-15 10:00:09.000 +01:00 [INF] LayerPeek.Core.Cameras.Timelapse.CameraTimelapseJpegExporter: Exported 12 timelapse frames as JPEG into '2026-11-15_10-00-00_Benchy_timelapse_jpg'.",
+            "2026-11-15 10:01:00.000 +01:00 [INF] LayerPeek.Core.Cameras.Timelapse.CameraTimelapseFromRecordingMaker: Made a timelapse of 9 frames in 1 file(s) from the recording '2026-11-15_10-00-00_Benchy.mp4'.",
+            "2026-11-15 10:02:00.000 +01:00 [INF] LayerPeek.Core.Cameras.Timelapse.CameraTimelapseFromRecordingMaker: The timelapse from the recording '2026-11-15_10-00-00_Benchy.mp4' ended without a file (Cancelled).",
+            'something else'
+        ) -join "`n"
+        $events = @(Get-VerifyFileJobEvents $log)
+        $events.Kind | Should -Be @('NotExported', 'Exported', 'Made', 'NotMade')
+        $events[0].Problem | Should -Be 'NotATimelapse'
+        $events[1].Frames | Should -Be 12
+        $events[1].Name | Should -Be '2026-11-15_10-00-00_Benchy_timelapse_jpg'
+        $events[2].Files | Should -Be 1
+        $events[3].Problem | Should -Be 'Cancelled'
+        @(Get-VerifyFileJobEvents '') | Should -HaveCount 0
+    }
+
+    It 'reads the percentage of a running job from the menu, also in a submenu' {
+        $items = @(
+            [pscustomobject]@{ title = 'Settings…'; submenu = $null },
+            [pscustomobject]@{ title = 'LP verify 1 – Idle'; submenu = @(
+                    [pscustomobject]@{ title = 'Cancel JPEG export (42%)'; submenu = $null },
+                    [pscustomobject]@{ title = 'Create timelapse from recording… (experimental)'; submenu = $null }) }
+        )
+        Get-VerifyMenuPercent -Items $items -Format 'Cancel JPEG _export ({0}%)' | Should -Be 42
+        Get-VerifyMenuPercent -Items $items -Format 'Cancel ti_melapse from recording ({0}%)' | Should -BeNullOrEmpty
+        Get-VerifyMenuPercent -Items @() -Format 'Cancel JPEG _export ({0}%)' | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'The stand-in GitHub API (tools/fake-github-releases.ps1)' {
+    BeforeAll {
+        function Start-ChildPwsh([string[]] $Arguments, [string] $Output) {
+            # The same PowerShell as this run, also the dotnet tool ('dotnet pwsh.dll').
+            $command = @(Get-PwshCommand)
+            $all = @($command | Select-Object -Skip 1) + @('-NoProfile', '-NonInteractive') + $Arguments
+            if ($Output) { Start-Process -FilePath $command[0] -ArgumentList $all -PassThru -NoNewWindow -RedirectStandardOutput $Output }
+            else { Start-Process -FilePath $command[0] -ArgumentList $all -PassThru -NoNewWindow }
+        }
+    }
+
+    It 'lists one release with the checksum files of both OSes, late by the delay, logs the requests and answers 404 otherwise' {
+        $log = Join-Path $script:TempRoot 'github-requests.txt'
+        $out = Join-Path $script:TempRoot 'github-out.txt'
+        $server = Start-ChildPwsh @('-File', (Join-Path $PSScriptRoot 'fake-github-releases.ps1'), '-Version', '9.9.0', '-DelayMilliseconds', '300', '-RequestLog', $log, '-ParentProcessId', "$PID") $out
+        try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(30)
+            while ([DateTime]::UtcNow -lt $deadline -and -not ((Test-Path -LiteralPath $out) -and (Select-String -LiteralPath $out -Pattern '^Address: ' -Quiet))) { Start-Sleep -Milliseconds 100 }
+            $base = ([regex]::Match((Get-Content -LiteralPath $out -Raw), 'Address: (\S+)')).Groups[1].Value
+            $base | Should -Match '^http://127\.0\.0\.1:\d+/$'
+            $watch = [System.Diagnostics.Stopwatch]::StartNew()
+            $releases = @(Invoke-RestMethod -Uri "${base}repos/pfoltynek/LayerPeek/releases?per_page=30" -TimeoutSec 10)
+            $watch.ElapsedMilliseconds | Should -BeGreaterOrEqual 250
+            $releases | Should -HaveCount 1
+            $releases[0].tag_name | Should -Be 'v9.9.0'
+            $releases[0].draft | Should -BeFalse
+            $releases[0].prerelease | Should -BeFalse
+            $releases[0].html_url | Should -Be 'https://github.com/pfoltynek/LayerPeek/releases/tag/v9.9.0'
+            @($releases[0].assets | Where-Object state -EQ 'uploaded' | ForEach-Object name) | Should -Contain 'SHA256SUMS-macos.txt'
+            @($releases[0].assets | Where-Object state -EQ 'uploaded' | ForEach-Object name) | Should -Contain 'SHA256SUMS-windows.txt'
+            { Invoke-RestMethod -Uri "${base}other" -TimeoutSec 10 } | Should -Throw '*404*'
+            $requests = @(Get-Content -LiteralPath $log)
+            $requests | Should -HaveCount 2
+            $requests[0] | Should -Match 'GET /repos/pfoltynek/LayerPeek/releases\?per_page=30 HTTP/1.1 -> 200 OK$'
+            $requests[1] | Should -Match 'GET /other HTTP/1.1 -> 404 Not Found$'
+        }
+        finally { if (-not $server.HasExited) { $server.Kill($true); $server.WaitForExit() } }
+    }
+
+    It 'ends when its parent process ends' {
+        $out = Join-Path $script:TempRoot 'github-parent.txt'
+        # The parent ends when the test kills it (as a killed verification run), not after a fixed sleep (T-246): the sleep
+        # made the test wait for it, and a server that took longer to start than the sleep (a loaded CI runner) would
+        # already have seen its parent gone.
+        $parent = Start-ChildPwsh @('-Command', 'Start-Sleep -Seconds 300')
+        $server = Start-ChildPwsh @('-File', (Join-Path $PSScriptRoot 'fake-github-releases.ps1'), '-ParentProcessId', "$($parent.Id)") $out
+        try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(30)
+            while ([DateTime]::UtcNow -lt $deadline -and -not ((Test-Path -LiteralPath $out) -and (Select-String -LiteralPath $out -Pattern '^Address: ' -Quiet))) { Start-Sleep -Milliseconds 100 }
+            Get-Content -LiteralPath $out -Raw | Should -Match 'Address: http://127\.0\.0\.1:\d+/'
+            $server.HasExited | Should -BeFalse
+            $parent.Kill()
+            $parent.WaitForExit(30000) | Should -BeTrue
+            $server.WaitForExit(30000) | Should -BeTrue
+        }
+        finally { foreach ($process in $server, $parent) { if (-not $process.HasExited) { $process.Kill($true) } } }
+    }
 }
 
 Describe 'Self-test of the engine' {
@@ -415,6 +1138,29 @@ Describe 'The verification scripts' {
         $run.Text | Should -Match 'SELF-TEST PASSED'
     }
 
+    It 'macos-verify.ps1 -ListChecks -Preset release lists only Auto and Permission checks with their criteria (T-208)' {
+        $run = Invoke-ScriptOnce 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run.ExitCode | Should -Be 0 -Because $run.Text
+        $run.Output[0] | Should -Match '^Preset release: \d+ checks, unattended; allowed in advance: mac\.'
+        $listed = @($run.Output | Where-Object { $_ -match '^\S+  \[(auto|permission|manual)\]' })
+        $listed.Count | Should -BeGreaterThan 10
+        $listed | ForEach-Object { $_ | Should -Match '^mac\.\S+  \[(auto|permission)\]' }
+        @($run.Output | Where-Object { $_ -match '^    closes: T-\d{3}' }).Count | Should -BeGreaterOrEqual $listed.Count
+        $all = Invoke-Script 'macos-verify.ps1' @('-ListChecks')
+        @($all.Output | Where-Object { $_ -match '^\S+  \[' }).Count | Should -BeGreaterThan $listed.Count
+    }
+
+    It 'macos-verify.ps1 refuses an unknown preset and -Preset with -Only before it creates anything' {
+        $out = Join-Path $script:TempRoot 'out-preset'
+        $unknown = Invoke-Script 'macos-verify.ps1' @('-Preset', 'nothing', '-OutputRoot', $out)
+        $unknown.ExitCode | Should -Be 2
+        $unknown.Text | Should -Match "Unknown preset 'nothing' \(presets: release\)"
+        $both = Invoke-Script 'macos-verify.ps1' @('-Preset', 'release', '-Only', 'mac.dock', '-OutputRoot', $out)
+        $both.ExitCode | Should -Be 2
+        $both.Text | Should -Match '-Preset and -Only do not go together'
+        Test-Path -LiteralPath $out | Should -BeFalse
+    }
+
     It 'macos-verify.ps1 refuses an unknown check id before it creates anything' -Skip:(-not $IsMacOS) {
         $out = Join-Path $script:TempRoot 'out-mac'
         $run = Invoke-Script 'macos-verify.ps1' @('-Unattended', '-Only', 'mac.nothing', '-OutputRoot', $out)
@@ -435,5 +1181,293 @@ Describe 'The verification scripts' {
         $run = Invoke-Script $other @('-Unattended', '-OutputRoot', (Join-Path $script:TempRoot 'out-other'))
         $run.ExitCode | Should -Be 2
         $run.Text | Should -Match 'runs on (macOS|Windows) only'
+    }
+}
+
+Describe 'Windows, the Dock and the camera image (mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live, mac.camera-next-attempt; T-215, pure)' {
+    BeforeAll {
+        $script:secondsFormat = 'Next attempt in about {0} s'
+        $script:minutesFormat = 'Next attempt in about {0} min'
+        # One 'axwatch' line: the text of <seconds> at <ms>; $null = the line not shown.
+        function New-WatchLine([int] $Ms, $Seconds) {
+            $text = if ($null -eq $Seconds) { '' } elseif ($Seconds -ge 60) { "Next attempt in about $($Seconds / 60) min" } else { "Next attempt in about $Seconds s" }
+            [pscustomobject]@{ ms = $Ms; found = $null -ne $Seconds; text = $text; frame = [pscustomobject]@{ width = 200; height = 16 } }
+        }
+        # A whole pause counted down each second from -From, starting at -At ms (-Hide: the ms range the line is hidden).
+        function New-WatchPause([int] $From, [int] $At, [int[]] $Hide = @()) {
+            for ($i = 0; $i -lt $From; $i++) {
+                $ms = $At + $i * 1000
+                if ($Hide.Count -eq 2 -and $ms -ge $Hide[0] -and $ms -lt $Hide[1]) { continue }
+                New-WatchLine $ms ($From - $i)
+            }
+        }
+    }
+
+    It 'formats and compares window bounds' {
+        $window = [pscustomobject]@{ x = 951; y = 619; width = 320; height = 180 }
+        Format-VerifyBounds $window | Should -Be '320 x 180 pt at 951, 619'
+        Format-VerifyBounds $null | Should -Be 'no window'
+        Get-VerifyBoundsProblem -Actual $window -Expected ([pscustomobject]@{ x = 951.5; y = 618.2; width = 320; height = 180.9 }) | Should -BeNullOrEmpty
+        Get-VerifyBoundsProblem -Actual $window -Expected ([pscustomobject]@{ x = 400; y = 300; width = 480; height = 270 }) | Should -BeLike '320 x 180 pt at 951, 619, expected 480 x 270 pt at 400, 300 (off: x, y, width, height*'
+        Get-VerifyBoundsProblem -Actual $window -Expected ([pscustomobject]@{ x = 400; y = 300; width = 320; height = 180 }) -SizeOnly | Should -BeNullOrEmpty
+        Get-VerifyBoundsProblem -Actual $null -Expected $window | Should -Be 'no window'
+    }
+
+    It 'tells the corner of a window and its screen' {
+        $area = [pscustomobject]@{ x = 0; y = 30; width = 1287; height = 799 }
+        $corner = Get-VerifyWindowCorner -Window ([pscustomobject]@{ x = 951; y = 613; width = 320; height = 200 }) -Area $area
+        $corner.Corner | Should -Be 'BottomRight'
+        $corner.Right | Should -Be 16
+        $corner.Bottom | Should -Be 16
+        (Get-VerifyWindowCorner -Window ([pscustomobject]@{ x = 16; y = 46; width = 320; height = 180 }) -Area $area).Corner | Should -Be 'TopLeft'
+        $screens = @(
+            [pscustomobject]@{ id = 1; frame = [pscustomobject]@{ x = 0; y = 0; width = 1287; height = 900 } },
+            [pscustomobject]@{ id = 2; frame = [pscustomobject]@{ x = 1287; y = 0; width = 1792; height = 1120 } }
+        )
+        (Get-VerifyScreenOf $screens ([pscustomobject]@{ x = 1200; y = 100; width = 320; height = 180 })).id | Should -Be 2
+        (Get-VerifyScreenOf $screens ([pscustomobject]@{ x = 100; y = 100; width = 320; height = 180 })).id | Should -Be 1
+        Get-VerifyScreenOf $screens $null | Should -BeNullOrEmpty
+    }
+
+    It 'finds the windows the Dock menu does not list' {
+        $items = @([pscustomobject]@{ title = 'LP verify 1 – Camera' }, [pscustomobject]@{ title = '' }, [pscustomobject]@{ title = 'Options' })
+        @(Get-VerifyDockMenuProblems -MenuItems $items -WindowTitles 'LP verify 1 – Camera') | Should -HaveCount 0
+        Get-VerifyDockMenuProblems -MenuItems $items -WindowTitles 'LP verify 1 – Camera', 'Settings' | Should -Be @("the Dock menu does not list the window 'Settings' (its items: 'LP verify 1 – Camera', 'Options')")
+    }
+
+    It 'tells which window is in front at a point' {
+        $at = @([pscustomobject]@{ number = 7 }, [pscustomobject]@{ number = 3 }, [pscustomobject]@{ number = 9 })
+        Get-VerifyWindowOrder -Windows $at -Number 3 -Other 9 | Should -Be 'above'
+        Get-VerifyWindowOrder -Windows $at -Number 9 -Other 7 | Should -Be 'below'
+        Get-VerifyWindowOrder -Windows $at -Number 4 -Other 7 | Should -Be 'unknown'
+    }
+
+    It 'reads the RTSP connections of lsof' {
+        $lines = @(
+            'LayerPeek 4242 me 31u IPv4 0x1 0t0 TCP 127.0.0.1:52345->127.0.0.1:8554 (ESTABLISHED)',
+            'LayerPeek 4242 me 32u IPv4 0x2 0t0 TCP 127.0.0.1:52340->127.0.0.1:8554 (ESTABLISHED)',
+            'nothing'
+        )
+        Get-VerifyRtspPeers $lines | Should -Be @('127.0.0.1:52340->127.0.0.1:8554', '127.0.0.1:52345->127.0.0.1:8554')
+        @(Get-VerifyRtspPeers @()) | Should -HaveCount 0
+    }
+
+    It 'tells a live image from a frozen one' {
+        (Get-VerifyLiveImageVerdict -Diff ([pscustomobject]@{ pixels = 10000; slightShare = 0.01; mean = 0.1 })).Live | Should -BeTrue
+        (Get-VerifyLiveImageVerdict -Diff ([pscustomobject]@{ pixels = 10000; slightShare = 0; mean = 0.5 })).Live | Should -BeTrue
+        $frozen = Get-VerifyLiveImageVerdict -Diff ([pscustomobject]@{ pixels = 10000; slightShare = 0; mean = 0 })
+        $frozen.Live | Should -BeFalse
+        $frozen.Detail | Should -Be '0 % of 10000 pixels changed by more than 8 levels, mean difference 0'
+        (Get-VerifyLiveImageVerdict -Diff $null).Live | Should -BeFalse
+    }
+
+    It 'finds the black captures against the baseline' {
+        $frames = @(
+            [pscustomobject]@{ ms = 0; file = 'capture-0001.png'; mean = 80; deviation = 30 },
+            [pscustomobject]@{ ms = 100; file = 'capture-0002.png'; mean = 82; deviation = 30 },
+            [pscustomobject]@{ ms = 200; file = 'capture-0003.png'; mean = 79; deviation = 30 },
+            [pscustomobject]@{ ms = 300; file = 'capture-0004.png'; error = 'screencapture exit code 1' },
+            [pscustomobject]@{ ms = 400; file = 'capture-0005.png'; mean = 15; deviation = 2 },
+            [pscustomobject]@{ ms = 500; file = 'capture-0006.png'; mean = 60; deviation = 25 }
+        )
+        $result = Get-VerifyBlackFrames -Frames $frames -BaselineCount 3
+        $result.Baseline | Should -Be 80
+        $result.Threshold | Should -Be 20
+        $result.Frames | Should -Be 5
+        $result.Errors | Should -Be 1
+        @($result.Black.file) | Should -Be @('capture-0005.png')
+        # A dark camera image: the floor of 8 levels decides.
+        (Get-VerifyBlackFrames -Frames $frames -Baseline 20).Threshold | Should -Be 8
+        (Get-VerifyBlackFrames -Frames @()).Frames | Should -Be 0
+    }
+
+    It 'reads the seconds of the next attempt line' {
+        ConvertFrom-VerifyNextAttemptText -Text 'Next attempt in about 5 s' -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -Be 5
+        ConvertFrom-VerifyNextAttemptText -Text "Next attempt in about 40`u{00A0}s" -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -Be 40
+        ConvertFrom-VerifyNextAttemptText -Text 'Next attempt in about 1 min' -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -Be 60
+        ConvertFrom-VerifyNextAttemptText -Text 'Další pokus asi za 5 s' -SecondsFormat 'Další pokus asi za {0} s' -MinutesFormat 'Další pokus asi za {0} min' | Should -Be 5
+        ConvertFrom-VerifyNextAttemptText -Text 'Connecting to the camera…' -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -BeNullOrEmpty
+        ConvertFrom-VerifyNextAttemptText -Text '' -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat | Should -BeNullOrEmpty
+    }
+
+    It 'splits the timeline into pauses and accepts the countdown as designed' {
+        # 5, 10, 20 (the mini preview hides the line 3 s), 40, 1 min (restored after 6 s: a new attempt, 5 s again).
+        $timeline = @(
+            New-WatchLine 0 $null; New-WatchPause 5 100; New-WatchLine 5100 $null; New-WatchPause 10 5200; New-WatchLine 15200 $null
+            New-WatchPause 20 15300 -Hide 19300, 22300; New-WatchLine 19400 $null; New-WatchLine 35300 $null
+            New-WatchPause 40 35400; New-WatchLine 75400 $null; New-WatchLine 75500 60; New-WatchLine 81500 $null; New-WatchLine 81900 5; New-WatchLine 82900 4
+        ) | Sort-Object ms
+        $pauses = @(Get-VerifyNextAttemptPauses -Timeline $timeline -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat)
+        @($pauses.Start) | Should -Be @(5, 10, 20, 40, 60, 5)
+        $pauses[2].Values[4].Gap | Should -BeTrue
+        $pauses[2].Values[4].Seconds | Should -Be 13
+        @(Get-VerifyCountdownProblems -Pauses $pauses -Expected 5, 10, 20, 40, 60) | Should -HaveCount 0
+    }
+
+    It 'names a missing pause, a wrong start, a skipped second and a shortened pause' {
+        $timeline = @(
+            New-WatchPause 5 0; New-WatchLine 5000 $null; New-WatchLine 5100 10; New-WatchLine 6100 9; New-WatchLine 8100 7; New-WatchLine 9100 6
+            New-WatchLine 9200 $null; New-WatchPause 30 9300
+        )
+        $pauses = @(Get-VerifyNextAttemptPauses -Timeline $timeline -SecondsFormat $secondsFormat -MinutesFormat $minutesFormat)
+        $problems = @(Get-VerifyCountdownProblems -Pauses $pauses -Expected 5, 10, 20, 40)
+        $problems[0] | Should -Be '3 pause(s) seen (starting with 5, 10, 30 s), expected at least 4 (5, 10, 20, 40 s)'
+        $problems | Should -Contain 'pause 2 (10 s): 9 s then 7 s after 2000 ms (expected 1 s less after about 1000 ms)'
+        $problems | Should -Contain 'pause 2 (10 s) ended early: last shown 6 s, 4 s after its start'
+        $problems | Should -Contain 'pause 3 started with 30 s, expected 20 s'
+    }
+}
+
+Describe 'First run with an unlocked screen (2026-11-15, pure)' {
+    It 'compares menu titles with no-break spaces as plain spaces' {
+        ConvertTo-VerifyMenuTitle "Save the last 2`u{00A0}min" | Should -BeExactly 'Save the last 2 min'
+        ConvertTo-VerifyMenuTitle "10`u{202F}%`u{2007}x" | Should -BeExactly '10 % x'
+        ConvertTo-VerifyMenuTitle 'Open PrusaLink' | Should -BeExactly 'Open PrusaLink'
+        ConvertTo-VerifyMenuTitle $null | Should -BeExactly ''
+    }
+
+    It 'tells the selected tab of the Accessibility tree' {
+        $pipe = [pscustomobject]@{ identifier = 'PART_LayoutRoot'; children = @([pscustomobject]@{ identifier = 'PART_SelectedPipe'; children = @() }) }
+        Test-VerifyAxTabSelected ([pscustomobject]@{ identifier = 'SettingsTabPrinters'; value = ''; children = @($pipe) }) | Should -BeTrue
+        Test-VerifyAxTabSelected ([pscustomobject]@{ identifier = 'SettingsTabWidgets'; value = ''; children = @([pscustomobject]@{ identifier = 'PART_LayoutRoot'; children = @() }) }) | Should -BeFalse
+        Test-VerifyAxTabSelected ([pscustomobject]@{ identifier = 'x'; value = 1; children = @() }) | Should -BeTrue
+        Test-VerifyAxTabSelected $null | Should -BeFalse
+    }
+
+    It 'lists the tab items of a TabControl without the sub-tabs in its content' {
+        $tab = { param($Id) [pscustomobject]@{ identifier = $Id; role = 'AXRadioButton'; children = @() } }
+        $sub = [pscustomobject]@{ identifier = 'SettingsPrinterTabs'; role = 'AXTabGroup'; children = @([pscustomobject]@{ identifier = 'PART_ItemsPresenter'; role = 'AXGroup'; children = @((& $tab 'PrinterTabConnection'), (& $tab 'PrinterTabDetection')) }) }
+        $group = [pscustomobject]@{
+            identifier = 'SettingsTabs'; role = 'AXTabGroup'; children = @(
+                [pscustomobject]@{ identifier = 'PART_ItemsPresenter'; role = 'AXGroup'; children = @((& $tab 'SettingsTabPrinters'), (& $tab 'SettingsTabWidgets'), (& $tab 'SettingsTabCamera')) }
+                [pscustomobject]@{ identifier = 'PART_SelectedContentHost'; role = 'AXGroup'; children = @($sub) })
+        }
+        @(Get-VerifyAxTabItems $group).identifier | Should -Be @('SettingsTabPrinters', 'SettingsTabWidgets', 'SettingsTabCamera')
+        @(Get-VerifyAxTabItems $sub).identifier | Should -Be @('PrinterTabConnection', 'PrinterTabDetection')
+        @(Get-VerifyAxTabItems $null) | Should -HaveCount 0
+    }
+
+    It 'formats a number for the command line in the invariant culture' {
+        $culture = [cultureinfo]::CurrentCulture
+        try {
+            [cultureinfo]::CurrentCulture = [cultureinfo]::GetCultureInfo('cs-CZ')
+            Format-VerifyInvariantNumber 25 | Should -BeExactly '25'
+            Format-VerifyInvariantNumber 12.5 | Should -BeExactly '12.5'
+            Format-VerifyInvariantNumber 0.04 | Should -BeExactly '0.04'
+        }
+        finally { [cultureinfo]::CurrentCulture = $culture }
+    }
+
+    It 'tells that the Debug test mode recorded the addresses instead of opening the browser' {
+        Test-VerifyUrlsRecorded '2026-11-15 16:19:35.701 +01:00 INF [pid 34352] LayerPeek.App.Platform.RecordingUrlLauncher: Test mode: an address on github.com was recorded instead of opening the browser.' | Should -BeTrue
+        Test-VerifyUrlsRecorded 'LayerPeek.App.Platform.ProcessUrlLauncher: opened' | Should -BeFalse
+        Test-VerifyUrlsRecorded $null | Should -BeFalse
+    }
+
+    It 'starts the test app of mac.open-fake with the fake open first in PATH and the real launcher of T-238' {
+        $environment = Get-VerifyOpenFakeEnvironment -Path '/tmp/fake-open:/usr/bin:/bin'
+        $environment.PATH | Should -BeExactly '/tmp/fake-open:/usr/bin:/bin'
+        $environment.LAYERPEEK_TEST_REAL_URL_LAUNCHER | Should -BeExactly '1'
+        @($environment.Keys) | Should -HaveCount 2
+    }
+}
+
+Describe 'Small checks (mac.camera-pin-ax, mac.detection-region, mac.appkit-language, mac.open-fake, mac.hw-decoding-switch, mac.keys-czech-layout; T-216, pure)' {
+    BeforeAll {
+        $script:regionFormat = "Bed region: {0}`u{00A0}% from the left, {1}`u{00A0}% from the top, {2}`u{00A0}% wide, {3}`u{00A0}% high"
+    }
+
+    It 'reads the numbers of a formatted resource text' {
+        ConvertFrom-VerifyFormattedText -Format $regionFormat -Text "Bed region: 15`u{00A0}% from the left, 55`u{00A0}% from the top, 70`u{00A0}% wide, 45`u{00A0}% high" | Should -Be @(15, 55, 70, 45)
+        # Any white space matches, the numbers come in the order of the placeholders, not of the text.
+        ConvertFrom-VerifyFormattedText -Format $regionFormat -Text 'Bed region: 5 % from the left, 6 % from the top, 40 % wide, 35 % high' | Should -Be @(5, 6, 40, 35)
+        ConvertFrom-VerifyFormattedText -Format '{1} high, {0} wide (*)' -Text '20 high, 30 wide (*)' | Should -Be @(30, 20)
+        ConvertFrom-VerifyFormattedText -Format $regionFormat -Text 'Whole frame' | Should -BeNullOrEmpty
+        ConvertFrom-VerifyFormattedText -Format $regionFormat -Text '' | Should -BeNullOrEmpty
+    }
+
+    It 'compares a region in percent and converts one of settings.json' {
+        Get-VerifyRegionProblem -Actual 15, 55, 70, 45 -Expected 15, 55, 70, 45 | Should -BeNullOrEmpty
+        Get-VerifyRegionProblem -Actual 6, 5, 40, 35 -Expected 5, 5, 40, 35 -Tolerance 2 | Should -BeNullOrEmpty
+        Get-VerifyRegionProblem -Actual 16, 55, 70, 45 -Expected 15, 55, 71.5, 45 | Should -Be 'region 16 / 55 / 70 / 45 %: x 16 (expected 15), width 70 (expected 71.5)'
+        Get-VerifyRegionProblem -Actual $null -Expected 15, 55, 70, 45 | Should -Be 'no region'
+        ConvertTo-VerifyRegionPercent ([pscustomobject]@{ x = 0.15; y = 0.55; width = 0.7; height = 0.45 }) | Should -Be @(15, 55, 70, 45)
+        ConvertTo-VerifyRegionPercent ([pscustomobject]@{ x = 0.065; y = 0; width = 0.4049; height = 1 }) | Should -Be @(7, 0, 40, 100)
+        ConvertTo-VerifyRegionPercent $null | Should -BeNullOrEmpty
+    }
+
+    It 'lists the decoding paths of the log in order' {
+        $log = "2026-11-15 10:00:01 [Information] Camera video decoding: videotoolbox.`n2026-11-15 10:00:09 [Information] Camera video decoding: software (the option is off).`r`nother`nCamera video decoding: videotoolbox."
+        Get-VerifyDecodingPaths $log | Should -Be @('videotoolbox', 'software (the option is off)', 'videotoolbox')
+        Get-VerifyDecodingPaths '' | Should -HaveCount 0
+    }
+
+    It 'tells the language of AppKit titles' {
+        $found = @(Get-VerifyTitleLanguages -Titles 'Abbrechen', 'Öffnen', 'Copy')
+        $found[0].Language | Should -Be 'de'
+        $found[0].Matches | Should -Be 2
+        $found[1].Language | Should -Be 'en'
+        (Get-VerifyTitleLanguages -Titles 'Zrušit', 'Otevřít…')[0].Language | Should -Be 'cs'
+        # "Kopírovat" is Czech, "Kopírovať" Slovak.
+        (Get-VerifyTitleLanguages -Titles 'Kopírovať', 'Vložiť')[0].Language | Should -Be 'sk'
+        Get-VerifyTitleLanguages -Titles 'Something' | Should -HaveCount 0
+        Get-VerifyTitleLanguages -Titles @() | Should -HaveCount 0
+        # The access key of the app's own menus (T-242) does not count.
+        (Get-VerifyTitleLanguages -Titles '_Ausschneiden', 'Alles aus_wählen')[0].Matches | Should -Be 2
+    }
+
+    It 'tells whether the text field menu is in the language of LayerPeek (T-242)' {
+        Get-VerifyTextMenuProblem -Titles '_Ausschneiden', '_Kopieren', '_Einsetzen', 'Alles aus_wählen' -Language 'de' | Should -BeNullOrEmpty
+        Get-VerifyTextMenuProblem -Titles 'V_ložiť', 'Vybrať _všetko' -Language 'sk' | Should -BeNullOrEmpty
+        Get-VerifyTextMenuProblem -Titles 'Cut', 'Copy', 'Paste' -Language 'de' | Should -Be "items 'Cut', 'Copy', 'Paste' are en, expected all de (0 of 3)"
+        Get-VerifyTextMenuProblem -Titles 'Ausschneiden', 'Paste' -Language 'de' | Should -Match 'expected all de \(1 of 2\)'
+        Get-VerifyTextMenuProblem -Titles 'Something' -Language 'de' | Should -Match 'in no LayerPeek language'
+        Get-VerifyTextMenuProblem -Titles @() -Language 'de' | Should -Be 'no items'
+    }
+
+    It 'picks a LayerPeek language other than the system language' {
+        Get-VerifyOtherLanguage -SystemLanguages 'cs-CZ', 'en-US' | Should -Be 'de'
+        Get-VerifyOtherLanguage -SystemLanguages 'de-AT' | Should -Be 'fr'
+        Get-VerifyOtherLanguage -SystemLanguages 'de' | Should -Be 'fr'
+        Get-VerifyOtherLanguage -SystemLanguages @() | Should -Be 'de'
+    }
+
+    It 'finds the default browser of the LaunchServices handlers' {
+        $handlers = '{"LSHandlers":[{"LSHandlerContentType":"public.html","LSHandlerRoleAll":"com.apple.safari"},{"LSHandlerURLScheme":"http","LSHandlerRoleAll":"org.mozilla.firefox"},{"LSHandlerURLScheme":"https","LSHandlerRoleAll":"com.Google.Chrome"}]}' | ConvertFrom-Json
+        Get-VerifyDefaultBrowser $handlers | Should -Be 'com.google.chrome'
+        Get-VerifyDefaultBrowser ('{"LSHandlers":[{"LSHandlerURLScheme":"http","LSHandlerRoleAll":"org.mozilla.firefox"}]}' | ConvertFrom-Json) | Should -Be 'org.mozilla.firefox'
+        Get-VerifyDefaultBrowser ('{"LSHandlers":[]}' | ConvertFrom-Json) | Should -Be 'com.apple.safari'
+        Get-VerifyDefaultBrowser $null | Should -Be 'com.apple.safari'
+    }
+
+    It 'reads the answers of the web proxy from the detailed log' {
+        $log = "x Web proxy: GET / answered 200 (printer 'verify').`ny Web proxy: GET /assets/app.js answered 304 (printer 'verify').`nWeb proxy: a POST request from another web page was rejected (header Origin) (printer 'verify')."
+        $answers = @(Get-VerifyProxyAnswers $log)
+        $answers | Should -HaveCount 2
+        $answers[0].Method | Should -Be 'GET'
+        $answers[0].Path | Should -Be '/'
+        $answers[0].Status | Should -Be 200
+        $answers[0].Printer | Should -Be 'verify'
+        $answers[1].Status | Should -Be 304
+        Get-VerifyProxyAnswers '' | Should -HaveCount 0
+    }
+
+    It 'judges a move of the selected tab' {
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b', 'c' -Before 'a' -After 'b' | Should -BeNullOrEmpty
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b', 'c' -Before 'c' -After 'a' | Should -BeNullOrEmpty
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b', 'c' -Before 'a' -After 'c' -Step -1 | Should -BeNullOrEmpty
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b', 'c' -Before 'a' -After 'a' | Should -Be 'went from a to a, expected b'
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b' -Before 'x' -After 'a' | Should -Be 'the tab x is not one of a, b'
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b' -Before '' -After 'a' | Should -Be 'the selected tab could not be read'
+    }
+
+    It 'puts the small checks into the release preset' {
+        $run = Invoke-ScriptOnce 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run.ExitCode | Should -Be 0 -Because $run.Text
+        foreach ($id in 'mac.camera-autoclose', 'mac.camera-pin-ax', 'mac.open-fake') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
+        foreach ($id in 'mac.detection-region', 'mac.appkit-language', 'mac.hw-decoding-switch', 'mac.keys-czech-layout') {
+            @($run.Output | Where-Object { $_ -like "$id  *``[permission``]*" }) | Should -HaveCount 1 -Because $id
+            $run.Output[0] | Should -BeLike "*allowed in advance:*$id*"
+        }
     }
 }

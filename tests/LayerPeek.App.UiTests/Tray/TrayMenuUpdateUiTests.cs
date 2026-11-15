@@ -46,14 +46,14 @@ public sealed class TrayMenuUpdateUiTests(HeadlessSession session)
             Dispatcher.UIThread.RunJobs();
             Assert.DoesNotContain(header, Headers(menu));
 
-            // 0.3.2 released: the item right above "About".
+            // 0.3.2 released: the item right above "User manual" (T-172) and "About".
             checker.Next = new UpdateRelease(ReleaseVersion.Parse("0.3.2"), UpdateRelease.PageFor(ReleaseVersion.Parse("0.3.2")), IsPrerelease: true);
             await offer.CheckNowAsync(TestContext.Current.CancellationToken);
             Dispatcher.UIThread.RunJobs();
             List<string?> headers = Headers(menu);
             int index = headers.IndexOf(header);
             Assert.True(index > 0, string.Join(" | ", headers));
-            Assert.Equal(Strings.MenuAbout, headers[index + 1]);
+            Assert.Equal([Strings.MenuManual, Strings.MenuAbout], headers[(index + 1)..(index + 3)]);
             NativeMenuItem item = menu.Items.OfType<NativeMenuItem>().Single(item => item.Header == header);
             Assert.True(item.IsEnabled);
             Assert.Equal(Strings.MenuUpdateOpenPageHint, item.ToolTip);

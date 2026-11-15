@@ -79,6 +79,19 @@ internal static partial class Program
             return Platform.MacOS.TestNotificationCleanup.StatusFromCommandLine(Console.Out, Console.Error);
         }
 
+        if (args.Contains(AppEnvironment.NotificationListArgument, StringComparer.Ordinal))
+        {
+            // The content checks of tools/macos-verify.ps1 (T-212): the delivered notifications and the categories of the test
+            // bundle as JSON, without changing or asking anything; nothing else starts.
+            if (!OperatingSystem.IsMacOS())
+            {
+                Console.Error.WriteLine("The notification list exists on macOS only.");
+                return 1;
+            }
+
+            return Platform.MacOS.TestNotificationList.ListFromCommandLine(Console.Out, Console.Error);
+        }
+
         if (args.Contains(AppEnvironment.ClearAutostartArgument, StringComparer.Ordinal))
         {
             // After a crashed test run (T-019): only the autostart stand-ins in the test data folder go; never the real Login
@@ -481,6 +494,7 @@ internal static partial class Program
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()
             .UsePlatformDetect()
+            .UseAppFont()
             .LogToTrace();
 
     private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging, UnhandledExceptionLogger crashes, EarlyServices? early) =>
@@ -490,6 +504,8 @@ internal static partial class Program
             // but Avalonia sets its own activation policy when it starts (ShowInDock true = a regular app with a Dock icon), so
             // the accessory policy is set here too; it also keeps a development build out of the Dock.
             .With(new MacOSPlatformOptions { ShowInDock = false })
+            // macOS (T-223): the bundled Inter instead of San Francisco, which Avalonia lays out too narrow (T-222).
+            .UseAppFont()
             .LogToTrace()
             // The UI thread's dispatcher exists once the platform is set up, before the app starts.
             .AfterSetup(_ => crashes.AttachToDispatcher(Dispatcher.UIThread));

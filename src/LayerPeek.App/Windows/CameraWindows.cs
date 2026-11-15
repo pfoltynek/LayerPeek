@@ -4,6 +4,7 @@ using Avalonia.Controls;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Layout;
+using LayerPeek.App.Platform;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
@@ -21,6 +22,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     private readonly IScreenCatalog? _screens;
     private readonly Func<CameraWindow, WindowChrome?>? _measureChrome;
     private readonly Func<CameraWindow, double, WindowChrome?>? _predictChrome;
+    private readonly IWindowCloaking? _cloaking;
     private readonly Func<Window, IDisposable>? _track;
     private readonly Action? _bringAppToFront;
     private readonly IWindowActivator? _activator;
@@ -48,6 +50,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     /// Activates a camera window (T-119: "Bring camera to front" on Windows past the foreground lock,
     /// <see cref="WindowsWindowActivator"/>); <see langword="null"/>: <see cref="Window.Activate"/>.
     /// </param>
+    /// <param name="cloaking">Whether a window is cloaked, for tests (<see cref="CameraWindow.WindowCloaking"/>, T-186); <see langword="null"/>: the real one.</param>
     public CameraWindows(
         Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
@@ -55,8 +58,10 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
         Func<Window, IDisposable>? track = null,
         Func<CameraWindow, double, WindowChrome?>? predictChrome = null,
         Action? bringAppToFront = null,
-        IWindowActivator? activator = null)
+        IWindowActivator? activator = null,
+        IWindowCloaking? cloaking = null)
     {
+        _cloaking = cloaking;
         _bringAppToFront = bringAppToFront;
         _activator = activator;
         _measureChrome = measureChrome;
@@ -185,8 +190,8 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
                 used = true;
                 // The monitors first: the window places itself when it gets its view model.
                 CameraWindow window = _screens is { } screens
-                    ? new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, ScreenCatalog = screens, ShowActivated = activates, DataContext = created }
-                    : new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, ShowActivated = activates, DataContext = created };
+                    ? new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, WindowCloaking = _cloaking, ScreenCatalog = screens, ShowActivated = activates, DataContext = created }
+                    : new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, WindowCloaking = _cloaking, ShowActivated = activates, DataContext = created };
                 _open[printerId] = window;
                 CameraViewModel? viewModel = created;
                 PropertyChangedEventHandler? deferral = viewModel is null ? null : (_, e) =>

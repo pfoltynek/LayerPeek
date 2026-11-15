@@ -52,21 +52,23 @@ internal static class ThirdPartyLicenses
     [
         new(
             "Avalonia",
-            "12.1.4",
+            "12.1.6",
             "MIT",
             new Uri("https://github.com/AvaloniaUI/Avalonia"),
             [
-                new("Avalonia", "12.1.4"),
-                new("Avalonia.Desktop", "12.1.4"),
-                new("Avalonia.Themes.Fluent", "12.1.4"),
-                new("Avalonia.Skia", "12.1.4"),
-                new("Avalonia.HarfBuzz", "12.1.4"),
-                new("Avalonia.Win32", "12.1.4"),
-                new("Avalonia.Native", "12.1.4"),
-                new("Avalonia.X11", "12.1.4"),
-                new("Avalonia.FreeDesktop", "12.1.4"),
-                new("Avalonia.FreeDesktop.AtSpi", "12.1.4"),
-                new("Avalonia.Remote.Protocol", "12.1.4"),
+                new("Avalonia", "12.1.6"),
+                new("Avalonia.Desktop", "12.1.6"),
+                new("Avalonia.Themes.Fluent", "12.1.6"),
+                // The package's code (MIT); the fonts in it are the Inter entry below.
+                new("Avalonia.Fonts.Inter", "12.1.6"),
+                new("Avalonia.Skia", "12.1.6"),
+                new("Avalonia.HarfBuzz", "12.1.6"),
+                new("Avalonia.Win32", "12.1.6"),
+                new("Avalonia.Native", "12.1.6"),
+                new("Avalonia.X11", "12.1.6"),
+                new("Avalonia.FreeDesktop", "12.1.6"),
+                new("Avalonia.FreeDesktop.AtSpi", "12.1.6"),
+                new("Avalonia.Remote.Protocol", "12.1.6"),
             ],
             [ResourcePrefix + "mit-avalonia.txt"]),
         new(
@@ -120,6 +122,7 @@ internal static class ThirdPartyLicenses
             new Uri("https://github.com/dotnet/aspnetcore"),
             [
                 new("Microsoft.AspNetCore.App.Runtime.win-x64", null),
+                new("Microsoft.AspNetCore.App.Runtime.win-arm64", null),
                 new("Microsoft.AspNetCore.App.Runtime.osx-arm64", null),
             ],
             [ResourcePrefix + "aspnetcore-license.txt", ResourcePrefix + "aspnetcore-third-party-notices.txt"],
@@ -132,6 +135,8 @@ internal static class ThirdPartyLicenses
             [
                 new("Microsoft.DotNet.ILCompiler", null),
                 new("runtime.win-x64.Microsoft.DotNet.ILCompiler", null),
+                // The compiler of the win-arm64 target; the host compiler of a cross-compile on x64 stays win-x64 (T-224).
+                new("runtime.win-arm64.Microsoft.DotNet.ILCompiler", null),
                 new("runtime.osx-arm64.Microsoft.DotNet.ILCompiler", null),
             ],
             [ResourcePrefix + "mit-microsoft.txt", ResourcePrefix + "dotnet-third-party-notices.txt"],
@@ -176,7 +181,57 @@ internal static class ThirdPartyLicenses
             new Uri("https://github.com/microsoft/fluentui-system-icons"),
             [],
             [ResourcePrefix + "mit-fluentui-system-icons.txt"]),
+        // The default font on macOS (T-223): the six Inter files embedded in Avalonia.Fonts.Inter 12.1.4 (listed above
+        // with Avalonia) are Inter 3.019 (name table: "Version 3.019;git-0a5106e0b"); the licence text is LICENSE.txt of
+        // the Inter repository at tag v3.19.
+        new(
+            "Inter",
+            "3.019",
+            "OFL-1.1",
+            new Uri("https://github.com/rsms/inter"),
+            [],
+            [ResourcePrefix + "ofl-inter.txt"],
+            nameof(Strings.LicensesComponentInter)),
+        // Windows only (T-202): build/windows/build-ffmpeg.sh links the MinGW-w64 runtime (crt) and winpthreads
+        // statically into the FFmpeg DLLs (no libgcc / libwinpthread DLLs). Their notices must be reproduced in binary
+        // distributions; the texts are COPYING.MinGW-w64-runtime.txt of mingw-w64-x86_64-crt and COPYING of
+        // mingw-w64-x86_64-winpthreads (MSYS2, version 14.0.0.r598.ge3d18511f-1, /mingw64/share/licenses). The GCC runtime
+        // (libgcc) is under the GCC Runtime Library Exception, which needs no notice.
+        // win-arm64 (T-225): the DLLs are cross-built with llvm-mingw and link its MinGW-w64 runtime (crt with the UCRT
+        // glue, winpthreads) the same way; its notices (COPYING.MinGW-w64-runtime.txt and COPYING.winpthreads.txt of the
+        // aarch64-w64-mingw32 sysroot) are the same texts. The version per architecture: MinGWRuntimeVersion. Of LLVM
+        // only a few compiler-rt builtins are linked (__chkstk, 128-bit division), under
+        // Apache-2.0 with LLVM Exceptions, whose exception needs no notice for code embedded by compiling (like libgcc);
+        // no libunwind or libc++ (checked with a link map of all four DLLs, 2026-11-15).
+        new(
+            "MinGW-w64 runtime",
+            // A Windows-only entry: the architecture of the process on Windows, elsewhere the x64 value.
+            MinGWRuntimeVersion(OperatingSystem.IsWindows()
+                ? System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
+                : System.Runtime.InteropServices.Architecture.X64),
+            "ZPL-2.1 AND MIT AND BSD-3-Clause",
+            new Uri("https://www.mingw-w64.org/"),
+            [],
+            [ResourcePrefix + "mingw-w64-runtime.txt", ResourcePrefix + "mingw-w64-winpthreads.txt"],
+            nameof(Strings.LicensesComponentMinGW)),
     ];
+
+    /// <summary>
+    /// The MinGW-w64 runtime in the x64 FFmpeg DLLs (MSYS2 MINGW64, T-202): the version of the toolchain headers
+    /// (<c>_mingw_mac.h</c>) with its state when it is not a release (user decision 2026-11-15). It must equal the
+    /// <c>MinGW-w64 runtime:</c> line of <c>BUILD.txt</c> of the win-x64 build (ThirdPartyLicensesTests).
+    /// </summary>
+    internal const string MinGWRuntimeVersionX64 = "15.0.0 (alpha)";
+
+    /// <summary>
+    /// The same for the ARM64 FFmpeg DLLs (the pinned llvm-mingw, T-225); checked against <c>BUILD.txt</c> of the
+    /// win-arm64 build (build/FFmpeg.Tests.ps1, ThirdPartyLicensesTests).
+    /// </summary>
+    internal const string MinGWRuntimeVersionArm64 = "15.0.0 (alpha)";
+
+    /// <summary>The MinGW-w64 runtime version in the FFmpeg DLLs of a Windows architecture.</summary>
+    internal static string MinGWRuntimeVersion(System.Runtime.InteropServices.Architecture architecture) =>
+        architecture == System.Runtime.InteropServices.Architecture.Arm64 ? MinGWRuntimeVersionArm64 : MinGWRuntimeVersionX64;
 
     /// <summary>
     /// The licence texts of <paramref name="component"/>, separated by a line. Embedded resources are read by their exact
@@ -219,22 +274,13 @@ internal static class ThirdPartyLicenses
         public static Uri SourceUri { get; } = new("https://ffmpeg.org/download.html");
 
         /// <summary>
-        /// Windows: the pinned BtbN build; must equal <c>LayerPeekFFmpegUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
+        /// The official source tarball the libraries of both platforms are built from (macOS since T-026, Windows since
+        /// T-202); must equal <c>LayerPeekFFmpegSourceUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
         /// </summary>
-        public static Uri WindowsBuildUri { get; } =
-            new("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip");
+        public static Uri SourceTarballUri { get; } = new("https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz");
 
-        /// <summary>Windows: the configuration and build scripts of the BtbN builds (part of the corresponding source).</summary>
-        public static Uri WindowsBuildScriptsUri { get; } = new("https://github.com/BtbN/FFmpeg-Builds");
-
-        /// <summary>
-        /// macOS (T-026): the official source tarball the libraries are built from; must equal
-        /// <c>LayerPeekFFmpegMacSourceUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
-        /// </summary>
-        public static Uri MacOSBuildUri { get; } = new("https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz");
-
-        /// <summary>Path of the macOS build script in the repository.</summary>
-        public const string MacOSBuildScriptPath = "build/macos/build-ffmpeg.sh";
+        /// <summary>Path of the build script of a platform in the repository.</summary>
+        internal static string BuildScriptPath(bool macOS) => macOS ? "build/macos/build-ffmpeg.sh" : "build/windows/build-ffmpeg.sh";
 
         /// <summary>
         /// macOS: the build script with the exact configure line (part of the corresponding source), at the release tag of
@@ -242,18 +288,44 @@ internal static class ThirdPartyLicenses
         /// shipped libraries were really built with).
         /// </summary>
         public static Uri MacOSBuildScriptsUri { get; } =
-            MacOSBuildScriptUri(Windows.AboutViewModel.ProductVersion(typeof(ThirdPartyLicenses).Assembly));
+            BuildScriptUri(Windows.AboutViewModel.ProductVersion(typeof(ThirdPartyLicenses).Assembly), macOS: true);
+
+        /// <summary>Windows (T-202): the build script, like <see cref="MacOSBuildScriptsUri"/>.</summary>
+        public static Uri WindowsBuildScriptsUri { get; } =
+            BuildScriptUri(Windows.AboutViewModel.ProductVersion(typeof(ThirdPartyLicenses).Assembly), macOS: false);
 
         /// <summary>
-        /// The build script at the release tag <c>v&lt;version&gt;</c> (the tag format of <c>scripts/release.ps1</c>,
-        /// <c>ConvertTo-ReleaseTag</c>); <paramref name="productVersion"/> as returned by
+        /// The build script of a platform at the release tag <c>v&lt;version&gt;</c> (the tag format of
+        /// <c>scripts/release.ps1</c>, <c>ConvertTo-ReleaseTag</c>); <paramref name="productVersion"/> as returned by
         /// <see cref="Windows.AboutViewModel.ProductVersion"/> ("1.2.0", without the source revision).
         /// </summary>
-        internal static Uri MacOSBuildScriptUri(string productVersion)
+        internal static Uri BuildScriptUri(string productVersion, bool macOS)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(productVersion);
             string repository = Windows.AboutViewModel.RepositoryUri.AbsoluteUri.TrimEnd('/');
-            return new Uri($"{repository}/blob/v{Uri.EscapeDataString(productVersion)}/{MacOSBuildScriptPath}");
+            return new Uri($"{repository}/blob/v{Uri.EscapeDataString(productVersion)}/{BuildScriptPath(macOS)}");
+        }
+
+        /// <summary>
+        /// The FFmpeg source attached to the release of <paramref name="productVersion"/> (T-199, LGPL: the exact source of the
+        /// libraries of the platform with how they were built); the name is that of <c>Get-FFmpegSourceFileName</c> in
+        /// <c>scripts/ReleaseTools/ReleaseTools.psm1</c> (checked by a test).
+        /// </summary>
+        internal static string SourceArchiveFileName(string productVersion, bool macOS)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(productVersion);
+            return $"ffmpeg-source-{productVersion}-{(macOS ? "macos" : "windows")}.tar.xz";
+        }
+
+        /// <summary>
+        /// Download address of <see cref="SourceArchiveFileName"/> in the GitHub release <c>v&lt;version&gt;</c> (the tag
+        /// format of <c>scripts/release.ps1</c>, like <see cref="BuildScriptUri"/>).
+        /// </summary>
+        internal static Uri SourceArchiveUri(string productVersion, bool macOS)
+        {
+            string name = SourceArchiveFileName(productVersion, macOS);
+            string repository = Windows.AboutViewModel.RepositoryUri.AbsoluteUri.TrimEnd('/');
+            return new Uri($"{repository}/releases/download/v{Uri.EscapeDataString(productVersion)}/{Uri.EscapeDataString(name)}");
         }
     }
 }

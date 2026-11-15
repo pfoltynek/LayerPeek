@@ -227,6 +227,41 @@ public sealed class TestModeSwitchesTests
     }
 
     [Fact]
+    public void TheHardwareDecoderSwitchIsOnlyForTheTestMode()
+    {
+        // T-203: the value as given (the decoder logs an unknown one and uses software, it does not refuse the start).
+        Assert.Equal("LAYERPEEK_TEST_HW_DECODER", AppEnvironment.TestHardwareDecoderVariable);
+        Assert.Equal("videotoolbox", Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestHardwareDecoderVariable, " videotoolbox ")).TestHardwareDecoder);
+        Assert.Equal("cuda", Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestHardwareDecoderVariable, "cuda")).TestHardwareDecoder);
+        Assert.Null(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestHardwareDecoderVariable, " ")).TestHardwareDecoder);
+        Assert.Null(Read((AppEnvironment.DataDirectoryVariable, Folder)).TestHardwareDecoder);
+
+        AppEnvironment outside = Read((AppEnvironment.TestHardwareDecoderVariable, "off"));
+        Assert.False(outside.IsIsolated);
+        Assert.Null(outside.TestHardwareDecoder);
+        Assert.Equal([AppEnvironment.TestHardwareDecoderVariable], outside.IgnoredTestSwitches);
+    }
+
+    [Fact]
+    public void TheFileJobDelayIsOnlyForTheTestMode()
+    {
+        // T-213: whole milliseconds up to 1 s; zero without the switch; ignored and reported outside the test mode.
+        Assert.Equal("LAYERPEEK_TEST_FILE_JOB_DELAY_MS", AppEnvironment.TestFileJobDelayVariable);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFileJobDelayVariable, "500")).TestFileJobDelay);
+        Assert.Equal(TimeSpan.FromSeconds(1), Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFileJobDelayVariable, "1000")).TestFileJobDelay);
+        Assert.Equal(TimeSpan.Zero, Read((AppEnvironment.DataDirectoryVariable, Folder)).TestFileJobDelay);
+        foreach (string invalid in new[] { "1001", "-5", "5.5", "fast" })
+        {
+            Assert.ThrowsAny<ArgumentException>(() => Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestFileJobDelayVariable, invalid)));
+        }
+
+        AppEnvironment outside = Read((AppEnvironment.TestFileJobDelayVariable, "500"));
+        Assert.False(outside.IsIsolated);
+        Assert.Equal(TimeSpan.Zero, outside.TestFileJobDelay);
+        Assert.Equal([AppEnvironment.TestFileJobDelayVariable], outside.IgnoredTestSwitches);
+    }
+
+    [Fact]
     public void WithoutAnyVariableTheProcessIsProduction()
     {
         Assert.Same(AppEnvironment.Production, Read());
@@ -404,6 +439,71 @@ public sealed class TestModeSwitchesTests
             await using (ServiceProvider services = AppServices.Create(environment: AppEnvironment.Production))
             {
                 Assert.IsType<ProcessUrlLauncher>(services.GetRequiredService<IUrlLauncher>());
+            }
+        }
+        finally
+        {
+            TestDirectories.Delete(folder);
+        }
+    }
+
+    [Fact]
+    public void TheRealUrlLauncherIsOnlyForTheTestModeWithItsSwitch()
+    {
+        // T-238: "1" only; anything else, or outside the test mode, keeps the addresses recorded.
+        Assert.Equal("LAYERPEEK_TEST_REAL_URL_LAUNCHER", AppEnvironment.TestRealUrlLauncherVariable);
+        Assert.True(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestRealUrlLauncherVariable, "1")).TestRealUrlLauncher);
+        Assert.False(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestRealUrlLauncherVariable, "true")).TestRealUrlLauncher);
+        Assert.False(Read((AppEnvironment.DataDirectoryVariable, Folder)).TestRealUrlLauncher);
+
+        AppEnvironment outside = Read((AppEnvironment.TestRealUrlLauncherVariable, "1"));
+        Assert.False(outside.IsIsolated);
+        Assert.False(outside.TestRealUrlLauncher);
+        Assert.Equal([AppEnvironment.TestRealUrlLauncherVariable], outside.IgnoredTestSwitches);
+    }
+
+    [Fact]
+    public async Task TestModeWithTheRealUrlLauncherSwitchStartsTheBrowser()
+    {
+        // T-238: mac.open-fake needs /usr/bin/open and the real browser; nothing is written to opened-urls.txt.
+        string folder = TestDirectories.NewDirectoryPath();
+        try
+        {
+            await using (ServiceProvider services = AppServices.Create(environment: Read((AppEnvironment.DataDirectoryVariable, folder), (AppEnvironment.TestRealUrlLauncherVariable, "1"))))
+            {
+                Assert.IsType<ProcessUrlLauncher>(services.GetRequiredService<IUrlLauncher>());
+                // The other launchers of the test mode stay replaced.
+                Assert.IsType<RecordingFileLauncher>(services.GetRequiredService<IFileLauncher>());
+            }
+
+            await using (ServiceProvider services = AppServices.Create(environment: Read((AppEnvironment.DataDirectoryVariable, folder))))
+            {
+                Assert.IsType<RecordingUrlLauncher>(services.GetRequiredService<IUrlLauncher>());
+            }
+
+            Assert.False(File.Exists(Path.Combine(folder, "opened-urls.txt")));
+        }
+        finally
+        {
+            TestDirectories.Delete(folder);
+        }
+    }
+
+    [Fact]
+    public async Task TestModeRecordsFilesToOpenInsteadOfStartingTheirApp()
+    {
+        string folder = TestDirectories.NewDirectoryPath();
+        try
+        {
+            await using (ServiceProvider services = AppServices.Create(environment: AppEnvironment.ForTests(folder)))
+            {
+                RecordingFileLauncher launcher = Assert.IsType<RecordingFileLauncher>(services.GetRequiredService<IFileLauncher>());
+                Assert.Equal(Path.Combine(folder, "opened-files.txt"), launcher.FilePath);
+            }
+
+            await using (ServiceProvider services = AppServices.Create(environment: AppEnvironment.Production))
+            {
+                Assert.IsType<ProcessFileLauncher>(services.GetRequiredService<IFileLauncher>());
             }
         }
         finally

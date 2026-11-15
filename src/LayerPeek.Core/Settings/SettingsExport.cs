@@ -9,7 +9,8 @@ namespace LayerPeek.Core.Settings;
 /// The settings as <c>settings.json</c> for a diagnostic bundle (T-048): the same shape as the saved file, built again from
 /// <see cref="AppSettings"/> (never a copy of the file). Settings hold no secrets (<see cref="Secrets.ISecretStore"/>);
 /// camera addresses additionally lose their query and fragment, which may carry a token. Printer names, addresses and
-/// PrusaLink user names stay (decided 2026-10-21).
+/// PrusaLink user names stay (decided 2026-10-21). The start after logon the user chose (<see cref="AppSettings.StartAtLogin"/>)
+/// is left out (T-201).
 /// </summary>
 public static class SettingsExport
 {
@@ -17,6 +18,8 @@ public static class SettingsExport
     {
         ArgumentNullException.ThrowIfNull(settings);
         SettingsDocument document = SettingsMapper.ToDocument(settings);
+        // T-201 (user decision 2026-11-12): the start after logon the user chose is no matter of support.
+        document.StartAtLogin = null;
         for (int i = 0; i < settings.Printers.Count; i++)
         {
             if (document.Printers?[i] is not { } printer)

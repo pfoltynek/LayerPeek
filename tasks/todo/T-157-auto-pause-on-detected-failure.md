@@ -33,6 +33,8 @@ Rozhodnutí uživatele k T-152 (2026-11-04) tento úkol nemění: detekce běž�
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
+Rozhodnuto uživatelem 2026-11-11: **zatím ne, úkol odložen** – LayerPeek dál tiskárnu jen čte (detekce je experimentální). Otázky 2–4 se otevřou, až se uživatel k úkolu vrátí.
+
 1. **Chce uživatel zápisové operace vůči tiskárně vůbec?** (Dosud LayerPeek jen čte; zápis mění bezpečnostní profil – heslo PrusaLink pak umožňuje i ovládání.)
 2. **Pozastavit, nebo zastavit** tisk? (Návrh: jen pozastavit, aby šel tisk po kontrole obnovit.)
 3. **Pokračování z notifikace:** má notifikace nabídnout „Pokračovat v tisku“ (`resume`), nebo jen otevřít web PrusaLink / okno kamery?

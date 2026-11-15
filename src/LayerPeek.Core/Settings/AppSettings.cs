@@ -70,6 +70,15 @@ public sealed record AppSettings
     public bool CheckForUpdates { get; init; } = true;
 
     /// <summary>
+    /// Whether the app starts after logon, as the user last chose it in the settings window (T-201), or
+    /// <see langword="null"/> while the user never chose. The state itself belongs to the OS (Startup folder shortcut, Login
+    /// Item); this only remembers the choice so that the install hook of Velopack, which also runs for a reinstall over an
+    /// existing installation (<c>winget upgrade</c>), switches the autostart on only when the user did not switch it off.
+    /// Written on macOS too, where no install hook reads it. Not part of the diagnostic bundle (<see cref="SettingsExport"/>).
+    /// </summary>
+    public bool? StartAtLogin { get; init; }
+
+    /// <summary>
     /// Opacity of the background of the overlay widget cards in whole percent (T-077): one value for the camera windows of
     /// all printers, within <see cref="CameraOverlayOpacity.MinPercent"/>–<see cref="CameraOverlayOpacity.MaxPercent"/>,
     /// <see cref="CameraOverlayOpacity.DefaultPercent"/> by default.
@@ -90,6 +99,40 @@ public sealed record AppSettings
     /// printer is back, see <see cref="CameraWindowAutoVisibility"/>. Off: the windows stay as the user left them.
     /// </summary>
     public bool CameraWindowAutoClose { get; init; } = true;
+
+    /// <summary>
+    /// The frame rate limit of the mini preview of every camera window (T-185, user decision 2026-11-11): whole frames per
+    /// second within <see cref="Cameras.MiniPreviewFrameRate.Min"/>–<see cref="Cameras.MiniPreviewFrameRate.Max"/>, or
+    /// <see langword="null"/> for no limit ("Smooth"); <see cref="Cameras.MiniPreviewFrameRate.Default"/> ("Balanced") by
+    /// default. The normal window and full screen are never limited.
+    /// </summary>
+    public int? MiniPreviewFrameRate
+    {
+        get;
+        init
+        {
+            Cameras.MiniPreviewFrameRate.Validate(value, nameof(value));
+            field = value;
+        }
+    } = Cameras.MiniPreviewFrameRate.Default;
+
+    /// <summary>
+    /// "Hardware decoding" of the camera video (T-203, user decision 2026-11-12): one value for every camera,
+    /// <see cref="CameraHardwareDecoding.Automatic"/> by default. Applied by the decoder from its next key frame on.
+    /// </summary>
+    public CameraHardwareDecoding CameraHardwareDecoding
+    {
+        get;
+        init
+        {
+            if (value is not (CameraHardwareDecoding.Automatic or CameraHardwareDecoding.Off))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown hardware decoding setting.");
+            }
+
+            field = value;
+        }
+    }
 
     /// <summary>Folder and size limit of the camera recordings (T-145); whether a printer records is per printer.</summary>
     public Cameras.Recording.CameraRecordingSettings Recording
@@ -284,8 +327,11 @@ public sealed record AppSettings
         && DebugLogging == other.DebugLogging
         && OfferPrereleaseUpdates == other.OfferPrereleaseUpdates
         && CheckForUpdates == other.CheckForUpdates
+        && StartAtLogin == other.StartAtLogin
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && CameraWindowAutoClose == other.CameraWindowAutoClose
+        && MiniPreviewFrameRate == other.MiniPreviewFrameRate
+        && CameraHardwareDecoding == other.CameraHardwareDecoding
         && Recording == other.Recording
         && Detection == other.Detection
         && Notifications == other.Notifications
@@ -299,8 +345,11 @@ public sealed record AppSettings
         hash.Add(DebugLogging);
         hash.Add(OfferPrereleaseUpdates);
         hash.Add(CheckForUpdates);
+        hash.Add(StartAtLogin);
         hash.Add(CameraOverlayOpacityPercent);
         hash.Add(CameraWindowAutoClose);
+        hash.Add(MiniPreviewFrameRate);
+        hash.Add(CameraHardwareDecoding);
         hash.Add(Recording);
         hash.Add(Detection);
         hash.Add(Notifications);

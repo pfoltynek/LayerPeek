@@ -38,7 +38,7 @@ public readonly record struct DetectionResult(bool IsWarmedUp, float Score);
 
 /// <summary>
 /// What a detector analyses (T-152 spike: 8-bit grayscale, 320×180): the orchestration asks the camera hub for frames of
-/// exactly this size (<see cref="CameraGrayscaleSize"/>), downscaled while they are copied.
+/// exactly this size (<see cref="CameraGrayscaleSize"/>), scaled from the camera's luma (T-189, full range 0–255).
 /// </summary>
 public readonly record struct DetectionFrameSpec
 {

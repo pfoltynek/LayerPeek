@@ -36,6 +36,7 @@
   <ItemGroup>
     <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
     <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+    <Compile Include="..\Shared\TestUpdateFeed.cs" Link="Shared\TestUpdateFeed.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- Recorded captures (only the test toast's own region) for the offline image checks. -->

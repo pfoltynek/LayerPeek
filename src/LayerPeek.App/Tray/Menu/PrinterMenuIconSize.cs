@@ -9,7 +9,7 @@ namespace LayerPeek.App.Tray.Menu;
 /// <list type="bullet">
 /// <item>Windows: Avalonia draws the tray menu itself and fits the item icon into 16 × 16 DIP; the scaling is the system
 /// scaling (16 / 20 / 24 / 32 px at 100 / 125 / 150 / 200 %).</item>
-/// <item>macOS: the menu is a native <c>NSMenu</c>. Avalonia.Native 12.1.4 (<c>AvnAppMenuItem::SetIcon</c> in
+/// <item>macOS: the menu is a native <c>NSMenu</c>. Avalonia.Native 12.1.4–12.1.6 (<c>AvnAppMenuItem::SetIcon</c> in
 /// <c>libAvaloniaNative.dylib</c>; the managed side passes the bitmap as PNG) makes an <c>NSImage</c> of the PNG and sets
 /// its size in points to <c>floor(menuFont.pointSize × 1.333333)</c> high, the width in proportion, whatever the pixel
 /// size of the bitmap is. The default menu font has 14 pt, so the icon is 18 × 18 pt: 18 px on an @1x display, 36 px on
@@ -28,7 +28,7 @@ internal readonly record struct PrinterMenuIconSize
     /// <summary>Backing scale factor when macOS reports no display (T-099: start without an active display): Retina.</summary>
     public const double MacFallbackScaling = 2;
 
-    /// <summary>The factor Avalonia.Native 12.1.4 applies to the menu font size to get the icon height in points.</summary>
+    /// <summary>The factor Avalonia.Native 12.1.4–12.1.6 applies to the menu font size to get the icon height in points.</summary>
     internal const double AvaloniaNativeIconToMenuFont = 1.333333;
 
     private PrinterMenuIconSize(double size, double scaling)

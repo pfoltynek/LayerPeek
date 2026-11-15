@@ -151,13 +151,26 @@ internal static class ReadmeScenario
         return new PrintThumbnails(source, new AvaloniaPrintThumbnailDecoder(), new AvaloniaUiDispatcher(), new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Now), NullLogger<PrintThumbnails>.Instance);
     }
 
+    /// <summary>Every language of the app with the country of its number, date and time formats in the screenshots.</summary>
+    public static IReadOnlyDictionary<string, string> Cultures { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["en"] = "en-US",
+        ["cs"] = "cs-CZ",
+        ["sk"] = "sk-SK",
+        ["de"] = "de-DE",
+        ["es"] = "es-ES",
+        ["fr"] = "fr-FR",
+        ["it"] = "it-IT",
+        ["pl"] = "pl-PL",
+    };
+
     /// <summary>
-    /// Switches the texts to <paramref name="language"/> ("en" or "cs") and the number, date and time formats to its
-    /// country (en-US, cs-CZ), like the app on a system in that language. The session restores both after the test.
+    /// Switches the texts to <paramref name="language"/> (a key of <see cref="Cultures"/>) and the number, date and time
+    /// formats to its country, like the app on a system in that language. The session restores both after the test.
     /// </summary>
     public static void UseLanguage(string language)
     {
-        CultureInfo culture = CultureInfo.GetCultureInfo(language == "cs" ? "cs-CZ" : "en-US");
+        CultureInfo culture = CultureInfo.GetCultureInfo(Cultures[language]);
         CultureInfo.CurrentCulture = culture;
         CultureInfo.CurrentUICulture = culture;
         CultureInfo.DefaultThreadCurrentCulture = culture;

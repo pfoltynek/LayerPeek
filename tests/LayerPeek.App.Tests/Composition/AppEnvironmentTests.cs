@@ -231,10 +231,20 @@ public sealed class AppEnvironmentTests
         // T-133: no stand-in for Windows' notification setting.
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Notifications.PretendedToastSetting"));
         Assert.Null(typeof(AppEnvironment).GetProperty("TestToasts", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
+        // T-238: no switch to the real browser in the test mode.
+        Assert.Null(typeof(AppEnvironment).GetProperty("TestRealUrlLauncher", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
         // T-020: no test bundle, no status mode, no cleanup of the test bundle's notifications; production keeps its bundle.
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationCleanup"));
         Assert.Null(typeof(AppEnvironment).GetField("TestBundleIdentifier", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
         Assert.Null(typeof(AppEnvironment).GetField("NotificationStatusArgument", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
+        // T-212: no list mode of the test bundle's notifications.
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationList"));
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationListJsonContext"));
+        Assert.Null(typeof(AppEnvironment).GetField("NotificationListArgument", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.MacUserNotificationCenter")?.GetMethod("ListDeliveredAsync", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
+        // T-213: no slowed-down feeds of the file jobs.
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Cameras.Recording.TestPacedCameraFeedFactory"));
+        Assert.Null(typeof(AppEnvironment).GetProperty("TestFileJobDelay", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
         Assert.Equal(AppEnvironment.ProductionBundleIdentifier, AppEnvironment.Production.NotificationBundleIdentifier);
         Assert.Same(AppEnvironment.Production, AppEnvironment.FromProcess());
     }

@@ -48,7 +48,8 @@ public sealed class UpdateTests(E2EFixture fixture)
     /// <summary>The title of the test packages (the name of any shortcut Velopack would create for them).</summary>
     private const string PackTitle = "LayerPeek Update E2E";
 
-    private const string Runtime = "win-x64";
+    /// <summary>The RID of this machine (T-226: win-arm64 on an ARM64 device, T-227); win-x64 where none is released.</summary>
+    private static readonly string Runtime = HostRuntime.Windows ?? "win-x64";
 
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(60);
 
@@ -75,7 +76,7 @@ public sealed class UpdateTests(E2EFixture fixture)
         SystemChanges.Require();
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         Assert.SkipWhen(E2EFixture.IsNativeAot, "The update of a Velopack installation is tested once, in the pass against the Debug exe (it packs the Debug build).");
-        Assert.SkipUnless(RuntimeInformation.OSArchitecture == Architecture.X64, $"The {Runtime} packages run on x64 Windows only.");
+        Assert.SkipWhen(HostRuntime.Windows is null, $"The packages run on x64 or ARM64 Windows only, not on {RuntimeInformation.OSArchitecture}.");
         Assert.SkipWhen(InstallerKind.IsInstalled(), $"LayerPeek is installed on this machine ({InstallerKind.InstallFolder}); the update test runs only without an installation (T-124 postpones it).");
         Assert.SkipWhen(KeyExists(InstallerKind.UninstallSubKey), $@"HKCU\{InstallerKind.UninstallSubKey} exists (a real installation); the update test runs only without one.");
         StringBuilder report = new();
@@ -96,6 +97,8 @@ public sealed class UpdateTests(E2EFixture fixture)
             Assert.Equal(Running, InstalledVersion(install));
             // Up to date at first: the feed lists only the installed version.
             File.Copy(packages.RunningFeed, Path.Combine(feed, FeedFileName));
+            // Signed with the test key (T-181), which only the test source of a Debug build trusts.
+            TestUpdateFeed.SignFile(Path.Combine(feed, FeedFileName), Runtime);
             report.AppendLine(CultureInfo.InvariantCulture, $"Installed {PackId} {Running} (portable) in {install}; feed {feed}");
 
             Dictionary<string, string> switches = new()
@@ -113,6 +116,8 @@ public sealed class UpdateTests(E2EFixture fixture)
 
                 // The new version appears in the feed; the manual check of the settings window finds it.
                 File.Copy(packages.NextPackage, Path.Combine(feed, Path.GetFileName(packages.NextPackage)));
+                // The signature before the feed (as release-upload.ps1 uploads them): no check sees the new feed with the old one.
+                TestUpdateFeed.SignFile(packages.NextFeed, Runtime, Path.Combine(feed, FeedFileName + ".sig"));
                 File.Copy(packages.NextFeed, Path.Combine(feed, FeedFileName), overwrite: true);
                 ToastMatch banner = await CheckNowAndWaitForBannerAsync(toastRun, report);
 
@@ -388,7 +393,7 @@ public sealed class UpdateTests(E2EFixture fixture)
         return output;
     }
 
-    private const string FeedFileName = $"releases.{Runtime}.json";
+    private static readonly string FeedFileName = $"releases.{Runtime}.json";
 
     /// <summary>The version in <c>current\sq.version</c> of the installation, or <see langword="null"/>.</summary>
     private static string? InstalledVersion(string install)

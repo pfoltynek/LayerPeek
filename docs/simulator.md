@@ -33,6 +33,7 @@ Po spuštění simulátor vypíše, co zadat v aplikaci, například:
 | `--scenario <seznam>` | `printing` | scénář každé tiskárny oddělený čárkou; poslední se opakuje |
 | `--speed <x>` | 1 | zrychlení simulovaného času (průběh tisku, ohřev, chladnutí) |
 | `--print-minutes <m>` | 30 | délka simulovaného tisku |
+| `--layers <n>` | – (plynule) | osa Z tisku stoupá po `n` vrstvách 0,2 mm (vrstva k průběhu je ve výšce k × 0,2 mm, 1–1000), jako ji hlásí skutečný tisk; odhad vrstev LayerPeek (T-159) v ní najde `n − 1` změn vrstvy (T-211). Bez volby stoupá Z plynule do výšky modelu |
 | `--user <jméno>` | `maker` | uživatel PrusaLink |
 | `--password <text>` | `simulator` | heslo PrusaLink (přijímá se i jako `X-Api-Key`) |
 | `--host <ip>` | `127.0.0.1` | adresa, na které simulátor poslouchá (i `localhost`); `0.0.0.0` nebo `::` = dostupný i z jiných počítačů v síti, ovládací endpointy pak vyžadují přihlášení (viz níže) |
@@ -87,6 +88,8 @@ Napiš do konzole a potvrď Enterem:
 
 Skripty a testy mohou tiskárnu ovládat i přes HTTP (odpovídá i offline): `GET /_simulator/state`, `POST /_simulator/scenario/<scénář>`, `POST /_simulator/offline`, `POST /_simulator/online`, `POST /_simulator/previews/off`, `POST /_simulator/previews/on`. Stav (`/_simulator/state`) obsahuje i `"previews": true/false`.
 
+Kameru simulátoru přepíná `POST /_simulator/camera/offline` a `POST /_simulator/camera/online` (T-210) stejně jako příkaz konzole `camera offline` / `camera online`: offline odpojí připojené klienty a nepřijímá nová spojení, online je znovu přijímá. Kamera je jedna pro všechny tiskárny, takže stačí adresa kterékoli z nich. Simulátor bez kamery (`--no-camera`) na oba endpointy odpoví `404`. Se zapnutou kamerou má stav navíc `"camera_offline": true/false`. Pro přihlášení platí stejná pravidla jako u ostatních ovládacích endpointů.
+
 - Na loopbacku (`127.0.0.1`, `::1`, `localhost`, výchozí) jsou ovládací endpointy bez přihlášení.
 - Při `--host` s jinou adresou (např. `0.0.0.0`) vyžadují stejné přihlášení jako API (Digest nebo `X-Api-Key` s heslem), aby tiskárny nemohl přepínat nikdo jiný v síti.
 - Stránka `/` jen čte, a proto zůstává bez přihlášení (jako web firmwaru). Data pro ni přes API přihlášení vyžadují vždy.
@@ -107,7 +110,10 @@ Pro víc tiskáren opakuj kroky 1–6 s dalšími adresami (`:8081`, `:8082`…)
 `--camera-clip <soubor>` přehraje místo vestavěného úseku z Buddy3D vlastní záznam, např. nahrávku tisku nebo uložený
 dashcam z LayerPeek (fragmentovaný MP4, T-144 / T-148), libovolné MP4 s H.264 nebo surový H.264 (`.h264`). Formát se pozná
 podle obsahu, ne podle přípony. Z MP4 se vezme první stopa H.264 (`avc1` / `avc3`) se svými SPS a PPS a snímky v pořadí
-dekódování; zvuk, časování ani editační seznamy se nečtou. Snímková frekvence je dál `--fps` (Buddy3D nahrává ~21,8 fps).
+dekódování; zvuk, časování ani editační seznamy se nečtou. SPS a PPS jdou jako u Buddy3D před každým IDR snímkem, i když
+je klip má jen jednou (MP4 v `avcC`, T-205), aby dekodér otevřený na pozdějším klíčovém snímku (přepnutí hardwarového
+dekódování, T-203) obraz hned dekódoval. Testy T-207 to vypínají (`H264Clip.Parse(…, repeatParameterSets: false)`,
+jen v kódu, bez volby příkazové řádky) a hrají tak kameru, která je pošle jen na začátku spojení. Snímková frekvence je dál `--fps` (Buddy3D nahrává ~21,8 fps).
 Hodí se k ověření detekce chyb tisku (T-155) na záznamu skutečného nebo inscenovaného selhání:
 
 ```bash

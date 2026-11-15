@@ -99,6 +99,9 @@
   <data name="MenuAbout" xml:space="preserve">
     <value>I_nformazioni</value>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_Manuale utente</value>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>_Aggiungi stampante…</value>
   </data>
@@ -637,7 +640,7 @@
     <value>Avvio e aggiornamenti</value>
   </data>
   <data name="SettingsTabRecording" xml:space="preserve">
-    <value>Registrazione</value>
+    <value>Riprese</value>
   </data>
   <data name="SettingsStartWithWindows" xml:space="preserve">
     <value>Avvia all'accesso a Windows</value>
@@ -807,6 +810,12 @@
   <data name="CameraError" xml:space="preserve">
     <value>Errore della telecamera</value>
   </data>
+  <data name="CameraNextAttemptSeconds" xml:space="preserve">
+    <value>Prossimo tentativo tra circa {0} s</value>
+  </data>
+  <data name="CameraNextAttemptMinutes" xml:space="preserve">
+    <value>Prossimo tentativo tra circa {0} min</value>
+  </data>
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Schermo intero (F11)</value>
   </data>
@@ -833,6 +842,12 @@
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licenze di terze parti…</value>
+  </data>
+  <data name="AboutFFmpegNotice" xml:space="preserve">
+    <value>Questo software utilizza librerie del progetto FFmpeg con licenza LGPLv3 o successiva.</value>
+  </data>
+  <data name="AboutFFmpegSource" xml:space="preserve">
+    <value>Codice sorgente di FFmpeg di questa versione</value>
   </data>
   <data name="LicensesTitle" xml:space="preserve">
     <value>Licenze di terze parti</value>
@@ -865,25 +880,19 @@
     <value>Le librerie FFmpeg non sono state trovate accanto all'applicazione; la telecamera non funziona.</value>
   </data>
   <data name="LicensesFFmpegNote" xml:space="preserve">
-    <value>FFmpeg è distribuito con licenza GNU LGPL versione 3 o successiva. L'applicazione usa una build LGPL non modificata di BtbN e la collega dinamicamente: le DLL avcodec, avformat, avutil, swscale e swresample accanto all'applicazione possono essere sostituite con una build FFmpeg compatibile (stesse versioni delle librerie, ad es. avcodec-63).</value>
+    <value>FFmpeg è distribuito con licenza GNU LGPL versione 3 o successiva. L'applicazione usa una release di FFmpeg non modificata, compilata come build LGPL dal codice sorgente ufficiale, e la collega dinamicamente: le DLL avcodec, avformat, avutil e swscale accanto all'applicazione possono essere sostituite con una build FFmpeg compatibile (stesse versioni delle librerie, ad es. avcodec-63).</value>
   </data>
   <data name="LicensesFFmpegSource" xml:space="preserve">
     <value>Codice sorgente di FFmpeg</value>
   </data>
   <data name="LicensesFFmpegBuild" xml:space="preserve">
-    <value>Build FFmpeg utilizzata (release BtbN)</value>
+    <value>Release del codice sorgente FFmpeg utilizzata (ffmpeg.org)</value>
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
-    <value>Configurazione e script di build (BtbN)</value>
+    <value>Configurazione e script di build (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
     <value>FFmpeg è distribuito con licenza GNU LGPL versione 3 o successiva. L'applicazione usa una release di FFmpeg non modificata, compilata come build LGPL dal codice sorgente ufficiale, e la collega dinamicamente: le librerie libavcodec, libavformat, libavutil e libswscale (.dylib) in LayerPeek.app/Contents/MacOS possono essere sostituite con una build FFmpeg compatibile (stesse versioni delle librerie, ad es. libavcodec.63.dylib). L'applicazione va poi firmata di nuovo; basta una firma ad hoc.</value>
-  </data>
-  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
-    <value>Release del codice sorgente FFmpeg utilizzata (ffmpeg.org)</value>
-  </data>
-  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
-    <value>Configurazione e script di build (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Il testo della licenza FFmpeg (FFmpeg-LICENSE.txt) non è stato trovato accanto all'applicazione. La GNU LGPL 3.0 è pubblicata su https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -896,6 +905,12 @@
   </data>
   <data name="LicensesComponentTmdsDBus" xml:space="preserve">
     <value>Tmds.DBus.Protocol (solo Linux)</value>
+  </data>
+  <data name="LicensesComponentInter" xml:space="preserve">
+    <value>Inter (carattere, solo macOS)</value>
+  </data>
+  <data name="LicensesComponentMinGW" xml:space="preserve">
+    <value>MinGW-w64 runtime (nelle DLL di FFmpeg, solo Windows)</value>
   </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Finestra della telecamera</value>
@@ -914,6 +929,63 @@
   </data>
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Vale per tutte le stampanti. Una finestra chiusa manualmente resta chiusa.</value>
+  </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Vale per tutte le telecamere. La telecamera di ogni stampante si imposta nella scheda Stampanti.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Frequenza fotogrammi dell'anteprima mini</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Risparmio</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Bilanciato</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Fluido</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Personalizzato</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: il carico di CPU più basso e meno dati d'immagine copiati; il movimento è più a scatti.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (consigliato): abbastanza fluido per l'immagine piccola con una frazione del carico di CPU e dei dati copiati.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Tutti i fotogrammi della telecamera, come nella finestra normale: il carico di CPU più alto e più dati copiati.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Valore personale: meno fotogrammi al secondo significano meno carico di CPU e meno dati copiati.</value>
+  </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Decodifica hardware</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automatica</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Disattivata</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>L'hardware grafico decodifica il video se possibile, altrimenti la CPU: meno carico di CPU.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Sempre la CPU: meno memoria, nessun decoder di sistema. Utile se l'immagine è danneggiata o nera.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>Su Windows, Automatica per ora decodifica via software.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Nessun limite</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Fotogrammi al secondo nell'anteprima mini</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Apri come</value>
@@ -1411,6 +1483,9 @@
   <data name="MenuUpdateDownloading" xml:space="preserve">
     <value>Download della versione {0}…</value>
   </data>
+  <data name="MenuUpdateRejected" xml:space="preserve">
+    <value>Aggiornamento rifiutato…</value>
+  </data>
   <data name="MenuUpdateInstallHint" xml:space="preserve">
     <value>Scarica l’aggiornamento, chiude LayerPeek e avvia la nuova versione.</value>
   </data>
@@ -1449,6 +1524,18 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Sposta LayerPeek nella cartella Applicazioni; poi potrà aggiornarsi da solo.</value>
+  </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>Aggiornamento di LayerPeek rifiutato</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Un aggiornamento non è stato installato perché non è stato possibile verificarne la firma. Fai clic per i dettagli.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>L’aggiornamento è stato rifiutato.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek ha rifiutato l’aggiornamento perché non è stato possibile verificarne la firma, quindi non è stato installato nulla. Non installare questa versione manualmente: attendi la prossima versione o segui gli annunci del progetto.</value>
   </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Registra</value>
@@ -1562,7 +1649,7 @@
     <value>Inserisci un numero intero da {0} a {1}.</value>
   </data>
   <data name="SettingsRecordPrints" xml:space="preserve">
-    <value>Registra le stampe automaticamente</value>
+    <value>Registra ogni stampa</value>
   </data>
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Registra dall'inizio di una stampa fino a un minuto dopo la fine, anche senza la finestra della telecamera aperta.</value>
@@ -1610,7 +1697,7 @@
     <value>Conserva gli ultimi minuti (dashcam)</value>
   </data>
   <data name="SettingsDashcamPrinterHint" xml:space="preserve">
-    <value>Durante una stampa tiene in memoria gli ultimi minuti della telecamera e li salva se qualcosa va storto (scheda Registrazione). Inattivo mentre si registra l'intera stampa.</value>
+    <value>Durante una stampa tiene in memoria gli ultimi minuti della telecamera e li salva se qualcosa va storto (scheda Riprese). Inattivo mentre si registra l'intera stampa.</value>
   </data>
   <data name="NotificationDashcamFailed" xml:space="preserve">
     <value>Salvataggio degli ultimi minuti non riuscito</value>
@@ -1655,7 +1742,7 @@
     <value>Il rilevamento richiede la telecamera della stampante: attivala nella sottoscheda Telecamera.</value>
   </data>
   <data name="SettingsDetectionGloballyOff" xml:space="preserve">
-    <value>Il rilevamento degli errori di stampa è disattivato per tutte le stampanti: attivalo nella scheda Registrazione.</value>
+    <value>Il rilevamento degli errori di stampa è disattivato per tutte le stampanti: attivalo nella scheda Riprese.</value>
   </data>
   <data name="SettingsDetectionRegion" xml:space="preserve">
     <value>Area del piano</value>
@@ -1817,7 +1904,7 @@
     <value>Crea un timelapse delle stampe</value>
   </data>
   <data name="SettingsTimelapsePrintsHint" xml:space="preserve">
-    <value>Crea un timelapse dall'inizio di una stampa fino a un minuto dopo la sua fine, anche senza la finestra della telecamera aperta. Il tempo tra i fotogrammi è nella scheda Registrazione.</value>
+    <value>Crea un timelapse dall'inizio di una stampa fino a un minuto dopo la sua fine, anche senza la finestra della telecamera aperta. Il tempo tra i fotogrammi è nella scheda Riprese.</value>
   </data>
   <data name="MenuExportTimelapseJpeg" xml:space="preserve">
     <value>_Esporta timelapse in JPEG… (sperimentale)</value>
@@ -1905,5 +1992,32 @@
   </data>
   <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
     <value>Filamento nero o molto scuro: anche un oscuramento minore sul piano conta come cambiamento. Rileva un po' di più su una piastra scura, con un rischio maggiore di falsi allarmi.</value>
+  </data>
+  <data name="SettingsAddressUntrustedNetwork" xml:space="preserve">
+    <value>Connessione non cifrata fuori dalla rete locale: la password di PrusaLink potrebbe essere intercettata. Usa https:// (reverse proxy) o una VPN.</value>
+  </data>
+  <data name="SettingsCameraUrlUntrustedNetwork" xml:space="preserve">
+    <value>Connessione non cifrata fuori dalla rete locale: l'immagine della telecamera potrebbe essere intercettata. Usa una VPN.</value>
+  </data>
+  <data name="SettingsSecurityMoreInfo" xml:space="preserve">
+    <value>Maggiori informazioni</value>
+  </data>
+  <data name="SettingsSecurityMoreInfoHint" xml:space="preserve">
+    <value>Apre nel manuale utente il capitolo sulla protezione dell'accesso a PrusaLink.</value>
+  </data>
+  <data name="TextBoxCut" xml:space="preserve">
+    <value>_Taglia</value>
+  </data>
+  <data name="TextBoxCopy" xml:space="preserve">
+    <value>_Copia</value>
+  </data>
+  <data name="TextBoxPaste" xml:space="preserve">
+    <value>_Incolla</value>
+  </data>
+  <data name="TextBoxPasteMac" xml:space="preserve">
+    <value>_Incolla</value>
+  </data>
+  <data name="TextBoxSelectAll" xml:space="preserve">
+    <value>_Seleziona tutto</value>
   </data>
 </root>

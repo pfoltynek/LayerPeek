@@ -178,8 +178,10 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         Assert.Empty(_autostart.Changes);
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal([true], _autostart.Changes);
-        // Nothing else changed: the settings file is not written.
-        Assert.Empty(_store.Saves);
+        // T-201: the choice is saved for the install hook; nothing else changed.
+        SettingsChange change = Assert.Single(_store.Saves);
+        Assert.Null(change.Original.StartAtLogin);
+        Assert.Equal(new AppSettings { StartAtLogin = true }, change.Updated);
         Assert.False(vm.IsDirty);
     }
 
@@ -194,7 +196,10 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal([false], _autostart.Changes);
-        Assert.True(Assert.Single(_store.Saves).Updated.DebugLogging);
+        SettingsChange change = Assert.Single(_store.Saves);
+        Assert.True(change.Updated.DebugLogging);
+        // T-201: a reinstall (winget upgrade) must not switch it on again.
+        Assert.False(change.Updated.StartAtLogin);
     }
 
     [Fact]
@@ -204,10 +209,135 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
 
         vm.StartWithWindows = true;
         vm.StartWithWindows = false;
+        Assert.False(vm.IsDirty);
         vm.DebugLogging = true;
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.Empty(_autostart.Changes);
+        // Switching back before saving is no choice (T-201): a new install still switches it on.
+        Assert.Null(Assert.Single(_store.Saves).Updated.StartAtLogin);
+    }
+
+    /// <summary>T-201: a saved choice stays as it is when other settings are saved.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ASavedAutostartChoiceStaysWhenOtherSettingsAreSaved(bool choice)
+    {
+        _autostart.Enabled = choice;
+        SettingsViewModel vm = await LoadAsync(new AppSettings { StartAtLogin = choice, Printers = [LinkPrinter("a", "Alpha")] });
+
+        Assert.False(vm.IsDirty);
+        vm.DebugLogging = true;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Empty(_autostart.Changes);
+        Assert.Equal(choice, Assert.Single(_store.Saves).Updated.StartAtLogin);
+    }
+
+    /// <summary>T-201: switching a saved choice saves the new one.</summary>
+    [Fact]
+    public async Task SwitchingAgainReplacesTheSavedChoice()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { StartAtLogin = false });
+
+        vm.StartWithWindows = true;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal([true], _autostart.Changes);
+        SettingsChange change = Assert.Single(_store.Saves);
+        Assert.False(change.Original.StartAtLogin);
+        Assert.True(change.Updated.StartAtLogin);
+    }
+
+    /// <summary>
+    /// T-201: the choice is the user's even when the OS refused the switch; the next Save switches the autostart again
+    /// without writing the settings again.
+    /// </summary>
+    [Fact]
+    public async Task AFailedAutostartStillSavesTheChoice()
+    {
+        _autostart.Failure = new UnauthorizedAccessException("denied");
+        SettingsViewModel vm = await LoadAsync(new AppSettings());
+
+        vm.StartWithWindows = true;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.True(Assert.Single(_store.Saves).Updated.StartAtLogin);
+        Assert.True(vm.IsDirty);
+
+        _autostart.Failure = null;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal([true], _autostart.Changes);
+        Assert.Single(_store.Saves);
+        Assert.False(vm.IsDirty);
+    }
+
+    /// <summary>
+    /// T-201 review: the settings could not be saved, so the OS autostart is not switched and the stored choice keeps its
+    /// value (the file was not written); the window stays dirty for another try.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(false)]
+    public async Task AFailedSettingsSaveKeepsTheStoredChoice(bool? stored)
+    {
+        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.SettingsNotSaved);
+        SettingsViewModel vm = await LoadAsync(new AppSettings { StartAtLogin = stored });
+
+        vm.StartWithWindows = true;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Empty(_autostart.Changes);
+        Assert.False(_autostart.Enabled);
+        Assert.True(vm.StatusIsError);
+        Assert.True(vm.IsDirty);
+        // The attempt carried the new choice; the store refused it, so the stored one is still the original.
+        SettingsChange change = Assert.Single(_store.Saves);
+        Assert.Equal(stored, change.Original.StartAtLogin);
+        Assert.True(change.Updated.StartAtLogin);
+
+        // The next try (saved this time) starts from the stored choice again.
+        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.Saved);
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(stored, _store.Saves[^1].Original.StartAtLogin);
+        Assert.True(_store.Saves[^1].Updated.StartAtLogin);
+        Assert.Equal([true], _autostart.Changes);
+    }
+
+    /// <summary>Without an available autostart (not installed) there is nothing to choose: a saved choice stays.</summary>
+    [Fact]
+    public async Task WithoutAutostartTheSavedChoiceStays()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { StartAtLogin = false, Printers = [LinkPrinter("a", "Alpha")] }, withAutostart: false);
+
+        vm.DebugLogging = true;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.False(Assert.Single(_store.Saves).Updated.StartAtLogin);
+    }
+
+    /// <summary>
+    /// macOS (T-019): the user switched "Open at Login" in System Settings, the window follows the OS; that is no choice made
+    /// in the window, so nothing is saved for it (T-201: the choice is only written by the window's option).
+    /// </summary>
+    [Fact]
+    public async Task AStateFollowedFromTheOSIsNoSavedChoice()
+    {
+        ApprovalAutostart autostart = new();
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] }, autostart);
+
+        autostart.Enabled = true;
+        await vm.RefreshAutostartApprovalAsync();
+        Assert.True(vm.StartWithWindows);
+        Assert.False(vm.IsDirty);
+        vm.DebugLogging = true;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Null(Assert.Single(_store.Saves).Updated.StartAtLogin);
+        Assert.Empty(autostart.Changes);
     }
 
     [Fact]

@@ -18,6 +18,7 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 | Code identifiers, code comments, commit messages | English |
 | `tasks/**`, `docs/**`, `README.cz.md` | **Czech** |
 | `README.md`, `CHANGELOG.md` | English (public open-source front page; keep `README.cz.md` in sync) |
+| `manuals/<lang>/manual.md` | the language of its folder, one per UI language (`manuals/en` is the source); a user-visible change updates all of them |
 | UI strings | localized via `Strings.*.resx` (T-029); every new string goes into all languages |
 
 ## Decision rule
@@ -28,7 +29,7 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 
 ## Tech stack
 
-- .NET 11 (SDK pinned in `global.json`, prerelease allowed), C# latest, nullable enabled, warnings as errors.
+- .NET 11 (SDK pinned in `global.json`, stable releases only since T-193), C# latest, nullable enabled, warnings as errors.
 - Central package management: versions only in `Directory.Packages.props`; `PackageReference` without `Version`.
 - UI: Avalonia 12 (`TrayIcon`, `NativeMenu`), MVVM via CommunityToolkit.Mvvm.
 - Tests: xUnit v3 on Microsoft.Testing.Platform (`dotnet test`). No VSTest packages.
@@ -45,7 +46,7 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 - No `BuiltInComInteropSupport`; Windows interop via `[LibraryImport]` / source-generated COM (`[GeneratedComInterface]`).
 - **Every new NuGet package must be AOT/trim compatible** — verify before proposing it and state it in the task notes.
 - Never silence trim/AOT warnings with `UnconditionalSuppressMessage` or `<NoWarn>` without a justification approved by the user.
-- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS. Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload, macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug needs neither on Windows. On macOS the first `dotnet build` also needs the Xcode Command Line Tools, because it builds the LGPL FFmpeg libraries from source into a cache (T-026, `build/macos/build-ffmpeg.sh`). Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
+- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS. Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload (for `win-arm64` also the component `Microsoft.VisualStudio.Component.VC.Tools.ARM64`; the first `win-arm64` build downloads the pinned llvm-mingw for FFmpeg, T-225), macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug does not need the Visual Studio C++ workload. The first `dotnet build` builds the LGPL FFmpeg libraries from source into a cache and needs a native toolchain once: on Windows MSYS2 with MinGW-w64 (`C:\msys64` or `LayerPeekMsys2Root`; packages `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; T-202, `build/windows/build-ffmpeg.sh`), on macOS the Xcode Command Line Tools (T-026, `build/macos/build-ffmpeg.sh`); `-p:LayerPeekFFmpegEnabled=false` builds without them. Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
 
 ## Repository layout
 
@@ -66,7 +67,8 @@ tools/
   PrusaSimulator           dev tool: simulated PrusaLink printers + RTSP camera (docs/simulator.md); not shipped
   migrate-from-prusatraydiagnostic.ps1  one-time migration of dev machines from the former name (T-074)
   render-macos-icon.swift  regenerates the macOS app icon PNGs from their SVGs (T-098, needs Xcode Command Line Tools)
-docs/                      architecture & API notes (Czech)
+docs/                      architecture & API notes (Czech); docs/images/<lang>/ screenshots rendered by the app
+manuals/                   end-user manual, one file per UI language (Windows + macOS in one file)
 tasks/                     task backlog (Czech), see tasks/README.md
 .claude/agents/            subagent definitions
 ```
@@ -80,18 +82,21 @@ dotnet build                                  # whole solution
 dotnet test                                   # all tests (MTP runner)
 dotnet run --project src/LayerPeek.App
 dotnet publish src/LayerPeek.App -c Release -r win-x64     # Native AOT (needs MSVC on Windows)
+dotnet publish src/LayerPeek.App -c Release -r win-arm64   # Native AOT for Windows ARM64, cross-compiled on Windows x64 (needs the MSVC ARM64 build tools; not runnable there)
 dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # Native AOT (on macOS only)
 ```
 
 ## Task workflow
 
 Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (format in `tasks/README.md`).
+**New task IDs:** several machines (Windows and Mac sessions) create tasks in parallel. Before creating a task, run `git fetch` and take the next ID that is free in **both** your local `develop` and `origin/develop` (check `tasks/**` and `tasks/README.md`); then commit the new task file on a branch, merge it into `develop` and push `develop` right away (this push is pre-approved), so the other machine sees the ID. If a collision still happens, the task pushed later is renumbered.
+
 1. Pick a task from `tasks/todo/` whose dependencies are in `done/` and whose `platform` is `all` or matches the current OS; `macos` tasks are implemented only on macOS.
 2. Create the task's feature branch from an up-to-date `develop`: `git switch develop && git switch -c feature/T-XXX-slug` (slug = task file name).
 3. `git mv` the task to `tasks/in-progress/`, set `status: in-progress`.
 4. Implement + tests. `dotnet build` and `dotnet test` must pass with zero warnings.
 5. Tick acceptance criteria, add a short `## Poznámky k implementaci`, `git mv` to `tasks/done/`, set `status: done`.
-6. Never mark a task done with failing tests or unticked criteria — leave it in progress and report why. Exception: a criterion that only needs manual verification by the user or a check on the other OS may be moved into a collector verification task (Windows: T-124 installer, T-125 everything else; Mac: T-115 agent session on the Mac, T-126 installer, T-127 everything else); the origin task is then marked done with the moved item ticked and annotated "→ přesunuto do T-1xx" (format in `tasks/README.md`).
+6. Never mark a task done with failing tests or unticked criteria — leave it in progress and report why. Exception: a criterion that only needs manual verification by the user or a check on the other OS or on Windows ARM64 hardware may be moved into a collector verification task (Windows: T-124 installer, T-125 everything else; Mac: T-115 agent session on the Mac, T-126 installer, T-127 everything else; Windows ARM64: T-227 checks that need an ARM64 device); the origin task is then marked done with the moved item ticked and annotated "→ přesunuto do T-XXX" (format in `tasks/README.md`).
 7. When the user asks, commit on the feature branch and merge it into `develop` with `git merge --no-ff`, then delete the feature branch.
 
 ## Git workflow (Gitflow)

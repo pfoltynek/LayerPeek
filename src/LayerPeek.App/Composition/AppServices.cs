@@ -32,6 +32,7 @@ using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cameras.Timelapse;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Detection;
+using LayerPeek.Core.Display;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Monitoring;
@@ -71,14 +72,19 @@ internal static partial class AppServices
     /// The UI thread's dispatcher of the view models and observers; <see langword="null"/>: Avalonia's. Before Avalonia exists
     /// (T-099, macOS waiting for a display): a <see cref="StartupUiDispatcher"/> that later forwards to Avalonia's.
     /// </param>
+    /// <param name="displayActivity">
+    /// Whether the screen can be seen (T-186); <see langword="null"/>: the one of the OS (Windows: session and display
+    /// notifications, started with the first camera window). Tests that create camera windows pass a fake.
+    /// </param>
     public static ServiceProvider Create(
         ILoggerFactory? loggerFactory = null,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
         AppEnvironment? environment = null,
         LogLevelSwitch? logLevel = null,
-        IUiDispatcher? uiDispatcher = null) =>
-        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel, uiDispatcher: uiDispatcher);
+        IUiDispatcher? uiDispatcher = null,
+        Func<IServiceProvider, IDisplayActivityService>? displayActivity = null) =>
+        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel, uiDispatcher: uiDispatcher, displayActivity: displayActivity);
 
     /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
     /// <param name="macNotifications">
@@ -93,7 +99,8 @@ internal static partial class AppServices
         AppEnvironment? environment = null,
         LogLevelSwitch? logLevel = null,
         IUserNotificationCenter? macNotifications = null,
-        IUiDispatcher? uiDispatcher = null)
+        IUiDispatcher? uiDispatcher = null,
+        Func<IServiceProvider, IDisplayActivityService>? displayActivity = null)
     {
         AppEnvironment env = environment ?? AppEnvironment.Production;
         ServiceCollection services = new();
@@ -139,8 +146,9 @@ internal static partial class AppServices
         // T-146: "Recording" in the tooltip of a printer whose camera is recorded.
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ICameraRecordings>()));
 #if DEBUG
-        // The test mode never starts a browser: the addresses go to a file of its data folder (T-067).
-        services.AddSingleton<IUrlLauncher>(sp => env.IsIsolated
+        // The test mode starts no browser: the addresses go to a file of its data folder (T-067), unless the macOS check
+        // mac.open-fake asks for the real launcher (T-238).
+        services.AddSingleton<IUrlLauncher>(sp => env.IsIsolated && !env.TestRealUrlLauncher
             ? new RecordingUrlLauncher(env.DataDirectory(), sp.GetRequiredService<ILogger<RecordingUrlLauncher>>())
             : new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
 #else
@@ -149,7 +157,14 @@ internal static partial class AppServices
         // The log folder in Explorer / Finder (T-048).
         services.AddSingleton<IFolderLauncher>(static sp => new ProcessFolderLauncher(sp.GetRequiredService<ILogger<ProcessFolderLauncher>>()));
         // T-146: "Play last recording" opens the file in the system's default app (only .mp4 recordings).
+#if DEBUG
+        // The test mode never starts a player: the paths go to a file of its data folder (T-210).
+        services.AddSingleton<IFileLauncher>(sp => env.IsIsolated
+            ? new RecordingFileLauncher(env.DataDirectory(), sp.GetRequiredService<ILogger<RecordingFileLauncher>>())
+            : new ProcessFileLauncher(sp.GetRequiredService<ILogger<ProcessFileLauncher>>()));
+#else
         services.AddSingleton<IFileLauncher>(static sp => new ProcessFileLauncher(sp.GetRequiredService<ILogger<ProcessFileLauncher>>()));
+#endif
         // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.ForCurrentPlatform);
         // Custom printer images (T-039): files next to settings.json (created on first use, may throw without a data folder) and
@@ -257,6 +272,8 @@ internal static partial class AppServices
         // T-151: the camera window of a switched-off printer closes and opens again once it is back (T-150 state machine);
         // the resume after sleep starts its delays again. The app attaches the camera windows once the UI runs.
         services.AddSingleton(static _ => CreateSystemResumeEvents());
+        // T-186: camera windows pause while the session is locked or the display is off.
+        services.AddSingleton(displayActivity ?? (static _ => CreateDisplayActivity()));
         services.AddSingleton(sp => new CameraWindowAutoVisibilityObserver(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<ICameraWindowStateStore>(),
@@ -290,6 +307,8 @@ internal static partial class AppServices
                 sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<CameraWindowAutoVisibilityObserver>(),
+                // T-203: before the hub, so that a connection it starts for these settings decodes as they say.
+                sp.GetRequiredService<CameraHardwareDecodingObserver>(),
                 // Before MonitoredPrinters: the hub knows a new camera address before the open camera windows hear of it.
                 sp.GetRequiredService<CameraStreamHubObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
@@ -491,8 +510,32 @@ internal static partial class AppServices
             // Only the entries of the installed exe (T-061); Explorer's other entries are never touched.
             new TrayIconPromotion(new NotifyIconSettingsRegistry(), loggers.CreateLogger<TrayIconPromotion>()),
             CreateAutostart(production, windows: true, loggers.CreateLogger<StartupShortcutAutostart>()).Autostart,
+            // T-201: the settings of %APPDATA%\LayerPeek survive a reinstall and an uninstall; read only.
+            new SettingsFileAutostartChoice(production.DataDirectory),
             executable,
             loggers.CreateLogger<InstallerHooks>());
+    }
+
+    /// <summary>
+    /// The one-time migration of the autostart choice (T-201, <see cref="AutostartChoiceMigration"/>): only for the app
+    /// installed by Velopack on Windows with the production identity, which is exactly when <paramref name="autostart"/>
+    /// exists outside the test mode (<see cref="CreateAutostart(AppEnvironment, bool, ILogger{StartupShortcutAutostart})"/>:
+    /// none for a <c>.zip</c>, a development build or a test host); never on macOS (no install hook reads the choice there).
+    /// </summary>
+    /// <param name="store">The settings store of the app; <see langword="null"/> when it is no settings file (no migration).</param>
+    internal static AutostartChoiceMigration? CreateAutostartChoiceMigration(
+        AppEnvironment environment,
+        bool windows,
+        IAutostart? autostart,
+        JsonSettingsStore? store,
+        ILogger<AutostartChoiceMigration> logger)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(logger);
+        // Only an autostart that can tell "unknown" from "off" (the Startup folder shortcut).
+        return windows && OperatingSystem.IsWindows() && !environment.IsIsolated && autostart is IAutostartState state && store is not null
+            ? new AutostartChoiceMigration(state, new SettingsStoreAutostartChoice(store), logger)
+            : null;
     }
 
     /// <summary>
@@ -582,7 +625,10 @@ internal static partial class AppServices
         // GitHub asks for a User-Agent; the system proxy is used (the request goes to the internet, unlike the printers').
         services.AddHttpClient(GitHubReleaseChecker.HttpClientName, client => GitHubReleaseChecker.ConfigureClient(client, version))
             .RemoveAllLoggers();
-        services.AddSingleton(sp => CreateUpdateInstallation(environment, windows, sp.GetRequiredService<ILogger<AppUpdates>>()));
+        // The signed feed of Velopack and its signature (T-181); the system proxy is used, like for the release list.
+        services.AddHttpClient(SignedUpdateSource.HttpClientName, client => SignedUpdateSource.ConfigureClient(client, version))
+            .RemoveAllLoggers();
+        services.AddSingleton(sp => CreateUpdateInstallation(environment, windows, sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<ILogger<AppUpdates>>()));
         services.AddSingleton(static sp => CreateUpdateStateStore(sp));
         services.AddSingleton(sp =>
         {
@@ -620,7 +666,7 @@ internal static partial class AppServices
     /// (a translocated app or one on the mounted <c>.dmg</c> cannot replace itself, Q8 a). Never in the test mode, except with
     /// the update feed of the end-to-end test (Q10 a), never for the <c>.zip</c> or a development build.
     /// </summary>
-    private static UpdateInstallation CreateUpdateInstallation(AppEnvironment environment, bool windows, ILogger<AppUpdates> logger)
+    private static UpdateInstallation CreateUpdateInstallation(AppEnvironment environment, bool windows, IHttpClientFactory httpClients, ILogger<AppUpdates> logger)
     {
         string? executable = Environment.ProcessPath;
         UpdateSource? testSource = null;
@@ -634,13 +680,13 @@ internal static partial class AppServices
 
         if (windows && OperatingSystem.IsWindows() && VelopackInstallation.IsInstalled(executable, File.Exists))
         {
-            return new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(testSource), logger), NeedsMoveToApplications: false);
+            return new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(httpClients, testSource), logger), NeedsMoveToApplications: false);
         }
 
         if (!windows && OperatingSystem.IsMacOS() && VelopackInstallation.IsInstalledMac(executable, File.Exists))
         {
             return MacAppBundle.BundleOf(executable) is { } bundle && MacAppBundle.IsPermanentLocation(bundle, MacAppBundle.IsOnReadOnlyVolume)
-                ? new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(testSource), logger), NeedsMoveToApplications: false)
+                ? new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(httpClients, testSource), logger), NeedsMoveToApplications: false)
                 : new UpdateInstallation(null, NeedsMoveToApplications: true);
         }
 
@@ -707,9 +753,38 @@ internal static partial class AppServices
     /// <summary>
     /// The video decoder of the camera windows and of the camera test (T-014): FFmpeg. This is the only place that chooses
     /// it. Creating it loads nothing; missing native libraries surface as a camera error, the rest of the app works.
+    /// T-203: hardware decoding follows the setting (<see cref="CameraHardwareDecodingObserver"/>); the Debug test mode may
+    /// override it for measurements (<see cref="AppEnvironment.TestHardwareDecoderVariable"/>).
     /// </summary>
-    private static readonly Func<IServiceProvider, ICameraFeedFactory> CreateCameraFeedFactory =
-        static _ => new FFmpegCameraFeedFactory();
+    private static readonly Func<IServiceProvider, ICameraFeedFactory> CreateCameraFeedFactory = static sp =>
+    {
+        FFmpegCameraFeedFactory factory = new(sp.GetRequiredService<ILogger<FFmpegCameraFeedFactory>>());
+#if DEBUG
+        if (sp.GetRequiredService<AppEnvironment>().TestHardwareDecoder is { } decoder)
+        {
+            factory.UseTestHardwareDecoder(decoder);
+        }
+#endif
+        return factory;
+    };
+
+    /// <summary>
+    /// The feeds the JPEG export and the timelapse from a recording read their file with; in the Debug test mode with
+    /// <see cref="AppEnvironment.TestFileJobDelayVariable"/> slowed down per item (T-213), never in Release builds.
+    /// </summary>
+    private static ICameraFeedFactory FileJobFeeds(IServiceProvider sp)
+    {
+        ICameraFeedFactory feeds = sp.GetRequiredService<ICameraFeedFactory>();
+#if DEBUG
+        TimeSpan delay = sp.GetRequiredService<AppEnvironment>().TestFileJobDelay;
+        if (delay > TimeSpan.Zero)
+        {
+            return new TestPacedCameraFeedFactory(feeds, delay);
+        }
+#endif
+
+        return feeds;
+    }
 
     /// <summary>
     /// The test mode (T-044) records into its data folder by default, never into the user's video folder; the E2E tests
@@ -774,12 +849,14 @@ internal static partial class AppServices
         Func<IServiceProvider, ICameraWindowStateStore> cameraWindowStateStore)
     {
         services.AddSingleton(cameraFeedFactory);
-        // User decision (T-014): 15 s to connect, 10 s without a frame, 5 s between attempts, no backoff.
+        // User decision (T-014): 15 s to connect, 10 s without a frame. Between attempts 5 s, doubled while they keep
+        // failing up to 1 min like the printers' PrinterMonitorOptions.MaxBackoff (user decision 2026-11-10, T-188).
         services.AddSingleton(static _ => new CameraFeedOptions
         {
             ConnectTimeout = TimeSpan.FromSeconds(15),
             FrameTimeout = TimeSpan.FromSeconds(10),
             ReconnectDelay = TimeSpan.FromSeconds(5),
+            MaxReconnectDelay = TimeSpan.FromMinutes(1),
         });
         // Stateless: every enumeration is its own connection; only the hub below enumerates it.
         services.AddSingleton(static sp => new ReconnectingCameraFeed(
@@ -795,6 +872,8 @@ internal static partial class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CameraStreamHub>>()));
         services.AddSingleton(static sp => new CameraStreamHubObserver(sp.GetRequiredService<CameraStreamHub>()));
+        // T-203: the "Hardware decoding" setting goes to the decoder after loading and every save.
+        services.AddSingleton(static sp => new CameraHardwareDecodingObserver(sp.GetRequiredService<ICameraFeedFactory>()));
         // T-144: recordings remux the hub's packets into fragmented MP4 (FFmpeg, never an encoder); when and where to
         // record is decided by T-145. Creating them loads nothing; a build without the muxer reports "not available".
         services.AddSingleton<ICameraRecordingWriterFactory>(static _ => new FFmpegCameraRecordingWriterFactory());
@@ -825,7 +904,7 @@ internal static partial class AppServices
         // (FFmpeg, MP4), Avalonia / Skia encodes (variant A1, nothing native added); idle without an export. The service keeps
         // the timelapse and the folder being written away from its rotation and counts the folder afterwards.
         services.AddSingleton(static sp => new CameraTimelapseJpegExporter(
-            sp.GetRequiredService<ICameraFeedFactory>(),
+            FileJobFeeds(sp),
             AvaloniaJpegSequenceEncoderFactory.Instance,
             sp.GetRequiredService<ILogger<CameraTimelapseJpegExporter>>(),
             sp.GetRequiredService<CameraRecordingService>()));
@@ -837,7 +916,7 @@ internal static partial class AppServices
         // decoder), the recording writer remuxes the chosen key frames (MP4, 30 fps); idle without a job. The service keeps the
         // recording and the file being written away from its rotation and counts the file afterwards.
         services.AddSingleton(static sp => new CameraTimelapseFromRecordingMaker(
-            sp.GetRequiredService<ICameraFeedFactory>(),
+            FileJobFeeds(sp),
             sp.GetRequiredService<ICameraRecordingWriterFactory>(),
             sp.GetRequiredService<ILogger<CameraTimelapseFromRecordingMaker>>(),
             sp.GetRequiredService<CameraRecordingService>()));
@@ -888,6 +967,12 @@ internal static partial class AppServices
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<ILogger<CameraMonitorPathUpdater>>()));
     }
+
+    /// <summary>Whether the screen can be seen on this OS (T-186, macOS T-187); always elsewhere.</summary>
+    private static IDisplayActivityService CreateDisplayActivity() =>
+        OperatingSystem.IsWindows() ? new WindowsDisplayActivityService()
+        : OperatingSystem.IsMacOS() ? new MacDisplayActivityService()
+        : AlwaysVisibleDisplayActivity.Instance;
 
     /// <summary>The resume after sleep of this OS (T-151); none elsewhere.</summary>
     private static ISystemResumeEvents CreateSystemResumeEvents() =>
@@ -961,6 +1046,19 @@ internal static partial class AppServices
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
         PrinterDefinition? printer = saved ?? Monitored(services.GetRequiredService<MonitoredPrinters>(), printerId);
+        IDisplayActivityService displayActivity = services.GetRequiredService<IDisplayActivityService>();
+        if (OperatingSystem.IsWindows() && displayActivity is WindowsDisplayActivityService windows)
+        {
+            // Lazily with the first camera window (once; it has its own message thread). It may open while the session is
+            // locked (T-151): Start reads the current lock state first.
+            windows.Start();
+        }
+        else if (OperatingSystem.IsMacOS() && displayActivity is MacDisplayActivityService mac)
+        {
+            // Lazily with the first camera window too (T-187): observers on the main queue, the current state read at once.
+            mac.Start();
+        }
+
         return printer is not null
             && string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase)
             && CameraTarget.From(printer) is { } target
@@ -982,7 +1080,8 @@ internal static partial class AppServices
                 services.GetRequiredService<ICameraOverlayLayoutWriter>(),
                 services.GetRequiredService<ILocalNetworkPrivacy>(),
                 services.GetRequiredService<ICameraWindowTopmostWriter>(),
-                services.GetRequiredService<ICameraRecordings>())
+                services.GetRequiredService<ICameraRecordings>(),
+                displayActivity)
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
@@ -1059,11 +1158,17 @@ internal static partial class AppServices
             ImageStartDirectory = environment.IsIsolated ? environment.DataDirectory() : null,
             // macOS (T-019, user decision 2026-10-29): "Open at Login". T-058: the pre-release option on every OS (Q3 a).
             UsesMacTerms = OperatingSystem.IsMacOS(),
+            // T-204 (user decision 2026-11-12): the note that "Automatic" hardware decoding is still software (Windows).
+            ShowsHardwareDecodingSoftwareNote = !FFmpegCameraFeedFactory.AutomaticUsesHardware,
             // T-058: "Check now" (Q4 a) and the hint to move the macOS app to Applications first (Q8 a).
             CheckForUpdatesNow = services.GetRequiredService<UpdateOffer>().CheckNowAsync,
             ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,
+            // T-181: the error of a refused update feed while the refusal is active.
+            FeedRejections = services.GetRequiredService<UpdateOffer>(),
             // T-146: the default folder, whether this build can record and "Open recordings folder".
             Recordings = services.GetRequiredService<ICameraRecordings>(),
+            // T-182: "More information" next to the warning about an address outside the local network.
+            UrlLauncher = services.GetRequiredService<IUrlLauncher>(),
             // T-154: the detector kinds of this version and the last frames of the bed region editor.
             DetectorRegistrations = services.GetRequiredService<PrintFailureDetectionService>().Detectors,
             LastFrames = services.GetRequiredService<ILastCameraFrames>(),

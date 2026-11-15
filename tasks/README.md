@@ -15,7 +15,7 @@ Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `sta
 Šablona: [_TEMPLATE.md](_TEMPLATE.md).
 
 - `id` – `T-XXX`, nové ID = nejvyšší existující + 1
-- `owner` – agent: `architect`, `core-dev`, `ui-designer`, `ui-dev`, `qa-reviewer`
+- `owner` – agent: `architect`, `core-dev`, `ui-designer`, `ui-dev`, `qa-reviewer`; `user` = ruční úkol, který dělá uživatel sám (např. nastavení účtu GitHub, T-180)
 - `priority` – `P1` (MVP), `P2`, `P3`
 - `platform` – kde se úkol implementuje a ověřuje:
   - `all` – nezávislé na platformě (Core, klienti PrusaLink/Prusa Connect, sdílené Avalonia UI fungující na obou OS); implementuje se a ověřuje na OS, na kterém se právě vyvíjí
@@ -47,12 +47,25 @@ Mac → **T-115** (sezení s agentem na Macu), **T-126** (instalátor) nebo **T-
   `docs/windows-manual-testing.md`). U přegenerování snímků UI seznam souborů podle původního úkolu.
 - Přesunout nejde nedokončená práce (kód, dokumentace, rozhodnutí) ani kritérium úkolu, který blokuje nezodpovězená
   otevřená otázka – takový úkol zůstává v `in-progress/`. Chyba nalezená při ověření = nový úkol.
+- **Pravidlo odškrtávání automatických kontrol (rozhodnutí uživatele 2026-11-13, T-208):** bod sběrného úkolu, u kterého
+  je uvedená kontrola `tools/macos-verify.ps1` (`mac.X`), se odškrtne, když je kontrola `PASS` ve zprávě
+  `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` na commitu, který obsahuje ověřovaný kód. Do
+  `## Poznámky k implementaci` sběrného úkolu se zapíše složka běhu (`artifacts/verify/<čas>/`), commit a výňatek řádku
+  zprávy. Ruční zbytek bodu (je-li) zůstává jako samostatný podbod a odškrtne se zvlášť. `SKIP` ani `FAIL` bod
+  neodškrtnou; `FAIL` = nový úkol.
 - Rozdělení 2026-11-01 (rozhodnutí uživatele): T-114 je uzavřený, jeho zbytek je v **T-124** (Windows – instalátor:
   instalace, upozornění po instalaci, autostart, odinstalace) a **T-125** (Windows – zbývající ruční ověření: celý
   interaktivní `tools/windows-verify.ps1`, tiskárna, vydání). Z T-115 se stejně oddělily **T-126** (macOS – instalátor)
   a **T-127** (macOS – zbývající ruční ověření); v T-115 zůstává sezení na Macu s agentem (snímky, build a testy, běh
   `tools/macos-verify.ps1`, kontroly T-117 / T-118 / T-122). Nově přesouvané body se píšou do těchto úkolů stejným
   způsobem („→ přesunuto do T-12x“).
+
+## Sběrný ověřovací úkol Windows ARM64 (rozhodnutí uživatele 2026-11-12)
+
+Kritérium, které potřebuje běh na zařízení s Windows na ARM64 (Windows x64 binárky ARM64 spustit neumí), se přesouvá do
+sběrného úkolu **T-227 „Windows ARM64 – ověření na zařízení ARM64“** stejným způsobem jako do T-125 („→ přesunuto do
+T-227“; v T-227 bod se zaškrtávacím polem, původním úkolem, kritériem a postupem). Ověřuje se na vlastním nebo
+zapůjčeném zařízení ARM64, bez CI a cloudu. Přesunout nejde nedokončená práce ani kritérium blokované otevřenou otázkou.
 
 ## Větve (Gitflow)
 
@@ -186,6 +199,44 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-168 | Tray menu na Windows zůstane otevřené po „Hide camera“ (E2E `TrayMenuTests`, nalezeno v T-125; hotovo) | windows | ui-dev | P2 | – |
 | T-169 | Občasné selhání E2E malého náhledu kamery (`CameraMiniPreviewTests`) | windows | qa-reviewer | P3 | – |
 | T-170 | Ukončení podpory Prusa Connect (T-005 zamítnut; hotovo, macOS snímky v T-127) | all | core-dev | P2 | – |
+| T-171 | Uživatelská příručka ve všech jazycích aplikace (hotovo) | all | architect | P2 | – |
+| T-172 | Položka „Příručka“ v menu ikony (hotovo) | all | ui-dev | P2 | T-171 |
+| T-173 | Oříznutý text „dashcam“ na podzáložce Kamera v delších jazycích (hotovo) | all | ui-dev | P2 | – |
+| T-174 | Ruční ověření dalších modelů tiskáren (MK4/MK4S, MK3.9, MK3.5, XL, MINI) | all | qa-reviewer | P2 | – |
+| T-180 | Zabezpečení účtu a repozitáře na GitHubu (2FA klíčem, pravidla tagů a větví, krátkodobý token pro vydání) | all | user | P1 | – |
+| T-181 | Podepsaný feed aktualizací (podpis `releases.<RID>.json` offline klíčem, ověření v aplikaci) (hotovo; Windows v T-125, zkušební vydání v T-127) | all | core-dev | P2 | – |
+| T-182 | Varování u adresy `http://` mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť) (hotovo; Windows v T-125) | all | core-dev + ui-dev | P2 | – |
+| T-183 | Dokumentace – zabezpečení přístupu k PrusaLink (silné heslo, oddělená síť, HTTPS přes reverzní proxy) (hotovo; CA v úložišti OS v T-125 / T-127) | all | architect + qa-reviewer | P2 | – |
+| T-184 | Kamera – převod obrazu rovnou ve velikosti, ve které se zobrazuje (výkon) (hotovo) | all | core-dev + ui-dev | P2 | – |
+| T-185 | Kamera – omezení snímkové frekvence v malém náhledu (výkon) (hotovo) | all | core-dev + ui-dev | P2 | – |
+| T-188 | Kamera – exponenciální backoff při opětovném připojení (výkon) (hotovo) | all | core-dev | P2 | – |
+| T-189 | Detekce chyb tisku – snímek z jasové složky (Y) bez převodu do BGRA (výkon) (hotovo) | all | core-dev | P3 | – |
+| T-193 | Přechod z .NET 11 RC na stabilní .NET 11 (GA) (hotovo, Windows v T-125) | all | qa-reviewer | P1 | – |
+| T-194 | Kamera – „Otestovat kameru“ zkrátí pauzu znovupřipojení a čas dalšího pokusu bez zastarání (hotovo) | all | ui-dev + core-dev | P2 | T-188 |
+| T-195 | Kamera – zmenšovat dekódovaný obraz jen tehdy, když to ušetří (hotovo) | all | core-dev + ui-dev | P3 | T-184 |
+| T-196 | Smoke test – zálohovat a obnovovat i mezipaměť `~/Library/Caches/LayerPeek` (hotovo; Windows v T-125) | all | qa-reviewer | P3 | – |
+| T-197 | Vydání – jen podepsat hotový `dist/` (opakování podpisu feedu bez nového buildu; jen `dist/` z čistého tagu beze změny od buildu) (hotovo; `release-build.ps1 -SignOnly`) | all | qa-reviewer | P3 | T-181 |
+| T-190 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) (zamítnuto 2026-11-11) | all | ui-dev | P3 | – |
+| T-191 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) (hotovo, build beze změny) | all | qa-reviewer | P3 | – |
+| T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) (hotovo; rozhodnuto 2026-11-12, implementace T-203 až T-206) | all | architect | P3 | T-184, T-185 |
+| T-198 | Připravenost vydání 1.0.0 (blokery, první podepsané vydání, kontrola veřejného repozitáře, plán dne vydání) | all | architect | P1 | – |
+| T-199 | Vydání – zdrojový kód FFmpeg přiložený k vydání a věta o FFmpeg v okně O aplikaci (LGPL) (hotovo; ověření v T-125) | all | qa-reviewer | P1 | T-198 |
+| T-200 | Skripty vydání pro neměnná vydání – odmítnout `-AddToPublished` a `-AllowIncomplete` (až po vydání 1.0.0) | all | qa-reviewer | P2 | T-180 |
+| T-203 | Kamera – hardwarové dekódování H.264, sdílený základ a VideoToolbox (macOS) (hotovo; Windows D3D11VA v T-206) | all | core-dev | P2 | T-192 |
+| T-204 | Nastavení > Kamera – volba „Hardwarové dekódování“ (Automaticky / Vypnuto) (hotovo; sada snímků Windows v T-125) | all | ui-dev | P2 | T-203 |
+| T-207 | Kamera – dekodér si pamatuje poslední SPS/PPS pro nově otevřený kontext kodeku | all | core-dev | P3 | T-205 |
+| T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR | all | qa-reviewer | P2 | – |
+| T-219 | Nestabilní test `CameraStreamHubKeyFrameTests.WithoutDueSubscribersNoKeyFrameIsWanted` při plném `dotnet test` | all | core-dev | P2 | – |
+| T-229 | Aktualizace Avalonia 12.1.4 → 12.1.6 (hotovo) | all | ui-dev | P2 | – |
+| T-230 | Aktualizace všech NuGet balíčků a .NET nástrojů na nejnovější stabilní verze (hotovo; Windows v T-125) | all | qa-reviewer | P2 | – |
+| T-233 | E2E test `ClassicFormPostOfTheProxiedPageReachesThePrinter` selhává s Edge 157 na macOS | all | qa-reviewer | P2 | – |
+| T-238 | Testovací režim – volitelné skutečné otevírání odkazů přes /usr/bin/open pro `mac.open-fake` (T-053 L4) (hotovo) | all | ui-dev | P3 | T-216 |
+| T-242 | Kontextové menu textových polí (Cut / Copy / Paste) je anglicky i v jiném jazyce aplikace (hotovo) | all | ui-dev | P3 | T-029 |
+| T-244 | Nestabilní test InstanceTransportTests – kontrola peera nestihne proběhnout pod zátěží (4 jádra) (hotovo) | all | qa-reviewer | P3 | – |
+| T-247 | CI – omezit počet souběžně běžících testovacích projektů (přetížený 4jádrový runner) (zrušeno) | all | qa-reviewer | P2 | T-245, T-246 |
+| T-248 | Dashcam – SteadyStateBufferingDoesNotAllocate naměřil v CI na Windows 4 120 B ve všech průchodech | all | core-dev | P2 | – |
+| T-245 | UI test EveryButtonIsAtLeast32DipHighInEveryState překračuje 30 s na runneru Windows (blokuje další UI testy) (hotovo) | all | qa-reviewer | P2 | – |
+| T-246 | CI Windows – Pester VerifyTools.Tests.ps1 překračuje 5 min (macos-verify -ListChecks 66 s na runneru) (hotovo) | windows | qa-reviewer | P2 | – |
 
 ### Windows (`windows`)
 
@@ -197,9 +248,9 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-063 | win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64) (zamítnuto 2026-11-01) | windows | qa-reviewer | P2 | T-055, T-056 |
 | T-017 | Balení a distribuce, autostart – Windows (hotovo; ověření v T-124 / T-125) | windows | ui-dev | P2 | T-008, T-055, T-056 |
 | T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
-| T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |
+| T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) (hotovo; nevydá, nález IsPassword v T-234) | windows | qa-reviewer | P3 | T-044 |
 | T-044 | End-to-end testy skutečné aplikace na Windows (UI Automation) (hotovo) | windows | qa-reviewer | P2 | T-040, T-041, T-042, T-043 |
-| T-059 | Publikace do winget | windows | qa-reviewer | P3 | T-017, T-055 |
+| T-059 | Publikace do winget (rozpracováno: skript, manifest a dokumentace hotové na macOS, zbývá ověření a odeslání na Windows po 1.0.0) | windows | qa-reviewer | P3 | T-017, T-055 |
 | T-061 | Připnutí tray ikony do viditelné části hlavního panelu (workaround přes `IsPromoted`) (hotovo) | windows | ui-dev | P2 | T-007 |
 | T-062 | Stabilizace E2E testu skutečného tray menu (TrayMenuTests) | windows | qa-reviewer | P3 | T-044 |
 | T-065 | E2E – infrastruktura zásahů do systému (varování, návrat i po pádu) a přehled pokrytí ručních kontrol | windows | qa-reviewer | P2 | T-044, T-064 |
@@ -213,10 +264,24 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-073 | E2E – celá sada proti Debug i Native AOT (Debug) a test Správce pověření | windows | qa-reviewer | P2 | T-067, T-068, T-069, T-070, T-071, T-072 |
 | T-093 | E2E – widgety překryvu, malý náhled, režim rozložení + AOT (hotovo) | windows | qa-reviewer | P2 | T-080, T-087, T-088, T-090, T-091, T-092 |
 | T-114 | Ověření na Windows (sběrný úkol: build a testy po macOS úkolech, Windows snímky, ruční kontroly) (hotovo 2026-11-01; zbytek v T-124 / T-125) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109–T-112, T-117–T-119 |
-| T-124 | Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace) (hotovo 2026-11-01; zbytek v T-125) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-114 |
+| T-124 | Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace) (hotovo 2026-11-01; zbytek v T-125; znovu otevřeno 2026-11-12 kvůli bodu z T-201) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-114 |
 | T-125 | Windows – zbývající ruční ověření (interaktivní windows-verify, tiskárna, vydání) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-105, T-107, T-114, T-117, T-118 |
-| T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo) | windows | qa-reviewer | P2 | – |
+| T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo; rozhodnutí zrušeno 2026-11-12, návrat v T-224 až T-227) | windows | qa-reviewer | P2 | – |
 | T-162 | FFmpeg pro Windows – připnutý build BtbN už neexistuje (404) (hotovo; ověření v T-125) | windows | core-dev | P1 | – |
+| T-186 | Kamera – pozastavení streamu při zamčení počítače a vypnutém displeji (výkon) | windows | ui-dev | P2 | – |
+| T-201 | Přeinstalace (`winget upgrade`) nemá znovu zapnout spouštění po přihlášení (hook instalace) (hotovo; ruční ověření v T-124) | windows | ui-dev | P1 | – |
+| T-202 | Windows – vlastní minimální LGPL build FFmpeg ze zdrojů (místo BtbN), s D3D11VA (hotovo 2026-11-15; ověření v T-125 2ab, 2ad) | windows | core-dev | P1 | T-199 |
+| T-206 | Windows – hardwarové dekódování D3D11VA (výchozí software do měření v T-125) (hotovo; měření a robustnost v T-125, 2ah) | windows | core-dev | P2 | T-202, T-203, T-204 |
+| T-220 | Alokační testy `ASampleDoesNotAllocate` a `SteadyStateTimelapseDoesNotAllocate` nestabilní na 4jádrovém runneru Windows (hotovo; v CI ve vlastním kroku) | windows | qa-reviewer | P2 | – |
+| T-221 | Windows – vzorky z roviny Y se liší od BGRA víc, než dovolují meze T-189 (1,72 / +1,44; hotovo 2026-11-15 v T-202, CI zelené) | windows | core-dev | P2 | – |
+| T-224 | Windows ARM64 – sestavovací prostředí a Native AOT publish `win-arm64` z x64 (bez FFmpeg) | windows | core-dev | P2 | – |
+| T-225 | Windows ARM64 – vlastní LGPL build FFmpeg pro `win-arm64` (křížový překlad z x64) | windows | core-dev | P2 | T-202, T-224 |
+| T-226 | Windows ARM64 – vydání `win-arm64` (skripty, Velopack, aktualizace, winget, README a příručky) | windows | qa-reviewer | P2 | T-224, T-225 |
+| T-227 | Windows ARM64 – ověření na zařízení ARM64 (sběrný úkol pro ARM64: aplikace, kamera, instalátor, aktualizace) | windows | qa-reviewer | P2 | T-226 |
+| T-228 | Windows – 47 selhávajících testů na develop (snapshoty UI, proxy, porty E2E, FFmpeg, Pester) | windows | qa-reviewer | P1 | – |
+| T-232 | Windows – aktualizace nativních závislostí a nástrojů (FFmpeg, MSVC/Windows SDK, Playwright/Edge, runner CI) | windows | qa-reviewer | P2 | T-202 |
+| T-234 | Pole hesla – UI Automation hlásí IsPassword = False a délku hesla (Avalonia 12.1.6) (hotovo; koncept upstream issue, macOS v T-127) | windows | ui-dev | P3 | T-054 |
+| T-236 | CI – křížový build win-arm64 (Native AOT publish + kontrola architektury, bez spuštění) (hotovo) | windows | qa-reviewer | P3 | T-225, T-226 |
 
 ### macOS (`macos`) – jen na Macu, později
 
@@ -241,7 +306,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-115 | Ruční ověření na Macu (sběrný úkol: snímky, build a testy, `tools/macos-verify.ps1`, T-117 / T-118 / T-122; instalátor v T-126, zbytek v T-127) (hotovo 2026-11-02; zbytek v T-127) | macos | qa-reviewer | P1 | T-020, T-021, T-026, T-053, T-096, T-098, T-099, T-105, T-116–T-118, T-122 |
 | T-116 | macOS – obrázky tiskáren v menu v menu baru (hotovo; ruční ověření v T-115 / T-127) | macos | ui-dev | P3 | T-018, T-039, T-042 |
 | T-126 | macOS – ověření instalátoru (Gatekeeper, upozornění, Otevřít při přihlášení, odinstalace) (sběrný úkol, z T-115) | macos | qa-reviewer | P1 | T-019, T-020, T-115 |
-| T-127 | macOS – zbývající ruční ověření (Dock, monitory, skutečná tiskárna, vydání) (sběrný úkol, z T-115) | macos | qa-reviewer | P1 | T-019, T-020, T-021, T-026, T-038, T-053, T-055, T-058, T-097, T-101, T-102, T-106, T-107, T-115 |
+| T-127 | macOS – zbývající ruční ověření (Dock, monitory, skutečná tiskárna, vydání) (sběrný úkol, z T-115; automatizace v T-208 až T-217) | macos | qa-reviewer | P1 | T-019, T-020, T-021, T-026, T-038, T-053, T-055, T-058, T-097, T-101, T-102, T-106, T-107, T-115 |
 | T-134 | Úklid testů Klíčenky na macOS 27 smaže jen jednu položku služby (hotovo) | macos | qa-reviewer | P2 | T-021 |
 | T-135 | Kontrola `mac.menubar` na macOS 27 nenajde stavovou položku (hotovo) | macos | qa-reviewer | P2 | T-105 |
 | T-136 | Automatické kontroly okna kamery na Macu místo ručních bodů T-115 (T-122, T-117, T-118) (hotovo) | macos | qa-reviewer | P1 | T-115, T-117, T-118, T-122, T-135 |
@@ -252,3 +317,24 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-141 | macOS – ⌘. (Zrušit) se k oknům aplikace nedostane (hotovo) | macos | ui-dev | P2 | T-100 |
 | T-142 | E2E test aktualizace na Macu selže se zapnutým displejem (hotovo; dřív T-133, přečíslováno 2026-11-02) | macos | qa-reviewer | P2 | T-058, T-099 |
 | T-147 | macOS – FFmpeg s muxerem pro nahrávání kamery (hotovo; QuickTime v T-127) | macos | ui-dev | P2 | T-144, T-026 |
+| T-187 | macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna (výkon) (hotovo; ruční ověření v T-127 1r) | macos | ui-dev | P3 | T-186 |
+| T-205 | macOS – hardwarové dekódování VideoToolbox, ověření a měření v aplikaci (hotovo; uspání a pohled okem v T-127) | macos | core-dev | P2 | T-203, T-204 |
+| T-208 | macOS ověření – jeden regresní příkaz `macos-verify.ps1 -Preset release` s jednou zprávou (hotovo; běh s odemčenou obrazovkou v T-127) | macos | qa-reviewer | P2 | T-105, T-140 |
+| T-209 | macOS ověření – ovládání menu v menu baru přes Accessibility (`menu` / `menupress`), `mac.menu-items` (hotovo) | macos | qa-reviewer | P2 | T-208 |
+| T-210 | macOS ověření – nahrávání a dashcam na testovacím bundlu, dekódování přes AVFoundation (`decode`) (hotovo; běh přes menu v T-127) | macos | qa-reviewer | P2 | T-208, T-209 |
+| T-211 | macOS ověření – timelapse na testovacím bundlu (ruční start / stop, po vrstvách, indikátor) | macos | qa-reviewer | P2 | T-210 |
+| T-212 | macOS ověření – čtení doručených notifikací testovacího bundlu a kontroly jejich obsahu (hotovo; běh kontroly v T-127 1n) | macos | ui-dev | P2 | T-208, T-209, T-210, T-211 |
+| T-213 | macOS ověření – systémové dialogy souborů (`mac.file-dialogs`, NSOpenPanel přes Accessibility) (hotovo; běh kontroly v T-127 1o) | macos | qa-reviewer | P3 | T-209, T-211, T-212 |
+| T-214 | Headless testy rozložení se systémovým písmem San Francisco (macOS) ve všech jazycích (hotovo; potvrzení v běžící aplikaci v T-127) | macos | qa-reviewer | P3 | T-031 |
+| T-215 | macOS ověření – okna, Dock a ⌘Tab (T-151, T-102, T-038 otázka 2, T-184, T-026, T-188) | macos | qa-reviewer | P3 | T-209, T-210 |
+| T-216 | macOS ověření – drobné kontroly (autoclose, špendlík a editor výřezu přes AX, jazyk AppKitu, falešné `open`, HW dekódování, české rozložení) | macos | qa-reviewer | P3 | T-209, T-213 |
+| T-217 | macOS ověření – kontrola release bundlu z `.dmg` a `.tar.gz` (`mac.release-bundle`) (hotovo; odškrtnutí bodu T-026 v T-127 po běhu `-Preset release`) | macos | qa-reviewer | P3 | T-208 |
+| T-222 | Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (hotovo; rozhodnutí 2026-11-15: Inter na macOS v T-223, chybu nahlásit Avalonii; 12.1.6 změřena 2026-11-15, chyba trvá) | macos | ui-designer | P3 | T-214 |
+| T-223 | macOS – písmo Inter jako výchozí písmo aplikace (místo San Francisco, které Avalonia rozvrhuje úzce) (hotovo; šířky v běžící aplikaci v T-127; SystemFont ponechán 2026-11-15) | macos | ui-dev | P2 | T-222 |
+| T-231 | macOS – aktualizace nativních závislostí a nástrojů (FFmpeg ze zdrojů, Xcode, runner CI) (hotovo) | macos | qa-reviewer | P2 | – |
+| T-235 | macOS ověření – kontrola pozastavení kamery při zakrytí okna a na jiném Space (`mac.camera-pause-hidden`) | macos | qa-reviewer | P3 | T-187, T-215 |
+| T-237 | macOS – malý náhled po Esc z celé obrazovky má titulkový pruh a je o 28 bodů vyšší (T-038 otázka 2) (hotovo) | macos | ui-dev | P2 | T-038, T-215 |
+| T-239 | macOS – záložky Nastavení nejdou přepnout přes Accessibility (AXPress, VoiceOver) (Avalonia 12.1.6) | macos | ui-dev | P3 | – |
+| T-240 | macOS – ⌘⇧[ s českým rozložením klávesnice nepřepne na předchozí záložku Nastavení (T-100 otázka 1) (hotovo) | macos | ui-dev | P2 | T-100, T-216 |
+| T-241 | macOS – menu ikony v Docku nevypisuje okna aplikace (Nastavení, okno kamery) (T-102) (hotovo) | macos | ui-dev | P3 | T-102, T-215 |
+| T-243 | macOS – panel „Exportovat timelapse do JPEG…“ dovolí vybrat i jiný soubor než .mp4 (⌘⇧G) (T-165 / T-213) (hotovo) | macos | ui-dev | P3 | T-165, T-213 |

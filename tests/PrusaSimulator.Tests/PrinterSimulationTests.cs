@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Time.Testing;
 
+using LayerPeek.Core.Printers;
 using LayerPeek.Simulator.Printers;
 
 namespace LayerPeek.Simulator.Tests;
@@ -390,6 +391,94 @@ public sealed class PrinterSimulationTests
         Assert.NotNull(PrinterSimulation.FileOf(1));
     }
 
-    private PrinterSimulation Create(PrinterScenario scenario, double speed = 1) =>
-        new(SimulatedModel.CoreOne, scenario, _clock, speed, Timing);
+    [Fact]
+    public void WithoutLayersTheZAxisClimbsSmoothly()
+    {
+        PrinterSimulation printer = Create(PrinterScenario.Printing);
+        _clock.Advance(TimeSpan.FromSeconds(90) + TimeSpan.FromMinutes(15));
+
+        Assert.Equal(0.2 + ((SimulatedModel.CoreOne.MaxZ - 0.2) / 2), printer.GetStatus().AxisZ, 2);
+    }
+
+    [Fact]
+    public void ALayeredPrintRisesInStepsOfTheLayerHeight()
+    {
+        PrinterSimulation printer = Create(PrinterScenario.Printing, timing: Timing with { Layers = 12 });
+        List<double> heights = [];
+        // The heating, then the 30 minutes of the print in steps of 10 s (between the layer edges).
+        _clock.Advance(TimeSpan.FromSeconds(95));
+        for (int i = 0; i < 180; i++)
+        {
+            SimulatedStatus status = printer.GetStatus();
+            Assert.Equal("PRINTING", status.State);
+            heights.Add(status.AxisZ);
+            _clock.Advance(TimeSpan.FromSeconds(10));
+        }
+
+        Assert.Equal(Enumerable.Range(1, 12).Select(static k => Math.Round(k * PrinterSimulation.LayerHeight, 2)), heights.Distinct());
+        // 15 samples (150 s) per layer, in order.
+        Assert.All(heights.Chunk(15).Select(static layer => layer.Distinct().Count()), static count => Assert.Equal(1, count));
+    }
+
+    [Fact]
+    public void APauseKeepsTheLayer()
+    {
+        PrinterSimulation printer = Create(PrinterScenario.Printing, timing: Timing with { Layers = 12 });
+        _clock.Advance(TimeSpan.FromSeconds(90) + TimeSpan.FromMinutes(14));
+        double running = printer.GetStatus().AxisZ;
+
+        printer.SetScenario(PrinterScenario.Paused);
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        double paused = printer.GetStatus().AxisZ;
+        printer.SetScenario(PrinterScenario.Printing);
+
+        Assert.Equal(1.2, running, 2);
+        Assert.Equal(running, paused, 2);
+        Assert.Equal(running, printer.GetStatus().AxisZ, 2);
+    }
+
+    /// <summary>
+    /// What mac.timelapse-layers of tools/macos-verify.ps1 expects (T-211): the app's own layer estimate (T-159), polling
+    /// every second, finds every layer change of a print of 12 layers at speed 20, also with a pause in the middle.
+    /// </summary>
+    [Fact]
+    public void TheLayerEstimateOfTheAppFindsEveryLayerChange()
+    {
+        PrinterSimulation printer = Create(PrinterScenario.Printing, speed: 20, timing: Timing with { Layers = 12 });
+        LayerChangeDetector detector = new();
+        int changes = 0;
+        // 100 s at one poll per second: heating (4.5 s), the print (90 s) with a pause of 15 s after 40 s, the finished print.
+        for (int second = 0; second < 115; second++)
+        {
+            if (second == 40)
+            {
+                printer.SetScenario(PrinterScenario.Paused);
+            }
+            else if (second == 55)
+            {
+                printer.SetScenario(PrinterScenario.Printing);
+            }
+
+            SimulatedStatus status = printer.GetStatus();
+            PrinterState state = status.State switch
+            {
+                "PRINTING" => PrinterState.Printing,
+                "PAUSED" => PrinterState.Paused,
+                "FINISHED" => PrinterState.Finished,
+                _ => PrinterState.Idle,
+            };
+            if (detector.Observe(state, status.Job?.Id, status.AxisZ))
+            {
+                changes++;
+            }
+
+            _clock.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        Assert.Equal("FINISHED", printer.GetStatus().State);
+        Assert.Equal(11, changes);
+    }
+
+    private PrinterSimulation Create(PrinterScenario scenario, double speed = 1, SimulationTiming? timing = null) =>
+        new(SimulatedModel.CoreOne, scenario, _clock, speed, timing ?? Timing);
 }

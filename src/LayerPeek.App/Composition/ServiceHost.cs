@@ -43,6 +43,9 @@ internal sealed partial class ServiceHost
     private readonly SettingsLoadStatus _loadStatus;
     private readonly IReadOnlyList<string> _storedPrinterIds;
     private readonly CancellationTokenSource _backgroundWork;
+
+    // T-201: the one-time migration of the autostart choice, awaited before the services are disposed.
+    private Task _autostartChoiceMigration = Task.CompletedTask;
 #if DEBUG
     private readonly TestToastCleanup? _testToastCleanup;
 #endif
@@ -167,6 +170,10 @@ internal sealed partial class ServiceHost
             toasts.Start();
         }
 
+        // T-201: the autostart switched off in 0.x is stored as a choice once, in the background (it reads the settings file
+        // and the shortcut); awaited before the settings store goes with the container (StopAsync). Never throws.
+        _autostartChoiceMigration = StartAutostartChoiceMigration(Services, _environment, _backgroundWork.Token);
+
         // Remembered camera windows are read in the background, long before a camera window opens; never throws.
         _ = Services.GetRequiredService<ICameraWindowStateStore>().LoadAsync(CancellationToken.None);
 
@@ -238,6 +245,10 @@ internal sealed partial class ServiceHost
             await session.ModelSaves.WaitAsync(PendingSaveTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
         }
 
+        // T-201: the migration of the autostart choice (cancelled above) may be writing the settings file: the store must
+        // not go with the container before it ended. Never throws.
+        await _autostartChoiceMigration.WaitAsync(PendingSaveTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+
         // A camera monitor path being written (user decision 2026-10-23): the same kind of tiny atomic write, before the
         // settings store goes with the container. Never throws.
         await Services.GetRequiredService<ICameraMonitorPathUpdater>().WaitForPendingAsync(PendingSaveTimeout).ConfigureAwait(true);
@@ -274,6 +285,21 @@ internal sealed partial class ServiceHost
 #endif
 
         _backgroundWork.Dispose();
+    }
+
+    /// <summary>
+    /// The one-time migration of the autostart choice (T-201), only in the installed app on Windows with the production
+    /// identity; a completed task otherwise. Never faults.
+    /// </summary>
+    private static Task StartAutostartChoiceMigration(ServiceProvider services, AppEnvironment environment, CancellationToken cancellationToken)
+    {
+        Installer.AutostartChoiceMigration? migration = AppServices.CreateAutostartChoiceMigration(
+            environment,
+            OperatingSystem.IsWindows(),
+            services.GetRequiredService<Platform.AutostartOption>().Autostart,
+            services.GetRequiredService<ISettingsStore>() as JsonSettingsStore,
+            services.GetRequiredService<ILogger<Installer.AutostartChoiceMigration>>());
+        return migration is null ? Task.CompletedTask : Task.Run(() => migration.RunAsync(cancellationToken), CancellationToken.None);
     }
 
     /// <summary>

@@ -1,0 +1,797 @@
+# Manuel d'utilisation de LayerPeek
+
+*Pour LayerPeek 0.5 sous Windows 10/11 et macOS (Apple Silicon).* · [Autres langues](../README.md)
+
+LayerPeek surveille vos imprimantes 3D Prusa via votre réseau local et affiche leur état dans la zone de notification de
+Windows ou dans la barre des menus de macOS. Il n'a pas de fenêtre principale : tout part du menu de son icône. Ce manuel
+décrit les deux systèmes ; là où Windows et macOS diffèrent, le texte le précise ou montre les deux variantes.
+
+> [!NOTE]
+> LayerPeek est un projet communautaire indépendant, et non un produit officiel de Prusa Research.
+
+## Sommaire
+
+1. [Ce dont vous avez besoin](#1-ce-dont-vous-avez-besoin)
+2. [Installation](#2-installation)
+3. [Premiers pas](#3-premiers-pas)
+4. [L'icône et son menu](#4-licône-et-son-menu)
+5. [Fenêtre de la caméra](#5-fenêtre-de-la-caméra)
+6. [Widgets](#6-widgets)
+7. [Notifications](#7-notifications)
+8. [Enregistrement, dashcam et timelapse](#8-enregistrement-dashcam-et-timelapse)
+9. [Détection des échecs d'impression (expérimental)](#9-détection-des-échecs-dimpression-expérimental)
+10. [Diagnostic](#10-diagnostic)
+11. [Référence des paramètres](#11-référence-des-paramètres)
+12. [Mises à jour](#12-mises-à-jour)
+13. [Où sont stockées vos données](#13-où-sont-stockées-vos-données)
+14. [Accès sécurisé à PrusaLink](#14-accès-sécurisé-à-prusalink)
+15. [Dépannage](#15-dépannage)
+16. [Désinstallation](#16-désinstallation)
+
+## 1. Ce dont vous avez besoin
+
+- **Une imprimante Prusa avec le firmware Buddy 6.x et PrusaLink** : CORE One (testée), MK4/MK4S, MK3.9/MK3.9S,
+  MK3.5/MK3.5S, XL et MINI/MINI+. L'Original Prusa MK3/MK3S n'intègre pas PrusaLink et n'est pas prise en charge.
+- **Un ordinateur sur le même réseau local** que l'imprimante :
+  - Windows 10 ou 11, x64 (une version pour Windows sur ARM est en préparation),
+  - macOS sur Apple Silicon (M1 ou plus récent).
+- **Une caméra (facultatif) :** n'importe quelle caméra avec un flux **RTSP H.264** accessible depuis votre ordinateur,
+  par exemple la caméra Prusa Buddy3D. Sans caméra, vous avez quand même l'icône, les notifications et le diagnostic.
+
+LayerPeek fonctionne uniquement sur votre réseau local. Il n'utilise ni Prusa Connect ni aucun autre service cloud. Loin
+de chez vous, vous pouvez accéder aux imprimantes via un VPN vers votre réseau domestique.
+
+Pour l'instant, seule la CORE One a été testée. Vous avez un autre modèle ? Envoyez un court [rapport de compatibilité de l'imprimante](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (formulaire en anglais) ; un seul essai sous Windows ou macOS suffit.
+
+## 2. Installation
+
+Téléchargez la dernière version depuis la page [Releases](https://github.com/pfoltynek/LayerPeek/releases).
+
+> [!IMPORTANT]
+> Les mises à jour au sein des versions 1.x conservent vos paramètres ; les fichiers de paramètres des versions
+> antérieures se chargent toujours. Les versions ne sont ni signées par Microsoft ni notariées par Apple. Votre système
+> vous avertit donc au premier démarrage ; les étapes ci-dessous expliquent comment passer outre.
+
+### 2.1 Windows
+
+Vous avez le choix entre deux paquets :
+
+| Paquet | Ce qu'il fait |
+|---|---|
+| **Programme d'installation** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (recommandé) | Installe LayerPeek pour votre seul utilisateur, sans droits d'administrateur, dans `%LOCALAPPDATA%\LayerPeek`, l'ajoute au menu Démarrer, le lance après l'ouverture de session et peut se mettre à jour tout seul. |
+| **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Décompressez-le où vous voulez et lancez `LayerPeek.exe`. Il ne démarre pas après l'ouverture de session et ne se met pas à jour tout seul (il ouvre la page de la version à la place). |
+
+Les deux paquets sont destinés à Windows sur **x64** (processeurs Intel et AMD) : **Paramètres → Système → Informations
+système** indique *x64* sous **Type du système**. Une version pour Windows sur **ARM** (*ARM* sous **Type du système**,
+par exemple les portables avec Snapdragon) est en préparation et n'est pas encore proposée au téléchargement. Quand elle
+le sera, passez-y à la main : désinstallez la version x64 (**Paramètres → Applications → Applications installées →
+LayerPeek → Désinstaller**), puis installez la version ARM (`…-win-arm64-…`). Vos paramètres et mots de passe sont
+conservés ; une installation ne change jamais d'architecture d'elle-même.
+
+Au premier démarrage, Windows SmartScreen affiche **« Windows a protégé votre ordinateur »** avec un *Éditeur inconnu*.
+Cliquez sur **Informations complémentaires**, puis sur **Exécuter quand même**.
+
+### 2.2 macOS
+
+| Paquet | Ce qu'il fait |
+|---|---|
+| **Image disque** `LayerPeek-X.Y.Z-osx-arm64.dmg` (recommandé) | Ouvrez-la et faites glisser **LayerPeek** dans **Applications**. |
+| **Archive** `LayerPeek-X.Y.Z-osx-arm64.tar.gz` | Contient `LayerPeek.app` ; décompressez-la et déplacez l'app dans **Applications**. |
+
+Lancez toujours LayerPeek depuis **Applications**, et non directement depuis l'image disque ou le dossier
+Téléchargements : c'est seulement là qu'il peut s'ouvrir avec la session et se mettre à jour.
+
+Au premier démarrage, Gatekeeper bloque l'app (*« Apple n'a pas pu vérifier… »*) :
+
+1. Cliquez sur **Terminé**.
+2. Ouvrez **Réglages Système → Confidentialité et sécurité**, faites défiler vers le bas et cliquez sur
+   **Ouvrir quand même** à côté du message concernant LayerPeek.
+3. Confirmez avec votre mot de passe ou Touch ID et ouvrez de nouveau LayerPeek.
+
+Les utilisateurs avancés peuvent plutôt supprimer l'attribut de quarantaine dans le Terminal :
+`xattr -dr com.apple.quarantine /Applications/LayerPeek.app`.
+
+LayerPeek vit uniquement dans la barre des menus. Il n'a pas d'icône dans le Dock et n'apparaît pas dans le sélecteur
+d'apps (⌘⇥).
+
+## 3. Premiers pas
+
+### 3.1 Activer PrusaLink sur l'imprimante
+
+Sur l'écran de l'imprimante, ouvrez **Settings → Network → PrusaLink** (Paramètres → Réseau → PrusaLink). Vérifiez que
+PrusaLink est activé et notez :
+
+- l'**adresse IP** de l'imprimante (ou son nom d'hôte),
+- le **nom d'utilisateur** (par défaut `maker`),
+- le **mot de passe**.
+
+### 3.2 Ajouter l'imprimante
+
+1. Trouvez l'icône de LayerPeek :
+   - **Windows :** dans la zone de notification, à l'extrémité droite de la barre des tâches. Si vous ne la voyez pas,
+     cliquez sur la flèche **`^`** (Afficher les icônes cachées) et faites glisser l'icône sur la barre des tâches pour
+     qu'elle reste visible.
+   - **macOS :** dans la barre des menus, en haut de l'écran.
+2. Ouvrez le menu de l'icône (**Windows :** clic droit sur l'icône, **macOS :** clic sur l'icône) et choisissez
+   **Ajouter une imprimante…**. La fenêtre **Paramètres** s'ouvre sur l'onglet **Imprimantes**.
+3. Remplissez :
+   - **Nom :** le nom de votre choix, p. ex. `CORE One`.
+   - **Adresse :** une adresse IP ou un nom d'hôte, p. ex. `192.168.1.20` ou `http://prusa-mk4.local`.
+   - **Nom d'utilisateur** et **Mot de passe :** les valeurs de l'imprimante.
+4. Cliquez sur **Tester la connexion**. Une connexion qui fonctionne indique le code du modèle et la version du firmware.
+5. Cliquez sur **Enregistrer**.
+
+<p align="center">
+  <img src="../../docs/images/fr/settings-printers.png" alt="Paramètres, onglet Imprimantes avec trois imprimantes" width="620">
+</p>
+
+L'icône affiche aussitôt l'état de l'imprimante. Ajoutez d'autres imprimantes de la même façon : **Ajouter une
+imprimante** dans l'onglet **Imprimantes**.
+
+**macOS 15 et versions ultérieures :** la première connexion à une imprimante ou à une caméra demande l'accès au
+**Réseau local**. Cliquez sur **Autoriser**. Si vous l'avez refusé, consultez [Dépannage](#15-dépannage).
+
+Le mot de passe est stocké dans le **Gestionnaire d'identification** de Windows (Credential Manager) ou dans le
+**Trousseau** de macOS (Keychain), jamais dans le fichier de paramètres. Lorsque vous modifiez une imprimante plus tard,
+le champ du mot de passe affiche **Inchangé** ; laissez-le vide pour conserver le mot de passe enregistré.
+
+**Avertissement sous l'adresse :** une adresse `http://` qui peut se trouver hors du réseau local (une adresse IP
+publique, ou un nom d'hôte autre qu'un nom sans point ou se terminant par `.local`, `.lan` ou `.home.arpa`) affiche un
+avertissement à la place de l'aide. PrusaLink se connecte sans chiffrement, le mot de passe pourrait donc être
+intercepté en chemin. L'enregistrement reste possible. Préférez `https://` via un proxy inverse, ou un VPN. **En savoir
+plus** à côté de l'avertissement ouvre le chapitre [Accès sécurisé à PrusaLink](#14-accès-sécurisé-à-prusalink).
+
+### 3.3 Ajouter la caméra (facultatif)
+
+1. Dans **Paramètres → Imprimantes**, sélectionnez l'imprimante et ouvrez son sous-onglet **Caméra**.
+2. Activez **Utiliser la caméra (élément « Afficher la caméra » du menu de la zone de notification)**.
+3. Saisissez l'**Adresse du flux RTSP**, p. ex. `rtsp://192.168.1.21/live` pour la caméra Buddy3D (le port par défaut
+   est 554). Ne mettez ni nom d'utilisateur ni mot de passe dans l'adresse.
+4. Cliquez sur **Tester la caméra**. Une caméra qui fonctionne affiche une image et sa résolution.
+5. Cliquez sur **Enregistrer** et choisissez **Afficher la caméra** dans le sous-menu de l'imprimante.
+
+Comme pour l'adresse de l'imprimante, une adresse de caméra qui peut se trouver hors du réseau local affiche un
+avertissement : RTSP n'est pas chiffré, l'image de la caméra pourrait donc être interceptée en chemin. L'enregistrement
+reste possible ; préférez un VPN. Le même lien à côté ouvre le chapitre [Accès sécurisé à
+PrusaLink](#14-accès-sécurisé-à-prusalink).
+
+### 3.4 Image de l'imprimante
+
+La liste des imprimantes affiche une image de chaque imprimante, choisie automatiquement selon son modèle. Cliquez sur
+l'image pour choisir un autre modèle, une illustration générique ou votre propre image (PNG, JPG).
+
+## 4. L'icône et son menu
+
+### 4.1 Ce que montre l'icône
+
+L'icône affiche l'état le plus important de toutes vos imprimantes :
+
+| État | Signification |
+|---|---|
+| **Prête** | l'imprimante est inactive |
+| **Impression en cours** | l'icône se remplit au fil de l'impression |
+| **En pause** | l'impression est en pause |
+| **Terminé** / **Arrêté** | l'impression est finie |
+| **Intervention requise** | l'imprimante vous attend (p. ex. un changement de filament ou une question sur son écran) |
+| **Erreur** | l'imprimante signale une erreur |
+| **Hors ligne** | l'imprimante est injoignable |
+| **Identifiants non valides** | l'imprimante a refusé le nom d'utilisateur ou le mot de passe |
+
+Survolez l'icône avec la souris pour voir les détails dans son info-bulle : la progression, le temps restant et le nom
+du fichier. Pendant l'enregistrement de la caméra d'une imprimante, l'info-bulle indique **Enregistrement en cours**.
+
+### 4.2 Le menu
+
+- **Windows :** clic droit sur l'icône.
+- **macOS :** clic sur l'icône dans la barre des menus.
+
+Le menu contient :
+
+- **Un sous-menu par imprimante**, dont l'en-tête affiche le nom, l'état et la progression de l'imprimante, avec :
+  - **Afficher la caméra** / **Masquer la caméra**, et **Mettre la caméra au premier plan** tant que la fenêtre est
+    ouverte,
+  - **Enregistrer** / **Arrêter l'enregistrement**, **Lire le dernier enregistrement**, **Ouvrir le dossier des
+    enregistrements**,
+  - **Sauvegarder les 2 dernières min** (quand la dashcam est activée, voir [8.3](#83-dashcam--les-dernières-minutes)),
+  - les éléments du timelapse (expérimental, voir [8.4](#84-timelapse-expérimental)),
+  - **Ouvrir PrusaLink** : ouvre l'interface web PrusaLink de l'imprimante dans votre navigateur, déjà connecté. Votre
+    mot de passe n'est jamais transmis au navigateur.
+- **Diagnostic…** (voir [10](#10-diagnostic))
+- **Paramètres…**
+- **Nouvelle version X.Y.Z disponible** (uniquement quand une mise à jour est disponible, voir [12](#12-mises-à-jour))
+- **Manuel d'utilisation**: ouvre ce manuel
+- **À propos**
+- **Quitter**
+
+Tant que vous n'avez pas ajouté de première imprimante, le menu propose **Ajouter une imprimante…** à la place des
+sous-menus des imprimantes.
+
+## 5. Fenêtre de la caméra
+
+<p align="center">
+  <img src="../../docs/images/fr/camera-window.jpg" alt="Fenêtre de la caméra pendant une impression avec les widgets État, Nom de l'impression, Temps et Températures" width="860">
+</p>
+
+Ouvrez-la avec **Afficher la caméra** dans le sous-menu de l'imprimante. La fenêtre affiche l'image en direct de la
+caméra avec des [widgets](#6-widgets) par-dessus. Les boutons de la fenêtre apparaissent lorsque vous la survolez avec
+la souris.
+
+### 5.1 Trois modes
+
+| Mode | Comment basculer | À quoi il sert |
+|---|---|---|
+| **Fenêtre normale** | bouton dans la fenêtre, ou double-clic dans le mini-aperçu | pour bien regarder, à n'importe quelle taille, sur n'importe quel écran |
+| **Mini-aperçu** | bouton **Petit aperçu, toujours au premier plan** | une petite fenêtre qui reste au-dessus des autres fenêtres toute la journée |
+| **Plein écran** | **Windows :** F11 · **macOS :** ⌃⌘F · ou double-clic sur l'image ; **Esc** pour revenir | l'écran entier |
+
+Le mini-aperçu comporte un bandeau d'informations sous l'image (progression, temps restant, heure de fin). Deux boutons
+déplient des lignes supplémentaires : le **nom de l'impression** et le **graphique des températures**. Le contenu du
+bandeau se règle dans le sous-onglet **Fenêtre de la caméra** de l'imprimante (voir [11.1](#111-imprimantes)).
+
+Pour économiser le processeur, le mini-aperçu affiche par défaut au plus 10 images par seconde, ce qui suffit largement à
+la petite image ; la fenêtre normale et le plein écran affichent chaque image de la caméra. La limite se règle dans
+l'onglet **Caméra** des paramètres (voir [11.6](#116-caméra)).
+
+La fenêtre cesse aussi de recevoir des images tant que personne ne la voit : quand elle est réduite, tant que
+l'ordinateur est verrouillé ou que l'écran est éteint, sous Windows tant que la fenêtre est sur un autre bureau virtuel
+(une fenêtre simplement cachée par d'autres fenêtres continue) et sous macOS tant qu'on n'en voit aucune partie, par
+exemple quand d'autres fenêtres la cachent entièrement ou qu'elle est sur un autre bureau (au bout d'environ deux
+secondes). Peu après votre retour, l'image revient à partir de la prochaine image clé de la caméra. L'enregistrement, la
+dashcam, les timelapses et la détection des échecs d'impression continuent pendant ce temps.
+
+<p align="center">
+  <img src="../../docs/images/fr/camera-mini.jpg" alt="Mini-aperçu avec le bandeau d'informations, la ligne du nom de l'impression et la ligne du graphique des températures" width="400">
+</p>
+
+### 5.2 Toujours au premier plan
+
+Le bouton en forme d'épingle de la fenêtre indique si la fenêtre reste au-dessus des autres fenêtres et permet de
+basculer d'un simple clic. La même option se trouve dans le menu contextuel de la fenêtre (**Toujours au premier
+plan**).
+
+### 5.3 Menu contextuel de la fenêtre
+
+Faites un clic droit sur l'image (sur macOS, également Contrôle-clic) pour accéder à **Modifier la disposition**,
+**Toujours au premier plan**, à l'enregistrement, à la dashcam et au timelapse.
+
+### 5.4 Quand la connexion est coupée
+
+La fenêtre se reconnecte d'elle-même quand la caméra ou le Wi-Fi décroche ; entre-temps, elle affiche **Connexion à la
+caméra…** ou **Pas de signal**. Elle réessaie au bout de 5 secondes ; tant que la caméra reste injoignable, la pause
+double jusqu'à une minute. La fenêtre indique à peu près quand a lieu la prochaine tentative et tient ce délai à jour ;
+ouvrir la fenêtre, la restaurer après l'avoir réduite ou cliquer sur **Tester la caméra** dans les paramètres relance
+aussitôt la connexion. Quand l'imprimante est éteinte, la fenêtre se ferme, puis se rouvre au même endroit quand
+l'imprimante est de retour. Vous pouvez désactiver ce comportement dans **Paramètres → Imprimantes → Fenêtre de la
+caméra** (**Fermer quand l'imprimante s'éteint, rouvrir quand elle est rallumée**). Une fenêtre que vous fermez
+vous-même reste fermée.
+
+## 6. Widgets
+
+Les widgets sont les cartes affichées par-dessus l'image de la caméra. Chaque imprimante a son propre jeu de widgets et
+sa propre disposition.
+
+| Widget | Affiche |
+|---|---|
+| **État** | le nom de l'imprimante, son état et la progression en pourcentage |
+| **Temps** | le temps restant, l'heure de fin de l'impression, la durée d'impression |
+| **Températures** | la buse et le plateau (réelle / cible) avec un graphique des 60 dernières minutes |
+| **Nom de l'impression** | le nom de fichier lisible avec le matériau, la hauteur de couche et la buse ; les grandes tailles ajoutent l'aperçu du G-code |
+| **Refroidissement** | après l'impression : à quel point la buse et le plateau ont refroidi et quand l'imprimante peut être éteinte sans risque |
+
+Chaque widget existe en trois tailles : **S**, **M** et **L**. Ici, les températures : S affiche les valeurs, M ajoute
+le graphique, L les libellés et la plage de températures.
+
+<p align="center">
+  <img src="../../docs/images/fr/widget-sizes.jpg" alt="Le widget Températures dans les tailles S, M et L" width="860">
+</p>
+
+### 6.1 Choisir les widgets
+
+Dans **Paramètres → Widgets**, choisissez l'imprimante en haut et cochez les widgets souhaités. Sélectionner un widget
+affiche ses propres réglages, p. ex. les seuils de refroidissement de la buse et du plateau. **Disposition pour toutes
+les imprimantes** copie la disposition vers vos autres imprimantes. **Opacité du fond des cartes** garde le texte
+lisible sur une image claire (pour toutes les imprimantes).
+
+<p align="center">
+  <img src="../../docs/images/fr/settings-widgets.png" alt="Paramètres, onglet Widgets" width="620">
+</p>
+
+### 6.2 Disposer les widgets dans la fenêtre de la caméra
+
+Cliquez sur **Modifier la disposition** dans la fenêtre de la caméra (ou sur **Modifier la disposition de la caméra…**
+dans **Paramètres → Widgets**). En mode disposition :
+
+- **faites glisser** un widget vers l'un des six emplacements (en haut et en bas, à gauche, au centre et à droite),
+- cliquez sur un widget pour ouvrir ses options : **Taille** (Petite, Moyenne, Grande) et **Mettre en évidence**
+  (affiche la valeur clé dans la couleur d'accentuation),
+- **Rétablir par défaut** restaure la disposition par défaut, **Terminé** l'enregistre.
+
+Au clavier : **Espace** soulève un widget, les **flèches** le déplacent, **Entrée** ouvre ses options et **Esc** annule
+les modifications. Si la fenêtre est trop petite, agrandissez-la d'abord.
+
+<p align="center">
+  <img src="../../docs/images/fr/camera-layout-mode.jpg" alt="Mode disposition avec les options de taille du widget Températures" width="860">
+</p>
+
+## 7. Notifications
+
+LayerPeek affiche des notifications natives du système pour les événements suivants (chacun peut être activé ou
+désactivé dans **Paramètres → Général**) :
+
+- impression démarrée, terminée, en pause, reprise et arrêtée,
+- l'imprimante requiert une intervention (y compris un mot de passe refusé), une erreur,
+- l'imprimante est hors ligne ou de nouveau en ligne,
+- **Temps restant : N min**, pour que vous soyez près de l'imprimante quand l'impression se termine (**Notifier
+  lorsqu'il reste ce nombre de minutes d'impression**, 0 = désactivé),
+- **Imprimante refroidie** : la buse et le plateau sont sous les seuils du widget **Refroidissement** et l'imprimante
+  peut être éteinte sans risque.
+
+Le **Son** peut être désactivé, activé uniquement pour les notifications importantes ou activé pour toutes les
+notifications. **Envoyer une notification de test** affiche un exemple, pour vérifier que les notifications vous
+parviennent bien.
+
+- **Windows :** si les notifications de LayerPeek sont désactivées dans **Paramètres → Système → Notifications**, les
+  paramètres de LayerPeek l'indiquent et proposent **Ouvrir les paramètres de notification**. Vérifiez aussi **Ne pas
+  déranger**.
+- **macOS :** la première notification demande l'autorisation ; cliquez sur **Autoriser**. Si les notifications sont
+  désactivées dans **Réglages Système → Notifications**, les paramètres de LayerPeek proposent **Ouvrir les réglages
+  Notifications**. Vérifiez aussi **Concentration**.
+
+Cliquer sur une notification d'imprimante ouvre l'interface web PrusaLink de l'imprimante. Une alerte d'échec
+d'impression ouvre la fenêtre de la caméra, un enregistrement échoué ouvre l'onglet **Enregistrement** des paramètres et
+une conversion de timelapse terminée ouvre le dossier des enregistrements.
+
+## 8. Enregistrement, dashcam et timelapse
+
+Tous les enregistrements restent sur votre disque. Par défaut, ils vont dans le dossier **Vidéos** (Windows) ou
+**Films** (macOS), sous `LayerPeek`, avec un sous-dossier par imprimante, nommé d'après l'heure et l'impression. La
+vidéo est stockée en MP4 sans réencodage : elle ne sollicite presque pas le processeur.
+
+<p align="center">
+  <img src="../../docs/images/fr/camera-recording.jpg" alt="Haut de la fenêtre de la caméra avec les indicateurs TL et REC" width="860">
+</p>
+
+Pendant l'enregistrement de la caméra, la fenêtre de la caméra affiche un **REC** rouge ; pendant la prise d'un
+timelapse, un **TL** orange.
+
+### 8.1 Enregistrer manuellement
+
+**Enregistrer** / **Arrêter l'enregistrement** dans le sous-menu de l'imprimante, ou le bouton d'enregistrement dans la
+fenêtre de la caméra. **Lire le dernier enregistrement** et **Ouvrir le dossier des enregistrements** se trouvent dans
+le sous-menu de l'imprimante.
+
+### 8.2 Enregistrer chaque impression
+
+Activez **Enregistrer chaque impression** dans le sous-onglet **Caméra** de l'imprimante. Chaque
+impression est enregistrée depuis son début jusqu'à une minute après sa fin, même sans fenêtre de la caméra ouverte.
+
+<p align="center">
+  <img src="../../docs/images/fr/settings-camera.png" alt="Paramètres, sous-onglet Caméra d'une imprimante avec l'enregistrement automatique, la dashcam et le timelapse" width="620">
+</p>
+
+### 8.3 Dashcam : les dernières minutes
+
+Activez **Dernières minutes (dashcam)** dans le sous-onglet **Caméra** de l'imprimante. Pendant une
+impression, LayerPeek garde en mémoire les 2 dernières minutes de la caméra (environ 8 Mo par minute et par
+imprimante) ; rien n'est écrit sur le disque tant qu'elles ne sont pas sauvegardées. Les dernières minutes, plus les
+30 secondes qui suivent l'événement, sont sauvegardées :
+
+- automatiquement en cas d'erreur d'impression, quand l'imprimante requiert une intervention, quand l'impression est
+  arrêtée et quand la détection des échecs d'impression déclenche une alerte (chaque cas peut être désactivé dans
+  l'onglet **Enregistrement**),
+- manuellement avec **Sauvegarder les 2 dernières min** dans le sous-menu de l'imprimante ou dans le menu contextuel de
+  la fenêtre de la caméra.
+
+La durée (de 1 à 10 minutes) se règle dans l'onglet **Enregistrement**.
+
+### 8.4 Timelapse (expérimental)
+
+Un timelapse est une courte vidéo de toute l'impression : une image toutes les 30 secondes par défaut, aucune pendant
+la pause de l'impression, lue à 30 images par seconde. Il est enregistré sous `…_timelapse.mp4` à côté des
+enregistrements.
+
+- **Manuellement :** **Démarrer le timelapse (expérimental)** / **Arrêter le timelapse (expérimental)** dans le
+  sous-menu de l'imprimante ou le bouton chronomètre dans la fenêtre de la caméra. **Lire le dernier timelapse** se
+  trouve dans le sous-menu.
+- **Chaque impression :** **Créer un timelapse des impressions** dans le sous-onglet **Caméra** de l'imprimante.
+- **Intervalle :** dans l'onglet **Enregistrement**, de 5 à 600 secondes, ou passez à **Toutes les N couches (env.)** :
+  une image au début de chaque nouvelle couche. PrusaLink ne signale pas les couches, LayerPeek les estime donc d'après
+  la hauteur de l'axe Z.
+- **Créer un timelapse depuis un enregistrement… (expérimental)** crée un timelapse à partir d'un enregistrement
+  LayerPeek existant.
+- **Exporter le timelapse en JPEG… (expérimental)** enregistre les images d'un timelapse sous forme de fichiers JPEG
+  numérotés, p. ex. pour votre propre montage vidéo.
+
+Les deux conversions affichent leur progression dans l'élément de menu, où vous pouvez aussi les annuler, et une
+notification vous prévient quand elles sont terminées.
+
+### 8.5 Dossier et limite de taille
+
+Dans l'onglet **Enregistrement**, vous pouvez modifier le **Dossier des enregistrements** et la **Limite de taille de
+tous les enregistrements (Go)** (50 Go par défaut). Au-delà de la limite, les enregistrements les plus anciens sont
+supprimés ; s'il reste moins de 5 Go d'espace libre sur le disque, l'enregistrement s'arrête. Un enregistrement qui
+échoue affiche une notification.
+
+<p align="center">
+  <img src="../../docs/images/fr/settings-recording.png" alt="Paramètres, onglet Enregistrement" width="620">
+</p>
+
+## 9. Détection des échecs d'impression (expérimental)
+
+LayerPeek peut surveiller une impression avec la caméra et vous avertir quand quelque chose tourne mal sur le plateau.
+Elle s'exécute uniquement sur votre ordinateur ; l'image de la caméra n'en sort jamais.
+
+<p align="center">
+  <img src="../../docs/images/fr/settings-detection.jpg" alt="Paramètres, sous-onglet Détection avec la zone du plateau sur l'image de la caméra" width="620">
+</p>
+
+### 9.1 L'activer
+
+Elle est désactivée par défaut et doit être activée à deux endroits :
+
+1. **Rechercher les échecs d'impression dans l'image de la caméra** dans l'onglet **Enregistrement** (pour toutes les
+   imprimantes),
+2. **Surveiller les impressions de cette imprimante avec la caméra** dans le sous-onglet **Détection** de l'imprimante.
+
+La caméra de l'imprimante doit être activée. La détection ne fonctionne que pendant l'impression et avec l'éclairage de
+la chambre allumé, même sans fenêtre de la caméra ouverte.
+
+### 9.2 Zone du plateau
+
+La **Zone du plateau** est la partie de l'image qui est surveillée. Tracez un nouveau rectangle, déplacez-le ou
+modifiez sa taille par un coin avec la souris, ou utilisez les flèches (Maj + flèches modifient sa taille).
+**Image entière** surveille toute l'image, **Charger l'image** prend une nouvelle image de la caméra et, pour une
+CORE One, **Par défaut pour Core One** rétablit son préréglage.
+
+### 9.3 Détecteurs
+
+- **Changement sur le plateau** repère une pièce qui a disparu ou bougé et de la nouvelle matière sur le plateau
+  (spaghetti, pièce arrachée). **Filament foncé** aide avec un filament noir ou très foncé, au prix de davantage de
+  fausses alertes.
+- **Impression dans le vide** (désactivé par défaut, uniquement pour les imprimantes dont le plateau descend pendant
+  l'impression : CORE One, CORE One L, XL) repère que l'imprimante continue d'imprimer mais que plus rien ne grandit,
+  p. ex. quand le filament est épuisé.
+
+**Sensibilité** (de 0 à 100, 50 par défaut) : plus elle est élevée, plus il y a d'alertes, y compris de fausses ; plus
+elle est basse, moins il y a d'alertes, mais un échec peut passer inaperçu.
+
+### 9.4 L'alerte
+
+L'alerte est une notification **Échec d'impression possible – …** accompagnée d'une image de la caméra. Cliquer dessus
+ouvre la fenêtre de la caméra. Le bouton **Fausse alerte** conserve une trace locale pour le réglage ; rien ne quitte
+votre ordinateur. Dans l'onglet **Enregistrement**, vous réglez la fréquence de répétition de l'alerte, l'enregistrement
+ou non d'une image de chaque alerte, et la fréquence de vérification de la caméra (de 2 à 5 secondes).
+
+> [!WARNING]
+> La détection ne repère ni la qualité de la première couche, ni les problèmes au niveau de la buse, ni les défauts à
+> l'intérieur de la pièce. Elle peut manquer un échec ou déclencher une fausse alerte. Ne comptez pas sur elle comme
+> seule protection d'une impression sans surveillance.
+
+## 10. Diagnostic
+
+**Diagnostic…** dans le menu de l'icône (choisissez l'imprimante en haut de la fenêtre) affiche le modèle et le firmware
+de l'imprimante, l'état actuel, les températures de la buse et du plateau (réelle et cible), les ventilateurs, la
+vitesse d'impression, le débit et la hauteur Z, ainsi qu'un graphique des températures des 30 dernières minutes, des
+2 dernières heures ou des 24 dernières heures. L'historique est conservé uniquement en mémoire et commence au démarrage
+de LayerPeek.
+
+<p align="center">
+  <img src="../../docs/images/fr/diagnostics.png" alt="Fenêtre Diagnostic avec l'historique des températures" width="620">
+</p>
+
+## 11. Référence des paramètres
+
+Ouvrez **Paramètres…** depuis le menu de l'icône. Les modifications s'appliquent après **Enregistrer** ; **Annuler** les
+abandonne.
+
+### 11.1 Imprimantes
+
+La liste des imprimantes avec **Ajouter une imprimante** et **Supprimer**. Chaque imprimante a des sous-onglets :
+
+- **Imprimante :** nom, adresse, nom d'utilisateur, mot de passe, **Tester la connexion**.
+- **Caméra :** l'adresse RTSP, **Tester la caméra**, l'enregistrement automatique, la dashcam et le timelapse des
+  impressions.
+- **Fenêtre de la caméra :** **Ouvrir en** (comme la dernière fois, fenêtre normale, mini-aperçu, plein écran),
+  l'écran, la taille, la position et **Toujours au premier plan** de la fenêtre normale et du mini-aperçu,
+  **Mémoriser la dernière position et la dernière taille**, **Fermer quand l'imprimante s'éteint, rouvrir quand elle
+  est rallumée**, et le contenu du bandeau d'informations du mini-aperçu.
+- **Détection :** la détection des échecs d'impression de cette imprimante (voir
+  [9](#9-détection-des-échecs-dimpression-expérimental)).
+
+### 11.2 Widgets
+
+Les widgets de chaque imprimante, leurs réglages et l'opacité des cartes (voir [6](#6-widgets)).
+
+### 11.3 Enregistrement
+
+Le dossier et la limite de taille des enregistrements, la dashcam, le timelapse et la détection des échecs d'impression
+(voir [8](#8-enregistrement-dashcam-et-timelapse) et [9](#9-détection-des-échecs-dimpression-expérimental)). Les
+fonctions expérimentales portent un badge **Expérimental**.
+
+### 11.4 Général
+
+- **Notifications :** les événements, **Son**, le rappel « minutes restantes », **Envoyer une notification de test**.
+- **Intervalle d'interrogation (secondes) :** la fréquence à laquelle l'état des imprimantes est demandé.
+- **Langue :** **Langue du système** ou l'une des langues suivantes : English, Čeština, Slovenčina, Deutsch, Español,
+  Français, Italiano, Polski. Elle ne modifie que les textes ; les nombres, les dates et les heures suivent les
+  paramètres régionaux de votre système.
+- **Journalisation détaillée (Debug) :** ne l'activez que si on vous le demande lors d'un dépannage.
+
+### 11.5 Démarrage, MàJ
+
+- **Windows :** **Démarrer à l'ouverture de session Windows**. Activé par défaut ; disponible uniquement dans la version
+  installée, pas dans la version ZIP.
+- **macOS :** **Ouvrir avec la session**. Désactivé par défaut ; disponible uniquement quand LayerPeek se trouve dans le
+  dossier Applications. Si vous avez désactivé LayerPeek dans **Réglages Système → Général → Ouverture et extensions**
+  (Login Items & Extensions), vous seul pouvez l'y autoriser à nouveau ; le bouton **Ouvrir Réglages Système** vous y
+  emmène.
+- **Rechercher automatiquement les mises à jour**, **Proposer les versions préliminaires** et **Vérifier maintenant**
+  (voir [12](#12-mises-à-jour)).
+
+### 11.6 Caméra
+
+Paramètres de toutes les caméras (la caméra de chaque imprimante se configure dans son sous-onglet **Caméra**, voir
+[11.1](#111-imprimantes)).
+
+- **Fréquence d'images du mini-aperçu :** combien d'images par seconde le mini-aperçu affiche. **Économe** (5 i/s),
+  **Équilibré** (10 i/s, par défaut) ou **Fluide** (chaque image de la caméra) ; le curseur règle une autre limite de 1 à
+  30 i/s (**Personnalisé**). Moins d'images, c'est moins de charge processeur et moins de données copiées ; la caméra
+  reste lue en entier, les enregistrements, les timelapses et la détection des défauts d'impression ne changent pas. La
+  fenêtre normale et le plein écran affichent toujours chaque image. Le changement s'applique à un mini-aperçu ouvert
+  après **Enregistrer**.
+- **Décodage matériel :** **Automatique** (par défaut) laisse le matériel graphique décoder la vidéo de la fenêtre de la
+  caméra et du mini-aperçu quand c'est possible, sinon le processeur s'en charge ; la charge processeur baisse.
+  **Désactivé** décode toujours avec le processeur : moins de mémoire et aucun décodeur système, mais plus de charge
+  processeur. Choisissez **Désactivé** si l'image de la caméra est abîmée ou noire, après un problème de pilote
+  graphique ou pour économiser la mémoire. Sous Windows, **Automatique** décode pour l'instant aussi avec le processeur.
+  Le test de la caméra et la détection des défauts d'impression utilisent toujours le processeur. Le changement
+  s'applique après **Enregistrer** ; une fenêtre de caméra ouverte bascule à la prochaine image clé de la caméra (en
+  général en quelques secondes), sans nouvelle connexion.
+
+## 12. Mises à jour
+
+Peu après le démarrage, puis une fois par jour, LayerPeek demande à GitHub si une nouvelle version est sortie (vous
+pouvez désactiver cette vérification). Une nouvelle version apparaît sous la forme **Nouvelle version X.Y.Z disponible**
+dans le menu de l'icône et une seule fois sous forme de notification.
+
+- **Windows, version installée :** l'élément de menu télécharge la mise à jour, quitte LayerPeek et lance la nouvelle
+  version.
+- **Windows, version ZIP :** l'élément de menu ouvre la page de la version ; téléchargez le nouveau ZIP manuellement.
+- **Windows, installée avec winget :** utilisez aussi l'élément de menu. `winget upgrade` (y compris dans
+  `winget upgrade --all`) fonctionne également, mais il ferme brutalement LayerPeek s'il est en cours d'exécution, ne le
+  relance pas (lancez-le depuis le menu Démarrer) et supprime les fichiers journaux de `%LOCALAPPDATA%\LayerPeek\logs`.
+- **macOS :** l'élément de menu télécharge la mise à jour et redémarre LayerPeek, mais seulement si l'app se trouve
+  dans **Applications** (et non sur l'image disque ou dans Téléchargements).
+
+Vos paramètres et vos mots de passe sont conservés.
+
+**Mise à jour refusée :** la version installée n'accepte une mise à jour que si sa signature peut être vérifiée. Sinon,
+LayerPeek n'installe rien : il affiche une notification (une seule fois par version proposée ; un clic ouvre les
+paramètres) ainsi qu'une erreur dans l'onglet **Démarrage et mises à jour**, et le menu de l'icône affiche **Mise à jour
+refusée…** à la place de la nouvelle version (la notification de la nouvelle version est retirée). Cela reste ainsi
+jusqu'à ce qu'une vérification ultérieure réussisse : la nouvelle version est alors de nouveau proposée et sa
+notification s'affiche une fois de plus. N'installez pas cette version manuellement, la publication elle-même a pu être
+falsifiée : attendez la prochaine version ou suivez les annonces du projet.
+
+## 13. Où sont stockées vos données
+
+| Quoi | Windows | macOS |
+|---|---|---|
+| Paramètres | `%APPDATA%\LayerPeek\settings.json` | `~/Library/Application Support/LayerPeek/settings.json` |
+| Mots de passe | Gestionnaire d'identification Windows | trousseau de session (login) |
+| Journaux | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
+| Enregistrements | `Videos\LayerPeek` | `Movies/LayerPeek` |
+
+L'historique des températures est conservé uniquement en mémoire. LayerPeek se connecte uniquement aux imprimantes et
+caméras que vous ajoutez et, sauf si vous désactivez la recherche de mises à jour, à GitHub (la liste des versions, sans
+aucun compte, et le téléchargement d'une mise à jour que vous lancez). Il n'y a aucune télémétrie.
+
+## 14. Accès sécurisé à PrusaLink
+
+PrusaLink sur l'imprimante ne parle que **HTTP** non chiffré ; l'imprimante elle-même n'offre pas HTTPS. Prusa conçoit
+PrusaLink pour le réseau local et déconseille d'y accéder depuis Internet par une redirection de port sur le routeur ;
+Prusa recommande plutôt un VPN chiffré. Sur un réseau domestique que vous êtes seul à utiliser, cela suffit en général.
+Lisez la suite si d'autres personnes ou appareils partagent le réseau entre votre ordinateur et l'imprimante (Wi-Fi
+partagé, bureau, atelier, résidence) ou si vous voulez accéder à l'imprimante depuis l'extérieur.
+
+Une adresse d'imprimante `http://` ou une adresse de caméra qui peut se trouver hors du réseau local reçoit un
+avertissement dans les paramètres (voir [3.2 Ajouter l'imprimante](#32-ajouter-limprimante)) ; l'enregistrement reste
+possible.
+
+### 14.1 En quoi consiste le risque
+
+- **Quiconque peut voir le trafic** entre votre ordinateur et l'imprimante peut le lire : l'état de l'imprimante, les
+  noms de fichiers et le G-code envoyé par l'interface web PrusaLink.
+- **La connexion :** LayerPeek se connecte avec HTTP Digest, la seule connexion que l'imprimante propose en dehors de la
+  clé API. Le mot de passe lui-même n'est pas envoyé, mais le Digest de l'imprimante est l'ancienne variante MD5 (RFC
+  2069). À partir d'une connexion enregistrée, un attaquant peut essayer de deviner le mot de passe hors ligne et,
+  pendant 5 minutes au plus, rejouer la même requête enregistrée. Digest ne protège pas le contenu : qui peut modifier
+  le trafic peut modifier les données.
+- **La clé API :** les outils qui se connectent avec la clé API (l'en-tête `X-Api-Key`) envoient le mot de passe
+  PrusaLink lui-même, lisible par quiconque écoute. Dans PrusaSlicer, choisissez **HTTP digest** plutôt que la clé API.
+- **Avec le mot de passe**, n'importe qui contrôle l'imprimante via PrusaLink : lance et arrête des impressions, envoie
+  et supprime des fichiers.
+
+### 14.2 Le mot de passe
+
+L'imprimante génère elle-même le mot de passe ; le firmware actuel le compose de 15 caractères aléatoires parmi 57
+lettres et chiffres (sans les 0, O, 1, l et I faciles à confondre). Deviner un tel mot de passe à partir d'une connexion
+enregistrée n'est pas réaliste. Sur les imprimantes à firmware Buddy, vous ne pouvez pas saisir votre propre mot de
+passe, vous pouvez seulement en générer un nouveau.
+
+Générez un nouveau mot de passe dès que l'ancien a pu fuiter (une photo partagée de l'écran ou du QR code PrusaLink, qui
+contient le mot de passe, ou la clé API utilisée sur un réseau non fiable) :
+
+1. Sur l'imprimante, ouvrez **Settings → Network → PrusaLink** (Réglages → Réseau → PrusaLink) et choisissez **Generate
+   Password** (Générer un Mot de Passe).
+2. Dans LayerPeek, ouvrez **Paramètres → Imprimantes**, sélectionnez l'imprimante, saisissez le nouveau mot de passe
+   dans **Mot de passe** du sous-onglet **Imprimante**, cliquez sur **Tester la connexion** puis sur **Enregistrer**.
+3. Changez-le aussi dans les autres outils qui utilisent PrusaLink (PrusaSlicer et autres).
+
+### 14.3 Un réseau séparé et le pare-feu
+
+- Placez les imprimantes et les caméras dans un **réseau séparé** de votre routeur (pour les objets connectés, un VLAN).
+  Autorisez l'ordinateur où tourne LayerPeek à les joindre : le port TCP **80** de l'imprimante (PrusaLink) et le port
+  RTSP de la caméra (**554** par défaut). Les réseaux invités bloquent souvent les connexions entre appareils ;
+  consultez le manuel de votre routeur.
+- **Ne redirigez jamais un port du routeur** vers l'imprimante. Pour y accéder depuis l'extérieur, connectez-vous à
+  votre réseau domestique par un VPN.
+- LayerPeek lui-même n'offre rien au réseau : **Ouvrir PrusaLink** n'écoute que sur `127.0.0.1` de votre ordinateur. Le
+  pare-feu de votre ordinateur n'a besoin d'aucune nouvelle règle pour LayerPeek.
+
+### 14.4 HTTPS via un proxy inverse
+
+Un petit ordinateur à côté de l'imprimante (par exemple un Raspberry Pi) exécute un proxy inverse, **Caddy** ou
+**nginx**. LayerPeek communique avec le proxy en HTTPS ; seul le proxy parle à l'imprimante en HTTP non chiffré. Reliez
+le proxy et l'imprimante par un câble court ou au même switch et, si votre routeur le permet, ne laissez que le proxy
+joindre l'imprimante.
+
+- Dans LayerPeek, saisissez l'adresse du proxy comme adresse de l'imprimante, par ex. `https://printer.home.arpa`. Le
+  nom doit mener au proxy (une entrée DNS dans le routeur ou le fichier `hosts`).
+- Utilisez **un nom d'hôte ou un port par imprimante**, pas un chemin comme `https://proxy/mk4/`. L'imprimante vérifie
+  la connexion d'après le chemin de la requête : un proxy qui retire un tel préfixe fait refuser le mot de passe par
+  l'imprimante.
+- La caméra (RTSP) ne passe pas par le proxy ; LayerPeek s'y connecte directement.
+
+**Caddy** (le fichier `Caddyfile`, `192.168.1.20` est l'imprimante) :
+
+```caddyfile
+printer.home.arpa {
+	tls internal
+	reverse_proxy 192.168.1.20
+}
+```
+
+Avec `tls internal`, Caddy émet le certificat depuis sa propre autorité de certification (CA). Faites confiance à son
+certificat racine sur votre ordinateur (voir [14.5](#145-faire-confiance-au-certificat-sur-votre-ordinateur)) ; quand
+Caddy tourne comme service Linux, le fichier est `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`.
+Caddy transmet le chemin et les en-têtes de connexion sans les modifier.
+
+**nginx** (un bloc `server`, par ex. dans `/etc/nginx/conf.d/printer.conf`) :
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name printer.home.arpa;
+    ssl_certificate     /etc/nginx/tls/printer.crt;
+    ssl_certificate_key /etc/nginx/tls/printer.key;
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://192.168.1.20;
+    }
+}
+```
+
+`proxy_pass` sans chemin transmet le chemin sans le modifier. `client_max_body_size 0` lève la limite de 1 Mo, pour que
+l'envoi de G-code par l'interface web PrusaLink fonctionne. nginx a besoin d'un certificat de votre propre CA, créé par
+exemple avec OpenSSL :
+
+```sh
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=Printer proxy CA" \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -keyout ca.key -out ca.crt
+openssl req -newkey rsa:3072 -nodes -subj "/CN=printer.home.arpa" -keyout printer.key -out printer.csr
+printf "subjectAltName=DNS:printer.home.arpa\nextendedKeyUsage=serverAuth\n" > printer.ext
+openssl x509 -req -in printer.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 825 \
+  -extfile printer.ext -out printer.crt
+```
+
+Copiez `printer.crt` et `printer.key` sur le proxy et `ca.crt` sur vos ordinateurs ; gardez `ca.key` en lieu sûr et hors
+du réseau. Le certificat du serveur est valable 825 jours, le maximum accepté par macOS.
+
+### 14.5 Faire confiance au certificat sur votre ordinateur
+
+LayerPeek n'accepte que les certificats auxquels votre système fait confiance. Un certificat auto-signé, ou celui d'une
+CA que le système ne connaît pas, échoue : **Tester la connexion** indique *« La connexion sécurisée (https) a échoué.
+Essayez l'adresse avec http:// ou vérifiez le certificat de l'imprimante. »*, l'imprimante apparaît **Hors ligne** et
+**Diagnostic** affiche *« La connexion sécurisée (https) à l'imprimante a échoué. »* LayerPeek ne peut pas faire
+confiance de lui-même à un certificat précis ; ajoutez le certificat de votre CA (`ca.crt` ou le `root.crt` de Caddy) au
+système :
+
+- **Windows :** appuyez sur **Win+R**, lancez `certmgr.msc`, faites un clic droit sur **Autorités de certification
+  racines de confiance → Certificats** (Trusted Root Certification Authorities → Certificates), choisissez **Toutes les
+  tâches → Importer…** et importez le fichier dans **Autorités de certification racines de confiance** ; confirmez
+  l'avertissement de sécurité. Ou dans un terminal : `certutil -user -addstore Root ca.crt`.
+- **macOS :** ouvrez **Trousseaux d'accès** (avec Spotlight), sélectionnez le trousseau **session** (login) et faites
+  glisser le fichier dans la fenêtre. Double-cliquez sur le certificat, ouvrez **Se fier** et réglez **Lors de
+  l'utilisation de ce certificat** sur **Toujours approuver** (Always Trust) ; confirmez avec votre mot de passe.
+
+Relancez ensuite **Tester la connexion**.
+
+Sources : PrusaLink [sur le réseau
+local](https://help.prusa3d.com/article/prusa-connect-and-prusalink-explained_302608), [redirection de port et
+VPN](https://help.prusa3d.com/article/prusalink-sl1-sl1s_146094), [HTTP digest dans
+PrusaSlicer](https://help.prusa3d.com/article/prusalink-troubleshooting_304411) ; firmware : [port 80 sans
+TLS](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/http_lifetime.cpp),
+[Digest et clé
+API](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/nhttp/req_parser.cpp),
+[validité du
+nonce](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/common/http/types.h),
+[génération du mot de
+passe](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/wui.cpp) et
+[longueur](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/persistent_stores/store_instances/config_store/constants.hpp),
+[menu
+PrusaLink](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/gui/screen_prusa_link.cpp) ;
+[RFC 2069](https://www.rfc-editor.org/rfc/rfc2069) ; [Caddy
+`reverse_proxy`](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy),
+[`tls`](https://caddyserver.com/docs/caddyfile/directives/tls), [répertoire de
+données](https://caddyserver.com/docs/running) ; [nginx
+`proxy_pass`](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass),
+[`client_max_body_size`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size) ; [exigences
+d'Apple pour les certificats](https://support.apple.com/en-us/103769), [Trousseaux
+d'accès](https://support.apple.com/guide/keychain-access/change-the-trust-settings-of-a-certificate-kyca11871/mac) ;
+[certutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil).
+
+## 15. Dépannage
+
+**L'icône n'est pas visible (Windows).** Cliquez sur la flèche **`^`** dans la zone de notification et faites glisser
+l'icône de LayerPeek sur la barre des tâches.
+
+**L'imprimante est Hors ligne.** Vérifiez que l'imprimante est allumée et connectée au réseau, que l'adresse est correcte
+(essayez-la dans un navigateur) et que votre ordinateur est sur le même réseau. Lancez **Tester la connexion** dans les
+paramètres de l'imprimante.
+
+**Identifiants non valides.** Saisissez de nouveau le nom d'utilisateur et le mot de passe indiqués dans
+**Settings → Network → PrusaLink** (Paramètres → Réseau → PrusaLink) sur l'imprimante, puis enregistrez.
+
+**La connexion sécurisée (https) a échoué.** L'adresse de l'imprimante commence par `https://`. Soit elle mène
+directement à l'imprimante, qui n'offre pas HTTPS (utilisez `http://`), soit votre système ne fait pas confiance au
+certificat du proxy : voir [14.5](#145-faire-confiance-au-certificat-sur-votre-ordinateur).
+
+**Pas de connexion sur macOS.** L'accès au réseau local est peut-être désactivé. LayerPeek propose alors **Ouvrir
+Réglages Système** ; activez LayerPeek dans **Réglages Système → Confidentialité et sécurité → Réseau local**.
+
+**La caméra affiche Pas de signal.** Vérifiez l'adresse RTSP avec **Tester la caméra**, et que la caméra est allumée et
+accessible. Ne mettez ni nom d'utilisateur ni mot de passe dans l'adresse.
+
+**L'image de la caméra est abîmée ou noire** (l'adresse et **Tester la caméra** sont bons). Réglez **Paramètres →
+Caméra → Décodage matériel** sur **Désactivé** et enregistrez ; la fenêtre de la caméra décode alors avec le processeur
+(voir [11.6](#116-caméra)).
+
+**Les notifications n'apparaissent pas.** Utilisez **Envoyer une notification de test** dans **Paramètres → Général**
+et vérifiez **Ne pas déranger** (Windows) ou **Concentration** (macOS).
+
+**Signaler un bug.** Ouvrez **À propos** depuis le menu de l'icône :
+
+- **Enregistrer le paquet de diagnostic…** enregistre un fichier ZIP contenant les journaux, la version, les
+  informations système et les paramètres, **sans mots de passe ni clés**. Joignez-le à votre rapport de bug.
+- **Copier les infos dans le presse-papiers** copie un court rapport.
+- **Ouvrir le dossier des journaux** ouvre les journaux.
+
+Si on vous demande un journal détaillé, activez **Journalisation détaillée (Debug)** dans **Paramètres → Général**,
+reproduisez le problème, enregistrez le paquet, puis désactivez de nouveau la journalisation détaillée.
+
+Signalez les bugs et les idées dans les [issues](https://github.com/pfoltynek/LayerPeek/issues) sur GitHub. Indiquez
+le modèle de votre imprimante, la version du firmware et votre système d'exploitation.
+
+## 16. Désinstallation
+
+- **Windows, version installée :** **Paramètres → Applications → Applications installées → LayerPeek → Désinstaller**.
+- **Windows, version ZIP :** quittez LayerPeek et supprimez son dossier.
+- **macOS :** quittez LayerPeek (**Quitter** dans son menu) et déplacez **LayerPeek** depuis **Applications** vers la
+  Corbeille.
+
+La désinstallation conserve vos paramètres, vos mots de passe et vos enregistrements. Pour les supprimer aussi, effacez
+les dossiers indiqués en [13](#13-où-sont-stockées-vos-données) et les entrées LayerPeek dans le Gestionnaire
+d'identification (Windows) ou dans Trousseaux d'accès (macOS).

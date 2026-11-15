@@ -13,6 +13,9 @@ public sealed class PrinterSimulation
     /// <summary>Job id of the first simulated print (as in the recorded fixtures).</summary>
     public const long FirstJobId = 42;
 
+    /// <summary>Height of one layer of a print with <see cref="SimulationTiming.Layers"/> (mm), a common Prusa profile.</summary>
+    public const double LayerHeight = 0.2;
+
     private const double NozzleHeatingTau = 15;
     private const double NozzleCoolingTau = 60;
     private const double BedHeatingTau = 30;
@@ -234,11 +237,26 @@ public sealed class PrinterSimulation
         };
     }
 
+    /// <summary>
+    /// The Z axis at a progress (0-100 %): smooth up to <see cref="SimulatedModel.MaxZ"/>, or the layer the progress is in
+    /// (<see cref="SimulationTiming.Layers"/>).
+    /// </summary>
+    private double ZAt(double progress)
+    {
+        int layers = Timing.Layers;
+        if (layers == 0)
+        {
+            return 0.2 + ((Model.MaxZ - 0.2) * progress / 100);
+        }
+
+        int layer = Math.Clamp((int)Math.Floor(progress / 100 * layers) + 1, 1, layers);
+        return layer * LayerHeight;
+    }
+
     private SimulatedStatus Frozen(string state, Phase phase, double sincePhase, double nozzleTarget, SimulatedJob defaultJob)
     {
         SimulatedJob job = phase.FrozenJob ?? defaultJob;
-        double z = 0.2 + ((Model.MaxZ - 0.2) * job.Progress / 100);
-        return Static(state, job, phase, sincePhase, nozzleTarget, Model.BedTarget, z);
+        return Static(state, job, phase, sincePhase, nozzleTarget, Model.BedTarget, ZAt(job.Progress));
     }
 
     private static SimulatedStatus Static(string state, SimulatedJob? job, Phase phase, double sincePhase, double nozzleTarget, double bedTarget, double z)
@@ -291,8 +309,7 @@ public sealed class PrinterSimulation
             double progress = Math.Min(100, (t - heat) / print * 100);
             int remaining = (int)Math.Ceiling(printEnd - t);
             SimulatedJob job = new(jobId, Math.Round(progress, 2), remaining, (int)t, FileOf(jobId));
-            double z = 0.2 + ((Model.MaxZ - 0.2) * progress / 100);
-            return new SimulatedStatus("PRINTING", job, nozzleShown, Model.NozzleTarget, bedShown, Model.BedTarget, Math.Round(z, 2), 100, 100, HotendFan(nozzle), progress >= 1 ? 4900 : 0);
+            return new SimulatedStatus("PRINTING", job, nozzleShown, Model.NozzleTarget, bedShown, Model.BedTarget, Math.Round(ZAt(progress), 2), 100, 100, HotendFan(nozzle), progress >= 1 ? 4900 : 0);
         }
 
         string state = t < printEnd + finished ? "FINISHED" : "IDLE";

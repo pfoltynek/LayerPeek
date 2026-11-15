@@ -39,6 +39,13 @@ internal sealed class SettingsDocument
     /// <summary>"Check for updates automatically" (T-058); missing in older files, which load with the default (on).</summary>
     public bool? CheckForUpdates { get; set; }
 
+    /// <summary>
+    /// The start after logon the user chose in the settings window (T-201); written only once the user chose, so that
+    /// until then the install hook switches the autostart on like for a new install.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? StartAtLogin { get; set; }
+
     public NotificationsDocument? Notifications { get; set; }
 
     /// <summary>Global settings of the camera overlay (T-077); missing in older files and not written while all are the defaults.</summary>
@@ -51,6 +58,21 @@ internal sealed class SettingsDocument
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? CameraWindowAutoClose { get; set; }
+
+    /// <summary>
+    /// The frame rate limit of the mini preview (T-185): whole frames per second 1–30, 0 = no limit; missing (older files,
+    /// the default) = 10 and not written while it is the default. Read as a number so that fractions and out-of-range values
+    /// fall back to the default with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? MiniPreviewFrameRate { get; set; }
+
+    /// <summary>
+    /// "Hardware decoding" of the camera video (T-203): <c>Off</c>; missing (older files, the default) = <c>Automatic</c>
+    /// and not written while it is the default. An unknown value falls back to the default with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CameraHardwareDecoding { get; set; }
 
     /// <summary>
     /// Folder and size limit of the camera recordings (T-145): a <see cref="RecordingDocument"/> object; missing in older

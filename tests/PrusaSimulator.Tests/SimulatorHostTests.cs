@@ -48,7 +48,7 @@ public sealed class SimulatorHostTests
         Assert.True(SimulatorOptions.TryParse(
             [
                 "--printers", "4", "--port", "9000", "--models", "mini,xl", "--scenario", "idle,offline,flaky",
-                "--speed", "10", "--print-minutes", "2.5", "--user", "operator", "--password", "secret", "--host", "0.0.0.0",
+                "--speed", "10", "--print-minutes", "2.5", "--layers", "12", "--user", "operator", "--password", "secret", "--host", "0.0.0.0",
                 "--offline-mode", "hang", "--camera-port", "9554", "--camera-clip", "my.mp4", "--fps", "30",
             ],
             out SimulatorOptions options,
@@ -62,6 +62,7 @@ public sealed class SimulatorHostTests
             Enumerable.Range(0, 4).Select(options.ScenarioOf));
         Assert.Equal(10, options.Speed);
         Assert.Equal(TimeSpan.FromMinutes(2.5), options.PrintDuration);
+        Assert.Equal(12, options.Layers);
         Assert.Equal("operator", options.UserName);
         Assert.Equal("secret", options.Password);
         Assert.Equal(IPAddress.Any, options.Address);
@@ -88,6 +89,9 @@ public sealed class SimulatorHostTests
     [InlineData("--models", "mk3")]
     [InlineData("--scenario", "sleeping")]
     [InlineData("--speed", "0")]
+    [InlineData("--layers", "0")]
+    [InlineData("--layers", "1001")]
+    [InlineData("--layers", "2.5")]
     [InlineData("--offline-mode", "1")]
     [InlineData("--host", "printer.local")]
     [InlineData("--unknown", "x")]

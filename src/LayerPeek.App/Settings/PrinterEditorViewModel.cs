@@ -295,8 +295,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>Accessible name of the Camera sub-tab header.</summary>
     public string CameraTabName => TabName(Strings.SettingsCamera, ShowsCameraErrorMarker);
 
-    /// <summary>The address hint gives way to the address error (T-033).</summary>
-    public bool ShowsAddressHint => AddressError is null;
+    /// <summary>The address hint gives way to the address error (T-033) and to the warning (T-182).</summary>
+    public bool ShowsAddressHint => AddressError is null && !_addressUntrusted;
 
     /// <summary>The user name hint gives way to the user name error.</summary>
     public bool ShowsUserNameHint => UserNameError is null;
@@ -304,8 +304,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>The password hint gives way to the password error.</summary>
     public bool ShowsPasswordHint => PasswordError is null;
 
-    /// <summary>The camera address hint gives way to the camera address error.</summary>
-    public bool ShowsCameraUrlHint => CameraUrlError is null;
+    /// <summary>The camera address hint gives way to the camera address error and to the warning (T-182).</summary>
+    public bool ShowsCameraUrlHint => CameraUrlError is null && !_cameraUrlUntrusted;
 
     /// <summary>Tests the values in the form (not saved). Disabled while running, so a double click tests once.</summary>
     public IAsyncRelayCommand TestConnectionCommand { get; }
@@ -1069,6 +1069,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             OnPropertyChanged(nameof(CameraTestResultText));
         }
 
+        OnWarningsChanged();
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(ConnectionTabName));
         OnPropertyChanged(nameof(CameraTabName));
@@ -1404,7 +1405,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         // The address only (the window sizes have their own sub-tab and marker).
         bool blocks = BuildCamera(_savedWindow) is null;
         string? problem = null;
-        if (!CameraSettings.TryParseStreamUri(_cameraUrl, out _, out CameraUrlProblem kind))
+        if (!CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? streamUri, out CameraUrlProblem kind))
         {
             problem = kind == CameraUrlProblem.Missing && !_cameraEnabled ? null
                 // A disabled camera blocks only because of credentials the parser did not name as such.
@@ -1418,6 +1419,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             _cameraBlocksSave = blocks;
             OnErrorsChanged();
         }
+
+        SetCameraUrlUntrusted(IsUntrusted(streamUri));
     }
 
     private static string CameraProblemText(CameraUrlProblem problem) => problem switch
@@ -1504,20 +1507,25 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         }
     }
 
-    private string? AddressProblem() =>
-        _address.Trim().Length == 0 ? Strings.SettingsErrorAddressRequired
-        // Exactly the rules of the PrusaLink client and the tray menu (credentials, query, fragment, scheme).
-        : !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
-        : null;
+    private string? AddressProblem(out Uri? address)
+    {
+        address = null;
+        return _address.Trim().Length == 0 ? Strings.SettingsErrorAddressRequired
+            // Exactly the rules of the PrusaLink client and the tray menu (credentials, query, fragment, scheme).
+            : !PrusaLinkAddress.TryCreateBaseUri(_address, out address) ? Strings.SettingsErrorAddressInvalid
+            : null;
+    }
 
     private void ValidateAddress()
     {
-        string? problem = AddressProblem();
+        string? problem = AddressProblem(out Uri? address);
         if (_addressProblem != problem)
         {
             _addressProblem = problem;
             OnErrorsChanged();
         }
+
+        SetAddressUntrusted(IsUntrusted(address));
     }
 
     // The rules live in Core (PrinterUserName); only the wording is decided here.
@@ -1583,6 +1591,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsCameraUrlHint));
         OnCooldownErrorsChanged();
         OnFieldStatesChanged();
+        OnWarningsChanged();
     }
 
     private static string TabName(string name, bool hasErrors) =>

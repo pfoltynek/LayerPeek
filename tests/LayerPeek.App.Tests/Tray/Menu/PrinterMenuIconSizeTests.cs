@@ -6,7 +6,7 @@ namespace LayerPeek.App.Tests.Tray.Menu;
 
 /// <summary>
 /// Size of the printer icons in the tray menu: 16 DIP on Windows (T-039, unchanged) and the NSMenu image size of
-/// Avalonia.Native 12.1.4 on macOS (T-116): <c>floor(menu font × 1.333333)</c> points, 18 pt for the default 14 pt menu font.
+/// Avalonia.Native 12.1.4–12.1.6 on macOS (T-116): <c>floor(menu font × 1.333333)</c> points, 18 pt for the default 14 pt menu font.
 /// </summary>
 public sealed class PrinterMenuIconSizeTests
 {
@@ -68,13 +68,13 @@ public sealed class PrinterMenuIconSizeTests
     }
 
     [Fact]
-    public void TheMacOsSizingIsCheckedAgainstAvaloniaNative1214()
+    public void TheMacOsSizingIsCheckedAgainstAvaloniaNative1216()
     {
-        // The NSMenu image size is taken from AvnAppMenuItem::SetIcon of libAvaloniaNative.dylib 12.1.4: check it again
-        // (and the factor in PrinterMenuIconSize) when Avalonia is updated.
+        // The NSMenu image size is taken from AvnAppMenuItem::SetIcon of libAvaloniaNative.dylib 12.1.4 (menu.mm unchanged
+        // in 12.1.6, T-229): check it again (and the factor in PrinterMenuIconSize) when Avalonia is updated.
         string? version = typeof(Avalonia.Controls.NativeMenuItem).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
-        Assert.StartsWith("12.1.4", version, StringComparison.Ordinal);
+        Assert.StartsWith("12.1.6", version, StringComparison.Ordinal);
         Assert.Equal(1.333333, PrinterMenuIconSize.AvaloniaNativeIconToMenuFont);
     }
 }

@@ -487,16 +487,7 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
             PrinterSnapshot.Unavailable(_printer.Id, state, _monitor._timeProvider.GetUtcNow(), message, problem);
 
         /// <summary>Interval, doubled for every consecutive failure after the first, capped at the maximum delay.</summary>
-        private TimeSpan BackoffDelay()
-        {
-            long ticks = _interval.Ticks;
-            for (int failure = 1; failure < _consecutiveFailures && ticks < _maxDelay.Ticks; failure++)
-            {
-                ticks *= 2;
-            }
-
-            return ticks < _maxDelay.Ticks ? TimeSpan.FromTicks(ticks) : _maxDelay;
-        }
+        private TimeSpan BackoffDelay() => ExponentialBackoff.Delay(_interval, _maxDelay, _consecutiveFailures);
 
         private async Task DisposeClientAsync()
         {

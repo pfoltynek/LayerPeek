@@ -127,6 +127,14 @@ public sealed class TrayMenuAddPrinterUiTests(HeadlessSession session)
         {
         }
 
+        public void ShowUpdateSettings()
+        {
+        }
+
+        public void OpenManual()
+        {
+        }
+
         public void Quit()
         {
         }

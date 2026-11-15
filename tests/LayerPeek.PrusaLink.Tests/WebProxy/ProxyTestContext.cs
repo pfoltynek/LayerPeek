@@ -10,6 +10,7 @@ using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
 using LayerPeek.Core.Web;
 using LayerPeek.PrusaLink.WebProxy;
+using LayerPeek.Tests.Shared;
 
 namespace LayerPeek.PrusaLink.Tests.WebProxy;
 
@@ -75,8 +76,7 @@ internal sealed class ProxyTestContext : IAsyncDisposable
     }
 
     /// <summary>Addresses on which this machine listens on <paramref name="port"/> (OS listener table, no connection).</summary>
-    public static IPEndPoint[] Listeners(int port) =>
-        [.. System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Where(e => e.Port == port)];
+    public static IPEndPoint[] Listeners(int port) => TcpListenerTable.Listeners(port);
 
     /// <summary>Whether anything listens on <paramref name="port"/> (refused connects take seconds on Windows).</summary>
     public static bool IsListening(int port) => Listeners(port).Length != 0;

@@ -1,0 +1,733 @@
+# Uživatelská příručka LayerPeek
+
+*Pro LayerPeek 0.5 ve Windows 10/11 a macOS (Apple Silicon).* · [Další jazyky](../README.md)
+
+LayerPeek hlídá vaše 3D tiskárny Prusa přes místní síť a ukazuje jejich stav v oznamovací oblasti Windows nebo v řádku
+nabídek macOS. Nemá žádné hlavní okno: všechno začíná v nabídce ikony. Tato příručka popisuje oba systémy; kde se
+Windows a macOS liší, text to uvádí nebo ukazuje obě varianty.
+
+> [!NOTE]
+> LayerPeek je nezávislý komunitní projekt, nikoli oficiální produkt společnosti Prusa Research.
+
+## Obsah
+
+1. [Co budete potřebovat](#1-co-budete-potřebovat)
+2. [Instalace](#2-instalace)
+3. [První kroky](#3-první-kroky)
+4. [Ikona a její nabídka](#4-ikona-a-její-nabídka)
+5. [Okno kamery](#5-okno-kamery)
+6. [Widgety](#6-widgety)
+7. [Upozornění](#7-upozornění)
+8. [Nahrávání, dashcam a timelapse](#8-nahrávání-dashcam-a-timelapse)
+9. [Detekce chyb tisku (experimentální)](#9-detekce-chyb-tisku-experimentální)
+10. [Diagnostika](#10-diagnostika)
+11. [Přehled nastavení](#11-přehled-nastavení)
+12. [Aktualizace](#12-aktualizace)
+13. [Kde jsou uložena vaše data](#13-kde-jsou-uložena-vaše-data)
+14. [Zabezpečení přístupu k PrusaLinku](#14-zabezpečení-přístupu-k-prusalinku)
+15. [Řešení problémů](#15-řešení-problémů)
+16. [Odinstalace](#16-odinstalace)
+
+## 1. Co budete potřebovat
+
+- **Tiskárnu Prusa s firmwarem Buddy 6.x a PrusaLinkem**: CORE One (vyzkoušeno), MK4/MK4S, MK3.9/MK3.9S, MK3.5/MK3.5S,
+  XL a MINI/MINI+. Original Prusa MK3/MK3S nemá vestavěný PrusaLink a podporována není.
+- **Počítač ve stejné místní síti** jako tiskárna:
+  - Windows 10 nebo 11, x64 (verze pro Windows na ARM se připravuje),
+  - macOS na Apple Silicon (M1 nebo novější).
+- **Kameru (volitelně):** jakoukoli kameru se streamem **RTSP H.264**, na kterou váš počítač dosáhne, například kameru
+  Prusa Buddy3D. I bez kamery máte k dispozici ikonu, upozornění a diagnostiku.
+
+LayerPeek funguje jen ve vaší místní síti. Nepoužívá Prusa Connect ani žádnou jinou cloudovou službu. Mimo domov se
+k tiskárnám dostanete přes VPN do domácí sítě.
+
+Zatím je otestovaná jen CORE One. Máte jiný model? Pošlete prosím krátké [hlášení kompatibility tiskárny](https://github.com/pfoltynek/LayerPeek/issues/new?template=printer_compatibility.yml) (formulář je v angličtině); stačí jedna zkouška na Windows nebo macOS.
+
+## 2. Instalace
+
+Nejnovější verzi stáhnete na stránce [Releases](https://github.com/pfoltynek/LayerPeek/releases).
+
+> [!IMPORTANT]
+> Aktualizace v rámci verzí 1.x zachovají vaše nastavení; soubory nastavení starších verzí se vždy načtou. Sestavení
+> nejsou podepsaná společností Microsoft ani notarizovaná společností Apple. Systém vás proto při prvním spuštění
+> varuje; postup níže ukazuje, jak varování obejít.
+
+### 2.1 Windows
+
+Můžete si vybrat ze dvou balíčků:
+
+| Balíček | Co dělá |
+|---|---|
+| **Instalátor** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (doporučeno) | Nainstaluje LayerPeek jen pro vašeho uživatele, bez oprávnění správce, do `%LOCALAPPDATA%\LayerPeek`, přidá ho do nabídky Start, spouští ho po přihlášení a umí se sám aktualizovat. |
+| **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Rozbalte ho kamkoli a spusťte `LayerPeek.exe`. Po přihlášení se nespouští a sám se neaktualizuje (místo toho otevře stránku s vydáním). |
+
+Oba balíčky jsou pro Windows na **x64** (procesory Intel a AMD): **Nastavení → Systém → O systému** u položky **Typ
+systému** uvádí *x64*. Verze pro Windows na **ARM** (u položky **Typ systému** *ARM*, například notebooky se
+Snapdragonem) se připravuje a zatím ke stažení není. Až bude, přejděte na ni ručně: odinstalujte verzi x64 (**Nastavení
+→ Aplikace → Nainstalované aplikace → LayerPeek → Odinstalovat**) a pak nainstalujte verzi ARM (`…-win-arm64-…`).
+Nastavení i hesla zůstanou; instalace svou architekturu sama nikdy nezmění.
+
+Při prvním spuštění zobrazí Windows SmartScreen hlášení **„Systém Windows ochránil váš počítač“** s *neznámým
+vydavatelem*. Klikněte na **Další informace** a potom na **Přesto spustit**.
+
+### 2.2 macOS
+
+| Balíček | Co dělá |
+|---|---|
+| **Obraz disku** `LayerPeek-X.Y.Z-osx-arm64.dmg` (doporučeno) | Otevřete ho a přetáhněte **LayerPeek** do složky **Aplikace**. |
+| **Archiv** `LayerPeek-X.Y.Z-osx-arm64.tar.gz` | Obsahuje `LayerPeek.app`; rozbalte ho a aplikaci přesuňte do složky **Aplikace**. |
+
+LayerPeek vždy spouštějte ze složky **Aplikace**, ne přímo z obrazu disku nebo ze složky Stažené soubory: jen odtud se
+může otevírat při přihlášení a sám se aktualizovat.
+
+Při prvním spuštění aplikaci zablokuje Gatekeeper (*„Apple nemůže ověřit…“*, anglicky *„Apple could not verify…“*):
+
+1. Klikněte na **Hotovo**.
+2. Otevřete **Nastavení systému → Soukromí a zabezpečení**, sjeďte dolů a u zprávy o LayerPeeku klikněte na
+   **Přesto otevřít** (Open Anyway).
+3. Potvrďte heslem nebo pomocí Touch ID a LayerPeek otevřete znovu.
+
+Pokročilí uživatelé mohou místo toho odstranit příznak karantény v Terminálu:
+`xattr -dr com.apple.quarantine /Applications/LayerPeek.app`.
+
+LayerPeek žije jen v řádku nabídek. Nemá ikonu v Docku a neobjevuje se v přepínači aplikací (⌘⇥).
+
+## 3. První kroky
+
+### 3.1 Zapnutí PrusaLinku na tiskárně
+
+Na displeji tiskárny otevřete **Nastavení → Síť → PrusaLink** (Settings → Network → PrusaLink). Zkontrolujte, že je
+PrusaLink zapnutý, a poznamenejte si:
+
+- **IP adresu** tiskárny (nebo její název hostitele),
+- **uživatelské jméno** (výchozí je `maker`),
+- **heslo**.
+
+### 3.2 Přidání tiskárny
+
+1. Najděte ikonu LayerPeeku:
+   - **Windows:** v oznamovací oblasti na pravém konci hlavního panelu. Pokud ji nevidíte, klikněte na šipku **`^`**
+     (skryté ikony) a přetáhněte ikonu na hlavní panel, aby zůstala viditelná.
+   - **macOS:** v řádku nabídek nahoře na obrazovce.
+2. Otevřete nabídku ikony (**Windows:** klikněte na ikonu pravým tlačítkem, **macOS:** klikněte na ni) a vyberte
+   **Přidat tiskárnu…**. Otevře se okno **Nastavení** na záložce **Tiskárny**.
+3. Vyplňte:
+   - **Název:** libovolný název, např. `CORE One`.
+   - **Adresa:** IP adresa nebo název hostitele, např. `192.168.1.20` nebo `http://prusa-mk4.local`.
+   - **Uživatelské jméno** a **Heslo:** údaje z tiskárny.
+4. Klikněte na **Otestovat spojení**. Funkční spojení ohlásí kód modelu a verzi firmwaru.
+5. Klikněte na **Uložit**.
+
+<p align="center">
+  <img src="../../docs/images/cs/settings-printers.png" alt="Nastavení, záložka Tiskárny se třemi tiskárnami" width="620">
+</p>
+
+Ikona hned začne ukazovat stav tiskárny. Další tiskárny přidáte stejně: **Přidat tiskárnu** na záložce **Tiskárny**.
+
+**macOS 15 a novější:** při prvním připojení k tiskárně nebo kameře se systém zeptá na přístup k **místní síti**
+(Local Network). Klikněte na **Povolit**. Pokud jste přístup zamítli, podívejte se do části
+[Řešení problémů](#15-řešení-problémů).
+
+Heslo se ukládá do **Správce pověření ve Windows** (Credential Manager) nebo do **Klíčenky v macOS** (Keychain), nikdy
+do souboru s nastavením. Když tiskárnu později upravujete, pole pro heslo ukazuje **Beze změny**; nechte ho prázdné
+a uložené heslo zůstane.
+
+**Varování pod adresou:** adresa `http://`, která může být mimo místní síť (veřejná IP adresa nebo jiný název hostitele
+než název bez tečky nebo s koncovkou `.local`, `.lan` či `.home.arpa`), ukáže místo nápovědy varování. PrusaLink
+přihlašuje bez šifrování, takže heslo může někdo cestou zachytit. Uložit adresu přesto jde. Raději použijte `https://`
+přes reverzní proxy nebo VPN. Odkaz **Více informací** vedle varování otevře kapitolu [Zabezpečení přístupu k
+PrusaLinku](#14-zabezpečení-přístupu-k-prusalinku).
+
+### 3.3 Přidání kamery (volitelné)
+
+1. V **Nastavení → Tiskárny** vyberte tiskárnu a otevřete její podzáložku **Kamera**.
+2. Zapněte **Používat kameru (položka „Zobrazit kameru“ v nabídce v oznamovací oblasti)**.
+3. Zadejte **Adresa RTSP streamu**, např. `rtsp://192.168.1.21/live` pro kameru Buddy3D (výchozí port je 554).
+   Do adresy nepište uživatelské jméno ani heslo.
+4. Klikněte na **Otestovat kameru**. Funkční kamera ukáže snímek a své rozlišení.
+5. Klikněte na **Uložit** a v podnabídce tiskárny vyberte **Zobrazit kameru**.
+
+Stejně jako u adresy tiskárny ukáže varování i adresa kamery, která může být mimo místní síť: RTSP není šifrované, takže
+obraz kamery může někdo cestou zachytit. Uložit adresu přesto jde; raději použijte VPN. Stejný odkaz vedle něj otevře
+kapitolu [Zabezpečení přístupu k PrusaLinku](#14-zabezpečení-přístupu-k-prusalinku).
+
+### 3.4 Obrázek tiskárny
+
+Seznam tiskáren ukazuje u každé tiskárny obrázek, vybraný automaticky podle jejího modelu. Kliknutím na obrázek můžete
+zvolit jiný model, obecnou ilustraci nebo vlastní obrázek (PNG, JPG).
+
+## 4. Ikona a její nabídka
+
+### 4.1 Co ikona ukazuje
+
+Ikona ukazuje nejdůležitější stav ze všech vašich tiskáren:
+
+| Stav | Význam |
+|---|---|
+| **Připravena** | tiskárna nic nedělá |
+| **Tiskne** | ikona se postupně plní podle průběhu tisku |
+| **Pozastaveno** | tisk je pozastavený |
+| **Dokončeno** / **Zastaveno** | tisk skončil |
+| **Vyžaduje zásah** | tiskárna na vás čeká (např. výměna filamentu nebo dotaz na jejím displeji) |
+| **Chyba** | tiskárna hlásí chybu |
+| **Nedostupná** | tiskárna není dosažitelná |
+| **Neplatné přihlašovací údaje** | tiskárna odmítla uživatelské jméno nebo heslo |
+
+Když na ikonu najedete myší, zobrazí se v bublině podrobnosti: průběh, zbývající čas a název souboru. Zatímco se kamera
+tiskárny nahrává, bublina ukazuje **Nahrává se**.
+
+### 4.2 Nabídka
+
+- **Windows:** klikněte na ikonu pravým tlačítkem.
+- **macOS:** klikněte na ikonu v řádku nabídek.
+
+Nabídka obsahuje:
+
+- **Jednu podnabídku pro každou tiskárnu**; v jejím záhlaví je název tiskárny, stav a průběh a obsahuje:
+  - **Zobrazit kameru** / **Skrýt kameru** a, když je okno otevřené, **Přenést kameru do popředí**,
+  - **Nahrávat** / **Zastavit nahrávání**, **Přehrát poslední nahrávku**, **Otevřít složku s nahrávkami**,
+  - **Uložit posledních 2 min** (když je zapnutý dashcam, viz [8.3](#83-dashcam-poslední-minuty)),
+  - položky pro timelapse (experimentální, viz [8.4](#84-timelapse-experimentální)),
+  - **Otevřít PrusaLink**: otevře webové rozhraní PrusaLinku tiskárny v prohlížeči, rovnou přihlášené. Vaše heslo se
+    prohlížeči nikdy nepředává.
+- **Diagnostika…** (viz [10](#10-diagnostika))
+- **Nastavení…**
+- **Je dostupná nová verze X.Y.Z** (jen když je k dispozici aktualizace, viz [12](#12-aktualizace))
+- **Uživatelská příručka**: otevře tuto příručku
+- **O aplikaci**
+- **Ukončit**
+
+Dokud nepřidáte první tiskárnu, nabídka místo podnabídek tiskáren nabízí **Přidat tiskárnu…**.
+
+## 5. Okno kamery
+
+<p align="center">
+  <img src="../../docs/images/cs/camera-window.jpg" alt="Okno kamery během tisku s widgety stavu, názvu tisku, časů a teplot" width="860">
+</p>
+
+Otevřete ho položkou **Zobrazit kameru** v podnabídce tiskárny. Okno ukazuje živý obraz z kamery a nad ním
+[widgety](#6-widgety). Tlačítka v okně se objeví, když po něm přejedete myší.
+
+### 5.1 Tři režimy
+
+| Režim | Jak přepnout | K čemu slouží |
+|---|---|---|
+| **Normální okno** | tlačítko v okně nebo dvojklik v malém náhledu | pořádný pohled, libovolná velikost, libovolný monitor |
+| **Malý náhled** | tlačítko **Malý náhled vždy navrchu** | malé okno, které celý den zůstává nad ostatními okny |
+| **Celá obrazovka** | **Windows:** F11 · **macOS:** ⌃⌘F · nebo dvojklik na obraz; **Esc** vrátí zpět | celá obrazovka |
+
+Malý náhled má pod obrazem informační pás (průběh, zbývající čas, čas dokončení). Dvě tlačítka rozbalí další řádky:
+**název tisku** a **graf teplot**. Co pás ukazuje, nastavíte na podzáložce **Okno kamery** tiskárny
+(viz [11.1](#111-tiskárny)).
+
+Aby šetřil procesor, ukazuje malý náhled ve výchozím nastavení nejvýš 10 snímků za sekundu, což malému obrazu stačí;
+normální okno a celá obrazovka ukazují každý snímek kamery. Omezení se nastavuje na záložce **Kamera** v nastavení (viz
+[11.6](#116-kamera)).
+
+Okno také přestane brát snímky, když ho nikdo nevidí: když je minimalizované, při zamčeném počítači nebo vypnutém
+displeji, na Windows i na jiné virtuální ploše (okno jen zakryté jinými okny běží dál) a na macOS, když z něj není vidět
+nic, třeba když je celé zakryté jinými okny nebo na jiné ploše (asi po dvou sekundách). Chvíli po návratu se obraz vrátí
+od dalšího klíčového snímku kamery. Nahrávání, dashcam, timelapse a detekce chyb tisku mezitím běží dál.
+
+<p align="center">
+  <img src="../../docs/images/cs/camera-mini.jpg" alt="Malý náhled s informačním pásem, řádkem s názvem tisku a řádkem s grafem teplot" width="400">
+</p>
+
+### 5.2 Vždy navrchu
+
+Tlačítko se špendlíkem v okně ukazuje, jestli okno zůstává nad ostatními okny, a jedním kliknutím to přepne. Stejnou
+volbu najdete v místní nabídce okna (**Vždy navrchu**).
+
+### 5.3 Místní nabídka okna
+
+Klikněte na obraz pravým tlačítkem (v macOS také se stisknutou klávesou Control) a najdete **Upravit rozložení**,
+**Vždy navrchu**, nahrávání, dashcam a timelapse.
+
+### 5.4 Když vypadne spojení
+
+Když vypadne kamera nebo Wi-Fi, okno se samo znovu připojí; mezitím ukazuje **Připojuji se ke kameře…** nebo **Bez
+signálu**. Další pokus přijde za 5 sekund; dokud je kamera nedostupná, pauza se zdvojnásobuje až na jednu minutu. Okno
+průběžně ukazuje, asi za jak dlouho přijde další pokus; když okno otevřete, obnovíte z minimalizace nebo v nastavení
+kliknete na **Otestovat kameru**, zkusí se připojit hned. Když tiskárnu vypnete, okno se zavře a po jejím návratu se
+znovu otevře na stejném místě. Vypnout to můžete v **Nastavení → Tiskárny → Okno kamery** (**Zavřít, když se tiskárna
+vypne, a znovu otevřít po jejím zapnutí**). Okno, které zavřete sami, zůstane zavřené.
+
+## 6. Widgety
+
+Widgety jsou karty nad obrazem z kamery. Každá tiskárna má vlastní sadu a rozložení.
+
+| Widget | Ukazuje |
+|---|---|
+| **Stav** | název tiskárny, stav a průběh v procentech |
+| **Časy** | zbývající čas, kdy bude tisk hotový, dobu tisku |
+| **Teploty** | trysku a podložku (aktuální / cílová) s grafem za posledních 60 minut |
+| **Název tisku** | čitelný název souboru s materiálem, výškou vrstvy a tryskou; větší velikosti přidávají náhled G-kódu |
+| **Vychladnutí** | po tisku: jak moc už tryska a podložka vychladly a kdy je bezpečné tiskárnu vypnout |
+
+Každý widget má tři velikosti: **S**, **M** a **L**. Tady na příkladu teplot: S ukazuje hodnoty, M přidá graf, L popisky
+a rozsah teplot.
+
+<p align="center">
+  <img src="../../docs/images/cs/widget-sizes.jpg" alt="Widget Teploty ve velikostech S, M a L" width="860">
+</p>
+
+### 6.1 Výběr widgetů
+
+V **Nastavení → Widgety** nahoře vyberte tiskárnu a zaškrtněte widgety, které chcete. Když widget vyberete, zobrazí se
+jeho vlastní nastavení, např. prahy vychladnutí trysky a podložky. **Použít rozložení u všech tiskáren** zkopíruje
+rozložení na vaše další tiskárny. **Neprůhlednost pozadí karet** udrží text čitelný i na světlém obrazu (pro všechny
+tiskárny).
+
+<p align="center">
+  <img src="../../docs/images/cs/settings-widgets.png" alt="Nastavení, záložka Widgety" width="620">
+</p>
+
+### 6.2 Rozmístění widgetů v okně kamery
+
+V okně kamery klikněte na **Upravit rozložení** (nebo na **Upravit rozložení v okně kamery…** v **Nastavení →
+Widgety**). V režimu úprav rozložení:
+
+- widget **přetáhněte** na jedno ze šesti míst (nahoře a dole, vlevo, uprostřed a vpravo),
+- kliknutím na widget otevřete jeho volby: **Velikost** (Malá, Střední, Velká) a **Zvýraznit** (ukáže klíčovou hodnotu
+  zvýrazňující barvou),
+- **Obnovit výchozí** vrátí výchozí rozložení, **Hotovo** ho uloží.
+
+Z klávesnice: **mezerník** widget zvedne, **šipky** ho posouvají, **Enter** otevře jeho volby a **Esc** změny zahodí.
+Pokud je okno příliš malé, nejdřív ho zvětšete.
+
+<p align="center">
+  <img src="../../docs/images/cs/camera-layout-mode.jpg" alt="Režim úprav rozložení s volbami velikosti widgetu Teploty" width="860">
+</p>
+
+## 7. Upozornění
+
+LayerPeek zobrazuje nativní systémová upozornění při těchto událostech (každé lze zapnout nebo vypnout v **Nastavení →
+Obecné**):
+
+- tisk začal, skončil, byl pozastaven, pokračuje a byl zastaven,
+- tiskárna vyžaduje zásah (také při odmítnutém heslu), chyba,
+- tiskárna přestala být dostupná nebo je opět online,
+- **Zbývá N minut**, abyste mohli být u tiskárny, až tisk skončí (**Upozornit, když zbývá tolik minut tisku (0 =
+  vypnuto)**),
+- **Tiskárna vychladla**: tryska i podložka jsou pod prahy widgetu **Vychladnutí** a tiskárnu je bezpečné vypnout.
+
+**Zvuk** může být vypnutý, zapnutý jen pro důležitá upozornění nebo pro všechna upozornění. **Poslat zkušební
+upozornění** ukáže ukázkové upozornění, takže si ověříte, že k vám upozornění dorazí.
+
+- **Windows:** pokud jsou upozornění pro LayerPeek vypnutá v **Nastavení → Systém → Oznámení**, nastavení LayerPeeku to
+  oznámí a nabídne **Otevřít nastavení oznámení**. Zkontrolujte také režim **Nerušit**.
+- **macOS:** první upozornění požádá o povolení; klikněte na **Povolit**. Pokud jsou upozornění vypnutá v **Nastavení
+  systému → Oznámení**, nastavení LayerPeeku nabídne **Otevřít nastavení oznámení**. Zkontrolujte také režim
+  **Soustředění** (Focus).
+
+Kliknutím na upozornění tiskárny otevřete webové rozhraní PrusaLinku tiskárny. Poplach při chybě tisku otevře okno
+kamery, neúspěšné nahrávání otevře záložku **Nahrávání** v nastavení a dokončený převod timelapse otevře složku
+s nahrávkami.
+
+## 8. Nahrávání, dashcam a timelapse
+
+Všechny nahrávky zůstávají na vašem disku. Ve výchozím nastavení se ukládají do složky **Videa** (Windows) nebo **Filmy**
+(macOS) do podsložky `LayerPeek`, pro každou tiskárnu do vlastní podsložky, pojmenované podle času a tisku. Video se
+ukládá jako MP4 bez překódování, takže skoro vůbec nezatěžuje procesor.
+
+<p align="center">
+  <img src="../../docs/images/cs/camera-recording.jpg" alt="Horní část okna kamery s indikátory TL a REC" width="860">
+</p>
+
+Zatímco se kamera nahrává, okno kamery ukazuje červené **REC**; zatímco se pořizuje timelapse, jantarové **TL**.
+
+### 8.1 Ruční nahrávání
+
+**Nahrávat** / **Zastavit nahrávání** v podnabídce tiskárny nebo tlačítko nahrávání v okně kamery. **Přehrát poslední
+nahrávku** a **Otevřít složku s nahrávkami** najdete v podnabídce tiskárny.
+
+### 8.2 Nahrávání každého tisku
+
+Na podzáložce **Kamera** tiskárny zapněte **Automaticky nahrávat tisk**. Každý tisk se nahraje od začátku až do minuty
+po jeho konci, i když okno kamery není otevřené.
+
+<p align="center">
+  <img src="../../docs/images/cs/settings-camera.png" alt="Nastavení, podzáložka Kamera tiskárny s automatickým nahráváním, dashcamem a timelapse" width="620">
+</p>
+
+### 8.3 Dashcam: poslední minuty
+
+Na podzáložce **Kamera** tiskárny zapněte **Uchovávat poslední minuty (dashcam)**. Během tisku LayerPeek drží poslední
+2 minuty z kamery v paměti (asi 8 MB za minutu a tiskárnu); na disk se nic nezapíše, dokud se záznam neuloží. Poslední
+minuty se spolu s 30 sekundami po události uloží:
+
+- automaticky při chybě tisku, když tiskárna vyžaduje zásah, když se tisk zastaví a když detekce chyb tisku vyhlásí
+  poplach (každou z těchto možností lze vypnout na záložce **Nahrávání**),
+- ručně položkou **Uložit posledních 2 min** v podnabídce tiskárny nebo v místní nabídce okna kamery.
+
+Délku (1–10 minut) nastavíte na záložce **Nahrávání**.
+
+### 8.4 Timelapse (experimentální)
+
+Timelapse je krátké video celého tisku: ve výchozím nastavení jeden snímek každých 30 sekund, během pauzy tisku žádný,
+přehrávané rychlostí 30 snímků za sekundu. Ukládá se jako `…_timelapse.mp4` vedle nahrávek.
+
+- **Ručně:** **Spustit timelapse (experimentální)** / **Zastavit timelapse (experimentální)** v podnabídce tiskárny nebo
+  tlačítko se stopkami v okně kamery. **Přehrát poslední timelapse** najdete v podnabídce.
+- **Každý tisk:** **Pořizovat timelapse tisku** na podzáložce **Kamera** tiskárny.
+- **Interval:** na záložce **Nahrávání**, 5–600 sekund, nebo přepněte na **Každou N. vrstvu (odhad)**: snímek se pořídí,
+  když začne nová vrstva. PrusaLink vrstvy nehlásí, a tak je LayerPeek odhaduje z výšky osy Z.
+- **Vytvořit timelapse z nahrávky… (experimentální)** vytvoří timelapse z existující nahrávky LayerPeeku.
+- **Exportovat timelapse do JPEG… (experimentální)** uloží snímky timelapse jako očíslované soubory JPEG, např. pro
+  vlastní střih videa.
+
+Oba převody ukazují svůj průběh v položce nabídky, kde je můžete i zrušit, a až budou hotové, dá vám vědět upozornění.
+
+### 8.5 Složka a limit velikosti
+
+Na záložce **Nahrávání** můžete změnit **Složka pro nahrávky** a **Limit velikosti všech nahrávek (GB)** (ve výchozím
+nastavení 50 GB). Po překročení limitu se smažou nejstarší nahrávky; když na disku zbývá méně než 5 GB volného místa,
+nahrávání se zastaví. Nepovedené nahrávání ohlásí upozornění.
+
+<p align="center">
+  <img src="../../docs/images/cs/settings-recording.png" alt="Nastavení, záložka Nahrávání" width="620">
+</p>
+
+## 9. Detekce chyb tisku (experimentální)
+
+LayerPeek může tisk sledovat kamerou a varovat vás, když se na podložce něco pokazí. Běží jen na vašem počítači; obraz
+z kamery ho nikdy neopustí.
+
+<p align="center">
+  <img src="../../docs/images/cs/settings-detection.jpg" alt="Nastavení, podzáložka Detekce s výřezem podložky nad obrazem z kamery" width="620">
+</p>
+
+### 9.1 Zapnutí
+
+Ve výchozím nastavení je vypnutá a zapnout ji musíte na dvou místech:
+
+1. **Hledat chyby tisku v obraze kamery** na záložce **Nahrávání** (pro všechny tiskárny),
+2. **Hlídat tisk této tiskárny kamerou** na podzáložce **Detekce** tiskárny.
+
+Tiskárna musí mít zapnutou kameru. Detekce běží jen během tisku a při rozsvíceném osvětlení komory, i když okno kamery
+není otevřené.
+
+### 9.2 Výřez podložky
+
+**Výřez podložky** je část obrazu, která se hlídá. Myší natáhněte nový obdélník, přesuňte ho nebo za roh změňte jeho
+velikost, případně použijte šipky (Shift + šipky mění velikost). **Celý snímek** hlídá celý obraz, **Načíst snímek**
+pořídí z kamery nový snímek a u CORE One **Výchozí pro Core One** obnoví jeho předvolbu.
+
+### 9.3 Detektory
+
+- **Změna na podložce** si všimne dílu, který zmizel nebo se posunul, a nového materiálu na podložce (špagety, utržený
+  díl). **Tmavý filament** pomáhá s černým nebo velmi tmavým filamentem, za cenu většího počtu planých poplachů.
+- **Tisk do vzduchu** (ve výchozím nastavení vypnutý, jen pro tiskárny, jejichž podložka při tisku sjíždí dolů: CORE One,
+  CORE One L, XL) si všimne, že tiskárna dál tiskne, ale nic už nepřibývá, např. když došel filament.
+
+**Citlivost** (0–100, ve výchozím nastavení 50): vyšší znamená víc poplachů, i planých; nižší znamená méně poplachů, ale
+chyba může uniknout.
+
+### 9.4 Poplach
+
+Poplach je upozornění **Možná chyba tisku – …** se snímkem z kamery. Kliknutím na něj otevřete okno kamery. Tlačítko
+**Falešný poplach** uloží místní záznam pro ladění; nic neopustí váš počítač. Na záložce **Nahrávání** nastavíte, jak
+často se poplach opakuje, jestli se ukládá snímek každého poplachu a jak často se kontroluje kamera (2–5 sekund).
+
+> [!WARNING]
+> Detekce nepozná kvalitu první vrstvy, problémy u trysky ani vady uvnitř dílu. Může chybu přehlédnout nebo vyhlásit
+> planý poplach. Nespoléhejte na ni jako na jedinou pojistku tisku bez dozoru.
+
+## 10. Diagnostika
+
+**Diagnostika…** v nabídce ikony (tiskárnu vyberete nahoře v okně) ukazuje model tiskárny a firmware, aktuální stav,
+teploty trysky a podložky (aktuální a cílovou), ventilátory, rychlost tisku, průtok a výšku Z a graf teplot za posledních
+30 minut, 2 hodiny nebo 24 hodin. Historie se drží jen v paměti a začíná spuštěním LayerPeeku.
+
+<p align="center">
+  <img src="../../docs/images/cs/diagnostics.png" alt="Okno Diagnostika s historií teplot" width="620">
+</p>
+
+## 11. Přehled nastavení
+
+V nabídce ikony otevřete **Nastavení…**. Změny se použijí po kliknutí na **Uložit**; **Zrušit** je zahodí.
+
+### 11.1 Tiskárny
+
+Seznam tiskáren s tlačítky **Přidat tiskárnu** a **Odebrat**. Každá tiskárna má podzáložky:
+
+- **Tiskárna:** název, adresa, uživatelské jméno, heslo, **Otestovat spojení**.
+- **Kamera:** adresa RTSP, **Otestovat kameru**, automatické nahrávání, dashcam a timelapse tisku.
+- **Okno kamery:** **Otevřít jako** (jako minule, normální okno, malý náhled, celá obrazovka), monitor, velikost,
+  umístění a **Vždy navrchu** pro normální okno i malý náhled, **Pamatovat poslední pozici a velikost**,
+  **Zavřít, když se tiskárna vypne, a znovu otevřít po jejím zapnutí** a co ukazuje informační pás malého náhledu.
+- **Detekce:** detekce chyb tisku této tiskárny (viz [9](#9-detekce-chyb-tisku-experimentální)).
+
+### 11.2 Widgety
+
+Widgety jednotlivých tiskáren, jejich nastavení a neprůhlednost karet (viz [6](#6-widgety)).
+
+### 11.3 Nahrávání
+
+Složka a limit velikosti nahrávek, dashcam, timelapse a detekce chyb tisku (viz
+[8](#8-nahrávání-dashcam-a-timelapse) a [9](#9-detekce-chyb-tisku-experimentální)). Experimentální funkce nesou
+štítek **Experimentální**.
+
+### 11.4 Obecné
+
+- **Upozornění:** které události, **Zvuk**, připomínka „zbývá N minut“, **Poslat zkušební upozornění**.
+- **Interval dotazování (sekundy):** jak často se LayerPeek tiskáren ptá na jejich stav.
+- **Jazyk:** **Podle systému** nebo jeden z jazyků English, Čeština, Slovenčina, Deutsch, Español, Français, Italiano,
+  Polski. Mění jen texty; čísla, data a časy se řídí regionálním nastavením vašeho systému.
+- **Podrobné logování (Debug):** zapínejte ho, jen když vás o to někdo požádá při řešení problému.
+
+### 11.5 Spuštění a aktualizace
+
+- **Windows:** **Spouštět po přihlášení do Windows**. Ve výchozím nastavení zapnuto; k dispozici jen v nainstalované
+  verzi, ne ve verzi ZIP.
+- **macOS:** **Otevřít při přihlášení**. Ve výchozím nastavení vypnuto; k dispozici jen tehdy, když je LayerPeek ve
+  složce Aplikace. Pokud jste LayerPeek vypnuli v **Nastavení systému → Obecné → Položky otevírané při přihlášení
+  a rozšíření** (Login Items & Extensions), můžete ho tam znovu povolit jen vy sami; tlačítko **Otevřít Nastavení
+  systému** vás tam přenese.
+- **Automaticky kontrolovat aktualizace**, **Nabízet předběžné verze** a **Zkontrolovat teď** (viz [12](#12-aktualizace)).
+
+### 11.6 Kamera
+
+Nastavení pro všechny kamery (kameru jednotlivé tiskárny nastavíte na její podzáložce **Kamera**, viz
+[11.1](#111-tiskárny)).
+
+- **Snímková frekvence malého náhledu:** kolik snímků za sekundu malý náhled ukazuje. **Úsporný** (5 fps), **Vyvážený**
+  (10 fps, výchozí) nebo **Plynulý** (každý snímek kamery); posuvníkem nastavíte jiné omezení od 1 do 30 fps
+  (**Vlastní**). Méně snímků znamená menší zátěž procesoru a méně kopírovaných dat; kamera se dál čte celá, takže
+  nahrávky, timelapse a detekce chyb tisku se nemění. Normální okno a celá obrazovka ukazují vždy každý snímek. Změna se
+  u otevřeného malého náhledu projeví po **Uložit**.
+- **Hardwarové dekódování:** **Automaticky** (výchozí) nechá video okna kamery a malého náhledu dekódovat grafický
+  hardware, když to jde, jinak ho dekóduje procesor; to snižuje zátěž procesoru. **Vypnuto** dekóduje vždy procesorem:
+  méně paměti a žádný systémový dekodér, ale vyšší zátěž procesoru. **Vypnuto** zvolte, když je obraz kamery poškozený
+  nebo černý, po potížích s ovladačem grafiky nebo kvůli úspoře paměti. Na Windows zatím i **Automaticky** dekóduje
+  procesorem. Test kamery a detekce chyb tisku používají vždy procesor. Změna platí po **Uložit**; otevřené okno
+  kamery přejde od dalšího klíčového snímku kamery (obvykle do několika sekund), bez nového připojení.
+
+## 12. Aktualizace
+
+Krátce po spuštění a potom jednou denně se LayerPeek zeptá GitHubu, jestli vyšla nová verze (můžete to vypnout). Nová
+verze se objeví jako **Je dostupná nová verze X.Y.Z** v nabídce ikony a jednou jako upozornění.
+
+- **Windows, nainstalovaná verze:** položka nabídky stáhne aktualizaci, ukončí LayerPeek a spustí novou verzi.
+- **Windows, verze ZIP:** položka nabídky otevře stránku s vydáním; nový ZIP stáhněte ručně.
+- **Windows, instalace přes winget:** i tady použijte položku nabídky. `winget upgrade` (i v rámci `winget upgrade --all`)
+  funguje také, ale běžící LayerPeek násilně ukončí, znovu ho nespustí (spusťte ho z nabídky Start) a smaže logy ve složce
+  `%LOCALAPPDATA%\LayerPeek\logs`.
+- **macOS:** položka nabídky stáhne aktualizaci a LayerPeek restartuje, ale jen když je aplikace ve složce **Aplikace**
+  (ne na obrazu disku nebo ve Stažených souborech).
+
+Vaše nastavení a hesla zůstanou zachována.
+
+**Aktualizace odmítnuta:** nainstalovaná verze přijme aktualizaci, jen když jde ověřit její podpis. Když to nejde,
+LayerPeek nic nenainstaluje: zobrazí upozornění (jednou pro každou nabízenou verzi; kliknutím se otevře nastavení) a
+chybu na záložce **Spuštění a aktualizace** a v nabídce ikony místo nové verze ukáže **Aktualizace odmítnuta…**
+(upozornění na novou verzi zmizí). Tak to zůstane, dokud některá další kontrola neuspěje: pak se nová verze nabídne
+znovu a upozornění na ni se ukáže ještě jednou. Tuto verzi neinstalujte ručně, samotné vydání mohl někdo podvrhnout:
+počkejte na další vydání nebo sledujte oznámení projektu.
+
+## 13. Kde jsou uložena vaše data
+
+| Co | Windows | macOS |
+|---|---|---|
+| Nastavení | `%APPDATA%\LayerPeek\settings.json` | `~/Library/Application Support/LayerPeek/settings.json` |
+| Hesla | Správce pověření ve Windows | přihlašovací klíčenka (login) |
+| Logy | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
+| Nahrávky | `Videos\LayerPeek` | `Movies/LayerPeek` |
+
+Historie teplot se drží jen v paměti. LayerPeek se připojuje jen k tiskárnám a kamerám, které přidáte, a pokud kontrolu
+aktualizací nevypnete, také ke GitHubu (seznam vydání, bez jakéhokoli účtu, a stažení aktualizace, kterou spustíte).
+Žádnou telemetrii nesbírá.
+
+## 14. Zabezpečení přístupu k PrusaLinku
+
+PrusaLink na tiskárně komunikuje jen nešifrovaným **HTTP**, samotná tiskárna HTTPS nemá. Prusa PrusaLink navrhuje pro
+místní síť a nedoporučuje k němu přistupovat z internetu přes přesměrování portu na routeru; místo toho doporučuje
+šifrovanou VPN. V domácí síti, kterou používáte jen vy, to obvykle stačí. Čtěte dál, pokud síť mezi počítačem
+a tiskárnou sdílejí další lidé nebo zařízení (sdílená Wi-Fi, kancelář, dílna, kolej), nebo pokud chcete na tiskárnu
+přistupovat odjinud.
+
+Adresa tiskárny `http://` nebo adresa kamery, která může být mimo místní síť, dostane v nastavení varování (viz [3.2
+Přidání tiskárny](#32-přidání-tiskárny)); uložit ji přesto jde.
+
+### 14.1 V čem je riziko
+
+- **Kdokoli, kdo vidí provoz** mezi počítačem a tiskárnou, ho může číst: stav tiskárny, názvy souborů i G-code nahraný
+  přes webové rozhraní PrusaLink.
+- **Přihlášení:** LayerPeek se přihlašuje pomocí HTTP Digest, jediného přihlášení, které tiskárna kromě API klíče
+  nabízí. Samotné heslo se neposílá, ale Digest na tiskárně je stará varianta s MD5 (RFC 2069). Z jednoho zachyceného
+  přihlášení může útočník zkoušet heslo uhodnout offline a až 5 minut může stejný zachycený požadavek opakovat. Digest
+  nechrání obsah: kdo může provoz měnit, může měnit i data.
+- **API klíč:** nástroje, které se přihlašují API klíčem (hlavička `X-Api-Key`), posílají samotné heslo PrusaLinku
+  čitelně pro kohokoli, kdo naslouchá. V PrusaSliceru proto místo API klíče zvolte **HTTP digest**.
+- **S heslem** může kdokoli tiskárnu přes PrusaLink plně ovládat: spouštět a zastavovat tisky, nahrávat a mazat soubory.
+
+### 14.2 Heslo
+
+Heslo vytváří tiskárna sama; současný firmware ho tvoří z 15 náhodných znaků z 57 písmen a číslic (bez snadno
+zaměnitelných 0, O, 1, l a I). Uhodnout takové heslo ze zachyceného přihlášení není prakticky možné. Na tiskárnách
+s firmwarem Buddy si vlastní heslo zadat nemůžete, můžete jen nechat vytvořit nové.
+
+Nové heslo vytvořte vždy, když mohlo to staré uniknout (sdílená fotka displeje nebo QR kódu PrusaLinku, který heslo
+obsahuje, nebo API klíč použitý v nedůvěryhodné síti):
+
+1. Na tiskárně otevřete **Nastavení → Síť → PrusaLink** (Settings → Network → PrusaLink) a zvolte **Generovat heslo**
+   (Generate Password).
+2. V LayerPeeku otevřete **Nastavení → Tiskárny**, vyberte tiskárnu, na podzáložce **Tiskárna** zadejte nové heslo do
+   pole **Heslo**, klikněte na **Otestovat spojení** a **Uložit**.
+3. Změňte ho i v dalších nástrojích, které PrusaLink používají (PrusaSlicer a další).
+
+### 14.3 Oddělená síť a firewall
+
+- Dejte tiskárny a kamery do **oddělené sítě** na routeru (pro zařízení IoT, VLAN). Povolte počítači s LayerPeekem
+  přístup k nim: port TCP **80** tiskárny (PrusaLink) a port RTSP kamery (výchozí **554**). Sítě pro hosty často blokují
+  spojení mezi zařízeními; podívejte se do návodu k routeru.
+- **Nikdy nepřesměrovávejte port routeru** na tiskárnu. Odjinud se k ní připojte přes VPN do domácí sítě.
+- LayerPeek sám do sítě nic nenabízí: **Otevřít PrusaLink** poslouchá jen na adrese `127.0.0.1` vašeho počítače.
+  Firewall počítače kvůli LayerPeeku nepotřebuje žádné nové pravidlo.
+
+### 14.4 HTTPS přes reverzní proxy
+
+Na malém počítači vedle tiskárny (například Raspberry Pi) běží reverzní proxy, **Caddy** nebo **nginx**. LayerPeek
+komunikuje s proxy přes HTTPS; nešifrovaným HTTP s tiskárnou mluví jen proxy. Proxy a tiskárnu propojte krátkým kabelem
+nebo je zapojte do stejného switche, a pokud to router umí, povolte přístup k tiskárně jen proxy.
+
+- V LayerPeeku zadejte jako adresu tiskárny adresu proxy, např. `https://printer.home.arpa`. Název musí vést na proxy
+  (záznam DNS v routeru nebo soubor `hosts`).
+- Použijte **pro každou tiskárnu jeden název hostitele nebo port**, ne cestu typu `https://proxy/mk4/`. Tiskárna ověřuje
+  přihlášení podle cesty požadavku, takže u proxy, která takovou předponu odstraní, tiskárna heslo odmítne.
+- Kamera (RTSP) přes proxy nejde; LayerPeek se k ní připojuje přímo.
+
+**Caddy** (soubor `Caddyfile`, `192.168.1.20` je tiskárna):
+
+```caddyfile
+printer.home.arpa {
+	tls internal
+	reverse_proxy 192.168.1.20
+}
+```
+
+Díky `tls internal` vydá Caddy certifikát ze své vlastní certifikační autority (CA). Jejímu kořenovému certifikátu
+v počítači důvěřujte (viz [14.5](#145-důvěra-v-certifikát-v-počítači)); když Caddy běží jako služba systému Linux, je to
+soubor `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`. Caddy předává cestu i hlavičky přihlášení
+beze změny.
+
+**nginx** (blok `server`, např. v `/etc/nginx/conf.d/printer.conf`):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name printer.home.arpa;
+    ssl_certificate     /etc/nginx/tls/printer.crt;
+    ssl_certificate_key /etc/nginx/tls/printer.key;
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://192.168.1.20;
+    }
+}
+```
+
+`proxy_pass` bez cesty předává cestu beze změny. `client_max_body_size 0` ruší limit 1 MB, aby fungovalo nahrávání
+G-code přes webové rozhraní PrusaLink. nginx potřebuje certifikát z vaší vlastní CA, vytvořený například pomocí OpenSSL:
+
+```sh
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=Printer proxy CA" \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -keyout ca.key -out ca.crt
+openssl req -newkey rsa:3072 -nodes -subj "/CN=printer.home.arpa" -keyout printer.key -out printer.csr
+printf "subjectAltName=DNS:printer.home.arpa\nextendedKeyUsage=serverAuth\n" > printer.ext
+openssl x509 -req -in printer.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 825 \
+  -extfile printer.ext -out printer.crt
+```
+
+Soubory `printer.crt` a `printer.key` zkopírujte na proxy a `ca.crt` do svých počítačů; `ca.key` uschovejte v bezpečí
+a mimo síť. Certifikát serveru platí 825 dní, nejdéle, co macOS přijme.
+
+### 14.5 Důvěra v certifikát v počítači
+
+LayerPeek přijímá jen certifikáty, kterým důvěřuje váš systém. Certifikát podepsaný sám sebou (self-signed) nebo
+certifikát od CA, kterou systém nezná, selže: **Otestovat spojení** hlásí *„Zabezpečené spojení (https) selhalo. Zkuste
+adresu s http:// nebo zkontrolujte certifikát tiskárny.“*, tiskárna je **Nedostupná** a **Diagnostika** ukazuje
+*„Zabezpečené (https) spojení s tiskárnou selhalo.“* LayerPeek sám důvěřovat jednotlivému certifikátu neumí; přidejte
+certifikát své CA (`ca.crt` nebo `root.crt` od Caddy) do systému:
+
+- **Windows:** stiskněte **Win+R**, spusťte `certmgr.msc`, klikněte pravým tlačítkem na **Důvěryhodné kořenové
+  certifikační autority → Certifikáty** (Trusted Root Certification Authorities → Certificates), zvolte **Všechny úkoly
+  → Importovat…** a importujte soubor do úložiště **Důvěryhodné kořenové certifikační autority**; bezpečnostní
+  upozornění potvrďte. Nebo v terminálu: `certutil -user -addstore Root ca.crt`.
+- **macOS:** otevřete aplikaci **Klíčenka** (najdete ji přes Spotlight), vyberte klíčenku **Přihlášení** (login)
+  a přetáhněte soubor do okna. Dvakrát klikněte na certifikát, rozbalte **Důvěra** a u **Při použití tohoto
+  certifikátu** nastavte **Vždy důvěřovat** (Always Trust); potvrďte heslem.
+
+Pak znovu spusťte **Otestovat spojení**.
+
+Zdroje: PrusaLink [v místní síti](https://help.prusa3d.com/article/prusa-connect-and-prusalink-explained_302608),
+[přesměrování portu a VPN](https://help.prusa3d.com/article/prusalink-sl1-sl1s_146094), [HTTP digest
+v PrusaSliceru](https://help.prusa3d.com/article/prusalink-troubleshooting_304411); firmware: [port 80 bez
+TLS](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/http_lifetime.cpp),
+[Digest a API
+klíč](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/nhttp/req_parser.cpp),
+[platnost
+nonce](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/common/http/types.h),
+[tvorba
+hesla](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/lib/WUI/wui.cpp)
+a [délka](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/persistent_stores/store_instances/config_store/constants.hpp),
+[nabídka
+PrusaLink](https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/7d8bf6858b363c453c0617bceab5e66997d8fc25/src/gui/screen_prusa_link.cpp);
+[RFC 2069](https://www.rfc-editor.org/rfc/rfc2069); [Caddy
+`reverse_proxy`](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy),
+[`tls`](https://caddyserver.com/docs/caddyfile/directives/tls), [datový adresář](https://caddyserver.com/docs/running);
+[nginx `proxy_pass`](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass),
+[`client_max_body_size`](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size); [požadavky
+Applu na certifikáty](https://support.apple.com/en-us/103769),
+[Klíčenka](https://support.apple.com/guide/keychain-access/change-the-trust-settings-of-a-certificate-kyca11871/mac);
+[certutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil).
+
+## 15. Řešení problémů
+
+**Ikona není vidět (Windows).** Klikněte v oznamovací oblasti na šipku **`^`** a přetáhněte ikonu LayerPeeku na hlavní
+panel.
+
+**Tiskárna je Nedostupná.** Zkontrolujte, že je tiskárna zapnutá a připojená k síti, že je adresa správná (zkuste ji
+v prohlížeči) a že je váš počítač ve stejné síti. V nastavení tiskárny spusťte **Otestovat spojení**.
+
+**Neplatné přihlašovací údaje.** Zadejte znovu uživatelské jméno a heslo z nabídky tiskárny **Nastavení → Síť →
+PrusaLink** a uložte.
+
+**Zabezpečené spojení (https) selhalo.** Adresa tiskárny začíná `https://`. Buď vede přímo na tiskárnu, která HTTPS nemá
+(použijte `http://`), nebo váš systém nedůvěřuje certifikátu proxy: viz [14.5](#145-důvěra-v-certifikát-v-počítači).
+
+**Žádné spojení v macOS.** Možná je vypnutý přístup k místní síti. LayerPeek pak nabídne **Otevřít Nastavení systému**;
+zapněte LayerPeek v **Nastavení systému → Soukromí a zabezpečení → Místní síť**.
+
+**Kamera ukazuje Bez signálu.** Ověřte adresu RTSP pomocí **Otestovat kameru** a zkontrolujte, že je kamera zapnutá
+a dosažitelná. Do adresy nepište uživatelské jméno ani heslo.
+
+**Obraz kamery je poškozený nebo černý** (adresa i **Otestovat kameru** jsou v pořádku). Nastavte **Nastavení →
+Kamera → Hardwarové dekódování** na **Vypnuto** a uložte; okno kamery pak dekóduje procesorem (viz [11.6](#116-kamera)).
+
+**Upozornění se nezobrazují.** Použijte **Poslat zkušební upozornění** v **Nastavení → Obecné** a zkontrolujte režim
+**Nerušit** (Windows) nebo **Soustředění** (macOS).
+
+**Nahlášení chyby.** V nabídce ikony otevřete **O aplikaci**:
+
+- **Uložit diagnostický balíček…** uloží soubor ZIP s logy, informacemi o verzi a systému a s nastavením, **bez hesel
+  a klíčů**. Přiložte ho k hlášení chyby.
+- **Kopírovat info do schránky** zkopíruje krátké hlášení.
+- **Otevřít složku s logy** otevře logy.
+
+Pokud vás někdo požádá o podrobný log, zapněte **Podrobné logování (Debug)** v **Nastavení → Obecné**, zopakujte
+problém, uložte balíček a podrobné logování zase vypněte.
+
+Chyby a nápady hlaste v [issues](https://github.com/pfoltynek/LayerPeek/issues) na GitHubu. Uveďte prosím model
+tiskárny, verzi firmwaru a operační systém.
+
+## 16. Odinstalace
+
+- **Windows, nainstalovaná verze:** **Nastavení → Aplikace → Nainstalované aplikace → LayerPeek → Odinstalovat**.
+- **Windows, verze ZIP:** ukončete LayerPeek a smažte jeho složku.
+- **macOS:** ukončete LayerPeek (**Ukončit** v jeho nabídce) a přesuňte **LayerPeek** ze složky **Aplikace** do Koše.
+
+Odinstalace ponechá vaše nastavení, hesla a nahrávky. Pokud je chcete odstranit také, smažte složky z části
+[13](#13-kde-jsou-uložena-vaše-data) a záznamy LayerPeeku ve Správci pověření (Windows) nebo v aplikaci Klíčenka
+(macOS).

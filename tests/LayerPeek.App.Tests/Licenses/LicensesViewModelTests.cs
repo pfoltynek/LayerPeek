@@ -26,7 +26,7 @@ public sealed class LicensesViewModelTests : IDisposable
         Assert.Equal(ThirdPartyLicenses.All.Count, viewModel.Components.Count);
         LicenseItemViewModel avalonia = viewModel.Components[0];
         Assert.Equal("Avalonia", avalonia.Name);
-        Assert.Equal("Version 12.1.4", avalonia.VersionText);
+        Assert.Equal("Version 12.1.6", avalonia.VersionText);
         Assert.Equal("Licence: MIT", avalonia.LicenseText);
         Assert.Equal("https://github.com/AvaloniaUI/Avalonia", avalonia.ProjectUrl);
     }
@@ -98,11 +98,16 @@ public sealed class LicensesViewModelTests : IDisposable
         viewModel.OpenFFmpegBuildCommand.Execute(null);
         viewModel.OpenFFmpegBuildScriptsCommand.Execute(null);
 
-        Assert.Equal([ThirdPartyLicenses.FFmpeg.SourceUri, ThirdPartyLicenses.FFmpeg.WindowsBuildUri, ThirdPartyLicenses.FFmpeg.WindowsBuildScriptsUri], _launcher.Opened);
+        // T-202: Windows builds the same official source tarball as macOS with build/windows/build-ffmpeg.sh.
+        Assert.Equal([ThirdPartyLicenses.FFmpeg.SourceUri, ThirdPartyLicenses.FFmpeg.SourceTarballUri, ThirdPartyLicenses.FFmpeg.WindowsBuildScriptsUri], _launcher.Opened);
         Assert.Equal("Licence: LGPL-3.0-or-later", viewModel.FFmpegLicenseText);
         Assert.Contains("may be replaced", viewModel.FFmpegNote, StringComparison.Ordinal);
-        Assert.Contains("BtbN", viewModel.FFmpegNote, StringComparison.Ordinal);
-        Assert.Equal("The FFmpeg build used (BtbN release)", viewModel.FFmpegBuildText);
+        Assert.Contains("avcodec-63", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.Contains("official source code", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.DoesNotContain("BtbN", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.DoesNotContain("swresample", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.Equal("The FFmpeg source release used (ffmpeg.org)", viewModel.FFmpegBuildText);
+        Assert.Equal("Build configuration and script (LayerPeek)", viewModel.FFmpegBuildScriptsText);
     }
 
     [Fact]
@@ -115,7 +120,7 @@ public sealed class LicensesViewModelTests : IDisposable
         viewModel.OpenFFmpegBuildCommand.Execute(null);
         viewModel.OpenFFmpegBuildScriptsCommand.Execute(null);
 
-        Assert.Equal([ThirdPartyLicenses.FFmpeg.SourceUri, ThirdPartyLicenses.FFmpeg.MacOSBuildUri, ThirdPartyLicenses.FFmpeg.MacOSBuildScriptsUri], _launcher.Opened);
+        Assert.Equal([ThirdPartyLicenses.FFmpeg.SourceUri, ThirdPartyLicenses.FFmpeg.SourceTarballUri, ThirdPartyLicenses.FFmpeg.MacOSBuildScriptsUri], _launcher.Opened);
         Assert.Equal("Licence: LGPL-3.0-or-later", viewModel.FFmpegLicenseText);
         Assert.Contains("may be replaced", viewModel.FFmpegNote, StringComparison.Ordinal);
         Assert.Contains("libavcodec.63.dylib", viewModel.FFmpegNote, StringComparison.Ordinal);
@@ -123,6 +128,18 @@ public sealed class LicensesViewModelTests : IDisposable
         Assert.DoesNotContain("DLL", viewModel.FFmpegNote, StringComparison.Ordinal);
         Assert.Equal("The FFmpeg source release used (ffmpeg.org)", viewModel.FFmpegBuildText);
         Assert.Equal("Build configuration and script (LayerPeek)", viewModel.FFmpegBuildScriptsText);
+    }
+
+    [Fact]
+    public void FFmpegTextsOfTheWindowsBuildAreTranslated()
+    {
+        using CultureScope czech = new("cs-CZ");
+        LicensesViewModel viewModel = Create(macOS: false);
+
+        Assert.Contains("avcodec-63", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.DoesNotContain("BtbN", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.Equal("Použité zdrojové vydání FFmpeg (ffmpeg.org)", viewModel.FFmpegBuildText);
+        Assert.Equal("Konfigurace a skript buildu (LayerPeek)", viewModel.FFmpegBuildScriptsText);
     }
 
     [Fact]
@@ -195,7 +212,7 @@ public sealed class LicensesViewModelTests : IDisposable
         LicensesViewModel viewModel = Create();
 
         Assert.Equal("Licence třetích stran", viewModel.Title);
-        Assert.Equal("Verze 12.1.4", viewModel.Components[0].VersionText);
+        Assert.Equal("Verze 12.1.6", viewModel.Components[0].VersionText);
     }
 
     // ---- Language switch (T-029) ----
@@ -229,7 +246,7 @@ public sealed class LicensesViewModelTests : IDisposable
         // The loaded version is kept (it is not a text of the app); only the texts around it change.
         Assert.Equal("avcodec 63.1.102 (LGPL version 3 or later)", viewModel.FFmpegVersionText);
         Assert.Equal(1, versionReads);
-        Assert.Equal("Version 12.1.4", avalonia.VersionText);
+        Assert.Equal("Version 12.1.6", avalonia.VersionText);
         Assert.Equal("Lizenz: MIT", avalonia.LicenseText);
         Assert.Equal([string.Empty], changes);
         Assert.Contains(nameof(LicenseItemViewModel.LicenseText), itemChanges);

@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -41,6 +42,7 @@ internal sealed class CameraHarness : IAsyncDisposable
     private readonly bool? _macShortcuts;
     private readonly ICameraFeedFactory _feeds;
     private readonly LayerPeek.App.Cameras.Recording.ICameraRecordings? _recordings;
+    private readonly LayerPeek.Core.Display.IDisplayActivityService? _display;
 
     /// <param name="screens">Monitors of the camera windows (T-035); <see langword="null"/>: the headless screen.</param>
     /// <param name="window">Window defaults of the printers with a camera; <see langword="null"/>: the defaults.</param>
@@ -60,8 +62,11 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="first">Changes the definition of the first printer ("a"), e.g. its name (README screenshots); <see langword="null"/>: none.</param>
     /// <param name="activator">Activates the windows (T-119, a fake); <see langword="null"/>: <c>Window.Activate</c>.</param>
     /// <param name="recordings">The camera recordings (T-146, a fake); <see langword="null"/>: none (no record button).</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null, ICameraFeedFactory? feeds = null, Func<PrinterDefinition, PrinterDefinition>? first = null, IWindowActivator? activator = null, LayerPeek.App.Cameras.Recording.ICameraRecordings? recordings = null)
+    /// <param name="cloaking">Whether the windows are cloaked (T-186, a fake); <see langword="null"/>: the real one (headless: never).</param>
+    /// <param name="display">Whether the screen can be seen (T-186, a fake); <see langword="null"/>: always.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null, ICameraFeedFactory? feeds = null, Func<PrinterDefinition, PrinterDefinition>? first = null, IWindowActivator? activator = null, LayerPeek.App.Cameras.Recording.ICameraRecordings? recordings = null, LayerPeek.App.Platform.IWindowCloaking? cloaking = null, LayerPeek.Core.Display.IDisplayActivityService? display = null)
     {
+        _display = display;
         _feeds = feeds ?? Factory;
         _recordings = recordings;
         _macShortcuts = macShortcuts;
@@ -83,7 +88,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         // does not exceed, so that the nozzle alone decides (T-109; the bed's own rules are tested in Core and App.Tests).
         Cooldown = new CooldownMonitor(Monitor, Time, NullLogger<CooldownMonitor>.Instance);
         Cooldown.Configure([.. settings.Printers.Select(static p => p with { CooldownThresholds = new(50, 45) })], settings.PollingInterval);
-        Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront, activator: activator).CameraWindows(Create, screens, measureChrome, predictChrome);
+        Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront, activator: activator).CameraWindows(Create, screens, measureChrome, predictChrome, cloaking);
     }
 
     public CooldownMonitor Cooldown { get; }
@@ -233,6 +238,52 @@ internal sealed class CameraHarness : IAsyncDisposable
         window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "MiniOutline").Transitions = null;
     }
 
+    /// <summary>
+    /// The status over the image (connecting, no signal, error) outside the image area, a text of it cut, collapsed or
+    /// sticking out, or one of <paramref name="shown"/> not shown (T-097, T-188).
+    /// </summary>
+    public static IEnumerable<string> StatusProblems(CameraWindow window, string context, params string[] shown)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(shown);
+        Border status = window.GetVisualDescendants().OfType<Border>().Single(static b => b.Classes.Contains("overlay") && b.IsEffectivelyVisible);
+        Control surface = window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "Surface");
+        Rect area = BoundsIn(surface, window);
+        Rect bounds = BoundsIn(status, window);
+        if (!area.Contains(bounds))
+        {
+            yield return $"{context}: the status {bounds} is outside the image area {area}.";
+        }
+
+        TextBlock[] texts = [.. status.GetVisualDescendants().OfType<TextBlock>().Where(static t => t.IsEffectivelyVisible)];
+        foreach (string expected in shown)
+        {
+            if (!texts.Any(t => t.Text == expected))
+            {
+                yield return $"{context}: '{expected}' is not shown.";
+            }
+        }
+
+        foreach (TextBlock text in texts)
+        {
+            if (text.TextLayout.TextLines.Any(static line => line.HasCollapsed))
+            {
+                yield return $"{context}: '{text.Text}' is cut.";
+            }
+
+            if (text.TextLayout.Height > text.Bounds.Height + 0.5 || text.TextLayout.Width > text.Bounds.Width + 0.5)
+            {
+                yield return $"{context}: '{text.Text}' needs {text.TextLayout.Width:0.#} × {text.TextLayout.Height:0.#} DIP but has {text.Bounds.Width:0.#} × {text.Bounds.Height:0.#}.";
+            }
+
+            Rect textBounds = BoundsIn(text, window);
+            if (!bounds.Contains(textBounds))
+            {
+                yield return $"{context}: '{text.Text}' {textBounds} sticks out of the status {bounds}.";
+            }
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         Windows.Shutdown();
@@ -245,6 +296,9 @@ internal sealed class CameraHarness : IAsyncDisposable
         Cooldown.Dispose();
     }
 
+    private static Rect BoundsIn(Control control, Visual root) =>
+        new(control.TranslatePoint(default, root) ?? throw new InvalidOperationException("Not in the window."), control.Bounds.Size);
+
     private CameraViewModel? Create(string printerId, PrinterDefinition? saved)
     {
         PrinterDefinition? printer = saved ?? Printers.Current.Printers?.FirstOrDefault(p => string.Equals(p.Id, printerId, StringComparison.OrdinalIgnoreCase));
@@ -254,7 +308,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         CameraStreamHub feed = CameraHubs.Immediate(new ReconnectingCameraFeed(_feeds, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork, TopmostWriter, _recordings);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork, TopmostWriter, _recordings, _display);
         if (_macShortcuts is { } mac)
         {
             viewModel.UsesMacShortcuts = mac;

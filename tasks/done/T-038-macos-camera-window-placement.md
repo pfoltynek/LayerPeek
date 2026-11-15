@@ -236,3 +236,9 @@ Výsledky zapsat sem (pod „Výsledky ručního ověření“) s verzí macOS a
 
 ### Výsledky ručního ověření
 (doplní uživatel)
+- 2026-11-15, J5 / otázka 2 (`mac.mini-after-fullscreen`, běh `artifacts/verify/20261115-155430/`, commit `24d73aa3`,
+  opakováno `20261115-170737`): tlačítko náhledu a „Použít“ v Nastavení → 320 × 213 bodů, roh vpravo dole, bez
+  rámečku (v pořádku); **Esc** u celé obrazovky otevřené z náhledu → 320 × 241 bodů s titulkovým pruhem, spodní okraj
+  pod pracovní plochou. Schválená oprava (umístit znovu po animaci) → T-237.
+- 2026-11-15, T-237: příčinou byl odchod z celé obrazovky, který udělal AppKit sám (Esc), po němž Avalonia.Native
+  12.1.6 ignoruje změny `WindowDecorations`; opraveno, `mac.mini-after-fullscreen` = `PASS` (`artifacts/verify/20261115-195207/`).

@@ -199,7 +199,8 @@ public sealed class NamedPipeInstanceTransportTests : InstanceTransportTests
 
         Assert.Equal(InstanceRole.NotForwarded, role);
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"Took {watch.Elapsed}.");
-        Assert.True(connected.IsCompletedSuccessfully);
+        // The server's side of the connection may complete only after the later start gave up (loaded machine).
+        await connected.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         second.Dispose();
     }
 
@@ -525,9 +526,11 @@ public sealed class UnixSocketInstanceTransportTests : InstanceTransportTests
         Assert.Equal(InstanceRole.Primary, first.Guard.Start(InstanceCommand.Activate, received.Add));
         Assert.Equal(InstanceRole.NotForwarded, second.Guard.Start(InstanceCommand.Activate, static _ => Assert.Fail("Not the primary.")));
 
+        // The later start gives up after its own budget; a loaded running instance may accept the connection (still
+        // queued) only afterwards, so its refusal is awaited on the test's own bound, not the 1 s of the later start.
+        string refusal = userKnown ? $"another user (uid {stranger})" : "another user (uid (null))";
+        await WaitUntilAsync(() => log.Entries.Any(entry => entry.Message.Contains(refusal, StringComparison.Ordinal)));
         Assert.True(refusing.PeerChecks > 0);
-        Assert.Contains(log.Entries, entry => entry.Message.Contains(
-            userKnown ? $"another user (uid {stranger})" : "another user (uid (null))", StringComparison.Ordinal));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => received.NextAsync(TimeSpan.FromMilliseconds(200)));
     }
 
@@ -572,6 +575,16 @@ public sealed class UnixSocketInstanceTransportTests : InstanceTransportTests
         Assert.Null(credentials.GetEntry(Path.Combine(_shortDirectory, "missing")));
         // A system folder of root: the owner comes from the file system, not from this process.
         Assert.Equal(0u, credentials.GetEntry("/usr")?.OwnerId);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TestTimeouts.Wait);
+        while (!condition())
+        {
+            await Task.Delay(5, timeout.Token);
+        }
     }
 
     [SupportedOSPlatform("macos")]

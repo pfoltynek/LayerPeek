@@ -99,6 +99,9 @@
   <data name="MenuAbout" xml:space="preserve">
     <value>_O programie</value>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_Podręcznik użytkownika</value>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>_Dodaj drukarkę…</value>
   </data>
@@ -634,7 +637,7 @@
     <value>Włącz tylko na prośbę przy rozwiązywaniu problemu. Plik logu będzie rósł szybciej.</value>
   </data>
   <data name="SettingsTabStartupUpdates" xml:space="preserve">
-    <value>Uruchamianie i aktualizacje</value>
+    <value>Start i aktualizacje</value>
   </data>
   <data name="SettingsTabRecording" xml:space="preserve">
     <value>Nagrywanie</value>
@@ -807,6 +810,12 @@
   <data name="CameraError" xml:space="preserve">
     <value>Błąd kamery</value>
   </data>
+  <data name="CameraNextAttemptSeconds" xml:space="preserve">
+    <value>Następna próba za około {0} s</value>
+  </data>
+  <data name="CameraNextAttemptMinutes" xml:space="preserve">
+    <value>Następna próba za około {0} min</value>
+  </data>
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Pełny ekran (F11)</value>
   </data>
@@ -833,6 +842,12 @@
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licencje stron trzecich…</value>
+  </data>
+  <data name="AboutFFmpegNotice" xml:space="preserve">
+    <value>To oprogramowanie korzysta z bibliotek projektu FFmpeg na licencji LGPLv3 lub nowszej.</value>
+  </data>
+  <data name="AboutFFmpegSource" xml:space="preserve">
+    <value>Kod źródłowy FFmpeg tej wersji</value>
   </data>
   <data name="LicensesTitle" xml:space="preserve">
     <value>Licencje stron trzecich</value>
@@ -865,25 +880,19 @@
     <value>Nie znaleziono bibliotek FFmpeg obok aplikacji, więc kamera nie działa.</value>
   </data>
   <data name="LicensesFFmpegNote" xml:space="preserve">
-    <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanej kompilacji LGPL od BtbN i łączy ją dynamicznie: biblioteki DLL avcodec, avformat, avutil, swscale i swresample obok aplikacji można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. avcodec-63).</value>
+    <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanego wydania FFmpeg, skompilowanego jako LGPL z oficjalnego kodu źródłowego, i łączy je dynamicznie: biblioteki DLL avcodec, avformat, avutil i swscale obok aplikacji można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. avcodec-63).</value>
   </data>
   <data name="LicensesFFmpegSource" xml:space="preserve">
     <value>Kod źródłowy FFmpeg</value>
   </data>
   <data name="LicensesFFmpegBuild" xml:space="preserve">
-    <value>Użyta kompilacja FFmpeg (wydanie BtbN)</value>
+    <value>Użyte wydanie źródłowe FFmpeg (ffmpeg.org)</value>
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
-    <value>Konfiguracja i skrypty kompilacji (BtbN)</value>
+    <value>Konfiguracja i skrypt kompilacji (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
     <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanego wydania FFmpeg, skompilowanego jako LGPL z oficjalnego kodu źródłowego, i łączy je dynamicznie: biblioteki libavcodec, libavformat, libavutil i libswscale (.dylib) w LayerPeek.app/Contents/MacOS można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. libavcodec.63.dylib). Aplikację trzeba następnie ponownie podpisać; wystarczy podpis ad hoc.</value>
-  </data>
-  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
-    <value>Użyte wydanie źródłowe FFmpeg (ffmpeg.org)</value>
-  </data>
-  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
-    <value>Konfiguracja i skrypt kompilacji (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Nie znaleziono treści licencji FFmpeg (FFmpeg-LICENSE.txt) obok aplikacji. GNU LGPL 3.0 jest opublikowana pod adresem https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -896,6 +905,12 @@
   </data>
   <data name="LicensesComponentTmdsDBus" xml:space="preserve">
     <value>Tmds.DBus.Protocol (tylko Linux)</value>
+  </data>
+  <data name="LicensesComponentInter" xml:space="preserve">
+    <value>Inter (czcionka, tylko macOS)</value>
+  </data>
+  <data name="LicensesComponentMinGW" xml:space="preserve">
+    <value>MinGW-w64 runtime (w bibliotekach DLL FFmpeg, tylko Windows)</value>
   </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Okno kamery</value>
@@ -914,6 +929,63 @@
   </data>
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Dotyczy wszystkich drukarek. Okno zamknięte ręcznie pozostaje zamknięte.</value>
+  </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Dotyczy wszystkich kamer. Kamerę każdej drukarki ustawisz na karcie Drukarki.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Liczba klatek małego podglądu</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Oszczędny</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Zrównoważony</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Płynny</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Własny</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 kl./s: najmniejsze obciążenie procesora i najmniej kopiowanych danych obrazu, ruch jest mniej płynny.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 kl./s (zalecane): wystarczająco płynnie dla małego obrazu przy ułamku obciążenia procesora i kopiowanych danych.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Każda klatka kamery jak w zwykłym oknie: największe obciążenie procesora i najwięcej kopiowanych danych.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Własna wartość: mniej klatek na sekundę to mniejsze obciążenie procesora i mniej kopiowanych danych.</value>
+  </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Dekodowanie sprzętowe</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automatycznie</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Wyłączone</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>Wideo z kamery dekoduje sprzęt graficzny, gdy to możliwe, w przeciwnym razie procesor: mniejsze obciążenie procesora.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Zawsze procesor: mniej pamięci, bez dekodera systemowego. Spróbuj, gdy obraz kamery jest uszkodzony lub czarny.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>W systemie Windows opcja Automatycznie na razie dekoduje programowo.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} kl./s</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Bez limitu</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Klatki na sekundę w małym podglądzie</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otwórz jako</value>
@@ -1411,6 +1483,9 @@
   <data name="MenuUpdateDownloading" xml:space="preserve">
     <value>Pobieranie wersji {0}…</value>
   </data>
+  <data name="MenuUpdateRejected" xml:space="preserve">
+    <value>Aktualizacja odrzucona…</value>
+  </data>
   <data name="MenuUpdateInstallHint" xml:space="preserve">
     <value>Pobiera aktualizację, zamyka LayerPeek i uruchamia nową wersję.</value>
   </data>
@@ -1449,6 +1524,18 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Przenieś LayerPeek do folderu Aplikacje; wtedy będzie mógł się sam aktualizować.</value>
+  </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>Aktualizacja LayerPeek odrzucona</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Aktualizacja nie została zainstalowana, ponieważ nie udało się zweryfikować jej podpisu. Kliknij, aby zobaczyć szczegóły.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>Aktualizacja została odrzucona.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek odrzucił aktualizację, ponieważ nie udało się zweryfikować jej podpisu, więc nic nie zostało zainstalowane. Nie instaluj tej wersji ręcznie: poczekaj na kolejne wydanie lub śledź ogłoszenia projektu.</value>
   </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Nagrywaj</value>
@@ -1562,7 +1649,7 @@
     <value>Wpisz liczbę całkowitą od {0} do {1}.</value>
   </data>
   <data name="SettingsRecordPrints" xml:space="preserve">
-    <value>Automatycznie nagrywaj wydruki</value>
+    <value>Nagrywaj każdy wydruk</value>
   </data>
   <data name="SettingsRecordPrintsHint" xml:space="preserve">
     <value>Nagrywa od początku wydruku do minuty po jego zakończeniu, także bez otwartego okna kamery.</value>
@@ -1905,5 +1992,32 @@
   </data>
   <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
     <value>Czarny lub bardzo ciemny filament: jako zmiana liczy się także mniejsze pociemnienie na stole. Na ciemnej płycie wykrywa nieco więcej, przy większym ryzyku fałszywych alarmów.</value>
+  </data>
+  <data name="SettingsAddressUntrustedNetwork" xml:space="preserve">
+    <value>Połączenie nieszyfrowane poza siecią lokalną: hasło PrusaLink może zostać przechwycone. Użyj https:// (odwrotne proxy) lub VPN.</value>
+  </data>
+  <data name="SettingsCameraUrlUntrustedNetwork" xml:space="preserve">
+    <value>Połączenie nieszyfrowane poza siecią lokalną: obraz z kamery może zostać przechwycony. Użyj VPN.</value>
+  </data>
+  <data name="SettingsSecurityMoreInfo" xml:space="preserve">
+    <value>Więcej informacji</value>
+  </data>
+  <data name="SettingsSecurityMoreInfoHint" xml:space="preserve">
+    <value>Otwiera w instrukcji obsługi rozdział o zabezpieczeniu dostępu do PrusaLink.</value>
+  </data>
+  <data name="TextBoxCut" xml:space="preserve">
+    <value>Wy_tnij</value>
+  </data>
+  <data name="TextBoxCopy" xml:space="preserve">
+    <value>_Kopiuj</value>
+  </data>
+  <data name="TextBoxPaste" xml:space="preserve">
+    <value>_Wklej</value>
+  </data>
+  <data name="TextBoxPasteMac" xml:space="preserve">
+    <value>_Wklej</value>
+  </data>
+  <data name="TextBoxSelectAll" xml:space="preserve">
+    <value>_Zaznacz wszystko</value>
   </data>
 </root>

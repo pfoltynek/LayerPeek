@@ -1,0 +1,377 @@
+---
+id: T-218
+title: CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR
+status: in-progress
+owner: qa-reviewer
+priority: P2
+platform: all
+depends_on: []
+---
+
+> **Rozhodnuto uživatelem 2026-11-13:** ano, CI v GitHub Actions na macOS **i** Windows: build + testy (bez E2E
+> a interaktivních UI testů) + Native AOT publish při pushi do `develop` a v pull requestech.
+>
+> **Pozor na platformu:** úkol je `all`. Workflow se ale ověří jen během na runnerech GitHubu. Část Windows musí
+> projít na runneru `windows-*` (nebo ji předem vyzkoušet na Windows), stejně část macOS na runneru `macos-*`. Úkol
+> je hotový až po zeleném běhu obou jobů na GitHubu, ne po lokálním buildu.
+
+## Cíl
+Regrese se dnes zjistí, až když někdo pustí `dotnet build` / `dotnet test` / AOT publish na druhém OS. Typicky dny
+po sloučení (viz sběrné úkoly T-125 / T-127). CI spustí totéž na obou OS po každém pushi do `develop` a v každém PR.
+
+## Rozsah
+- **Soubor** `.github/workflows/ci.yml` (jeden workflow, matice `windows` / `macos` nebo dva joby):
+  - Spouštění: `push` do `develop`, `pull_request` do `develop` (a `main`, viz otázka 3), `workflow_dispatch`.
+    Změny jen v `tasks/**`, `docs/**`, `manuals/**` a `*.md` CI nespouštějí (`paths-ignore`, šetří minuty runnerů),
+    pozor na interakci s povinnou kontrolou (otázka 2).
+  - **Bezpečnost:** `permissions: contents: read` na úrovni workflow. Žádné tajné údaje (`secrets.*` se nepoužívá).
+    `pull_request` (ne `pull_request_target`). Všechny akce třetích stran i `actions/*` **připnuté na SHA commitu**
+    s komentářem verze (`uses: actions/checkout@<40 znaků> # vX.Y.Z`). SHA zjistit z tagu vydání akce
+    (`gh api repos/actions/checkout/git/ref/tags/vX.Y.Z`) a zapsat do poznámek. `actions/checkout`
+    s `persist-credentials: false`.
+  - `concurrency: group: ci-${{ github.workflow }}-${{ github.ref }}`, `cancel-in-progress: true`.
+  - `timeout-minutes` u každého jobu: macOS první build s FFmpeg ze zdrojů je delší. Změřit a nastavit ~1,5× naměřené
+    doby, ne neomezeně.
+  - **.NET SDK** z `global.json` (`actions/setup-dotnet` s `global-json-file`), jen stabilní (T-193). Proměnné
+    `DOTNET_NOLOGO`, `DOTNET_CLI_TELEMETRY_OPTOUT`. Cache NuGet (`~/.nuget/packages`, klíč = hash
+    `Directory.Packages.props` + `**/*.csproj` + `global.json`).
+- **FFmpeg cache** (`actions/cache`, `LayerPeekFFmpegCacheRoot` přes proměnnou prostředí do složky runneru):
+  - macOS: klíč = OS + hash `build/macos/build-ffmpeg.sh` + `build/FFmpeg.targets` (zdroj a SHA-256 tarballu).
+    Stejné vstupy jako klíč cache v `build/FFmpeg.targets` (`StableStringHash` skriptu a `LayerPeekFFmpegMacSourceSha256`).
+  - Windows dnes: klíč = hash `build/FFmpeg.targets` (připnutý zip BtbN, ~77 MB stažení).
+  - **Vazba na T-202:** T-202 změní Windows na build ze zdrojů (nový skript `build/windows/build-ffmpeg.*`, toolchain
+    podle T-202 otázky 1). Klíč pro Windows se pak rozšíří o hash toho skriptu a runner potřebuje toolchain T-202 (např.
+    MSYS2 / MinGW, nebo MSVC). Který úkol se dokončí druhý, ten upraví druhou stranu (workflow, nebo poznámku v T-202).
+    T-218 na T-202 nečeká.
+- **Kroky v každém jobu:**
+  1. `dotnet build -c Debug` a `-c Release` bez varování (warnings as errors už platí);
+  2. `dotnet test` bez E2E. Projekt `tests/LayerPeek.E2E.Tests` se vynechá **výslovně**: runner Windows má Edge, test
+     by se tedy nepřeskočil. E2E testy v `LayerPeek.App.Tests` / `LayerPeek.App.E2E.Tests` se neaktivují
+     (`LAYERPEEK_E2E` nenastavené). Ověřit a zapsat seznam všech přepínačů, které E2E / interaktivní testy zapínají. Headless
+     UI testy (`LayerPeek.App.UiTests`) **běží**, jsou deterministické s Inter. Testy Klíčenky se na runneru bez
+     odemčené klíčenky přeskočí s důvodem. Ověřit, že se nepřeskočí potichu ani nespadnou;
+  3. Native AOT publish `win-x64` / `osx-arm64` (`dotnet publish src/LayerPeek.App -c Release -r <rid>`) bez
+     varování. Bez spuštění aplikace a bez `aot-smoke.ps1`: ten mění profil a čeká na displej;
+  4. při selhání upload logů testů (`TestResults`, `*.trx` / MTP výstup) jako artefakt s krátkou retencí (např.
+     3 dny). Při úspěchu žádné artefakty.
+- **Runnery:** `windows-latest` (VS s workloadem „Desktop development with C++“ pro AOT; ověřit, že verze MSVC na obrazu
+  stačí pro AOT .NET 11) a `macos-*` s Apple Silicon (arm64, Xcode Command Line Tools). Konkrétní obraz zapsat (`macos-15` / novější),
+  viz otázka 4.
+- **Vazba na T-180 (rulesety) a CodeQL:**
+  - ruleset 2 („pull request required“, `develop` + `main`) dnes vyžaduje bránu CodeQL code scanning a admin ho
+    obchází. CI se **nepřidává jako povinná kontrola** bez rozhodnutí uživatele (otázka 2);
+  - CodeQL běží jako *default setup* (C#, JS/TS, nastaveno 2026-11-06). Workflow nesmí přidat vlastní CodeQL (pokročilé
+    nastavení by kolidovalo s default setup) ani měnit jeho nastavení.
+- **Dokumentace:** `docs/prerequisites.md` (oddíl CI: co běží, kde, cache), `CONTRIBUTING.md` / README EN + CZ (odznak
+  CI jen po rozhodnutí, otázka 5). `CLAUDE.md` jen přes hlavního agenta.
+- **Push workflow:** pushnout `.github/workflows/*` přes HTTPS vyžaduje token se scope `workflow`. Na Macu má token
+  `gh` (pomocník přihlašování gitu = `gh auth git-credential`) 2026-11-13 scope `workflow` (`gh auth status`: `gist`,
+  `read:org`, `repo`, `workflow`). Na Windows neověřeno. Postup rozhodne uživatel (otázka 1, souvisí s otázkou T-059
+  ke scope `workflow`).
+
+## Akceptační kritéria
+- [x] `.github/workflows/ci.yml`: `permissions: contents: read`, žádné `secrets`, všechny akce připnuté na SHA
+      s komentářem verze, `concurrency` s `cancel-in-progress`, `timeout-minutes` u každého jobu
+- [ ] Zelený běh na GitHubu pro **macOS** i **Windows** (build Debug + Release, `dotnet test` bez E2E, AOT publish);
+      odkazy na běhy v poznámkách – *čeká na první běh po pushi (ověří hlavní agent)*
+- [x] Druhý běh bez změny FFmpeg použije cache FFmpeg (v logu žádný build / stažení FFmpeg) na obou OS; změna
+      `build/macos/build-ffmpeg.sh` dá na macOS nový klíč – *čeká na runner (lokálně ověřeno, viz poznámky)*
+      – *ověřeno 2026-11-15 z logů, viz poznámky „Třetí kolo“*
+- [ ] Úmyslně rozbitý test v PR (jen na zkoušku, pak zahodit) skončí červeně a nahraje log testů – *čeká na runner*
+- [ ] Žádný E2E / interaktivní test v CI neběží (seznam přepínačů zapsaný); počet přeskočených testů zapsaný a zdůvodněný
+      – *seznam přepínačů hotový (`docs/prerequisites.md`); počty z prvního běhu na runnerech zapsané v poznámkách,
+      po zeleném běhu potvrdit*
+- [x] `docs/prerequisites.md` doplněné; vazba na T-202 zapsaná v T-202
+- [x] `dotnet build` a `dotnet test` lokálně bez chyb a varování
+
+## Otevřené otázky
+1. **Push workflow souborů:** HTTPS push `.github/workflows/*` potřebuje scope `workflow`. Na Macu ho token `gh` už má.
+   Má se workflow pushovat z Macu (nejjednodušší), nebo na Windows `gh auth refresh -s workflow`, nebo SSH remote,
+   nebo vložit soubor přes webové UI? Souvisí s otázkou T-059 ke scope `workflow` (přihlašovat rovnou se `workflow`?).
+2. **Povinná kontrola:** má se CI přidat do rulesetu 2 (T-180) jako povinný status check pro PR do `develop` / `main`?
+   Admin ho dnes obchází, takže by se týkal jen PR cizích přispěvatelů. S `paths-ignore` by PR jen s dokumentací
+   čekal na kontrolu, která se nespustí. Pak by bylo potřeba `paths-ignore` vynechat, nebo přidat job, který při
+   změně jen dokumentace hned projde.
+3. Spouštět CI i pro PR do `main` a pro push do `release/*` / `hotfix/*` (stabilizace vydání), nebo jen `develop`?
+4. Obraz runneru macOS: připnout konkrétní (`macos-15`, novější), nebo `macos-latest`? Připnutý = předvídatelný,
+   ale časem zastará. Stejně u Windows (`windows-2025` vs. `windows-latest`).
+5. Přidat odznak stavu CI do README (EN + CZ)?
+6. Spouštět v CI i Pester testy skriptů (`scripts/ReleaseTools/*.Tests.ps1`, `tools/*.Tests.ps1`)? Jsou rychlé
+   a běží na obou OS, ale nejsou součástí `dotnet test`.
+7. Dependabot pro `github-actions` (`.github/dependabot.yml`), aby se připnuté SHA aktualizovaly? T-180 má Dependabot
+   security updates bez `dependabot.yml`.
+
+Rozhodnuto uživatelem 2026-11-13:
+1. **Pushovat z Macu** (token `gh` má scope `workflow`); na Windows `gh auth refresh -s workflow` až tehdy, kdyby se
+   workflow měnilo odtud.
+2. **Ano, povinná kontrola** v rulesetu (změnu rulesetu dělá uživatel nebo agent s jeho výslovným souhlasem; úkol
+   připraví přesný postup). Proto **bez `paths-ignore`**: místo toho job, který při změně jen dokumentace / úkolů
+   hned projde, aby povinná kontrola nikdy nečekala.
+3. **Ano**, i PR do `main` a push do `release/*` / `hotfix/*`.
+4. Neodpovězeno – neblokuje; implementace navrhne (doporučeno připnuté obrazy kvůli předvídatelnosti, Dependabot
+   je neaktualizuje – zapsat do poznámek) a zeptá se při review.
+5. **Ano**, odznak CI v README (EN i CZ).
+6. **Ano**, Pester testy v CI.
+7. **Ano**, `.github/dependabot.yml` pro `github-actions`.
+
+Nové otázky z implementace (2026-11-13, neblokují):
+8. **Obrazy runnerů (navazuje na otázku 4):** navrženo a použito připnuté `windows-2025` (dnes stejný obraz jako
+   `windows-latest`: Windows Server 2025 s VS 2026), `macos-26` (dnes `macos-latest`, Apple Silicon) a `ubuntu-24.04`
+   pro malé joby. Výhoda: obraz se nezmění pod rukama (macOS knihovny FFmpeg se překládají jeho Xcodem, obraz je proto
+   i v klíči cache). Nevýhoda: Dependabot obrazy neaktualizuje, nový obraz je potřeba nastavit ručně, až GitHub ohlásí
+   konec starého. Ponechat připnuté, nebo přejít na `*-latest`?
+9. **Časové limity jobů:** zatím prozatímně 60 minut pro oba buildy (lokálně na M2 Pro 8 min, runner bude pomalejší).
+   Po prvních bězích nastavit ~1,5× naměřené doby (úkol to předepisuje); hlavní agent / další úprava.
+
+
+Otázky z prvního běhu na GitHubu (2026-11-13, běh 43501907104; rozbor v poznámkách „První běh na GitHubu“). Dokud
+nejsou rozhodnuté 10 a 11, zůstane CI červené na snímcích UI:
+10. **Snímky UI macOS na runneru (blokuje zelené CI na macOS):** 54 snímků se na `macos-26` liší o 11–287 pixelů
+    (povoleno 10). Reference jsou z Macu vývojáře (macOS 27.2.1), runner má macOS 26.7. Skia na macOS rasterizuje
+    glyfy přes CoreText / CoreGraphics systému, takže stejné písmo Inter dá na jiné hlavní verzi macOS jiné okraje
+    glyfů (stejně jako Windows a macOS mají vlastní sady, T-095). Možnosti:
+    - **(a)** job macOS na obrazu `xcode-27` (macOS 27.0.1 arm64, zatím *preview*: možné fronty a nestabilita). Bez
+      změny testů; jestli 27.0 kreslí stejně jako 27.2, ukáže jeden běh. Po přechodu Macu vývojáře na macOS 28 se
+      problém vrátí, dokud GitHub nemá obraz 28.
+    - **(b)** sada referencí macOS si pamatuje hlavní verzi macOS, na které vznikla (např. soubor v
+      `Snapshots/macOS/`). Na jiné hlavní verzi se porovnání pixelů **přeskočí s důvodem** (stabilita snímku, kontrola
+      písma a všechny testy rozložení dál běží); na Macu vývojáře se porovnává jako dnes.
+    - **(c)** druhá sada referencí pro verzi runneru (`Snapshots/macOS-26/`) z artefaktu `snapshot-failures-osx-arm64`:
+      plné pokrytí v CI, ale každá změna UI = dvě sady macOS ke kontrole.
+    - **(d)** vyšší tolerance na macOS v CI – nedoporučuji: 200 pixelů je víc než změněné slovo.
+    **Doporučení: (a) zkusit hned (jedna změna `runs-on`), a když 27.0 ≠ 27.2 nebo je preview nespolehlivý, (b).**
+11. **Snímky UI Windows (blokuje zelené CI na Windows):** 44 snímků Nastavení a O aplikaci selže, protože **sada
+    Windows je zastaralá** (známé body T-125: T-185, T-199, T-204; `settings-camera-tab.png` pro Windows vůbec není).
+    Snímky Diagnostiky a okna kamery na `windows-2025` prošly, runner tedy kreslí stejně jako Windows vývojáře.
+    Možnosti: **(a)** přegenerovat sadu Windows na Windows podle T-125 (jak je plánováno) – do té doby CI na Windows
+    červené; **(b)** vzít obrázky `*.actual.png` z artefaktu `snapshot-failures-win-x64` dalšího běhu jako nové
+    reference Windows (z Macu, s prohlídkou okem; rychlé, ale reference by poprvé nevznikly na Windows vývojáře).
+    **Doporučení: (b) jako rychlé odblokování CI, s kontrolou na Windows v T-125.**
+12. **Alokační testy na Windows runneru:** `PrintFailureDetectionAllocationTests.ASampleDoesNotAllocate` (každý platný
+    průchod ≥ 173 840 B, test 41 s) a `CameraTimelapseAllocationTests.SteadyStateTimelapseDoesNotAllocate` („Packets
+    not read“ po 10 s) – známá citlivost na zátěž (T-165, T-168), na 4 vCPU se 8 testovacími moduly současně výrazně
+    horší. Na Macu nejde rozebrat. Možnosti: **(a)** nový úkol (core-dev / qa-reviewer na Windows): příčina 173 KB a
+    odolnější měření; **(b)** v CI omezit souběh modulů (`--max-parallel-test-modules 2`, delší běh); **(c)** obojí.
+    **Doporučení: (a), (b) jen když (a) nepomůže.**
+13. **Luma z roviny Y na Windows (T-189):** `GrayscaleSampleEquivalenceTests.TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture`
+    na Windows: průměrný |rozdíl| 1,72 (mez 1,5) a průměrný posun +1,44 (mez 1). Na Macu 1,31 / +0,87 (T-189 měřil jen
+    macOS). Windows používá jiný build FFmpeg (BtbN) a jiné cesty SIMD swscale. Nejde o chybu CI: posun jasu o 1,4 úrovně
+    může posunout prahy detekce na Windows. **Doporučení: nový úkol pro core-dev (změřit na Windows vývojáře, rozhodnout
+    mez nebo opravu převodu; navazuje na T-202 s vlastním buildem FFmpeg pro Windows).**
+
+Rozhodnuto uživatelem 2026-11-14:
+10. **Snímky macOS:** vyzkoušet runner s macOS 27 (štítek `xcode-27`, ověřeno v README `actions/runner-images`:
+    macOS 27.0.1 arm64, *preview*) a příčinu potvrdit z obrázků rozdílů. Když se snímky ani na macOS 27 neshodnou,
+    porovnání pixelů se přeskočí s důvodem, pokud se hlavní verze macOS runneru liší od verze referencí (verze referencí
+    zapsaná deterministicky). → Implementováno obojí: CI na `xcode-27`, sada `Snapshots/macOS/rendered-on.txt`
+    („macOS 27“) a přeskočení při jiné hlavní verzi.
+11. **Snímky Windows:** reference **ne** z CI; uživatel je přegeneruje na Windows v T-125. Do té doby CI na Windows
+    pro tyto snímky červené (nepřeskakovat).
+12. + 13. Založeny úkoly **T-220** (alokační testy na runneru Windows, qa-reviewer) a **T-221** (luma Windows proti
+    mezím T-189, core-dev, vazba na T-202). Do opravy se tyto testy přeskočí **jen v CI** (`LAYERPEEK_CI=1` z workflow,
+    důvod s číslem úkolu), lokálně běží.
+
+**Rozhodnuto uživatelem 2026-11-15:** zbytek úkolu dokončí **relace na Windows**: zkontrolovat první celý zelený běh po
+opravě souběhu (merge `38e38809`, pushe se už neruší), zkušební PR s úmyslně rozbitým testem (uživatel ho schválil:
+založit, ověřit červený `CI result` a nahrané logy, pak zavřít bez merge a smazat větev) a povinná kontrola
+`CI result` v rulesetu (schváleno přes `gh api`, příkaz ale před odesláním ukázat uživateli; postup
+`docs/prerequisites.md`, „CI (GitHub Actions)“). Relace na Macu na tom dál nepracuje.
+
+## Poznámky k implementaci
+Stav 2026-11-13 (qa-reviewer, na Macu): workflow, Dependabot, test pravidel a dokumentace hotové a lokálně ověřené.
+Úkol zůstává v `in-progress/`: zelený běh na GitHubu, cache při druhém běhu, červený běh s rozbitým testem a počty
+přeskočených testů z runnerů ověří hlavní agent po pushi (nepřesouvá se do T-125 / T-127).
+
+**Soubory**
+- `.github/workflows/ci.yml` – tři joby:
+  - `Changes` (`ubuntu-24.04`) zjistí změněné soubory: u PR `git diff HEAD^1 HEAD` slučovacího commitu (checkout
+    `fetch-depth: 2`), u pushe `git diff <before> HEAD` (předchozí commit se stáhne `--depth=1`; nový branch, vynucený
+    push nebo neúspěšné stažení = plný běh), `workflow_dispatch` = vždy plný běh.
+  - `Build and test (Windows / macOS)` (matice, `fail-fast: false`) jen při změně kódu.
+  - `CI result` (`if: always()`) = jediná povinná kontrola: projde, když build prošel, nebo nebyl potřeba; zrušený nebo
+    neúspěšný build = červená (zrušený běh tedy povinnou kontrolu nesplní).
+- `.github/dependabot.yml` – `github-actions`, týdně, PR do `develop`, `cooldown` 7 dní, jedna skupina, prefix `ci`.
+- `tests/LayerPeek.Scripts.Tests/CiWorkflowTests.cs` – hlídá pravidla bezpečnosti workflow (SHA + komentář verze, jediný
+  blok `permissions: contents: read`, žádné `secrets.` / `pull_request_target` / `workflow_run`, každý checkout
+  `persist-credentials: false`, `timeout-minutes` u každého jobu, `cancel-in-progress`, existence Dependabotu).
+  Ověřeno mutací: nepřipnutá akce, chybějící timeout a `persist-credentials: true` testy shodí.
+- `docs/prerequisites.md` – nový oddíl „CI (GitHub Actions)“ (co běží, kde, cache, rychlé projití dokumentace,
+  přepínače E2E, **postup pro povinnou kontrolu v rulesetu**), věta v úvodu o CI opravená.
+- `README.md` / `README.cz.md` – odznak CI (`ci.yml`, větev `develop`). `CONTRIBUTING.md` – bod 6 o kontrole
+  `CI result`. `tasks/todo/T-202-…` – stav vazby na CI.
+
+**Akce připnuté na SHA** (zjištěno 2026-11-13 přes `gh api repos/<akce>/releases/latest` a
+`gh api repos/<akce>/git/ref/tags/<tag>`; všechny tagy jsou lehké, ukazují přímo na commit; všechny běží na `node24`):
+
+| Akce | Tag | Commit |
+|---|---|---|
+| `actions/checkout` | v7.0.1 | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `actions/setup-dotnet` | v6.1.0 | `0f4a354dd5547a28c70b7853dbd95d5b67886e73` |
+| `actions/cache` (+ `/restore`, `/save`) | v6.1.0 | `55cc8345863c7cc4c66a329aec7e433d2d1c52a9` |
+| `actions/upload-artifact` | v7.0.2 | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
+
+**Rozhodnutí v implementaci**
+- **Rychlé projití místo `paths-ignore` (rozhodnutí 2):** za „jen dokumentaci“ se bere, když je každý změněný soubor
+  v `tasks/`, `docs/` nebo `*.md` v kořeni. **Odchylka od rozsahu:** `manuals/**` a `docs/troubleshooting.md` se
+  počítají jako kód, protože je čtou testy (`UserManualTests` – kotvy příručky, `NotificationAndUpdateInfrastructureTests`
+  – id testovací aplikace). S `paths-ignore` podle původního rozsahu by změna příručky mohla rozbít test bez povšimnutí.
+  Pravidlo pro budoucí testy čtoucí dokumentaci je v `docs/prerequisites.md`. Klasifikátor ověřen lokálně skriptem
+  s náhradním `git` (PR jen s úkoly/docs/README = přeskočit; příručka, `docs/troubleshooting.md`, `src/`, `.github/`,
+  `global.json`, README ve `tests/`, prázdný diff, nový branch, neúspěšný fetch, `workflow_dispatch`, název s diakritikou
+  v uvozovkách = plný běh).
+- **Spouštění (rozhodnutí 3):** push do `develop`, `release/**`, `hotfix/**`; PR do `develop` a `main`; ruční.
+- **Pořadí kroků:** Release build (stáhne / přeloží FFmpeg) → uložení cache FFmpeg hned po něm (`actions/cache/restore` +
+  `/save`, takže selhání testů cache nezahodí) → Debug build → `dotnet test` Debug `--no-build` → AOT publish → při
+  selhání artefakt. Testy jen v Debug (jako lokálně), Release se jen sestaví.
+- **Vynechání `tests/LayerPeek.E2E.Tests`:** filtr řešení `ci-tests.slnf` se generuje při běhu z `dotnet sln list` bez
+  tohoto projektu; krok selže, když projekt nenajde právě jednou (přejmenování by jinak potichu spustilo testy Edge).
+  Nový testovací projekt se tak do CI dostane sám. `LayerPeek.App.E2E.Tests` na macOS není testovací aplikace
+  (`IsTestProject=false`), na Windows se jeho testy bez `LAYERPEEK_E2E=1` přeskočí.
+- **Pester (rozhodnutí 6):** běží uvnitř `dotnet test` (`ScriptPesterTestsPass`); krok `Check PowerShell and Pester`
+  selže, když na runneru chybí Pester 5+ (obrazy mají Pester 5.9.0, PowerShell 7.6.9), aby se nepřeskočil potichu.
+  Nic se neinstaluje.
+- **Cache:** NuGet `~/.nuget/packages` (klíč OS + hash `Directory.Packages.props`, `**/*.csproj`, `global.json`,
+  `restore-keys` podle OS; `NUGET_XMLDOC_MODE=skip`). FFmpeg v `$RUNNER_TEMP/ffmpeg` (přes `GITHUB_ENV`,
+  `Join-Path` kvůli příkazu `move` v cmd), klíč `ffmpeg-v1-<obraz>-<rid>-<hash>`; hash z `build/FFmpeg.targets` a položky
+  matice `ffmpeg-script` (macOS `build/macos/build-ffmpeg.sh`, Windows vzor `build/windows/build-ffmpeg.*` pro T-202,
+  dnes bez shody). Bez `restore-keys`. `v1` v klíči dovolí cache ručně zneplatnit.
+- **Runnery:** `windows-2025` (Visual Studio Enterprise 2026 18.11 s `Microsoft.VisualStudio.Workload.NativeDesktop`
+  a `VC.Tools.x86.x64`, Edge 156; podle README obrazu 20261103), `macos-26` arm64 (macOS 26.7, Xcode CLT 26.6, obraz
+  20261102). .NET 11 na obrazech není (nejvyšší 10.0.403), instaluje ho `setup-dotnet` podle `global.json`
+  (`latestFeature` → nejvyšší 11.0.x GA). MSVC z VS 2026 pro AOT .NET 11 zatím neověřeno – ověří první běh.
+- **Žádné tajné údaje, žádný token:** i zjišťování změn používá jen anonymní `git fetch` veřejného repozitáře (u
+  soukromého by fetch selhal a proběhl by plný běh).
+
+**Lokální ověření (macOS 27, M2 Pro, 2026-11-13)**
+- `actionlint` není k dispozici (ani Docker / Go), nic se neinstalovalo. Místo něj skript v Ruby (systémový Psych):
+  syntaxe YAML obou souborů, povinné klíče jobů a kroků, `uses` xor `run`, odkazy `needs.*`, `steps.<id>`, `matrix.*`
+  a výstupy jobů na existující položky, vyvážené `${{ }}`. Vstupy a výstupy akcí ověřeny z jejich `action.yml` na
+  připnutých SHA (`cache-primary-key` v `cache/restore`, `persist-credentials`, `global-json-file`, `retention-days`…).
+- Příkazy jobu macOS spuštěné stejně jako ve workflow (pwsh, čerstvý klon, prázdná cache FFmpeg v dočasné složce,
+  teplá NuGet cache): Pester 5 nalezen; `build -c Release` 116 s (vč. překladu FFmpeg), `build -c Debug` 14 s,
+  `dotnet test` přes vygenerovaný `.slnf` 324 s, `publish -r osx-arm64` 28 s; vše 0 varování. TRX vznikly pro všech
+  8 testovacích projektů (`--results-directory-layout per-module`). Druhý build se stejnou cache FFmpeg nic nepřekládá.
+- Testy v CI simulaci (macOS): **10 507 celkem, 10 240 prošlo, 0 selhalo, 267 přeskočeno.** Důvody přeskočení:
+  88 snímků README na požádání (`LAYERPEEK_README_SCREENSHOTS`), ~165 testů jen pro Windows (registr, Credential
+  Manager, toasty, COM, mutexy/roury, zástupci, zamykání souborů…), 4 sweepy detektorů (`LAYERPEEK_DETECTION_SWEEP`),
+  5 E2E macOS (`LAYERPEEK_E2E`), 1 `LAYERPEEK_VERIFY_UNATTENDED`, 1 bez nahraných odpovědí PrusaLink (fixtures),
+  1 Local Network (macOS 15+). Žádný test Klíčenky se lokálně nepřeskočil (klíčenka odemčená); na runneru se počet
+  může lišit (viz níže).
+
+**Zbývá ověřit na GitHubu (hlavní agent po pushi)**
+- zelený běh obou jobů, odkazy na běhy sem; doby jobů → `timeout-minutes` na ~1,5× (otázka 9);
+- druhý běh: `Restore FFmpeg` s `cache-hit`, v logu buildu žádné „Downloading FFmpeg“ / „Building FFmpeg from source“;
+- PR s úmyslně rozbitým testem: `CI result` červený, artefakt `test-results-<rid>`; PR jen s úkolem: build přeskočen,
+  `CI result` zelený;
+- počty přeskočených testů na obou runnerech (hlavně Windows: mělo by odpadnout ~165 testů „jen Windows“ a přibýt testy
+  „jen macOS“; Klíčenka na `macos-26` – přeskočení s důvodem, ne selhání), MSVC z VS 2026 pro AOT;
+- že Dependabot `dependabot.yml` přijme (Insights → Dependency graph → Dependabot, bez chyby konfigurace);
+- pak povinná kontrola `CI result` v rulesetu 2 podle postupu v `docs/prerequisites.md` (dělá uživatel).
+- Pozn. pro hlavního agenta: definice agenta `.claude/agents/qa-reviewer.md` (a případně `CLAUDE.md`) dosud říká, že CI
+  je odložené (T-016) – po sloučení aktualizovat.
+
+**První běh na GitHubu (2026-11-13, běh 43501907104, commit `c64d81d7`; qa-reviewer)** – oba buildy (Release + Debug)
+prošly bez varování, cache FFmpeg trefená (`Save FFmpeg` přeskočeno), oba joby červené v kroku testů; AOT publish se
+proto nespustil. Doby: macOS build Release 144 s / Debug 78 s / testy 819 s, Windows 135 s / 47 s / 462 s.
+- Testy: macOS 10 512 (10 180 prošlo, 57 selhalo, 275 přeskočeno), Windows 11 033 (10 592 / 51 / 390; navíc
+  `LayerPeek.App.E2E.Tests` 362 prošlo, 159 přeskočeno – E2E bez `LAYERPEEK_E2E` přeskočené, jak má být). Přeskočení
+  na macOS proti lokálnímu běhu +8: 7 testů lokálních vzorků (`~/LayerPeek-samples` na runneru není) a 1 test FFmpeg
+  lokálního klipu. Testy Klíčenky se na `macos-26` **nepřeskočily** (klíčenka runneru je odemčená) a prošly.
+- **Opraveno v tomto úkolu (příčina = předpoklad testu nebo CI, ne chyba aplikace):**
+  - `MacNativeCallTests.AMissingPermissionOrFolderIsNotAReadOnlyVolume`: test bral `/System/Library/CoreServices` jako
+    „složku bez práva zápisu“. Ta ale leží na zapečetěném systémovém svazku jen pro čtení a s vypnutým SIP (runnery
+    GitHubu) `access()` vrátí právě `EROFS`. Test teď vytvoří vlastní složku s právy 0555 (ověří `EACCES`).
+  - `ReleaseTools.Tests.ps1` „… ignores DYLD_INSERT_LIBRARIES (T-108)“: hardened runtime brání `DYLD_INSERT_LIBRARIES`
+    jen se zapnutým SIP; na runneru se knihovna vložila. Test se při `csrutil status` = disabled přeskočí s důvodem
+    (u vývojáře SIP zapnutý, běží dál).
+  - `ReleaseOrchestrator.Tests.ps1` „converts the real CHANGELOG.md …“: přeskakuje se podle tagu `v<verze>`, mělký
+    checkout ale tagy neměl → test běžel proti už vydané 0.5.0 a selhal. Checkout teď s `fetch-tags: true`.
+    `CHANGELOG.md` navíc patří mezi soubory, které testy čtou → v klasifikaci změn se počítá jako kód.
+  - `ReleaseTools.Tests.ps1` „archives exactly the pinned commit … without line ending conversion“ (Windows): archiv
+    má LF (SHA-256 sedí), ale test četl soubor přes roura + `Out-String`, které na Windows spojí řádky CRLF. Teď kontroluje
+    bajty rozbaleného souboru. Chyba testu z T-199 (psaný na Macu), na Windows by selhal i u vývojáře.
+  - `VerifyTools.Tests.ps1` (2×) a `windows-verify.Tests.ps1` (2×) na Windows: T-208 píše v reportu domovskou složku
+    jako `~`; dočasná složka testů leží na Windows v profilu, testy ale čekaly plnou cestu, JSON porovnávaly bez
+    odescapování `\` a `windows-verify.Tests.ps1` neznal nový sloupec Seconds. Opraveno (ověřeno na Macu s dočasnou
+    složkou testů v `$HOME`: původní test selže, upravený projde). Chyby testů z T-208, ne CI.
+- **CI upraveno:** NuGet cache obnovená a uložená zvlášť (dřív se při červených testech neuložila), nový artefakt
+  `snapshot-failures-<rid>` s `*.actual.png` / `*.diff.png` neshodných snímků (první běh je neměl, rozbor snímků macOS
+  je proto zatím úvaha, viz otázka 10), krok `Describe the runner` (OS, CPU, obraz, `csrutil status`, `sw_vers`).
+- **Neopraveno, rozhodnutí v otázkách 10–13:** snímky UI macOS (verze macOS runneru), snímky UI Windows (zastaralá
+  sada, T-125), dva alokační testy na Windows (zátěž), luma T-189 na Windows (jiný FFmpeg).
+
+**Druhý běh (2026-11-13, běh 43513903970, commit `334403bd`) a rozhodnutí 2026-11-14 (qa-reviewer)**
+- Opravy z prvního běhu zabraly: na macOS zbyly jen snímky UI (54), na Windows snímky (44, zastaralá sada), alokační
+  test, luma a dvě Pester sady. `Describe the runner`: macOS 26.7.2, 3 CPU, obraz `macos26 20261102.0473.1`, **SIP
+  vypnutý** (potvrzuje příčinu oprav 1 a 2 z prvního běhu); Windows 4 CPU, `win25-vs2026 20261103.298.1`.
+- **Příčina snímků macOS potvrzená** z artefaktu `snapshot-failures-osx-arm64` (`*.diff.png`): rozdíly jsou jen
+  izolované pixely na okrajích některých glyfů (t, i, f, d, číslice…), rozvržení, barvy i velikosti stejné. Tedy
+  rasterizace písma Core Graphics jiné hlavní verze macOS, ne chyba UI.
+- **Nově opraveno:**
+  - CI: job macOS na `xcode-27`; `LAYERPEEK_CI=1` pro celý workflow.
+  - `SnapshotAssert`: `RenderingOrigin` – sada macOS má `rendered-on.txt` („macOS <hlavní verze>“), zapisuje ho každé
+    `LAYERPEEK_UPDATE_SNAPSHOTS=1` na macOS; na jiné hlavní verzi `Assert.Skip` s důvodem (verze referencí, verze stroje).
+    Ověřeno lokálně podvržením „macOS 26“: 3 snímky O aplikaci přeskočené s důvodem, 0 selhání; vráceno na „macOS 27“.
+    Testy `SnapshotAssertTests` (rozhodnutí podle verzí, formát souboru, sada Windows soubor nemá).
+  - `tests/Shared/ContinuousIntegration.cs` + `Assert.SkipWhen(ContinuousIntegration.IsWindowsRunner, …)` u
+    `ASampleDoesNotAllocate`, `SteadyStateTimelapseDoesNotAllocate` (T-220) a
+    `TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture` (T-221).
+  - `windows-verify.Tests.ps1`: druhý řádek tabulky reportu bez sloupce Seconds (T-208; v prvním běhu ho skryla první
+    chyba v témže testu).
+  - `PesterScriptTests`: `ReleaseTools.Tests.ps1` na runneru Windows přesáhl 5 min a úklid po zabití pwsh pak spadl na
+    `UnauthorizedAccessException` (soubory objektů gitu jen pro čtení), což skrylo skutečnou chybu. Úklid na Windows
+    při odepření smaže atribut jen pro čtení a zkusí znovu; limit pro `ReleaseTools.Tests.ps1` 10 min (pojistka proti
+    zaseknutí, ne měření rychlosti; lokálně 200 s).
+- Zbývá po pushi: běh na `xcode-27` (shodují se snímky macOS 27.0 s referencemi z 27.2? když ne, rozhodnutí o
+  vedlejších verzích je nové – zapsat), Windows červené jen na snímcích do T-125.
+
+**Třetí kolo (2026-11-15, qa-reviewer; běhy 43706555987, 43709551686, z logů jen ke čtení)**
+- **Windows zelené** (běh 43709551686, `32b193fb`): build Release 110 s, Debug 45 s, testy 540 s, AOT publish `win-x64`
+  75 s; obnova NuGet 56 s, uložení 20 s. Testy 11 380, prošlo 10 800, **0 selhalo, 580 přeskočeno**: App.Tests 95
+  (testy jen pro macOS), App.UiTests 105 (88 snímků README na požádání + testy jen pro macOS), App.UiTests.SystemFont 188
+  (písmo San Francisco jen na macOS, T-214), Camera.FFmpeg 20 (testy VideoToolbox a macOS buildu FFmpeg, lokální klip), Detection 11 (lokální
+  vzorky a sweepy), PrusaLink 1, Scripts 1 (`LAYERPEEK_VERIFY_UNATTENDED`), `LayerPeek.App.E2E.Tests` 159 (E2E bez
+  `LAYERPEEK_E2E`; 362 testů infrastruktury prošlo). Core.Tests 0 přeskočených: přeskočení `LAYERPEEK_CI` z T-218 už v kódu nejsou (práce na T-220 / T-221, oba v `in-progress`).
+- **macOS (`xcode-27`, macOS 27.0.1, SIP vypnutý podle `Describe the runner`)**: snímky UI se s referencemi z 27.2
+  **shodují** (žádné selhání snímku), selhal jen Pester „… ignores DYLD_INSERT_LIBRARIES (T-108)“. Build Release 119 s,
+  Debug 58 s, testy 545 s.
+- **Příčina selhání DYLD:** přeskočení při vypnutém SIP z `8cd43f3a` v souboru **nebylo**: sloučení `78295b3c` („Merge
+  origin/develop (Mac session) into develop“, 2026-11-15) vzalo `scripts/ReleaseTools/ReleaseTools.Tests.ps1` celé ze
+  strany Windows a zahodilo 123 řádků ze strany Macu: přeskočení T-218, testy T-217 (`-CleanEnvironment` v
+  `aot-smoke.ps1`, celý `Describe 'Downloaded macOS release bundle (T-217, pure)'`, `Get-SmokeCleanEnvironmentArguments`,
+  `Get-SmokeNativeLoadErrors`) a opravu CRLF (ta s testem git archive mezitím odpadla s T-202). Funkce v
+  `ReleaseTools.psm1` a `aot-smoke.ps1` sloučení převzalo, jen jejich testy chyběly. Kontrola všech souborů toho
+  sloučení: jinde se nic neztratilo (jen úkoly T-201 / README, záměrně).
+- **Opraveno:** soubor obnovený třícestným sloučením (`git merge-file`, základ `2ce7be01`, Mac `11f09e09`, nynější
+  stav); jediný konflikt (kontext git vstupů, který T-202 odstranil) vyřešen ve prospěch nynějšího stavu. Podmínka
+  přeskočení zpřísněná: test běží jen při přesném „System Integrity Protection status: enabled.“ a bez boot-args AMFI
+  (`amfi_get_out_of_my_way`, `amfi=`); jinak přeskočení s výstupem `csrutil` / `nvram` v důvodu. Řídicí sonda chováním
+  (vložení do nepodepsané binárky) by nerozlišila nic – vložení do nepodepsaného procesu funguje i se SIP. Lokálně
+  (SIP zapnutý) celý `ReleaseTools.Tests.ps1`: 347 prošlo, 0 selhalo, 5 přeskočeno (jen Windows / jiné OS); test DYLD
+  běží a prochází.
+- **Cache FFmpeg (kritérium splněno):** běhy 43701381975, 43701951944, 43706555987 a 43709551686 obnovily na obou OS
+  klíč `ffmpeg-v1-<obraz>-<rid>-<hash>` (`Restore FFmpeg` trefa, `Save FFmpeg` přeskočeno) a v logu buildu není
+  „Downloading FFmpeg“ ani „Building FFmpeg from source“. Změna receptu dává nový klíč: přechod na `xcode-27` vytvořil
+  klíč `ffmpeg-v1-xcode-27-…` a T-202 (`build/windows/build-ffmpeg.sh` ve vzoru `ffmpeg-script`) mění hash klíče
+  Windows; běh 43721174386 (po T-202) má na obou OS trefu a přeskočený MSYS2 – jeho klíč Windows po dokončení ještě
+  zapsat.
+- **Zrychlení dokumentace:** běhy 43705139779 a 43714204910 (jen úkoly / dokumentace): `Build and test` přeskočeno,
+  `CI result` zelený.
+- **Zbývá:** zelený macOS po pushi této opravy (pak kritérium zeleného běhu s odkazy), PR s úmyslně rozbitým testem
+  a povinná kontrola v rulesetu (uživatel). **Proces:** sloučení `origin/develop` z druhého stroje řešit třícestně, ne
+  „vzít celý soubor“ – doporučení pro hlavního agenta.
+
+**Oprava návrhu souběhu (2026-11-15, qa-reviewer)** – běh 43722485576 (push s kódem z Windows) zrušil pozdější push jen
+s dokumentací (`bb75436d`); jeho běh 43723241377 přeskočil buildy a za 36 s byl zelený, takže kód nikdy neprošel testy.
+Příčina: `cancel-in-progress: true` i pro pushe a rychlé projití podle vlastního rozdílu pushe (`before..after`).
+Ani bez rušení by rozdíl pushe nestačil: GitHub drží ve skupině jen jeden čekající běh a novější push ho nahradí
+(zruší), takže běh může zastupovat pushe, jejichž běh se nespustil. Zvoleno nejjednodušší robustní řešení:
+- `cancel-in-progress: ${{ github.event_name == 'pull_request' }}` – PR ruší svůj starší běh, push nikdy nepřeruší
+  rozběhnutý běh;
+- rychlé projití jen pro PR (rozdíl slučovacího commitu `HEAD^1..HEAD` = celý PR bez ohledu na zrušené běhy); **push
+  a ruční spuštění vždy plný build a testy** (stojí minuty runnerů i u pushe jen s dokumentací; pro veřejný repozitář
+  zdarma). Varianta „porovnat s posledním commitem s úspěšným plným během“ by potřebovala API Actions s tokenem
+  (`actions: read`) – zamítnuto jako složitější.
+- `CiWorkflowTests.OnlyPullRequestsCancelOlderRunsAndSkipTheBuild` to hlídá (ověřeno mutací: `cancel-in-progress: true`
+  test shodí); klasifikátor znovu ověřen náhradním `git` (PR s dokumentací = přeskočit, PR s kódem / `CHANGELOG.md`,
+  push i ruční spuštění = plný běh). `docs/prerequisites.md` (oddíl CI) aktualizovaný.

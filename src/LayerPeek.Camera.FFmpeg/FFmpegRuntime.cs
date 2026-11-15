@@ -54,6 +54,27 @@ internal static class FFmpegRuntime
         return ffmpeg.av_guess_format(shortName, null, null) is not null;
     }
 
+    /// <summary>
+    /// Whether the loaded libraries can decode H.264 on a device of <paramref name="device"/> (T-203: the device type is
+    /// built in and the H.264 decoder has a hardware configuration for it, e.g. <c>h264_videotoolbox</c> on macOS). Says
+    /// nothing about the hardware of this computer.
+    /// </summary>
+    /// <exception cref="CameraFeedException">FFmpeg cannot be loaded.</exception>
+    public static unsafe bool HasHardwareDecoder(AVHWDeviceType device)
+    {
+        EnsureLoaded();
+        bool built = false;
+        for (AVHWDeviceType type = ffmpeg.av_hwdevice_iterate_types(AVHWDeviceType.AV_HWDEVICE_TYPE_NONE);
+            type != AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
+            type = ffmpeg.av_hwdevice_iterate_types(type))
+        {
+            built |= type == device;
+        }
+
+        AVCodec* decoder = ffmpeg.avcodec_find_decoder(AVCodecID.AV_CODEC_ID_H264);
+        return built && decoder is not null && FFmpegDecoder.HardwareFormat(decoder, device) != AVPixelFormat.AV_PIX_FMT_NONE;
+    }
+
     private static LoadResult Load()
     {
         try
@@ -69,7 +90,7 @@ internal static class FFmpegRuntime
             // FFmpeg writes diagnostics to stderr by default, and some of them contain the stream address. Failures
             // reach the application through return codes instead (see FFmpegDecoder).
             ffmpeg.av_log_set_level(ffmpeg.AV_LOG_QUIET);
-            // Each call loads one library (and fails if a dependency such as swresample is missing).
+            // Each call loads one library (and fails if one of the libraries it depends on is missing).
             string version = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"avformat {Format(ffmpeg.avformat_version())}, avcodec {Format(ffmpeg.avcodec_version())}, avutil {Format(ffmpeg.avutil_version())}, swscale {Format(ffmpeg.swscale_version())} ({ffmpeg.avcodec_license()})");

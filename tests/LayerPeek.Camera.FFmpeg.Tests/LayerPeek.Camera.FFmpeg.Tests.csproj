@@ -12,6 +12,7 @@
     <Compile Include="..\Shared\AllocationProbe.cs" Link="Shared\AllocationProbe.cs" />
     <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
     <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+    <Compile Include="..\Shared\ContinuousIntegration.cs" Link="Shared\ContinuousIntegration.cs" />
     <!-- The Core One fixtures and synthetic failures of the detector tests (T-155), for the end-to-end alarm. -->
     <Compile Include="..\Shared\Detection\*.cs" Link="Shared\Detection\%(Filename)%(Extension)" />
   </ItemGroup>
@@ -29,5 +30,12 @@
     <ProjectReference Include="..\..\tools\PrusaSimulator\PrusaSimulator.csproj" />
     <!-- The real bed-change detector for the end-to-end alarm through the simulated camera (T-155). -->
     <ProjectReference Include="..\..\src\LayerPeek.Detection\LayerPeek.Detection.csproj" />
+  </ItemGroup>
+  <!--
+    With a RID (dotnet test -r win-arm64 on a Windows ARM64 machine, T-227) the FFmpeg libraries of that RID, as for the
+    app (LayerPeek.App.csproj, T-224/T-225); without one those of the host (build/FFmpeg.targets).
+  -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <ProjectReference Update="..\..\src\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" AdditionalProperties="LayerPeekAppRuntimeIdentifier=$(RuntimeIdentifier)" />
   </ItemGroup>
 </Project>

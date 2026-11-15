@@ -112,6 +112,10 @@
     <value>_About</value>
     <comment>Tray menu item. "_" marks the access key (unique within the main menu).</comment>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_User manual</value>
+    <comment>T-172: tray menu item right above "About"; opens the user manual in the browser. "_" marks the access key (unique within the main menu).</comment>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>Add _printer…</value>
     <comment>Tray menu item shown when no printer is configured: opens the settings and adds a printer. "_" marks the access key (unique within the main menu).</comment>
@@ -841,6 +845,14 @@
   <data name="CameraError" xml:space="preserve">
     <value>Camera error</value>
   </data>
+  <data name="CameraNextAttemptSeconds" xml:space="preserve">
+    <value>Next attempt in about {0} s</value>
+    <comment>T-188: camera window status, below the reason, while the connection waits between reconnect attempts; {0} = whole seconds (1–59), shown once when the status changes (no countdown, hence "about"). Not shown in the mini preview. A non-breaking space before the unit.</comment>
+  </data>
+  <data name="CameraNextAttemptMinutes" xml:space="preserve">
+    <value>Next attempt in about {0} min</value>
+    <comment>T-188: like CameraNextAttemptSeconds from one minute on; {0} = whole minutes (1 with the default cap of the backoff).</comment>
+  </data>
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Full screen (F11)</value>
   </data>
@@ -869,6 +881,14 @@
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Third-party licences…</value>
+  </data>
+  <data name="AboutFFmpegNotice" xml:space="preserve">
+    <value>This software uses libraries from the FFmpeg project under the LGPLv3 or later.</value>
+    <comment>About window (T-199): point 10 of the LGPL checklist of https://ffmpeg.org/legal.html with the licence version of the shipped FFmpeg build (LGPL 3 or later). Keep "FFmpeg" and "LGPLv3" as they are.</comment>
+  </data>
+  <data name="AboutFFmpegSource" xml:space="preserve">
+    <value>FFmpeg source code of this version</value>
+    <comment>About window (T-199): link to the FFmpeg source archive attached to the GitHub release of this version.</comment>
   </data>
   <data name="LicensesTitle" xml:space="preserve">
     <value>Third-party licences</value>
@@ -901,25 +921,19 @@
     <value>The FFmpeg libraries were not found next to the application; the camera does not work.</value>
   </data>
   <data name="LicensesFFmpegNote" xml:space="preserve">
-    <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified LGPL build by BtbN and links it dynamically: the DLLs avcodec, avformat, avutil, swscale and swresample next to the application may be replaced by a compatible FFmpeg build (the same library versions, e.g. avcodec-63).</value>
+    <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified FFmpeg release, compiled from the official source code as an LGPL build, and links it dynamically: the DLLs avcodec, avformat, avutil and swscale next to the application may be replaced by a compatible FFmpeg build (the same library versions, e.g. avcodec-63).</value>
   </data>
   <data name="LicensesFFmpegSource" xml:space="preserve">
     <value>FFmpeg source code</value>
   </data>
   <data name="LicensesFFmpegBuild" xml:space="preserve">
-    <value>The FFmpeg build used (BtbN release)</value>
+    <value>The FFmpeg source release used (ffmpeg.org)</value>
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
-    <value>Build configuration and scripts (BtbN)</value>
+    <value>Build configuration and script (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
     <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified FFmpeg release, compiled from the official source code as an LGPL build, and links it dynamically: the libraries libavcodec, libavformat, libavutil and libswscale (.dylib) in LayerPeek.app/Contents/MacOS may be replaced by a compatible FFmpeg build (the same library versions, e.g. libavcodec.63.dylib). The application then has to be signed again; an ad-hoc signature is enough.</value>
-  </data>
-  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
-    <value>The FFmpeg source release used (ffmpeg.org)</value>
-  </data>
-  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
-    <value>Build configuration and script (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>The FFmpeg licence text (FFmpeg-LICENSE.txt) was not found next to the application. The GNU LGPL 3.0 is published at https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -932,6 +946,12 @@
   </data>
   <data name="LicensesComponentTmdsDBus" xml:space="preserve">
     <value>Tmds.DBus.Protocol (Linux only)</value>
+  </data>
+  <data name="LicensesComponentInter" xml:space="preserve">
+    <value>Inter (font, macOS only)</value>
+  </data>
+  <data name="LicensesComponentMinGW" xml:space="preserve">
+    <value>MinGW-w64 runtime (in the FFmpeg DLLs, Windows only)</value>
   </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Camera window</value>
@@ -950,6 +970,63 @@
   </data>
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>For all printers. A window you close yourself stays closed.</value>
+  </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>For all cameras. Each printer's camera is set up on the Printers tab.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Mini preview frame rate</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Economy</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Balanced</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Smooth</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: the lowest CPU load and the least image data copied; movement in the picture is choppier.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (recommended): smooth enough for the small picture with a fraction of the CPU load and copied image data.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Every frame of the camera, as in the normal window: the highest CPU load and the most image data copied.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Your own limit: fewer frames per second mean less CPU load and less image data copied.</value>
+  </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Hardware decoding</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automatic</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>The graphics hardware decodes the camera video when it can, otherwise the processor does: less CPU load.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Always decoded by the processor: less memory, no system decoder. Try it if the camera picture is damaged or black.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>On Windows, Automatic still decodes in software for now.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>No limit</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Mini preview frames per second</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Open as</value>
@@ -1488,6 +1565,10 @@
     <value>Downloading version {0}…</value>
     <comment>T-058: the same item (disabled) while the update of an installed app downloads; {0} = the version.</comment>
   </data>
+  <data name="MenuUpdateRejected" xml:space="preserve">
+    <value>Update refused…</value>
+    <comment>T-181: tray menu item instead of MenuUpdateAvailable while the update feed is refused; opens the settings on the Startup and updates tab. Plain text, no access key, no version.</comment>
+  </data>
   <data name="MenuUpdateInstallHint" xml:space="preserve">
     <value>Downloads the update, quits LayerPeek and starts the new version.</value>
     <comment>T-058: tooltip of the update item in an installed app (Velopack): what a click does.</comment>
@@ -1539,6 +1620,22 @@
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Move LayerPeek to the Applications folder; then it can update itself.</value>
     <comment>T-058 (macOS, Q8 a): hint on the Startup and updates tab when the app runs from the disk image or Downloads (translocated) and cannot update itself.</comment>
+  </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>LayerPeek update refused</value>
+    <comment>T-181: title of the notification about a refused update (its feed failed the signature check); shown once per offered version.</comment>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>An update was not installed because its signature could not be verified. Click for details.</value>
+    <comment>T-181: text of the notification about a refused update. Names no version (the one a refused feed claims is untrusted, user decision 2026-11-11). A click opens the Startup and updates tab.</comment>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>The update was refused.</value>
+    <comment>T-181: result of "Check now" when the update feed was refused; the error box below explains it.</comment>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek refused the update because its signature could not be verified, so nothing was installed. Do not install this version by hand: wait for the next release or follow the project's announcements.</value>
+    <comment>T-181: error box on the Startup and updates tab while the update feed is refused (its signature could not be verified). No technical reasons and no version; never advises a manual install (user decision 2026-11-11: the release itself may be malicious).</comment>
   </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>Start _recording</value>
@@ -2112,5 +2209,41 @@
   <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
     <value>Black or very dark filament: smaller darkening on the bed counts as a change. Finds a little more on a dark sheet, with a higher risk of false alarms.</value>
     <comment>T-163: tooltip and screen reader help of SettingsDetectionDarkFilament.</comment>
+  </data>
+  <data name="SettingsAddressUntrustedNetwork" xml:space="preserve">
+    <value>Unencrypted connection outside the local network: the PrusaLink password could be intercepted. Use https:// (reverse proxy) or a VPN.</value>
+    <comment>T-182: under the printer address (replaces its hint) when an http:// address may be outside the local network (not private, link-local, loopback or a local name). Informative, saving stays allowed. At most two lines next to SettingsSecurityMoreInfo (layout test).</comment>
+  </data>
+  <data name="SettingsCameraUrlUntrustedNetwork" xml:space="preserve">
+    <value>Unencrypted connection outside the local network: the camera image could be intercepted. Use a VPN.</value>
+    <comment>T-182: under the camera address (replaces its hint) when the RTSP address may be outside the local network. RTSP is never encrypted. At most two lines next to SettingsSecurityMoreInfo (layout test).</comment>
+  </data>
+  <data name="SettingsSecurityMoreInfo" xml:space="preserve">
+    <value>More information</value>
+    <comment>T-182: link next to the warnings, opens the PrusaLink access security chapter of the manual (T-183). Keep it short.</comment>
+  </data>
+  <data name="SettingsSecurityMoreInfoHint" xml:space="preserve">
+    <value>Opens the chapter about securing the access to PrusaLink in the user manual.</value>
+    <comment>T-182: tooltip and screen reader help of SettingsSecurityMoreInfo.</comment>
+  </data>
+  <data name="TextBoxCut" xml:space="preserve">
+    <value>Cu_t</value>
+    <comment>T-242: item of the context menu of every text field (App.axaml). Use the wording of the platform's own Edit menu. "_" marks the access key (unique within the menu, see TextBoxContextMenuTextTests).</comment>
+  </data>
+  <data name="TextBoxCopy" xml:space="preserve">
+    <value>_Copy</value>
+    <comment>T-242: item of the context menu of text fields; not offered in password fields. "_" marks the access key.</comment>
+  </data>
+  <data name="TextBoxPaste" xml:space="preserve">
+    <value>_Paste</value>
+    <comment>T-242: item of the context menu of text fields on Windows (TextBoxPasteMac on macOS). "_" marks the access key.</comment>
+  </data>
+  <data name="TextBoxPasteMac" xml:space="preserve">
+    <value>_Paste</value>
+    <comment>T-242: macOS variant of TextBoxPaste, Apple's wording (German "Einsetzen", Slovak "Vložiť"); the same as TextBoxPaste where Windows and macOS agree.</comment>
+  </data>
+  <data name="TextBoxSelectAll" xml:space="preserve">
+    <value>Select _All</value>
+    <comment>T-242: item of the context menu of text fields; enabled when the field has text. "_" marks the access key.</comment>
   </data>
 </root>

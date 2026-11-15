@@ -73,12 +73,13 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
             Assert.Equal("SettingsTabWidgets", FocusedId(window));
             Press(window, Key.OemOpenBrackets, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "{");
             Assert.True(ui.Find<TabItem>("SettingsTabPrinters").IsSelected);
+            // T-185: the last main tab is Camera.
             Press(window, Key.OemOpenBrackets, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "{");
-            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
+            Assert.True(ui.Find<TabItem>("SettingsTabCamera").IsSelected);
 
             // ⌘⌥→ outside the printer form does nothing.
             Press(window, Key.Right, PhysicalKey.ArrowRight, Command | RawInputModifiers.Alt);
-            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
+            Assert.True(ui.Find<TabItem>("SettingsTabCamera").IsSelected);
 
             // The keys of Windows stay: Ctrl+Tab.
             Press(window, Key.Tab, PhysicalKey.Tab, RawInputModifiers.Control);
@@ -92,10 +93,11 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
             SettingsWindowHarness ui = await OpenAsync(scope, mac: true);
             Window window = ui.Window;
 
-            // Czech layout: the keys right of P type ú and ) — with ⇧ "/" and "(" — so the logical key is no bracket.
+            // Czech layout: the keys right of P type ú and ) — with ⇧ "/" and "(" — so the logical key of [ is no bracket
+            // (the events Avalonia 12.1.6 raised there, T-240).
             Press(window, Key.OemQuestion, PhysicalKey.BracketLeft, Command | RawInputModifiers.Shift, "/");
-            Assert.True(ui.Find<TabItem>("SettingsTabRecording").IsSelected);
-            Press(window, Key.None, PhysicalKey.BracketRight, Command | RawInputModifiers.Shift, "(");
+            Assert.True(ui.Find<TabItem>("SettingsTabCamera").IsSelected);
+            Press(window, Key.OemCloseBrackets, PhysicalKey.BracketRight, Command | RawInputModifiers.Shift, "(");
             Assert.True(ui.Find<TabItem>("SettingsTabPrinters").IsSelected);
 
             // Only with exactly ⌘⇧: ⌘] alone does nothing.

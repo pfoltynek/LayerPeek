@@ -8,45 +8,39 @@ platform: macos
 depends_on: [T-019, T-020, T-021, T-026, T-038, T-053, T-055, T-058, T-097, T-101, T-102, T-106, T-107, T-115]
 ---
 
-## Před vydáním 0.5.0 – doporučené pořadí
-Doplněno 2026-11-04 (architekt). Jeden průchod na ~1–2 h se skutečnou Core One a kamerou Buddy3D. Řadí body tohoto
-úkolu pro funkce od 0.4.0 (nahrávání, dashcam, detekce, timelapse). Postupy jsou u bodů níže, odkaz má tvar oddíl ·
-úkol, a odškrtávají se tam. Nové UI od 0.4.0 na Macu **ještě nikdo neviděl na skutečném displeji** (agent neměl
-aktivní displej). To platí i pro systémové dialogy souborů (`NSOpenPanel`) a notifikace s přílohou a tlačítkem, proto
-mají přednost. Co z průchodu blokuje vydání, rozhodne uživatel. Každá nalezená chyba = nový úkol.
+## Automatizace (rozhodnuto uživatelem 2026-11-13)
+Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (architekt 2026-11-04) byl odstraněn: 0.5.0 vyšlo
+2026-11-05. Platí místo něj:
 
-0. **Příprava (~10 min).** `LayerPeek.app` z `caffeinate -d -u -i pwsh scripts/release-build.ps1` (notifikace fungují jen
-   v bundlu; sezení 1 v `docs/macos-manual-testing.md`). Pozor: na `develop` je ještě `<Version>0.4.0</Version>`, build
-   proto smaže a přepíše `artifacts/release/0.4.0` daného pracovního stromu. Spouštět ho v samostatném worktree, nebo až
-   na větvi `release/0.5.0`. Zálohovat profil („Než začnete“). Core One s kamerou, světlo komory zapnuté, podrobné
-   logování.
-1. **Nastavení a první dialog souboru (~10 min):** oddíl 1 · **T-146** (jen část nastavení: pátá záložka „Nahrávání“,
-   „Změnit…“ = systémový dialog složky, nezapisovatelná složka) → oddíl 1 · **T-154** (editor výřezu: „Načíst snímek“
-   ze skutečné Buddy3D, myš, šipky, ⌘+šipky, VoiceOver; „Výchozí pro Core One“ sedí na přední část podložky). Potom
-   zapnout detekci (hlavní vypínač + podzáložka Detekce) a u tiskárny „Uchovávat poslední minuty (dashcam)“ a „Pořizovat
-   timelapse tisku“, **bez** „Automaticky nahrávat tisk“ (jinak dashcam stojí).
-2. **Tisk A – dashcam, detekce, timelapse (~25 min, krátký díl):** oddíl 1 · **T-161** (TL v okně kamery a malém náhledu,
-   ztlumené během pauzy tisku) → oddíl 1 · **T-148** (během tisku „Uložit posledních 2 min“ z menu i z místní nabídky okna
-   kamery; se skutečnou Buddy3D ~2 min před událostí a ~30 s po ní, paměť +~17 MB) → oddíl 2 · **T-155** krok (2)
-   (inscenované selhání na přední části podložky, až po rozjezdu detektoru: aspoň 2 min tisku a Z nad 1 mm) a s ním oddíl 1 · **T-154** (notifikace s přílohou, tlačítko „Falešný
-   poplach“ už u prvního poplachu, klik otevře okno kamery, `…_alarm-bed-change.jpg` a `…_dashcam-failure.mp4`). Nakonec
-   tisk zastavit na tiskárně → `…_dashcam-stopped.mp4` (oddíl 1 · T-148).
-3. **Tisk B – automatické nahrávání (~15 min, krátký díl):** zapnout „Automaticky nahrávat tisk“ → oddíl 2 · **T-145**
-   (doplněný bod) a zároveň oddíl 2 · **T-155** krok (1) (celý běžný tisk bez poplachu; delší tisk podle času). Před tiskem
-   přepnout timelapse na „Každou N. vrstvu (odhad)“ (záložka Nahrávání) → oddíl 2 · **T-159** (timelapse po vrstvách
-   téhož tisku, ideálně s `record-z.sh` vedle, a díl s vrstvou 0,1 mm).
-   Před tiskem B zapnout u tiskárny i detektor „Tisk do vzduchu“ (štítek „Experimentální“) → oddíl 2 · **T-167** krok (1).
-4. **Po tiscích – přehrání a dialogy souborů (~20 min, nejvyšší priorita):** oddíl 1 · **T-146** (zbytek: tray menu,
-   „● REC“, ruční Start / Stop, „Přehrát poslední nahrávku“ v QuickTime, „Otevřít složku s nahrávkami“) → oddíl 2 ·
-   **T-147** (přehrání nahrávky z Buddy3D v QuickTime) → oddíl 1 · **T-164** (`NSOpenPanel` „Vytvořit timelapse
-   z nahrávky…“ nad nahrávkou tisku B) → oddíl 1 · **T-165** (`NSOpenPanel` „Exportovat timelapse do JPEG…“ nad timelapse
-   tisku A) → oddíl 1 · **T-158** (přehrání vzorků timelapse v QuickTime, 2 min).
-5. **Když zbývá čas (~15 min):** oddíl 2 · **T-143** (sdílené spojení se skutečnou kamerou) → oddíl 1 · **T-151** (Dock
-   a ⌘Tab: vypnout tiskárnu → po 30 s okno zmizí, zapnout → po 10 s se tiše objeví; místo simulátoru stačí skutečná
-   tiskárna) → oddíl 1 · **T-151** (fokus, E2E s odemčenou obrazovkou) → oddíl 1 · **T-154** a **T-161** (prohlédnutí
-   návrhů a snímků).
-6. Výsledky zapsat do `## Poznámky k implementaci`: verze macOS, datum, názvy vzniklých souborů, u T-155 čas do poplachu
-   a skóre z logu.
+- **Pravidlo odškrtávání:** bod s odkazem na kontrolu (`mac.X`) se odškrtne, když je kontrola `PASS` ve zprávě
+  `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (T-208) na commitu s ověřovaným kódem. Do poznámek
+  se zapíše složka běhu (`artifacts/verify/<čas>/`), commit a řádek zprávy. Ruční zbytek bodu se odškrtne zvlášť.
+- **Přijaté náhrady:**
+  - přehrání v QuickTime Playeru nahrazuje úplné dekódování přes AVFoundation (každý snímek, délka, seek; `helper decode`,
+    T-210);
+  - poslech VoiceOveru nahrazuje kontrola popisků a stavů přes Accessibility;
+  - prohlídku na MacBooku 13" nahrazuje headless test rozložení se San Francisco ve všech jazycích (T-214).
+    **Od T-223 (2026-11-15)** má aplikace na macOS výchozí písmo Inter (rozhodnutí uživatele v T-222): rozložení oken
+    pak pokrývají běžné UI testy s Inter (`tests/LayerPeek.App.UiTests`, testy rozložení a snímky ve všech jazycích);
+    Inter je proti San Francisco v Avalonii o 14–18 % širší a testy s ním procházely už před T-223. Odškrtnuté „části
+    se systémovým písmem“ níže tím platí dál; výsledky T-214 se SF zůstávají pro budoucí návrat k SF.
+- **Úkoly automatizace** (pořadí T-208 → T-209 → T-210 / T-211 → T-212 → T-213 → T-214 → T-215 → T-216 → T-217):
+
+| Úkol | Kontroly | Body tohoto úkolu |
+|---|---|---|
+| T-208 | `-Preset release`, `report.json` | rámec; `mac.display-sleep`, `mac.update-check`, `mac.keys` v presetu |
+| T-209 | `mac.menu-items` (helper `menu` / `menupress`) | T-018 menu; tip zakázaných položek (T-146, T-148, T-161) |
+| T-210 | `mac.decode`, `mac.recording-files`, `mac.recording`, `mac.dashcam`, helper `decode` | T-146, T-148 (simulátor), T-147 (simulátor), T-145 (simulátor); zbývá bod 1l |
+| T-211 | `mac.timelapse-files`, `mac.timelapse`, `mac.timelapse-layers`, simulátor `--layers` | T-161, T-159 (UI), T-160 (přehrání); zbývá bod 1m |
+| T-212 | `mac.notifications-content`, režim `--layerpeek-e2e-notification-list`, helper `ncpress` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101; zbývá bod 1n |
+| T-213 | `mac.file-dialogs`, helper `panel` / `panelgo` / `panelcancel` / `type` | T-146 („Změnit…“), T-165, T-164; zbývá bod 1o |
+| T-214 | headless testy se San Francisco (hotovo 2026-11-14; od T-223 aplikace na macOS s Inter) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k (od T-223 šířky s Inter) |
+| T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt`, helper `dock` / `axwin` / `focusedmenubar` / `drag` / `luma` / `lumawatch` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188; zbývá bod 1p |
+| T-216 | `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`, `mac.open-fake`, `mac.hw-decoding-switch`, `mac.keys-czech-layout`, helper `inputsource` / `apps` / `terminate` | T-151 (fokus), T-122, T-117 (VoiceOver), T-154 (editor), T-097 otázka 5, T-053, T-205 (4)(5), T-100 otázka 1; zbývá bod 1q |
+| T-217 | `mac.release-bundle` (hotovo 2026-11-14) | T-026 „čistý Mac“ (rozhodnutí 2026-11-13: vyčištěné prostředí stačí) |
+
+Ruční zůstává: skutečná tiskárna a Buddy3D (oddíl 2), vydání (oddíl 3), vzhled (ikony, obrysy, ostrost), fyzické
+klávesnice, monitory a plochy, uspání Macu, Klíčenka (T-183) a schválení návrhů.
 
 ## Cíl
 Sběrný úkol se zbytkem čistě ručních kontrol na Macu, které nejsou instalace a nepatří do jednoho sezení agenta
@@ -76,31 +70,53 @@ a kritérium.
       objeví / zmizí podle oken, menu Docku se seznamem oken, klik na ikonu v Docku, fokus a pořadí oken, „Zobrazit
       kameru“ v menu. Zapsat i otázku 3 z T-102 (obnoví se menu aplikace v menu baru po přepnutí na běžnou aplikaci?);
       když ne, nový úkol.
+      **Automatizace:** T-215 `mac.dock-windows` (1)–(4), včetně otázky 3.
 - [ ] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část macOS): sezení 5.4 (a)–(d) – zkušební upozornění se
       zvukem i bez, nahrazení v Centru oznámení, klik přenese Nastavení na záložku Obecné, stav „zamítnuto“ s hláškou,
       `notDetermined` jen bez zásahu do TCC.
-- [ ] **T-053** (krit. „Ručně na Macu: `/usr/bin/open` otevírá odkazy a web PrusaLink přes proxy (L4)“): sezení 10.2
+      **Automatizace:** T-212 `mac.notifications-content` (c). Stav „zamítnuto“ a `notDetermined` zůstávají ruční.
+- [x] **T-053** (krit. „Ručně na Macu: `/usr/bin/open` otevírá odkazy a web PrusaLink přes proxy (L4)“): sezení 10.2
       (falešné `open` v `PATH` se nespustí, web PrusaLink simulátoru přes proxy přihlášený, odkazy v O aplikaci se
       otevřou) a sezení 2.6 (odkazy a licence v O aplikaci).
+      **Automatizace:** T-216 `mac.open-fake` (viz T-216 otázka 1).
+      **Ověřeno 2026-11-15 (T-238):** `mac.open-fake` = `PASS` s odemčenou obrazovkou (`artifacts/verify/20261115-203317/`,
+      větev T-238 s přepínačem `LAYERPEEK_TEST_REAL_URL_LAUNCHER=1`): falešné `open` první v `PATH` se nespustilo, odkaz
+      na GitHub přenesl Safari dopředu, licence otevřely okno „Third-party licences“, „Open PrusaLink“ → web simulátoru přes
+      proxy (`GET / 200`, `GET /api/v1/status 200`). Přihlášení přes proxy kryjí E2E T-028 / T-107.
 - [ ] **T-097** (otázka 5, „uživatel to ověří při ručním testu“): sezení 4.5 – jazyk LayerPeeku jiný než jazyk systému;
       zapsat, v jakém jazyce jsou prvky AppKitu (výběr obrázku tiskárny, kontextové menu textového pole).
+      **Automatizace:** T-216 `mac.appkit-language` (zjištění se zapíše do zprávy a do T-097).
 - [ ] **T-038** (krit. „Ruční ověření na macOS s jedním a se dvěma monitory, výsledky v poznámkách“, ruční část):
       kroky J1, J3–J7 a D2–D7 z T-038 („Ruční ověření“, sezení 6.2; J7 = Nastavení na MacBooku 13", sezení 3.3).
       Výsledky J4, J5 a J7 zapsat i do T-038 k otázkám 1–3.
+      **Zůstává ruční** (monitory a plochy). Velikost Nastavení J7 pokrývá T-214.
 - [ ] **T-038** (otázka 1 b, rozhodnuto a implementováno 2026-10-30; u kroku J4): malý náhled se zapnutým „vždy
       navrchu“ je vidět **na každé ploše** (Mission Control → přidat plochu, přepnout) a **nad aplikací na celé
       obrazovce** (Safari ⌃⌘F, přepnout na jeho plochu); normální okno se zapnutým „vždy navrchu“ a náhled bez „vždy
       navrchu“ zůstávají na své ploše; po přepnutí náhledu na normální okno nebo na celou obrazovku (a zpět) i po vypnutí
       „vždy navrchu“ v nastavení se okno chová jako dřív (celá obrazovka ve vlastní ploše funguje). Když ne, nový úkol.
-- [ ] **T-038** (otázka 2, oprava schválená podmíněně 2026-10-30; u kroku J5): z celé obrazovky rovnou do malého
+      **Zůstává ruční:** plochy (Spaces) a aplikace na celé obrazovce se skriptem spolehlivě řídit nedají.
+- [x] **T-038** (otázka 2, oprava schválená podmíněně 2026-10-30; u kroku J5): z celé obrazovky rovnou do malého
       náhledu (tlačítko náhledu, Esc u celé obrazovky otevřené z náhledu, „Použít“ v nastavení během celé obrazovky) –
       zapsat velikost, roh a rámeček náhledu po skončení animace. **Když náhled skončí ve velikosti normálního okna nebo
       jinde**, nahlásit výsledek J5: oprava je schválená (na macOS zopakovat umístění náhledu až po skončení animace, např.
       po první změně velikosti okna, nejpozději po 1 s) a založí se na ni nový úkol. Když je náhled v pořádku, nic.
-- [ ] **T-038** (otázka 3, rozhodovací bod; u kroku J7): Nastavení na MacBooku 13" se systémovým písmem (San
+      **Automatizace:** T-215 `mac.mini-after-fullscreen` (velikost, roh a rámeček po animaci).
+      Ověřeno 2026-11-15 (`artifacts/verify/20261115-155430/`, commit `24d73aa3`): `mac.mini-after-fullscreen` = `FAIL` s naměřenými hodnotami –
+      (a) tlačítko náhledu: 320 × 213 bodů, roh vpravo dole, bez rámečku (v pořádku); (b) **Esc: 320 × 241 bodů,
+      s titulkovým pruhem, spodní okraj −10 bodů** (chyba); (c) „Použít“ v tom běhu neměřeno (chyba kontroly se
+      záložkami), v opakování na větvi `feature/macos-verify-first-real-run` (`20261115-170737`) 320 × 213, bez rámečku
+      (v pořádku), (b) znovu 320 × 241 s pruhem. Schválená oprava → **T-237**. Opraveno v T-237 (2026-11-15,
+      `artifacts/verify/20261115-195207/`): `mac.mini-after-fullscreen` = `PASS`, všechny tři cesty 320 × 213 bez rámečku.
+- [x] **T-038** (otázka 3, rozhodovací bod; u kroku J7): Nastavení na MacBooku 13" se systémovým písmem (San
       Francisco) – když se v některém jazyce něco uřízne nebo se objeví posuvník, rozhodnout: přizpůsobit texty /
       rozložení (ui-designer), nebo dodávat písmo Inter i na macOS (rozhodnutí produktu); výsledek a rozhodnutí zapsat
       a založit úkol. Když se nic neuřízne, otázka odpadá (zapsat).
+      **Rozhodnuto uživatelem 2026-11-13:** prohlídku Nastavení na MacBooku 13" nahrazuje headless test rozložení se
+      San Francisco ve všech jazycích (T-214). Bod se odškrtne podle výsledku T-214.
+      **Výsledek T-214 (2026-11-14):** Nastavení v navržené velikosti 780 × 532 ve všech jazycích, stavech, záložkách
+      a podzáložkách bez posuvníku a bez uříznutí, záhlaví na jednom řádku. Otázka odpadá. Potvrzení šířky písma
+      v běžící aplikaci je bod T-214 v oddílu 1k.
 
 - [ ] **T-146** (krit. „Ruční nahrávání jde spustit a zastavit … stav je vidět“, ruční část macOS; v sezení agenta nebyl
       aktivní displej, UI se nespustilo): simulátor s kamerou; v menu baru v podmenu tiskárny je za oddělovačem „Nahrávat“,
@@ -112,6 +128,12 @@ a kritérium.
       se systémovým písmem. „Změnit…“ otevře systémový dialog složky, složka bez práva zápisu ukáže hlášku; chyba nahrávání
       (např. složka na odpojeném disku) ukáže notifikaci „Nahrávání kamery selhalo“ a klik na ni otevře nastavení na záložce
       „Nahrávání“. Zapsat, jak vypadá zakázaná položka s tipem v NSMenu (tip se ukáže?).
+      **Automatizace:** T-210 `mac.recording`, notifikace a klik T-212 `mac.notifications-content` (b), „Změnit…“
+      T-213 `mac.file-dialogs` (a), záhlaví a uříznutí se systémovým písmem T-214, tip zakázané položky přes AXHelp
+      (T-209). Přehrání v QuickTime nahrazuje úplné dekódování přes AVFoundation `helper decode` (rozhodnuto
+      uživatelem 2026-11-13).
+      - [x] Část se systémovým písmem (pět záhlaví na jednom řádku i ve francouzštině, záložka Nahrávání): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 
 - [ ] **T-148** (krit. „Uložení po spouštěči vytvoří přehratelný soubor …“, ruční část macOS; sezení agenta nemělo
       aktivní displej): simulátor s kamerou (`--speed 20`), tiskárna se zapnutým „Uchovávat poslední minuty (dashcam)“ (podzáložka
@@ -122,6 +144,12 @@ a kritérium.
       skutečnou Buddy3D (relay `tools/ncrelay.sh`): soubor obsahuje ~2 min před událostí a ~30 s po ní; v Monitoru aktivity
       roste paměť během tisku jen o ~17 MB a po konci tisku se vrátí. Záložka „Nahrávání“ má pod nahráváním sekci „Poslední
       minuty tisku (dashcam)“, nic se neuřízne se systémovým písmem.
+      **Automatizace:** simulátorová část T-210: spouštěče `mac.recording-files`, položka v menu a v místní nabídce
+      a ruční uložení `mac.dashcam`; uříznutí T-214. Přehrání v QuickTime nahrazuje úplné
+      dekódování přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). Se skutečnou Buddy3D (~2 min
+      před / ~30 s po, paměť +~17 MB) zůstává ruční.
+      - [x] Část se systémovým písmem (sekce „Poslední minuty tisku (dashcam)“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 
 - [ ] **T-154** (krit. „Poplach zobrazí notifikaci podle návrhu (macOS)“ a „Falešný poplach funguje“, ruční část macOS;
       sezení agenta nemělo aktivní displej): aplikace v `LayerPeek.app` (notifikace jen v bundlu), simulátor s kamerou,
@@ -134,14 +162,23 @@ a kritérium.
       `~/Movies/LayerPeek/<tiskárna>` (příloha je kopie, macOS ji přesune do svého úložiště), ve složce
       `~/Library/Caches/LayerPeek/notification-images` nezůstávají soubory. Zvuk jako u chyby tisku. Editor výřezu: tažení myší, šipky,
       ⌘+šipky o 10 %, VoiceOver přečte „Výřez podložky: … % zleva …“; záhlaví čtyř podzáložek na jednom řádku se systémovým písmem.
+      **Automatizace:** notifikace, příloha, tlačítko „Falešný poplach“ a klik T-212 `mac.notifications-content` (a),
+      editor výřezu T-216 `mac.detection-region`, záhlaví podzáložek T-214. Poslech VoiceOveru nahrazuje kontrola
+      popisků a stavů přes Accessibility (rozhodnuto uživatelem 2026-11-13). Vzhled banneru (náhled přílohy) zůstává
+      ruční.
+      - [x] Část se systémovým písmem (záhlaví čtyř podzáložek na jednom řádku): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 - [ ] **T-154** (krit. „Design spec schválený uživatelem“): uživatel prohlédne `docs/design/print-failure-detection-ui.md`
       a snímky `tests/LayerPeek.App.UiTests/Snapshots/macOS/settings-detection.png`, `settings-detection-camera-off-fr.png`,
       `settings-recording.png` (odpovědi 2026-11-04 jsou v T-154, neblokující otázky 11–15 tamtéž); změny = nový úkol.
-- [ ] **T-158** (krit. „dva po sobě jdoucí vybrané IDR se stejným `idr_pic_id` … přehrání v QuickTime ručně“; agent ověřil
+      **Zůstává ruční** (schválení návrhu uživatelem).
+- [x] **T-158** (krit. „dva po sobě jdoucí vybrané IDR se stejným `idr_pic_id` … přehrání v QuickTime ručně“; agent ověřil
       jen dekódování přes AVFoundation `AVAssetReader` – 5/5 a 25/25 snímků bez chyby): v QuickTime Playeru otevřít
       `~/LayerPeek-samples/timelapse/t158-same-idr-pic-id.mp4` (5 snímků, `idr_pic_id` 7, 7, 8, 8, 7) a
       `t158-coreone-clip-25-keyframes.mp4` (25 klíčových snímků skutečné Buddy3D, 0,83 s při 30 fps); přehrají se bez
       rozpadlých snímků, krokování šipkami projde všechny snímky.
+      Rozhodnuto uživatelem 2026-11-13: místo přehrání v QuickTime stačí úplné dekódování přes AVFoundation. Agent ho
+      provedl (`AVAssetReader`, 5/5 a 25/25 snímků bez chyby, poznámky T-158), proto odškrtnuto bez QuickTime.
 
 - [ ] **T-160** (krit. „Měření na skutečné kameře (relay): CPU a velikost souboru za ≥ 10 min, s nahráváním i bez něj“;
       kamera byla při implementaci vypnutá, agent změřil simulátor se skutečným klipem: 0,28 % jádra bez nahrávání,
@@ -149,6 +186,11 @@ a kritérium.
       192.168.0.227` a měřicí program z T-160 (hub + `CameraRecordingService` s timelapse, 10 min, interval 30 s; postup
       v poznámkách T-160) jednou jen s timelapse a jednou i s nahráváním; zapsat CPU procesu, alokace a velikost souboru
       do T-160. Zároveň přehrát vzniklý `…_timelapse.mp4` v QuickTime Playeru (20 snímků, bez rozpadlých snímků).
+      **Automatizace:** přehrání `…_timelapse.mp4` přes `helper decode` (T-210 / T-211) (rozhodnuto uživatelem
+      2026-11-13). Měření CPU a velikosti se skutečnou kamerou zůstává ruční.
+      - [x] Přehrání `…_timelapse.mp4` (místo QuickTime Playeru): `mac.timelapse-files` = `PASS` 2026-11-15 (T-211,
+        běh `artifacts/verify/20261115-104923/`): timelapse simulátoru se skutečným klipem Buddy3D, `decode` každého
+        snímku a seeky bez chyby, 11 snímků po čase (interval 5 s, pauza bez snímku) a 13 po vrstvě.
 
 - [ ] **T-161** (krit. „Ruční start / stop z tray menu i z okna kamery“, „Okno kamery i malý náhled ukazují indikátor“,
       „Tray menu … otevře poslední timelapse v přehrávači systému“, ruční část macOS; sezení agenta nemělo aktivní displej):
@@ -159,14 +201,26 @@ a kritérium.
       v QuickTime Playeru. Nastavení: štítek „Experimentální“ u sekce Timelapse (záložka Nahrávání) a u „Pořizovat timelapse
       tisku“ (podzáložka Kamera), se systémovým písmem nic neuříznuté; notifikace „Timelapse selhal“ při chybě (např. složka
       na odpojeném disku), klik otevře nastavení na záložce Nahrávání. Zapsat, jak vypadá tip zakázané položky v NSMenu.
+      **Automatizace:** T-211 `mac.timelapse` (běh přes menu v oddílu 1m), notifikace „Timelapse selhal“ T-212 (b),
+      uříznutí T-214. Přehrání v
+      QuickTime nahrazuje úplné dekódování přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13).
+      Poslech VoiceOveru nahrazuje kontrola popisků a stavů přes Accessibility (rozhodnuto uživatelem 2026-11-13).
+      - [x] Část se systémovým písmem (štítky „Experimentální“, sekce Timelapse a „Pořizovat timelapse tisku“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 - [ ] **T-159** (krit. „volba je v UI a uloží se“, ruční část macOS; sezení agenta nemělo displej): na záložce Nahrávání
       v řádku „Timelapse“ pole „Každých N sekund“ / „Každou N. vrstvu (odhad)“ se systémovým písmem nic neuřízne (ve všech
       jazycích to hlídá headless test), přepnutí vymění číslo vedle (interval ↔ počet vrstev), tip vysvětlí odhad z osy Z;
       VoiceOver přečte „Pořizovat snímek“ a u čísla „Vrstev mezi snímky“. Snímek `settings-recording.png` v
       `tests/LayerPeek.App.UiTests/Snapshots/macOS/` prohlédnout spolu s T-161.
+      **Automatizace:** T-211 `mac.timelapse-layers` (běh přes Nastavení v oddílu 1m; počet snímků tisku po vrstvách
+      simulátoru ověřil `mac.timelapse-files` 2026-11-15), uříznutí T-214. Poslech VoiceOveru nahrazuje kontrola popisků a
+      stavů přes Accessibility (rozhodnuto uživatelem 2026-11-13).
+      - [x] Část se systémovým písmem (pole „Každých N sekund“ / „Každou N. vrstvu (odhad)“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
 - [ ] **T-161** (návrh): uživatel prohlédne `docs/design/timelapse-ui.md` a snímky `settings-recording.png` (zhuštěná sekce
       dashcamu, nová sekce Timelapse), `settings-camera.png`, `camera-timelapse.png`, `camera-mini-timelapse-buttons.png`
       v `tests/LayerPeek.App.UiTests/Snapshots/macOS/`; neblokující otázky v T-161; změny = nový úkol.
+      **Zůstává ruční** (prohlídka návrhu uživatelem).
 - [ ] **T-165** (krit. „UI akce …“, ruční část macOS; sezení agenta nemělo displej, `NSOpenPanel` se nedalo zobrazit):
       simulátor s kamerou, timelapse z T-161 hotový; v podmenu tiskárny v menu baru „Exportovat timelapse do JPEG…
       (experimentální)“ → volné okno Otevřít (`NSOpenPanel`, ne list u okna) se ukáže v popředí s fokusem i nad jinou aplikací,
@@ -176,6 +230,7 @@ a kritérium.
       `…_timelapse_jpg` s `0001.jpg`… (Náhled je otevře, pořadí jako ve videu), notifikace „Timelapse exportován do JPEG“.
       Druhý klik na položku, dokud je panel otevřený, nic nového neotevře; okno kamery během otevřeného panelu dál běží;
       zrušení uprostřed nezanechá žádnou složku (ani skrytou `.….partial`, `ls -a`).
+      **Automatizace:** T-213 `mac.file-dialogs` (b).
 - [ ] **T-164** (krit. „Akce v UI, průběh, notifikace …“, ruční část macOS; sezení agenta nemělo displej): simulátor
       s kamerou, hotová nahrávka tisku (T-145, ideálně s výpadkem kamery, tedy i `…-2.mp4`); v podmenu tiskárny v menu baru
       „Vytvořit timelapse z nahrávky… (experimentální)“ → volné okno Otevřít (`NSOpenPanel`) v popředí s titulkem „Vyberte
@@ -185,49 +240,69 @@ a kritérium.
       vytvořen“. Výběr timelapse → notifikace „Vytvoření timelapse z nahrávky selhalo / Soubor není nahrávka z LayerPeeku.“
       Zrušení uprostřed nezanechá žádný soubor (ani skrytý `.….partial`, `ls -a`); během vytváření jde otevřít dialog exportu
       do JPEG jen tehdy, když žádný jiný dialog není otevřený.
+      **Automatizace:** T-213 `mac.file-dialogs` (c). Přehrání v QuickTime nahrazuje úplné dekódování přes
+      AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13).
 
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`
       proběhl celý interaktivně včetně ručních kontrol níže; nalezené chyby skriptu zapsané (nový úkol). Zapsat odpověď
       na otázku 7 z T-105 (celá obrazovka se zamčenou obrazovkou u `mac.camera`). Otázka 6 je zodpovězená v T-115.
+      **Zůstává ruční** (celý interaktivní běh).
 - [ ] **T-018** (krit. „ikona čitelná ve světlém i tmavém režimu“): `mac.icons` a `mac.menu` potvrzeno – světlý i tmavý
       menu bar, všechny stavy (lomítko offline, ▶ s vrstvami, ❚❚, ✓, !, ×), ostrost na monitoru @1x (při rozmazání
       zapsat; záloha je vícerozlišovací obrázek) (sezení 2.2).
+      **Zůstává ruční** (vzhled ikon).
 - [ ] **T-018** (krit. „Menu z T-008 … aktualizuje“, ruční část): `mac.menu` potvrzeno (sezení 2.3); `mac.menubar` =
       `PASS` je zapsané v T-115.
+      **Automatizace:** T-209 `mac.menu-items`.
 - [ ] **T-116** (krit. „Ruční kontrola na Macu: obrázky tiskáren v menu …“): `mac.menu` – barevný obrázek 18 × 18 bodů
       u položky tiskárny, ostrý na Retině i na externím monitoru @1x, světlý i tmavý vzhled, zvýrazněná položka,
       zarovnání položek a podmenu tiskárny z T-042, vlastní obrázek jako čtverec (sezení 2.3). Rozmazání na @1x zapsat
       – oprava = nový úkol.
+      **Zůstává ruční** (vzhled obrázků).
 - [ ] **T-098** (krit. „V Docku a Finderu působí stejně velká jako systémové aplikace“): `mac.icons` (obrázek vedle
       systémových ikon) a pohled ve Finderu, Launchpadu a Nastavení systému (sezení 2.5).
-- [ ] **T-026** (krit. „Stream … ve všech režimech okna“, ruční část): `mac.camera-look` potvrzeno (normální okno, celá
+      **Zůstává ruční** (vzhled).
+- [x] **T-026** (krit. „Stream … ve všech režimech okna“, ruční část): `mac.camera-look` potvrzeno (normální okno, celá
       obrazovka, malý náhled navrchu, překryv ve všech třech) (sezení 6.1); `mac.camera` = `PASS` je v T-115.
+      **Automatizace:** T-215 `mac.camera-live` (živý obraz a překryv ve všech třech režimech).
+      Ověřeno 2026-11-15 (`artifacts/verify/20261115-155430/`, commit `24d73aa3`): `mac.camera-live` = `PASS` – „normal: live …, CameraOverlay with 20
+      text(s); full-screen: live …; mini: live …, CameraMiniSummary with 2 text(s); … 79 captures every ~100 ms, none
+      black …, the RTSP connection stayed the same“.
 - [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“, fyzická část): `mac.keyboard-physical`
       potvrzeno – vestavěná i Logitech klávesnice, české rozložení (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3); v Nastavení
       i v Diagnostice (výběr tiskárny, aspoň dvě tiskárny) ⌘. s otevřeným rozbalovacím seznamem zavře jen seznam (T-100
       otázka 3). `mac.keys` zůstal v T-115.
+      **Zůstává ruční** (fyzické klávesnice).
 - [ ] **T-100** (otázka 1, rozhodovací bod; sezení 6.3, „Jiné rozložení klávesnice“): s **českým** rozložením
       přepínají ⌘⇧] / ⌘⇧[ (klávesy vpravo od P, „ú“ a „)“) hlavní záložky Nastavení? Nestane se nic jiného? Zapsat
       výsledek na vestavěné i Logitech klávesnici a rozhodnout, zda stačí fyzická pozice kláves (dnešní implementace);
       když ne, nový úkol.
+      **Automatizace:** T-216 `mac.keys-czech-layout` (softwarové české rozložení); vestavěná a Logitech klávesnice
+      zůstávají ruční.
 - [ ] **T-100** (otázka 2, rozhodovací bod; sezení 6.3): dostanou se ⌃⌘F (okno kamery), ⌘W a ⌘. (všechna pomocná
       okna) na skutečném Macu k aplikaci, nebo je dřív zachytí systém / výchozí menu aplikace? Zapsat u každé zkratky;
       když některá nefunguje, nový úkol. Stav 2026-11-02: se skutečnými událostmi klávesnice (`mac.keys`) se ⌃⌘F, ⌘W
       a Esc dostanou k aplikaci; ⌘. AppKit posílá jako `cancelOperation:` a nedostalo se nikam – opraveno v T-141, pak
       `mac.keys` = `PASS`. Zbývá potvrdit na fyzické (vestavěné a Logitech) klávesnici.
+      **Zůstává ruční** (fyzická klávesnice); `mac.keys` je v presetu `release` (T-208).
 - [ ] **T-122** (VoiceOver): se zapnutým VoiceOverem (⌘F5) přečte špendlík okna kamery jméno a stav a aktivace
       (⌃⌥mezerník) ho přepne, v normálním okně i malém náhledu. Akci AXPress ověřil `mac.camera-pin` (T-115).
+      **Automatizace:** T-216 `mac.camera-pin-ax`. Poslech VoiceOveru nahrazuje kontrola popisků a stavů přes
+      Accessibility (rozhodnuto uživatelem 2026-11-13).
 - [ ] **T-117** (ruční část, vzhled a plochy): špendlík vpravo nahoře v normálním okně i malém náhledu, na celé
       obrazovce není; zapnutý je bez myši vidět ztlumený (čitelný i na světlém obrazu), vypnutý ne; malý náhled navrchu
       je na všech plochách (Spaces), po vypnutí jen na své; VoiceOver přečte „Vždy navrchu: zapnuto / vypnuto“;
       otevřené Nastavení ukáže stav. Snímek okna se špendlíkem do poznámek. Přepínání, Dock / ⌘Tab, kontextové menu
       a restart ověřil `mac.camera-pin` (T-115).
+      **Automatizace:** část VoiceOver T-216 `mac.camera-pin-ax` (rozhodnuto uživatelem 2026-11-13). Vzhled a plochy
+      zůstávají ruční.
 - [ ] **T-118** (ruční část): obrys malého náhledu nad světlou plochou i nad tmavým oknem, ve světlém i tmavém režimu;
       na celé obrazovce není; na externím monitoru @1x ostrý (1 px); úchopy po okrajích dál mění velikost, tažení obrazu
       a pásu přesouvá okno; porovnat s nativním obrysem oken macOS (návrh 4: záměrně o něco výraznější). Snímky na
       světlém a tmavém pozadí do poznámek. Obrys 2 px u hran a rohů, zesvětlení při najetí a žádný obrys v normálním
       okně ověřil `mac.camera-outline` (T-115).
+      **Zůstává ruční** (vzhled obrysu).
 
 - [ ] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“) a **T-099** (krit. „Po probuzení displeje se objeví
       ikona … se stavem“, „Skutečný start se zhasnutým displejem“ a sezení 8.2): u Macu s monitorem **bez Sdílení
@@ -235,28 +310,335 @@ a kritérium.
       mac.notifications,mac.display-sleep` = `PASS` (oznámení pauzy doručené se zhasnutým displejem, tooltip ikony po
       probuzení „Paused“). Agent ho může spustit sám, když se Sdílení obrazovky na tu dobu odpojí. `mac.display-wait`
       = `PASS` je v T-115.
+      **Automatizace:** `mac.notifications` a `mac.display-sleep` v presetu `release` (T-208, předběžná podmínka:
+      Sdílení obrazovky odpojené).
 
-- [ ] **T-151** (krit. „Automaticky otevřené okno nebere fokus aktivnímu oknu jiné aplikace“, část macOS): s **odemčenou**
+- [x] **T-151** (krit. „Automaticky otevřené okno nebere fokus aktivnímu oknu jiné aplikace“, část macOS): s **odemčenou**
       obrazovkou `LAYERPEEK_E2E=1 caffeinate -d -u dotnet test --project tests/LayerPeek.App.Tests -- --filter-class
       "*MacCameraWindowAutoCloseE2ETests"` = PASS, ne „vynecháno … the screen is locked“. Agent ho může spustit sám, test
       přepne do popředí Finder. 2026-11-03 prošlo zavření a znovuotevření, ale obrazovka byla zamčená, takže fokus test
       neověřil.
+      **Automatizace:** T-216 `mac.camera-autoclose`.
+      Ověřeno 2026-11-15 (`artifacts/verify/20261115-155430/`, commit `24d73aa3`): `mac.camera-autoclose` = `PASS` – „total 1, passed 1 …: the window closed
+      while the printer was offline and opened again, Finder stayed the active app“.
 - [ ] **T-151** (ruční, Dock a ⌘Tab): simulátor s kamerou, okno kamery otevřené, `POST /_simulator/offline` → po 30 s okno
       zmizí (Dock ikona zmizí, pokud nebylo jiné okno), `POST /_simulator/online` → po 10 s se okno objeví na stejném místě.
       Aktivní zůstane předchozí aplikace (menu bar s jejím jménem), LayerPeek je v Docku a v ⌘Tab (T-102). Zapsat, jestli je
       okno nad okny aktivní aplikace, nebo pod nimi. Malý náhled (vždy navrchu) se objeví navrchu na aktuální ploše bez
       ikony v Docku. Žádná notifikace.
+      **Automatizace:** T-215 `mac.dock-windows` (5).
 - [ ] **T-151** (ruční, probuzení): se zapnutým podrobným logováním otevřít okno kamery, uspat Mac a probudit ho. V logu je
       „The computer resumed from sleep: the camera window delays start again.“ (`NSWorkspaceDidWakeNotification`)
       a okno se po probuzení nezavře podle stavu z doby před uspáním.
+      **Zůstává ruční** (uspání celého Macu).
 
 ### 1c. Ukončení podpory Prusa Connect (z T-170, implementováno na Windows 2026-11-05)
-- [ ] **T-170** (snímky UI, sada macOS): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
+- [x] **T-170** (snímky UI, sada macOS): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`
       a zkontrolovat změněné `Snapshots/macOS/settings-*.png` podzáložky Tiskárna (pole „Připojení“ zmizelo, jméno vede
       přes celou šířku vedle obrázku; `settings-prusaconnect.png` je smazaný). Pak celý `dotnet test` na Macu bez chyb.
-- [ ] **T-170** (`tools/macos-verify.ps1`, kontrola `mac.shortcuts`): upravená kontrola Cmd-. s otevřeným seznamem teď
+      Hotovo: snímky macOS přegenerované po T-170 (`a3ccb79b` 2026-11-05, pak T-185 a T-204). Celý `dotnet test` na
+      Macu od té doby prošel mnohokrát, naposledy 2026-11-13: 10262 prošlo, 0 selhalo (rozhodnuto uživatelem
+      2026-11-13).
+- [ ] **T-170** (`tools/macos-verify.ps1`, kontrola `mac.keys`): upravená kontrola Cmd-. s otevřeným seznamem teď
       přejde na záložku Obecné (Cmd-Shift-] dvakrát) a otevře `SettingsLanguage` místo smazaného `PrinterConnectionType`.
-      Na Macu spustit `pwsh tools/macos-verify.ps1 -Only mac.shortcuts` a ověřit, že kontrola proběhne (ne „not checked“).
+      Na Macu spustit `pwsh tools/macos-verify.ps1 -Only mac.keys -Allow mac.keys` a ověřit, že kontrola proběhne (ne „not checked“).
+      **Zůstává uživateli** (rozhodnuto uživatelem 2026-11-13).
+
+### 1d. Chyby hlášené uživatelem
+- [ ] **Kontrola aktualizací: text výsledku po skutečném kliknutí (macOS, hlášeno uživatelem 2026-11-05).** Nastavení →
+      Spuštění a aktualizace → „Zkontrolovat nyní“ (`SettingsCheckForUpdatesNow`) při dostupné novější verzi neukázal
+      v `SettingsUpdateCheckResult` žádný text (Windows ukáže „Je dostupná verze X.Y.Z…“), aktualizace sama pak prošla.
+      Programové vyvolání příkazu chybu nikdy nezopakovalo (Debug JIT, AOT, Velopack, Release 0.4.0). Kontrola
+      `mac.update-check` zkouší skutečný vstup proti náhradnímu GitHub API na 127.0.0.1 (`tools/fake-github-releases.ps1`,
+      vydání 9.9.0, odpověď zpožděná o 1,5 s, aby šlo vidět „Checking…“): a) skutečný klik do aktivního okna, b) jeden
+      skutečný klik do neaktivního okna, když je vpředu jiná aplikace (hlavní hypotéza: první klik okno jen aktivuje),
+      c) AXPress (VoiceOver). Text čte ze stromu Accessibility každých 50 ms; se Záznamem obrazovky navíc porovná snímky
+      okna před a po (je text opravdu vykreslený?). Jednorázově: odemčená obrazovka, Terminál v Soukromí a zabezpečení →
+      Zpřístupnění (po zapnutí Terminál restartovat), volitelně i v „Záznam obrazovky a systémového zvuku“. Spustit
+      `caffeinate -d -u pwsh tools/macos-verify.ps1 -Unattended -Only mac.update-check -Allow mac.update-check` (nebo
+      interaktivně `pwsh tools/macos-verify.ps1 -Only mac.update-check`). Výsledek všech tří scénářů a důkazy
+      (`*-watch.jsonl`, `*-before/after.png`, `github-requests.txt`, log aplikace) ze složky běhu zapsat sem; při `FAIL`
+      založit úkol na opravu.
+      **Automatizace:** `mac.update-check` v presetu `release` (T-208).
+
+### 1e. Kamera v rozlišení zobrazení (z T-184, implementováno na Macu 2026-11-11)
+- [ ] **T-184** (krit. „Kvalita obrazu na celé obrazovce se viditelně nezhorší“, ruční, simulátor stačí): okno kamery
+      na celé obrazovce, v normálním okně a v malém náhledu na Retina i na monitoru se škálováním 1× – obraz je ostrý, bez
+      zubatých hran a bez posunu barev oproti verzi před T-184 (malý náhled a okna menší než obraz kamery v pixelech se teď
+      převádějí zmenšené, `SWS_BILINEAR`). Tažení úchytu malého náhledu, přepnutí režimu (malý náhled ↔ okno ↔ celá
+      obrazovka, i zeleným tlačítkem) a přesun okna mezi Retina a monitorem 1× stream nepřeruší; obraz se asi 0,25 s po
+      uklidnění velikosti zaostří na novou velikost, nic nebliká a nezčerná.
+      **Automatizace:** T-215 `mac.camera-live` (žádné černé snímky, stream se nepřeruší). Ostrost a barvy okem
+      zůstávají ruční.
+  - [x] Automatická část (nic nebliká a nezčerná, stream se nepřeruší při tažení úchytu, přepnutí režimů i přesunu mezi
+        monitory): `mac.camera-live` = `PASS` 2026-11-15 (`artifacts/verify/20261115-155430/`, commit `24d73aa3`); „79 captures every ~100 ms, none black,
+        the RTSP connection stayed the same“, přesun „iPad Remote (@2x) → Virtuální 16:10 (@2x)“ (monitor 1× v běhu
+        nebyl). Ostrost, barvy a monitor 1× zůstávají v bodu výše.
+
+### 1f. Čas do dalšího pokusu kamery (z T-188 a T-194, implementováno na Macu 2026-11-11)
+- [ ] **T-188** (ruční, simulátor stačí; automaticky pokryto `CameraViewModelNextAttemptTests` a UiTests
+      `CameraWindowNextAttemptUiTests`): simulátor s kamerou, otevřené okno kamery a v konzoli simulátoru
+      `camera offline`: pod „Chyba kamery“ / „Bez signálu“ a důvodem je řádek „Další pokus asi za 5 s“, po dalších
+      pokusech 10, 20, 40 s a „asi za 1 min“; od T-194 se text odpočítává (pod minutou po sekundách). V malém náhledu
+      řádek chybí, po návratu do okna je zpět s aktuální hodnotou. Minimalizovat okno do Docku a během minutové pauzy ho
+      obnovit: hned „Připojuji se ke kameře…“ (nový pokus); přepnutí režimu (okno ↔ malý náhled ↔ celá obrazovka) pauzu
+      nezkrátí. **T-194:** okno zavřít, během minutové pauzy (drží ji detekce nebo nahrávání) kliknout v nastavení na
+      „Otestovat kameru“: test hned zkusí nové připojení (s `camera online` uspěje bez čekání na pauzu). Po `camera online` a dalším pokusu obraz
+      běží a řádek zmizí. Aspoň v češtině a v nejdelším jazyce (es / fr) se text vejde.
+      **Automatizace:** T-215 `mac.camera-next-attempt`, délka textu ve všech jazycích T-214.
+      - [x] Část se systémovým písmem (řádek „Další pokus asi za …“ v okně 960 × 540 až 320 × 180, nejdelší es / fr): ověřeno headless testy T-214 se San Francisco ve všech jazycích
+        (2026-11-14), nic neuříznuté.
+
+### 1g. HTTPS přes reverzní proxy s CA v Klíčence (z T-183, připraveno na Macu 2026-11-11)
+- [ ] **T-183** (krit. „Ověřeno … s `https://` a certifikátem soukromé CA v úložišti OS“, část macOS; mění Klíčenku,
+      po bodu vrátit): simulátor (`--port 18080 --no-camera`) a Caddy nebo nginx jen na `127.0.0.1` (bez instalace,
+      nastavení jako v `docs/api/prusalink.md`, oddíl „HTTPS přes reverzní proxy (T-183)“), certifikát pro `localhost`
+      podle receptu v kapitole 14.4 příručky. CA přidat do klíčenky Přihlášení postupem z kapitoly 14.5 (Klíčenka, Důvěra
+      → Vždy důvěřovat; zkontrolovat názvy položek v příručce pro jazyk systému). V aplikaci (bundle z
+      `release-build.ps1`) tiskárna `https://localhost:<port>/`: **Otestovat spojení** projde, monitoring ukazuje stav,
+      **Otevřít PrusaLink** načte web, widget Název tisku ukáže náhled G-code. Pak certifikát z Klíčenky smazat a ověřit,
+      že test spojení hlásí „Zabezpečené spojení (https) selhalo…“. Výsledek zapsat do poznámek T-183
+      a `docs/api/prusalink.md`.
+      **Zůstává ruční** (mění Klíčenku).
+
+### 1h. Hardwarové dekódování VideoToolbox (z T-205, změřeno na Macu 2026-11-12)
+- [ ] **T-205** (krit. „Uspání / probuzení, zamčení, dvě kamery a přepnutí volby za běhu bez černého okna a bez trvalé
+      chyby“, ruční části; automaticky změřeno v Release AOT, viz `docs/hw-decoding.md`, oddíl „Výsledky implementace
+      (T-205)“): `LayerPeek.app` (Release), Nastavení > Kamera > „Hardwarové dekódování“ **Automaticky**, simulátor
+      s klipem `--camera-clip ~/LayerPeek-samples/clips/coreone-20261103-1905-60s.mp4 --fps 25` nebo skutečná Buddy3D,
+      podrobné logování. (1) **Uspání a probuzení:** otevřené okno kamery, Mac uspat (menu Apple > Uspat) aspoň na 1 min
+      a probudit: obraz do několika sekund znovu běží, okno nezůstane černé; v logu dál „Camera video decoding:
+      videotoolbox“, nebo jedno `Warning` „Hardware video decoding (VideoToolbox) failed … continues in software“
+      a obraz běží softwarově. Totéž s malým náhledem. (2) **Zamčení:** okno otevřené, zamknout obrazovku (⌃⌘Q) na 1 min,
+      odemknout: obraz běží. (3) **Okem:** obraz v okně a v malém náhledu s Automaticky a s Vypnuto (přepnout v nastavení)
+      vypadá stejně – stejné barvy (oranžové díly, tmavá podložka), ostrý, bez kostiček. (4) **Přepnutí za běhu:** při
+      otevřeném okně přepnout volbu a Uložit (tam i zpět): obraz se zastaví nejvýš do dalšího klíčového snímku (~2 s),
+      pak běží dál bez „Bez signálu“; v logu řádek „Camera video decoding: …“ s novou cestou. (5) **Dvě kamery** (dva
+      simulátory, např. `--port 18080 --camera-port 8554` a `--port 18081 --camera-port 8555`, dvě tiskárny, dvě okna):
+      obě okna ukazují obraz, Monitor aktivit ukáže jeden `VTDecoderXPCService`.
+      Výsledek zapsat do poznámek T-205.
+      **Automatizace:** (4) a (5) T-216 `mac.hw-decoding-switch`. (1)–(3) zůstávají ruční.
+
+### 1i. Regresní běh `-Preset release` (z T-208, připraveno na Macu 2026-11-13)
+- [ ] **T-208** (krit. „Doba celého běhu změřená a zapsaná v poznámkách“, část s odemčenou obrazovkou; agent měl
+      zamčenou obrazovku, bez Zpřístupnění a se Sdílením obrazovky, 10 z 20 kontrol skončilo `SKIP` na předběžné
+      podmínce): po jednorázové přípravě z `docs/macos-manual-testing.md` („Regresní běh před vydáním“: Zpřístupnění
+      a Nahrávání obrazovky pro Terminál, oznámení „LayerPeek E2E“ povolená, `sudo bash tools/macos-verify-sudoers.sh`,
+      delší prodleva hesla po vypnutí displeje) u Macu bez Sdílení obrazovky spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release`. Ověřit: žádná otázka, na začátku žádné „Not met:“,
+      `artifacts/verify/latest/report.md` má v hlavičce všechny podmínky „met“. Do poznámek T-208 zapsat dobu běhu (cíl
+      ~30 min) a tři nejpomalejší kontroly (sloupec Seconds); každý `FAIL` = nový úkol.
+
+### 1j. Menu stavové položky přes Accessibility (z T-209, připraveno na Macu 2026-11-13)
+- [ ] **T-209** (krit. 1–4: `helper menu`, `helper menupress`, `mac.menu-items` = `PASS`, zjištění AXHelp; agent měl
+      zamčenou obrazovku a Terminál bez Zpřístupnění, kontrola skončila `SKIP` na předběžné podmínce): po přípravě z
+      `docs/macos-manual-testing.md` („Regresní běh před vydáním“) spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `pwsh tools/macos-verify.ps1 -Unattended -Only mac.menu-items -Allow mac.menu-items`). `mac.menu-items` = `PASS`
+      uzavře krit. 1–3 (JSON menu ve všech šesti stavech v `evidence/mac.menu-items/menu-*.json`, „Zobrazit kameru“ →
+      „Přenést kameru do popředí“ → „Skrýt kameru“ přes `menupress`, neznámá položka = exit 1 s titulky
+      `menupress-unknown.txt`, „Ukončit“ z menu). Krit. 4: obsah `evidence/mac.menu-items/disabled-items-help.txt` (AXHelp
+      zakázaných položek, „help none“ = Avalonia tip do NSMenu nepropsala) opsat do poznámek T-209 a k bodům T-146 / T-148
+      / T-161 výše („tip se ukáže?“). Do poznámek zapsat složku běhu, commit a řádek zprávy. `FAIL` = nový úkol (např.
+      menu se přes AXPress neotevře nebo ho Esc nezavře).
+
+### 1k. Šířka písma v běžící aplikaci (z T-214, 2026-11-14; od T-223 s Inter)
+- [ ] **T-214 / T-223** (rozhodnutí uživatele 2026-11-14, upraveno 2026-11-15): **od T-223 má aplikace na macOS
+      výchozí písmo Inter**, původní předpoklad T-214 (běžící aplikace rozvrhuje San Francisco jako headless test) tím
+      odpadl. Ověřuje se teď, že běžící aplikace rozvrhuje Inter stejně jako headless UI testy: spustit aplikaci (Debug
+      nebo `LayerPeek.app`) v angličtině, otevřít Nastavení a přes `helper ax <pid>` (Zpřístupnění pro Terminál,
+      `docs/macos-manual-testing.md`) přečíst šířku rámečků záložek `SettingsTabStartupUpdates` a
+      `SettingsTabRecording`. Očekáváno (headless s Inter, 2026-11-15): **197 a 109 pt** (± 1 pt); aktuální hodnoty
+      vypíše test `SettingsWindowTabWidthsUiTests.MainTabWidthsForTheCheckInTheRunningApp` (`tests/LayerPeek.App.UiTests`,
+      výstup v TRX: `dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowTabWidthsUiTests"
+      --report-xunit-trx`). Pro srovnání: se San Francisco (před T-223) 177 a 101 pt. Na pohled: polotučná záhlaví
+      se nedotýkají (se SF „namačkaná“, T-222).
+      Výsledek zapsat do T-223; jiná šířka = nový úkol.
+
+### 1l. Nahrávání a dashcam přes menu (z T-210, připraveno na Macu 2026-11-15)
+- [ ] **T-210** (krit. 3 a 4: `mac.recording` = `PASS`, `mac.dashcam` = `PASS`; Terminál agenta neměl Zpřístupnění, obě
+      kontroly skončily `SKIP` na předběžné podmínce, ověřit je tedy nešlo): po přípravě z `docs/macos-manual-testing.md`
+      (Zpřístupnění pro Terminál, vzorky v `~/LayerPeek-samples`) spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `pwsh tools/macos-verify.ps1 -Unattended -Only mac.recording,mac.dashcam -Allow mac.recording,mac.dashcam`).
+      `PASS` obou uzavře v tomto úkolu bod T-146 (bez částí T-212 / T-213 / T-214). Spolu s `mac.recording-files` uzavře
+      i simulátorové části bodů T-148 a T-145. Do poznámek T-210 a k bodům T-146 / T-148 výše zapsat tip zakázané položky
+      „Uložit posledních 2 min“ (AXHelp v menu `evidence/mac.dashcam/menu-idle.json` a v místní nabídce okna kamery
+      `context-menu-idle.json`). Zapsat i to, co ukáže Nastavení › Nahrávání u složky bez práva zápisu
+      (`evidence/mac.recording/locked-settings-ax.json`, výňatek v řádku zprávy). Dále složku běhu, commit a řádek zprávy.
+      `FAIL` = nový úkol.
+  - [x] Hláška v Nastavení › Nahrávání u složky bez práva zápisu nastavené v `settings.json` → rozhodnuto uživatelem
+        2026-11-15 (T-210 otázka 3): **stačí dnešní chování** (bez pádu, bez nahrávky, notifikace a log); hláška jen po
+        výběru složky přes „Změnit…“ (T-213).
+
+### 1m. Timelapse přes menu a Nastavení (z T-211, připraveno na Macu 2026-11-15)
+- [ ] **T-211** (krit. 1 a 2: `mac.timelapse` = `PASS`, `mac.timelapse-layers` = `PASS`; Terminál agenta neměl
+      Zpřístupnění a obrazovka byla zamčená, obě kontroly skončily `SKIP` na předběžné podmínce; souborovou část bez menu
+      ověřil `mac.timelapse-files` = `PASS`): po přípravě z `docs/macos-manual-testing.md` (Zpřístupnění pro Terminál,
+      vzorky v `~/LayerPeek-samples`) spustit `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo
+      samostatně `pwsh tools/macos-verify.ps1 -Unattended -Only mac.timelapse,mac.timelapse-layers -Allow
+      mac.timelapse,mac.timelapse-layers`). `PASS` obou uzavře v tomto úkolu bod T-161 „Ruční start / stop …“ (bez
+      notifikace T-212 a uříznutí T-214) a bod T-159 „volba je v UI a uloží se“. Do poznámek T-211 a k bodu T-161 výše
+      zapsat tip zakázané položky „Přehrát poslední timelapse“ (řádek zprávy, AXHelp v
+      `evidence/mac.timelapse/menu-idle.json`; „none“ = tip se do NSMenu nepropsal) a tip položky „Zastavit timelapse“
+      během pauzy. Dále složku běhu, commit a řádek zprávy. `FAIL` = nový úkol. Pozn.: výběr položky seznamu „Pořizovat
+      snímek“ (klik na položku, záloha ↓ a Return) a zjištění skrytého čísla (chybí ve stromu AX nebo má nulovou velikost)
+      agent proti skutečnému oknu neověřil – `FAIL` na tomto místě nejdřív posoudit podle `evidence/mac.timelapse-layers/
+      settings-*.json`.
+
+### 1n. Obsah notifikací testovacího bundlu (z T-212, připraveno na Macu 2026-11-15)
+- [ ] **T-212** (krit. 2–4: `mac.notifications-content` (a), (b), (c) = `PASS`; oznámení „LayerPeek E2E“ byla v sezení
+      agenta `NotDetermined`, Terminál bez Zpřístupnění a obrazovka zamčená, kontrola skončila `SKIP` na předběžné
+      podmínce): po přípravě z `docs/macos-manual-testing.md` (Zpřístupnění pro Terminál, oznámení „LayerPeek E2E“
+      povolená jednou interaktivně přes `pwsh tools/macos-verify.ps1 -Only mac.notifications`, styl upozornění
+      „LayerPeek E2E“ **Trvalé**) spustit `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `pwsh tools/macos-verify.ps1 -Unattended -Only mac.notifications-content -Allow mac.notifications-content`).
+      `PASS` uzavře v tomto úkolu body **T-154** „Poplach zobrazí notifikaci …“ a „Falešný poplach funguje“ (bez vzhledu
+      banneru a editoru výřezu T-216), notifikační části **T-146** a **T-161** („Nahrávání kamery selhalo“, „Timelapse
+      selhal“, klik → Nastavení › Nahrávání) a bod **T-101** (bez stavu „zamítnuto“ a `notDetermined`, ty zůstávají ruční).
+      `SKIP` s důvodem „akce banneru není v AX“ (helper `ncpress` exit 4) = tlačítko nebo klik zůstává ruční: zapsat do
+      poznámek T-212 a ten podbod ověřit ručně (sezení 5.4, T-154 výše). Do poznámek T-212 zapsat složku běhu, commit,
+      řádek zprávy a co `ncpress` v AX našel (`evidence/mac.notifications-content/ncpress-*.txt`: role, podrole,
+      popis, akce). `FAIL` = nový úkol. Pozn.: strom AX Centra oznámení (banner, názvy vlastních akcí „Name:…“) agent
+      proti skutečnému banneru neověřil (bez Zpřístupnění a bez povolených oznámení); `FAIL` nebo `SKIP` z `ncpress`
+      nejdřív posoudit podle `evidence/mac.notifications-content/ncpress-*.txt` a `list-*.json`.
+
+### 1o. Systémové dialogy souborů přes Accessibility (z T-213, připraveno na Macu 2026-11-15)
+- [ ] **T-213** (krit. 1–4: `mac.file-dialogs` (a), (b), (c) = `PASS`, po běhu žádný otevřený panel ani menu; Terminál
+      agenta neměl Zpřístupnění a obrazovka byla zamčená, kontrola skončila `SKIP` na předběžné podmínce): po přípravě
+      z `docs/macos-manual-testing.md` (Zpřístupnění pro Terminál, vzorky v `~/LayerPeek-samples`, oznámení
+      „LayerPeek E2E“ povolená jednou interaktivně přes `pwsh tools/macos-verify.ps1 -Only mac.notifications`) spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `pwsh tools/macos-verify.ps1 -Unattended -Only mac.file-dialogs -Allow mac.file-dialogs`; pak si kontrola udělá
+      vlastní tisk s výpadkem kamery, asi 2 min navíc). `PASS` (a) uzavře v tomto úkolu u bodu **T-146** část „Změnit…“
+      (systémový dialog složky, nezapisovatelná složka), `PASS` (b) bod **T-165** a `PASS` (c) bod **T-164** (přehrání
+      v QuickTime nahrazuje `helper decode`, rozhodnutí 2026-11-13; prohlédnutí JPEG v Náhledu nahrazuje kontrola názvů
+      a počtu snímků). Bez povolených oznámení skončí `SKIP` s důvodem „notification … not allowed“ – bod neodškrtne.
+      Do poznámek T-213 zapsat složku běhu, commit, řádek zprávy a z `evidence/mac.file-dialogs/panel-*.json`: roli
+      a podroli panelu (volné okno vs. list; u „Změnit…“ se čeká list Nastavení), proces panelu (`pid`, `process` –
+      LayerPeek není v sandboxu, čeká se proces aplikace) a titulky tlačítek (`defaultButton` / `cancelButton`: jazyk
+      prvků AppKitu, T-097 otázka 5 – bod sám uzavře T-216). `FAIL` = nový úkol. Pozn.: podobu panelu v AX stromu
+      (výchozí a zrušovací tlačítko, prohlížeč souborů, pole ⌘⇧G, stav `enabled` položek) agent proti skutečnému panelu
+      neověřil; `FAIL` nebo `SKIP` z `panel` / `panelgo` nejdřív posoudit podle `evidence/mac.file-dialogs/panel-*.json`
+      a `panelgo-*.txt` (exit 2 = pole „Přejít na složku“ se neotevřelo nebo panel zůstal otevřený, 4 = položku nejde
+      vybrat).
+
+### 1p. Okna, Dock a živý obraz kamery (z T-215, připraveno na Macu 2026-11-15)
+- [ ] **T-215** (krit. 1–4: `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live` a
+      `mac.camera-next-attempt` = `PASS`; Terminál agenta neměl Zpřístupnění a obrazovka byla zamčená, všechny čtyři
+      skončily `SKIP` na předběžné podmínce): po přípravě z `docs/macos-manual-testing.md` (Zpřístupnění a Nahrávání
+      obrazovky pro Terminál, oznámení „LayerPeek E2E“ povolená jednou interaktivně přes
+      `pwsh tools/macos-verify.ps1 -Only mac.notifications`, pro přesun mezi monitory druhý monitor) spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně `pwsh tools/macos-verify.ps1
+      -Unattended -Only mac.dock-windows,mac.mini-after-fullscreen,mac.camera-live,mac.camera-next-attempt -Allow
+      'mac.dock-windows,mac.mini-after-fullscreen,mac.camera-live,mac.camera-next-attempt'`; asi 7 min, z toho
+      `mac.camera-next-attempt` asi 3 min v reálném čase). `PASS` `mac.dock-windows` odškrtne v tomto úkolu bod
+      **T-102** (včetně otázky 3 – výsledek ze zprávy zapsat i do T-102) a bod **T-151** „ruční, Dock a ⌘Tab“ (pořadí
+      oken nad / pod aktivní aplikací ze zprávy zapsat k bodu); bez povolených oznámení skončí `SKIP` s důvodem – bod
+      neodškrtne. `PASS` nebo `FAIL` s naměřenými hodnotami `mac.mini-after-fullscreen` uzavře bod **T-038** otázka 2
+      (výsledek zapsat i do T-038; při `FAIL` nový úkol na schválenou opravu „umístit znovu po animaci“). `PASS`
+      `mac.camera-live` odškrtne bod **T-026** „Stream … ve všech režimech okna“ (ruční část `mac.camera-look`) a v bodu
+      **T-184** část „nic nebliká a nezčerná, stream se nepřeruší“ (ostrost a barvy zůstávají ruční). `PASS`
+      `mac.camera-next-attempt` odškrtne bod **T-188** kromě délky textu (T-214). Do poznámek T-215 zapsat složku běhu,
+      commit, řádky zprávy a naměřené časy (zavření / otevření okna, celková doba `mac.camera-next-attempt`). Pozn.:
+      agent proti skutečnému systému neověřil AX strom Docku (AXDockItem, AXShowMenu, položky oken v jeho menu),
+      `focusedmenubar`, `axwin` (AXMinimized, zelené tlačítko AXFullScreenButton), `drag` po úchytu náhledu ani
+      `lumawatch` (`screencapture -l` v zamčené relaci selže); `FAIL` nejdřív posoudit podle důkazů ve
+      `evidence/mac.dock-windows/` (`dock-*.txt`, `menu-bar.json`, `windows-at-*.json`), `evidence/mac.mini-after-fullscreen/placements.json`,
+      `evidence/mac.camera-live/` (`live-*.png`, `luma-watch.jsonl`, `darkest-capture.png`) a
+      `evidence/mac.camera-next-attempt/` (`next-attempt-watch.jsonl`, `pauses.json`). Prahy živého obrazu (0,2 % pixelů
+      změněných o víc než 8 úrovní nebo průměrný rozdíl 0,3) a černého snímku (větší z 8 a čtvrtiny výchozího jasu)
+      jsou odhad bez skutečného snímku; když neodpovídají, upravit v `VerifyTools.psm1` s testem.
+
+### 1q. Drobné kontroly (z T-216, připraveno na Macu 2026-11-15)
+- [ ] **T-216** (krit. 1–7: `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`,
+      `mac.open-fake`, `mac.hw-decoding-switch` a `mac.keys-czech-layout`; Terminál agenta neměl Zpřístupnění a obrazovka
+      byla zamčená, `mac.camera-autoclose` skončil `SKIP` „… the screen is locked“, ostatní `SKIP` na předběžné podmínce):
+      po přípravě z `docs/macos-manual-testing.md` (Zpřístupnění pro Terminál, volitelně Nahrávání obrazovky, vzorky
+      v `~/LayerPeek-samples`) spustit `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Only mac.camera-autoclose,mac.camera-pin-ax,mac.detection-region,mac.appkit-language,mac.open-fake,mac.hw-decoding-switch,mac.keys-czech-layout
+      -Allow 'mac.detection-region,mac.appkit-language,mac.hw-decoding-switch,mac.keys-czech-layout'`; asi 5 min).
+      `mac.open-fake` otevře odkaz na GitHub a web simulátoru ve výchozím prohlížeči (rozhodnutí 2026-11-13); nová okna
+      zavře, spuštěný prohlížeč ukončí, panel v už otevřeném okně nechá. `PASS` odškrtne v tomto úkolu body: `mac.camera-autoclose`
+      **T-151** „Automaticky otevřené okno nebere fokus …“; `mac.camera-pin-ax` **T-122** a část VoiceOver bodu **T-117**;
+      `mac.detection-region` část editoru výřezu bodu **T-154** (bez skutečné Buddy3D); `mac.open-fake` bod **T-053**
+      (přihlášení přes proxy kryjí E2E T-028 / T-107; **hotovo 2026-11-15 v T-238**, `PASS`, bod T-053 odškrtnut); `mac.hw-decoding-switch` body (4) a (5) bodu **T-205** (výsledek
+      i do poznámek T-205); `mac.keys-czech-layout` = `PASS` bod **T-100** otázka 1 pro softwarové rozložení (`FAIL` = nový
+      úkol; fyzické klávesnice zůstávají). `mac.appkit-language` je vždy `PASS` se zjištěním: jazyk tlačítek panelu
+      a kontextového menu zapsat k bodu **T-097** otázka 5 a do T-097 (pak bod odškrtnout). Do poznámek T-216 zapsat
+      složku běhu, commit a řádky zprávy. Pozn.: agent proti skutečnému systému neověřil AX jména špendlíku v češtině,
+      pole s výřezem (AXTitle / AXDescription editoru), tažení v editoru, výběr v seznamu „Hardware decoding“,
+      kontextové menu textového pole v AX ani klik na odkazy v O aplikaci; `FAIL` nejdřív posoudit podle důkazů ve
+      `evidence/mac.*/` (`detection-after-load.json`, `settings-*.json`, `panel.json`, `text-menu.json`, `finding.txt`,
+      `switch-app.log`, `two-cameras-app.log`, `vtdecoder.txt`, `inputsource.jsonl`). Ověřeno bez oprávnění: E2E test
+      T-151 se zamčenou obrazovkou proběhl (zavření a otevření prošlo, fokus „vynecháno … the screen is locked“ → `SKIP`),
+      se spícími displeji selhal na „No active display“ (→ `SKIP` s radou `caffeinate -d -u`); dvě okna kamery dvou
+      simulátorů s klipem Buddy3D logují dvakrát „Camera video decoding: videotoolbox.“ a přibyl právě jeden
+      `VTDecoderXPCService` (jeden už běžel pro jinou aplikaci).
+
+### 1r. Pozastavení kamery, když okno nikdo nevidí (z T-187, implementováno na Macu 2026-11-15)
+Debug aplikace v testovacím režimu (`LAYERPEEK_TEST_DATA_DIR`, simulátor s kamerou, příkaz instance `camera:<id>`),
+v jiném okně Terminálu `lsof -a -n -P -p <pid> -iTCP:<port kamery> -sTCP:ESTABLISHED` a Monitor činnosti (CPU). Pauza je
+vidět jako konec spojení RTSP asi 10 s po pozastavení (bez nahrávání a detekce už spojení nikdo nedrží) a pokles CPU;
+po návratu se spojení obnoví a obraz se vrátí od dalšího klíčového snímku. Automatická kontrola: T-235.
+- [ ] **T-187** krit. 1 – zamčení: okno kamery otevřené a streamující, ⌃⌘Q → spojení skončí, CPU klesne; odemčení → obraz
+      se vrátí do pár sekund. (Ověřeno agentem jen se zamčenou obrazovkou: okno otevřené při zamčení vůbec nezačne
+      streamovat, 0 spojení RTSP, 1,3 % CPU proti 13,8 % na `develop`; návrat po odemčení neověřen.)
+- [ ] **T-187** krit. 1 – spánek displeje: bez zamykání (Zamykací obrazovka → heslo „Nikdy“ nebo s prodlevou) `pmset
+      displaysleepnow` → spojení skončí; probuzení klávesou → obraz se vrátí. S heslem se probudí na zamykací obrazovku
+      a obraz se vrátí až po odemčení.
+- [ ] **T-187** krit. 1 – zakrytí: okno celé zakryté jiným oknem (např. zvětšené okno Finderu) → asi po 2 s spojení
+      skončí; odkrytí i jen kousku okna → obraz se vrátí hned. Okno zakryté jen zčásti běží dál.
+- [ ] **T-187** krit. 1 – jiná plocha (Space): okno kamery na ploše 1, přepnout na plochu 2 (⌃→) → pauza; zpět → obraz.
+      Malý náhled „vždy navrchu“ je na všech plochách (T-038), při přepnutí plochy se tedy nepozastaví.
+- [ ] **T-187** – přechody bez zbytečné pauzy: přepnutí okna do celé obrazovky a zpět, Mission Control (⌃↑) a rychlé
+      přepnutí ploch tam a zpět (do 2 s) nezpůsobí výpadek obrazu (žádné nové připojení v logu).
+- [ ] **T-187** krit. 2 – při zamčení s probíhajícím nahráváním (dashcam nebo nahrávání tisku) a zapnutou detekcí spojení
+      zůstane, nahrávka po odemčení nemá mezeru a detekce dál loguje vzorky.
+
+### 1s. Malý náhled – dopočet výšky bez mezistavu (z T-169, rozhodnutí uživatele 2026-11-15)
+- [ ] **T-169** (macOS beze změny): na Windows nastaví dopočet výšky malého náhledu velikost i polohu najednou (jedno
+      `SetWindowPos`). Na macOS zůstává `SetBounds` – poloha platí hned, velikost až v dalším průchodu rozvržení, takže
+      je možný krátký mezistav. Ověřit: malý náhled uprostřed obrazovky (`CameraPlacement` „Center“) rozšířit levým
+      úchytem o asi 160 px a pustit; okno musí po puštění skočit rovnou do konečné polohy a velikosti (roste na obě
+      strany), bez viditelného mezikroku „nová výška u staré horní hrany“. Totéž u rozbalení řádku názvu u spodního
+      okraje (okno roste nahoru, spodní hrana zůstává). Při pochybnosti nahrát obrazovku (QuickTime) a projít po
+      snímcích. Viditelný mezistav = nový úkol (oprava pro macOS, vzor `CameraWindow.SetBoundsAtOnce`); výsledek zapsat
+      i do poznámek T-169.
+
+### 1t. Pole hesla v přístupnosti macOS (z T-234, rozhodnutí uživatele 2026-11-15)
+Na Windows hlásí UI Automation u pole hesla `IsPassword` = `False` (chybí v Avalonii 12.1.6; upstream se nehlásí, rozhodnutí
+uživatele 2026-11-15); heslo samo neunikne, `ValuePattern.Value` je maska (T-054). Délka hesla
+v masce je přijatá (rozhodnuto uživatelem 2026-11-15). Podle `libAvaloniaNative.dylib` 12.1.6 macOS podroli
+`AXSecureTextField` pravděpodobně nehlásí (neověřeno za běhu).
+- [ ] **T-234** (macOS – vlastnosti pole hesla přes Accessibility): Debug aplikace v testovacím režimu
+      (`LAYERPEEK_TEST_DATA_DIR`, simulovaná tiskárna s heslem), Nastavení → tiskárna → Připojení, do pole hesla
+      (`PrinterPassword`) zadat jedinečné heslo simulátoru (např. `E2E-pw-` + náhodný řetězec) a „Otestovat připojení“
+      (úspěch = heslo je v poli; postup Windows: E2E `PasswordAutomationTests`). `swift tools/macos-verify-helper.swift
+      ax <pid> > ax.json` (oprávnění Zpřístupnění pro Terminál) a v něm prvek s `identifier` `PrinterPassword` zapsat:
+      `role` a `subrole` (očekává se `AXTextField` / `AXSecureTextField`), `value` (má být maska, ne heslo), `title`,
+      `description`. Pak `grep` hesla (i jeho části) v celém `ax.json` – heslo nesmí být nikde ve stromu AX. Totéž
+      po uložení, zavření a znovuotevření nastavení. Výsledek zapsat do poznámek T-234. Heslo ve stromu AX = nový úkol (únik
+      hesla, priorita P1); chybějící podrole `AXSecureTextField` = doplnit do upstream issue (oddíl macOS) a do T-234.
+
+### 1u. Lokalizované kontextové menu textových polí (z T-242, implementováno na Macu 2026-11-15)
+Kontrola `mac.appkit-language` v běhu z 2026-11-15 skončila `SKIP` (zamčená obrazovka,
+`artifacts/verify/20261115-201553/`); headless UI testy menu prošly.
+- [ ] **T-242** (krit. 2): s odemčenou obrazovkou z Terminálu
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Allow mac.appkit-language -Only mac.appkit-language`
+      → `PASS`: místní nabídka pole „Název“ (Nastavení › Tiskárny) má Vyjmout / Kopírovat / Vložit / Vybrat vše v jazyce
+      LayerPeeku (ne v jazyce systému), pole hesla bez Vyjmout a Kopírovat. `FAIL` = nový úkol.
+
+### 1w. Filtr .mp4 panelu exportu do JPEG (z T-243, upraveno na Macu 2026-11-15)
+Kontrola `mac.file-dialogs` posuzuje filtr `.mp4` nově podle ztlumených položek seznamu panelu; ⌘⇧G filtr obchází
+i v čisté AppKit aplikaci, aplikace takový soubor odmítne. Běh `artifacts/verify/20261115-204424/` skončil `SKIP` jen
+kvůli zakázaným oznámením „LayerPeek E2E“; části panelu prošly.
+- [ ] **T-243** (krit. 2): s povolenými oznámeními „LayerPeek E2E“ (jednou interaktivně
+      `pwsh tools/macos-verify.ps1 -Only mac.notifications`) a odemčenou obrazovkou z Terminálu
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Only mac.file-dialogs -Allow mac.file-dialogs`
+      → `PASS` s „(b) the list dims notes.txt, not the .mp4 files“ a „(b) notes.txt through Go to refused as
+      NotATimelapse“. `FAIL` = nový úkol.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)
@@ -273,6 +655,11 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       stavu tisku (sezení 6.1).
 - [ ] **T-026** (krit. „Podepsaný bundle (T-019) se spustí a stream funguje na čistém Macu“): `LayerPeek.app` z `.dmg`
       na účtu nebo Macu bez Homebrew a bez .NET SDK se spustí a stream Buddy3D běží (sezení 1.4 a 6.1).
+      **Automatizace:** T-217 `mac.release-bundle` (start kopie z `.dmg` přes `env -i` bez `DOTNET_ROOT` a Homebrew
+      v prostředí, ≥ 10 s, typ `UIElement`, žádná chyba načtení nativních knihoven). **Rozhodnuto uživatelem
+      2026-11-13 (T-217 otázky 1 a 2):** start s vyčištěným prostředím na tomto Macu nahrazuje „čistý Mac / účet bez
+      Homebrew“ a stream kamery se v Release bundlu nekontroluje (stream Buddy3D ověřuje bod výše). Bod se odškrtne,
+      když je `mac.release-bundle` `PASS` ve zprávě `-Preset release` (pravidlo v `tasks/README.md`).
 - [ ] **T-143** (krit. „Okno kamery, malý náhled a překryv fungují jako dřív“, ruční část se skutečnou kamerou): okno
       kamery Buddy3D ve všech třech režimech jako dřív; s otevřeným oknem „Otestovat kameru“ u uložené adresy v Nastavení
       vrátí snímek bez druhého spojení (s podrobným logováním žádné nové „Opening camera stream“ / připojení v logu),
@@ -282,12 +669,19 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       nahrávku z kamery simulátoru i ze skutečné Buddy3D (po T-146 z menu nebo okna kamery; do té doby soubor nahraný
       podle T-144 / T-147, poznámky) otevřít v QuickTime Playeru: obraz běží od začátku do konce, posuvník funguje, délka
       odpovídá. U nahrávky přerušené výpadkem kamery jdou přehrát oba soubory (`…mp4`, `…-2.mp4`).
+      **Automatizace:** nahrávka simulátoru T-210 `mac.recording-files` (simulátor přehrává skutečný klip Buddy3D,
+      nahrávka s výpadkem kamery `…mp4` + `…-2.mp4`, vše `helper decode`). Přehrání v QuickTime nahrazuje úplné dekódování
+      přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). **Rozhodnuto uživatelem 2026-11-13 (T-210
+      otázka 2):** nahrávka simulátoru se skutečným klipem Buddy3D nahrazuje nahrávku ze skutečné Buddy3D.
 - [ ] **T-145** (automatické nahrávání tisku se skutečnou tiskárnou; doplněno 2026-11-04 před vydáním 0.5.0, ruční bod
       dosud chyběl): Core One s Buddy3D, „Automaticky nahrávat tisk“ zapnuté, okno kamery zavřené. S krátkým tiskem
       nahrávání začne samo (tooltip ikony „Nahrává se“, v podmenu tiskárny „Zastavit nahrávání“), soubor
       `~/Movies/LayerPeek/<tiskárna>/<datum>_<čas>_<název tisku>.mp4`, a skončí asi minutu po konci tisku. „Přehrát poslední
       nahrávku“ ho přehraje v QuickTime Playeru celý (obraz od začátku, posuvník, délka odpovídá). Během nahrávání je
       „Uložit posledních 2 min“ zakázané s tipem „Nahrává se celý tisk.“ (dashcam stojí). Další tisk dá nový soubor.
+      **Automatizace:** simulátorová část T-210: soubor, konec asi minutu po tisku a další tisk `mac.recording-files`,
+      zakázané „Uložit posledních 2 min“ s tipem během nahrávání `mac.dashcam`. Přehrání v QuickTime nahrazuje úplné
+      dekódování přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). Skutečná tiskárna zůstává ruční.
 - [ ] **T-159** (timelapse po vrstvě se skutečnou tiskárnou; detektor ověřený jen na jednom záznamu Core One s vrstvou
       0,2 mm): Core One s Buddy3D, „Pořizovat timelapse tisku“ zapnuté, na záložce Nahrávání „Každou N. vrstvu (odhad)“ s N = 1,
       polling 5 s. Krátký díl (ideálně se slicerem hlášeným počtem vrstev a drobnými vrstvami nahoře, např. kužel nebo
@@ -330,16 +724,22 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-055** (krit. „Režim nanečisto vypíše plánované nahrání a na GitHubu nic nezmění“): `pwsh
       scripts/release-upload.ps1 -DryRun` (a `pwsh scripts/release.ps1 -Version X.Y.Z -DryRun`) vypíše plánované
       soubory; `gh release view vX.Y.Z --json assets,isDraft` před a po stejné.
-- [ ] **T-055** (krit. „Orchestrátor ve zkušebním vydání“): v testovacím repozitáři (`-Repo`, `docs/release.md`,
+- [x] **T-055** (krit. „Orchestrátor ve zkušebním vydání“): v testovacím repozitáři (`-Repo`, `docs/release.md`,
       „Zkušební vydání (testovací repozitář)“) `release.ps1` pushne `main` + tag a `develop`, vytvoří koncept,
       po přerušeném buildu naváže a běh po dokončení nic neudělá.
-- [ ] **T-055** (krit. „Zkušební vydání … vytvoření vydání a následné přidání souborů druhým během“, část macOS): ve
+      → zrušeno (T-198 otázka 3: zkušební vydání v testovacím repozitáři se nedělá; rozhodnuto uživatelem 2026-11-13).
+- [x] **T-055** (krit. „Zkušební vydání … vytvoření vydání a následné přidání souborů druhým během“, část macOS): ve
       stejném zkušebním vydání běh na Macu vytvoří koncept a nahraje soubory macOS; druhý běh (Windows) doplní své
       soubory – viz T-114 (od 2026-11-01 T-125). Postup „Zkouška doplnění druhého OS (T-113)“ v `docs/release.md`; **rozhodnuto 2026-10-30 (uživatel, T-113 Q1): doplnění druhého OS se poprvé ověří ostře u 0.3.1** (Mac zveřejní,
       Windows doplní); zkušební vydání je volitelné.
-- [ ] **T-055** (krit. „Vydání verze `0.x` je na GitHubu označené jako předběžné“): po příštím vydání
+      Ověřeno ostře (rozhodnuto uživatelem 2026-11-13): `gh release view` 2026-11-13 ukazuje u `v0.3.1`, `v0.4.0` i
+      `v0.5.0` soubory obou OS (`SHA256SUMS-macos.txt`, `SHA256SUMS-windows.txt`, `.dmg`, `.tar.gz`, `Setup.exe`,
+      `.zip`, balíčky a feedy Velopacku). Zkušební vydání odpadá (T-198 otázka 3).
+- [x] **T-055** (krit. „Vydání verze `0.x` je na GitHubu označené jako předběžné“): po příštím vydání
       `gh release view vX.Y.Z --json isPrerelease` = `true`. Pozor: stav 2026-10-30 – `v0.1.0` a `v0.3.0` jsou
       předběžné, **`v0.2.0` ne** (označené „Latest“); **rozhodnuto 2026-10-30 (uživatel): `v0.2.0` nechat beze změny**; bod se týká jen nových vydání.
+      **Zjištění 2026-11-13 (architekt, jen čtení):** skript chybu nemá. Podrobnosti v poznámkách níže. Rozhodnuto uživatelem 2026-11-13: odškrtnuto podle chování
+      skriptu (otázka 1); příznaky 0.x zůstávají, jak jsou.
 - [ ] **T-058** (krit. „macOS: … ruční body“, Gatekeeper): první spuštění `.dmg` staženého prohlížečem z GitHub vydání
       (Gatekeeper, „Přesto otevřít“) a App Translocation (spuštění přímo z `.dmg`: záložka Spuštění a aktualizace ukáže
       „Přesuňte LayerPeek do složky Aplikace…“, klik na novou verzi otevře jen stránku vydání).
@@ -353,6 +753,19 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       ad-hoc podpisu): po aktualizaci nebo přetažení nové `.app` přes starou (sezení 9.1–9.2) zapsat: dialog Klíčenky
       „LayerPeek chce použít důvěrné informace…“ ano / ne, a po „Povolit“ znovu při dalším startu?; zůstalo povolení
       oznámení?; ptá se macOS znovu na Místní síť?
+- [ ] **T-181** (krit. „Zkušební vydání … podepsaný feed nahraný, nainstalovaná verze s ověřením aktualizaci přijme“;
+      přesunuto 2026-11-11, rozhodnutí uživatele): **zkušební vydání v testovacím repozitáři se nedělá** (rozhodnutí
+      uživatele 2026-11-11, T-198 otázka 3). Nahrazují ho tři kroky, bod zůstává krokem uživatele:
+      (1) generálka podepsaného buildu bez GitHubu (T-198 B4: `release-build.ps1 -FeedSigningKey <klíč>` s produkčním
+      klíčem, `build-info.json` `signed`, otisk `4cb047d1…7b91e26`); (2) v den vydání `release.ps1 -Version 1.0.0
+      -DryRun` a `release-upload.ps1 -DryRun`, ostrý upload 1.0.0 nahraje `.sig` před feedem a `release-publish.ps1`
+      by vydání bez `.sig` odmítl; (3) **hned po zveřejnění 1.0.0** (po aktualizaci nainstalované 0.5.0 na 1.0.0)
+      místní Release build **0.9.9** z tagu `v1.0.0` v `/Applications` se z GitHubu aktualizuje na 1.0.0: nabídka „Je
+      dostupná nová verze 1.0.0“, ne „Aktualizace odmítnuta…“, po aktualizaci O aplikaci 1.0.0, v logu žádné odmítnutí
+      feedu. Postup `docs/release.md`, „Kontrola aktualizace z GitHubu buildem 0.9.9“. Odmítnutí nepodepsaného nebo
+      změněného feedu a návrat nabídky po obnovení platného feedu (otázka 27 v T-181) se na GitHubu neověřují, pokrývají
+      je E2E `UpdateTests` (na Macu prošly, Windows T-125 2v). Výsledek zapsat do poznámek T-181, T-198 a
+      `docs/release.md`.
 - [ ] **T-019** (krit. „Výsledek pokusu Velopack na macOS … zapsaný v `docs/velopack.md`, bod 10“): výsledky tří
       předchozích bodů zapsané v `docs/velopack.md`, bod 10 (odstavec „Stále neověřeno“ aktualizovaný), doporučení
       platí, nebo je upravené.
@@ -362,16 +775,104 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       bodů T-038 zapsané i do jeho poznámek; změny systému vrácené (sezení 12).
 
 ## Otevřené otázky
-- (žádné vlastní; rozhodovací body T-038 otázky 1 b–3 jsou u kroků výše)
-- **Před vydáním 0.5.0** (architekt 2026-11-04, neblokuje tento úkol, rozhodne uživatel):
-  1. Z jakého buildu testovat? `release-build.ps1` na `develop` dá aplikaci s verzí 0.4.0 a přepíše
-     `artifacts/release/0.4.0` pracovního stromu. Varianta: build v samostatném worktree, nebo testovat až build větve
-     `release/0.5.0` (pak ale `release.ps1` už vytvořil větev a čeká na push).
-  2. Které body „doporučeného pořadí“ musí projít, aby šlo 0.5.0 vydat (např. jen dialogy souborů a notifikace), a co
-     může zůstat na později?
-  3. Má být i detekce chyb tisku v UI a v CHANGELOG označená jako experimentální (dnes má štítek jen timelapse)?
-     Detektor je naladěný jen na syntetických selháních a na úspěšných tiscích, skutečné selhání zachycené kamerou
-     zatím nemáme (T-156).
+- Rozhodovací body T-038 otázky 1 b–3 jsou u kroků výše.
+- ~~**Před vydáním 0.5.0** (architekt 2026-11-04), otázky 1–3 (z jakého buildu testovat, co musí projít před 0.5.0,
+  označit detekci jako experimentální)~~ → zastaralé, 0.5.0 vyšlo 2026-11-05. Oddíl odstraněn (rozhodnuto uživatelem
+  2026-11-13).
+1. **T-055, příznak předběžného vydání (oddíl 3, bod 4):** skript `release-publish.ps1` nastavil `isPrerelease = true`
+   (ověřeno hned po zveřejnění 0.5.0). Dnes mají `v0.3.1`, `v0.4.0` i `v0.5.0` `isPrerelease = false`, a `v0.5.0` je
+   proto „Latest“. Změna přišla mimo skripty vydání (viz poznámky). Odškrtnout bod podle chování skriptu? A nechat
+   příznaky vydání 0.3.1–0.5.0, jak jsou (od 1.0.0 vydání předběžná nejsou, `Test-PrereleaseVersion`)? Nebo je vrátit
+   (`gh release edit vX --prerelease`; to by vrátilo „Latest“ na `v0.2.0`)?
+
+   Rozhodnuto uživatelem 2026-11-13: **nechat, jak je**; bod odškrtnut podle chování skriptu (0.5.0 bylo po zveřejnění předběžné),
+   „Latest“ je do 1.0.0 `v0.5.0`.
 
 ## Poznámky k implementaci
-(vyplní agent / uživatel po ověření)
+- **Rozhodnutí uživatele 2026-11-15** (`mac.recording`, celá obrazovka): náhradní zastavení nahrávání tlačítkem v okně kamery, když stavová položka v liště není dosažitelná, je **přijatelné**; report to zapisuje do poznámek kontroly („stopped by the window button“).
+- **2026-11-15, qa-reviewer – první běh `-Preset release` s odemčenou obrazovkou (oddíly 1i–1r):**
+  - Běh `artifacts/verify/20261115-155430/` (commit `24d73aa3` na `develop`, čistý strom), Mac mini Mac14,12,
+    macOS 27.2.1, Terminál se Zpřístupněním, **Sdílení obrazovky připojené** (hlavní displej „iPad Remote“ 1287 × 900
+    bodů + „Virtuální 16:10“), uživatel se možná Macu během běhu dotkl. Doba **40 min 24 s**; nejpomalejší
+    `mac.appkit-language` 414 s, `mac.test` 312 s, `mac.recording-files` 298 s. Výsledek `PASS 24, FAIL 15, SKIP 3`
+    (zadání uvádělo 27 / 12 / 3; `report.json` má 24 / 15 / 3). Podmínka `NoScreenSharing` nesplněna → bod 1i (T-208)
+    neodškrtnut.
+  - Odškrtnuto podle pravidla odškrtávání (`PASS` v tomto běhu): T-026 „Stream … ve všech režimech okna“
+    (`mac.camera-live`), automatická část bodu T-184 (podbod), T-151 „Automaticky otevřené okno nebere fokus …“
+    (`mac.camera-autoclose`) a T-038 otázka 2 (`FAIL` s naměřenými hodnotami → T-237, viz bod).
+    Neodškrtnuto, i když část prošla: 1m (`mac.timelapse` = `PASS`, `mac.timelapse-layers` = `FAIL`), 1p
+    (`mac.camera-live` = `PASS`, ostatní tři `FAIL`).
+  - Rozbor každého `FAIL` (opravy kontrol na větvi `feature/macos-verify-first-real-run`; opakování jednotlivých
+    kontrol z Terminálu na té větvi s necommitnutými opravami – běhy `20261115-165329`, `-165907`, `-170431`, `-170737`,
+    `-171053`, `-172032`, `-173957`, `-180323`; nejsou to běhy presetu, body neodškrtávají):
+    - `mac.menu-items` – **chyba kontroly**: scénář `offline` simulátoru tiskárnu vypne a scénář `idle` ji nezapne
+      (jen `/_simulator/online`), další kroky pak hledaly „… : Ready“. Opraveno; opakování `PASS`. AXHelp zakázaných
+      položek: 0 z 12 („help none“ – tip Avalonie do NSMenu nedojde; T-209 krit. 4).
+    - `mac.camera-placement` – **chyba helperu + prostředí**: `helper screens` bez `NSApplication` nehlásil u druhého
+      displeje lištu nabídek (`visibleFrame` = rám), aplikace ano (horní okraj 46 místo 16); na úzkém displeji Sdílení
+      obrazovky se Dock zmenší, když aplikace dostane ikonu (normální okno) → pracovní plocha se mezi umístěním a měřením
+      změní o 6 bodů. Opraveno (helper jako aplikace, plocha měřená při umístění i po něm); opakování `PASS` (20 / 20).
+    - `mac.dock-windows` – **chyba kontroly** (zástupná aplikace nešla dopředu: kooperativní aktivace macOS 14+,
+      teď `helper activate` přes AXFrontmost; `focusedmenubar` bez AXFocusedApplication → záloha přední aplikace; chyba
+      v (4) přebíjela problémy) a **chyba aplikace**: menu ikony v Docku nevypisuje okna → **T-241**. Opakování: jen (2).
+    - `mac.mini-after-fullscreen` – (c) **chyba kontroly** (záložky, viz níže; opakování v pořádku); (b) Esc
+      **chyba aplikace** → **T-237** (dvakrát stejně, ne zásah uživatele).
+    - `mac.camera-next-attempt`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.timelapse-layers`,
+      `mac.file-dialogs` (a) – **chyba kontroly**: AXPress na záložku (`TabItem`) Avalonie záložku nevybere. Kontroly
+      teď vybírají záložku klikem (`Select-SettingsTab`, záloha AXPress a ⌃Tab / ⌘⌥→); celodisplejové okno Docku
+      (vrstva 20) klik propouští. Opakování: všechny `PASS` kromě `mac.file-dialogs`. Pro VoiceOver **T-239**.
+    - `mac.open-fake` – **chyba návrhu kontroly**: testovací režim Debug odkazy jen zapisuje (`RecordingUrlLauncher`),
+      prohlížeč se nikdy neotevře. Kontrola teď končí `SKIP` s důvodem a adresu proxy načte sama (proxy 200 ověřena);
+      přepínač testovacího režimu → **T-238** (otevřená otázka).
+    - `mac.hw-decoding-switch` – **chyba skriptu** (`[string]::Create` v `Get-Simulator -Fps`). Opraveno; opakování
+      `PASS` (videotoolbox ↔ software do 2,2 s, jeden `VTDecoderXPCService` pro dvě okna) → podklad pro T-205 (4) a (5).
+    - `mac.keys-czech-layout` – „jméno tiskárny změněno na ''“ = **chyba kontroly** (pole se četlo na skryté záložce
+      Widgety); jméno se **nemění**. ⌘⇧[ s českým rozložením ale záložku opravdu nepřepne (ani z pole, ani ze záložky),
+      s US ano → **chyba aplikace T-240**. Kontrola teď zkouší české i US rozložení a obě pořadí (`steps.json`).
+      Opraveno v T-240 (AppKit bral ⌘⇧/ jako „Zobrazit nabídku Nápověda“); samostatné opakování 2026-11-15 `PASS`.
+    - `mac.recording` – **chyba kontroly**: „Přehrát poslední nahrávku“ se povolí až chvíli po konci nahrávání (kontrola
+      teď počká), Finder macOS 27 nemá u oken AXDocument (teď podle titulku, i `helper axclose`), v celé obrazovce je
+      lišta nabídek skrytá (ukazatel k hornímu okraji), nahrávka 0,92 s < 1 s (teď 2 s). Opakování `PASS`; Nastavení ›
+      Nahrávání u složky bez zápisu nic neukáže (T-210 otázka 3: stačí).
+    - `mac.dashcam` – **chyba kontroly**: NSMenu dává AX titulek „Save the last 2 min“ s obyčejnou mezerou, zdroj má
+      nezlomitelnou (`&#160;`). Porovnání (PS i helper `menupress`) teď mezery sjednocuje. Opakování `PASS`; tip zakázané
+      položky: v menu „none“, v místní nabídce okna kamery „The last minutes are kept only during a print.“
+    - `mac.file-dialogs` – (a) záložky (viz výše); panel na macOS 27 (list `open-panel`) nemá AXDefaultButton /
+      AXCancelButton → helper `panel` nenašel nic (**chyba helperu**, opraveno: identifikátor + spodní řada tlačítek;
+      tlačítka „Otevřít“ / „Zrušit“ v jazyce systému); médium „pokračování po výpadku“ bylo omylem timelapse
+      (**chyba kontroly**: timelapse loguje „writes“ jako nahrávka); položky panelu byly z bočního panelu (helper teď
+      bere sloupcový prohlížeč místo bočního panelu, řádky sloupců ale ještě nečte). Úloha (c) „zrušit“ potřebuje
+      pomalejší úlohu (teď 200 ms na paket, nová instance). Opakování `20261115-173957`: (a) `PASS`, (c) počet snímků
+      v pořádku (10 snímků s částí po výpadku); zbývá (b) „notes.txt could be chosen in the panel“ (výběr přes ⌘⇧G
+      prošel, aplikace soubor odmítla `NotATimelapse`) → **T-243**, a (c) zrušení (opraveno pomalejší úlohou).
+      Opakování `20261115-180323`: jediný problém „(b) notes.txt could be chosen in the panel“ (T-243), (a) a (c)
+      včetně zrušení v pořádku.
+    - `mac.update-check` (b) – **chyba kontroly**: zástupná aplikace nešla dopředu a celodisplejové okno Docku se
+      bralo jako zakrývající. Opakování `PASS` (a, b, c).
+    - `mac.appkit-language` (`PASS` v presetu, ale **neplatné zjištění**: helper nepoznal otevřený panel, ⌃-klik pak
+      přečetl místní nabídku jeho seznamu souborů). Opakování: panel výběru obrázku „Otevřít“ / „Zrušit“ = **jazyk
+      systému (cs)**, místní nabídka textového pole „Cut“, „Copy“, „Paste“ = **angličtina** i při LayerPeeku v němčině
+      → **T-242**. Bod T-097 otázka 5 neodškrtnut (opakování není běh presetu); zjištění pro rozhodnutí uživatele.
+  - `SKIP`: `mac.notifications` a `mac.notifications-content` (oznámení „LayerPeek E2E“ `NotDetermined`: povolit jednou
+    interaktivně `pwsh tools/macos-verify.ps1 -Only mac.notifications`), `mac.display-sleep` (Sdílení obrazovky).
+  - Bod 1k (T-214 / T-223): strom AX běhu (`evidence/mac.timelapse-layers/settings-by-time.json`) má
+    `SettingsTabStartupUpdates` 196,5 a `SettingsTabRecording` 109 bodů (očekáváno 197 / 109 ± 1) → číselná část
+    sedí; pohled „záhlaví se nedotýkají“ zůstává ruční, bod neodškrtnut.
+  - Nové úkoly (ID volná v `develop` i `origin/develop` k 2026-11-15): T-237 (Esc → malý náhled s pruhem), T-238 (testovací režim a skutečný prohlížeč), T-239 (záložky
+    a AXPress / VoiceOver), T-240 (⌘⇧[ s českým rozložením), T-241 (menu Docku bez oken), T-242 (místní nabídka
+    textových polí anglicky), T-243 (filtr .mp4 panelu obejitelný přes ⌘⇧G).
+- **2026-11-13, architekt – příznak předběžného vydání (T-055), jen čtení:**
+  - Skript: `Test-PrereleaseVersion` (`scripts/ReleaseTools/ReleaseTools.psm1`) vrací `true` pro `0.*` (Pester
+    `ReleaseTools.Tests.ps1`). `release-upload.ps1` vytvoří koncept s `--prerelease` a `release-publish.ps1` zveřejní
+    přes `gh release edit vX --draft=false --prerelease=true`. Řádek se od T-055 (2026-10-21) nezměnil.
+  - Doklad: přepis sezení zveřejnění 0.5.0 (2026-11-05 19:46 UTC) má výstup `Would publish v0.5.0 (pre-release: yes)`
+    a hned po zveřejnění `gh release view v0.5.0` → `{"isDraft":false,"isPrerelease":true}`. `v0.4.0` byl jako
+    koncept 2026-11-02 také `isPrerelease: true`.
+  - Stav 2026-11-13 (`gh release view` / `gh api …/releases`): `v0.1.0` a `v0.3.0` předběžné; `v0.2.0`, `v0.3.1`,
+    `v0.4.0` a `v0.5.0` ne; „Latest“ = `v0.5.0`. Příznak se tedy změnil **po** zveřejnění, mimo skripty vydání: ručně
+    na webu, nebo jiným `gh release edit`. V přepisech sezení na tomto Macu žádný takový příkaz není. GitHub
+    neukládá, kdo příznak změnil.
+  - Závěr: chyba skriptu to není, opravný úkol se nezakládá. Pro nová vydání od 1.0.0 příznak nevadí (major ≠ 0 →
+    `--prerelease=false`). Nabídka aktualizací v aplikaci filtruje podle přípony verze, ne podle příznaku na GitHubu
+    (`docs/release.md`, bezpečnost feedu). Poznámka: T-198 (oddíl 3.2) uvádí „`v0.2.0` je jediné 0.x vydání ‚Latest‘“,
+    což už neplatí. Opraví se podle odpovědi na otázku 1.

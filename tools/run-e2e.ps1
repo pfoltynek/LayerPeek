@@ -38,6 +38,9 @@
     and in the app list of Settings > System > Notifications (T-068, accepted 2026-10-22; the run reports every trace it
     finds in system-state-end.txt of the results folder).
 
+    Over remote desktop (RDP) the run starts with a warning (T-169): the client moves the pointer back to where the user's
+    own mouse is, so the tests with the mouse are unreliable there; the run goes on. Run them on the local console.
+
     Screenshots of every checked state, the log of every started app and test-results.xml go to the results folder
     %TEMP%\LayerPeek.App.E2E.Results.<id>, which is printed at the end (replaced by the next run). When the run fails,
     the results folder of every failed pass (of every pass when only the restore afterwards failed) is first copied to
@@ -53,7 +56,8 @@
     Only test methods matching this xUnit filter (e.g. '*NoPrinter*').
 
 .PARAMETER PublishAot
-    Also publish the Native AOT exe (win-x64, needs the C++ build tools) and check it for test switches, and publish the
+    Also publish the Native AOT exe (the RID of this machine: win-x64, or win-arm64 on an ARM64 device, T-226; needs the
+    C++ build tools) and check it for test switches, and publish the
     Debug configuration as Native AOT too (it keeps the test mode). After a green pass against the Debug exe, the same
     selected tests (-Class / -Method) run once more against that Native AOT exe (T-073), with a results folder of their
     own (<results>-aot); tests that make no sense there are skipped with the reason. The warning about system changes at
@@ -105,6 +109,9 @@ $results = Join-Path ([IO.Path]::GetTempPath()) "LayerPeek.App.E2E.Results.$id"
 $script:logFile = $null
 Import-Module (Join-Path $PSScriptRoot 'RunE2E.SystemChanges.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'RunE2E.Results.psm1') -Force
+# Get-HostRuntime: the RID of this machine (T-226), the same as HostRuntime.Windows of the tests.
+Import-Module (Join-Path $PSScriptRoot '..' 'scripts' 'ReleaseTools' 'ReleaseTools.psm1') -Force
+$runtime = Get-HostRuntime
 
 function Write-Log([string] $Text, [ConsoleColor] $Color = [ConsoleColor]::Gray) {
     Write-Host $Text -ForegroundColor $Color
@@ -203,15 +210,22 @@ if ($RestoreOnly) {
 # make the tests act as a child / restore process (which skip the locks and the start cleanup).
 Remove-Item Env:LAYERPEEK_E2E_SYSTEM_CHANGES, Env:LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS, Env:LAYERPEEK_E2E_WATCHDOG, Env:LAYERPEEK_E2E_CHILD, Env:LAYERPEEK_E2E_RESTORE, Env:LAYERPEEK_E2E_RESTORE_REPORT -ErrorAction SilentlyContinue
 
+# T-169: over remote desktop the client moves the pointer, so the tests with the mouse are unreliable (warning only).
+Add-Type -Namespace LayerPeekE2E -Name SessionMetrics -MemberDefinition '[DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);'
+$remoteWarning = Get-RemoteSessionWarning -SessionName $env:SESSIONNAME -IsRemoteSession ([LayerPeekE2E.SessionMetrics]::GetSystemMetrics(0x1000) -ne 0)
+if ($remoteWarning) {
+    Write-Log $remoteWarning Yellow
+}
+
 dotnet build $app -c Debug
 if ($LASTEXITCODE -ne 0) { throw 'Building the Debug app failed.' }
 dotnet build $app -c Release
 if ($LASTEXITCODE -ne 0) { throw 'Building the Release app failed.' }
-$aotDebug = Join-Path $app 'bin/Debug/net11.0/win-x64/publish'
+$aotDebug = Join-Path $app "bin/Debug/net11.0/$runtime/publish"
 if ($PublishAot) {
-    dotnet publish $app -c Release -r win-x64
+    dotnet publish $app -c Release -r $runtime
     if ($LASTEXITCODE -ne 0) { throw 'The Native AOT publish failed.' }
-    dotnet publish $app -c Debug -r win-x64 -o $aotDebug
+    dotnet publish $app -c Debug -r $runtime -o $aotDebug
     if ($LASTEXITCODE -ne 0) { throw 'The Native AOT publish of the Debug app failed.' }
 }
 

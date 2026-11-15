@@ -4,10 +4,12 @@ namespace LayerPeek.Scripts.Tests;
 
 /// <summary>
 /// Runs the Pester tests of the scripts as part of dotnet test: the release scripts
-/// (scripts/ReleaseTools/ReleaseTools.Tests.ps1 and ReleaseOrchestrator.Tests.ps1 of scripts/release.ps1, T-055) and the
+/// (scripts/ReleaseTools/ReleaseTools.Tests.ps1 and ReleaseOrchestrator.Tests.ps1 of scripts/release.ps1, T-055, and
+/// ReleaseWinget.Tests.ps1 of the winget submission, T-059) and the
 /// one-time migration from the former name (tools/migrate-from-prusatraydiagnostic.Tests.ps1, T-074) and the before/after
 /// check of the user profile (tools/profile-snapshot.Tests.ps1, T-095) and the maintainer tool for a new FFmpeg version on
-/// macOS and Windows (build/update-ffmpeg.Tests.ps1, T-026) and the engine of the user-run verification scripts
+/// macOS and Windows (build/update-ffmpeg.Tests.ps1, T-026) and the selection of the FFmpeg build per runtime identifier with the
+/// win-arm64 cross build (build/FFmpeg.Tests.ps1, T-225) and the engine of the user-run verification scripts
 /// (tools/VerifyTools.Tests.ps1, T-105) and the main part of tools/windows-verify.ps1 with stand-in checks: the interactive
 /// run with answers on standard input, an interrupted run and -RestoreOnly
 /// (tools/windows-verify.Tests.ps1, T-129; off Windows only its -ListChecks test runs) and the kept results of failed
@@ -30,14 +32,21 @@ public sealed class PesterScriptTests
         "Write-Output \"PESTER RESULT: $($r.Result) passed=$($r.PassedCount) failed=$($r.FailedCount) skipped=$($r.SkippedCount)\"; " +
         "if ($r.Result -ne 'Passed' -or $r.FailedCount -gt 0 -or $r.PassedCount -eq 0) { exit 1 }; exit 0";
 
-    // Time limit per test file in minutes: the orchestrator tests run release.ps1 end to end many times (about 1.5-2.5 min).
+    // Time limit per test file in minutes, a guard against a hanging run, not a speed check: the orchestrator tests run
+    // release.ps1 end to end many times (about 1.5-2.5 min); ReleaseTools takes about 3.5 min on an M2 and more than 5 on
+    // the 4-CPU Windows runner next to the other test assemblies (T-218). VerifyTools starts about 15 child pwsh
+    // processes (the verification scripts, the stand-in GitHub API); it takes about 15 s locally, but took 2-5 min on the
+    // Windows runner, where it runs while the other test assemblies keep all 4 CPUs busy: a bare child pwsh took 5 s there
+    // (0.4 s locally), one macos-verify.ps1 -ListChecks 20-66 s (T-246).
     [Theory]
-    [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1", 5)]
+    [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1", 10)]
     [InlineData("scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1", 15)]
+    [InlineData("scripts/ReleaseTools/ReleaseWinget.Tests.ps1", 5)]
     [InlineData("tools/migrate-from-prusatraydiagnostic.Tests.ps1", 5)]
     [InlineData("tools/profile-snapshot.Tests.ps1", 5)]
     [InlineData("build/update-ffmpeg.Tests.ps1", 5)]
-    [InlineData("tools/VerifyTools.Tests.ps1", 5)]
+    [InlineData("build/FFmpeg.Tests.ps1", 5)]
+    [InlineData("tools/VerifyTools.Tests.ps1", 10)]
     [InlineData("tools/windows-verify.Tests.ps1", 5)]
     [InlineData("tools/RunE2E.Results.Tests.ps1", 5)]
     public async Task ScriptPesterTestsPass(string relativePath, int timeoutMinutes)
@@ -83,10 +92,34 @@ public sealed class PesterScriptTests
         }
         finally
         {
-            if (Directory.Exists(root))
+            DeleteTree(root);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the folder of one Pester run. Git marks its object files read-only, which Directory.Delete refuses on
+    /// Windows: when a run was killed (time limit) before the scripts removed their repositories, the access error would
+    /// otherwise replace the real failure (T-218, seen on the Windows runner).
+    /// </summary>
+    private static void DeleteTree(string root)
+    {
+        if (!Directory.Exists(root))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(root, recursive: true);
+        }
+        catch (UnauthorizedAccessException) when (OperatingSystem.IsWindows())
+        {
+            foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
             {
-                Directory.Delete(root, recursive: true);
+                File.SetAttributes(file, FileAttributes.Normal);
             }
+
+            Directory.Delete(root, recursive: true);
         }
     }
 }

@@ -21,21 +21,21 @@ public sealed class FFmpegCameraFeedAllocationTests
         // Decoding runs on the feed's own thread, so all threads are counted (GC.GetTotalAllocatedBytes); a stray
         // allocation elsewhere in the process does not repeat on every pass, a per-frame allocation would.
         // Anything per frame would be at least 50 objects; the 1280x720 buffer alone is 3.6 MB.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasurePassAsync));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(MeasurePassAsync));
     }
 
     [FFmpegFact]
     public async Task SteadyStateFramesThroughReconnectingFeedDoNotAllocate()
     {
         // The real path of the camera window: FFmpeg completes every read asynchronously on its decoder thread.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureReconnectingPassAsync));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(MeasureReconnectingPassAsync));
     }
 
     [FFmpegFact]
     public async Task SteadyStatePacketsAndFramesDoNotAllocate()
     {
         // T-143: a recording (packets) and a window (frames) on one connection.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureItemsPassAsync));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(MeasureItemsPassAsync));
     }
 
     [FFmpegFact]
@@ -44,19 +44,72 @@ public sealed class FFmpegCameraFeedAllocationTests
         // T-143: the camera window's real path, the shared connection with the subscriber's own buffers. The file plays
         // as fast as it decodes, so under load a pass can run out of frames (the stream ends and reconnects); such a pass
         // measures nothing and is repeated.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureHubPassAsync));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureHubPassAsync()));
+    }
+
+    [FFmpegFact]
+    public async Task SteadyStateDisplayFramesDoNotAllocate()
+    {
+        // T-184: the window's frames scaled down in the decoder, nothing in full resolution.
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false)));
+    }
+
+    [HardwareDecodingFact]
+    public async Task SteadyStateHardwareDisplayFramesDoNotAllocate()
+    {
+        // T-203 / T-206: the camera window's frames from the hardware decoder of this OS, mapped without a copy (VideoToolbox)
+        // or copied (D3D11VA), each into a reused frame, and converted.
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false, hardware: true)));
+    }
+
+    [FFmpegFact]
+    public async Task SwitchingBetweenDisplaySizesUsedBeforeDoesNotAllocate()
+    {
+        // T-184: a window switched back and forth (mini preview <-> normal) rebuilds its scaler (native) but reuses its
+        // buffer, which kept the larger size.
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: true)));
+    }
+
+    [FFmpegFact]
+    public async Task SteadyStateDisplayFramesThroughTheHubDoNotAllocate()
+    {
+        // T-184: the camera window's path with a display size.
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(displaySize: new CameraFrameSize(640, 640))));
+    }
+
+    [FFmpegFact]
+    public async Task SteadyStateGrayscaleFramesDoNotAllocate()
+    {
+        // T-189: the samples of print failure detection scaled from the luma plane, nothing in BGRA.
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(MeasureGrayscalePassAsync));
+    }
+
+    [FFmpegFact]
+    public async Task SteadyStateGrayscaleFramesThroughTheHubDoNotAllocate()
+    {
+        // T-189: grayscale frames of the decoder copied into the subscriber's own buffers (every frame, the worst case).
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(grayscale: new CameraGrayscaleSize(320, 180))));
     }
 
     /// <summary>
     /// The smallest allocation of up to three valid passes. All threads are counted, so a pass during which the thread
     /// pool started or retired workers (allocations of the runtime, not of the feed) measures nothing and is repeated.
+    /// Each pass starts once the process is quiet (T-220, <see cref="AllocationProbe.WaitForQuietProcess"/>); the wait runs
+    /// before the pass creates its feed, so no real-clock timeout of the feed or the hub runs meanwhile. Not again after
+    /// the warm-up: behind the hub the file plays as fast as it decodes, so a running pass is never idle.
     /// </summary>
     private static async Task<long> MinimumOfValidPassesAsync(Func<Task<long?>> measure)
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         long minimum = long.MaxValue;
         int valid = 0;
         for (int pass = 0; pass < 10 && valid < 3 && minimum > 0; pass++)
         {
+            if (pass > 0)
+            {
+                AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
+            }
+
             // On the thread pool: no synchronization context, so continuations stay on the decoder thread like in
             // a consumer that uses ConfigureAwait(false) (a context would allocate for every post).
             if (await Task.Run(measure, TestContext.Current.CancellationToken) is { } allocated)
@@ -101,11 +154,24 @@ public sealed class FFmpegCameraFeedAllocationTests
     }
 
     /// <returns>The bytes allocated over <see cref="HubMeasuredFrames"/> frames; <see langword="null"/> when the fixture ran out first or the thread pool changed its size meanwhile.</returns>
-    private static async Task<long?> MeasureHubPassAsync()
+    private static async Task<long?> MeasureHubPassAsync(CameraFrameSize? displaySize = null, CameraGrayscaleSize? grayscale = null)
     {
+        // Disposed after the hub: a frame published while the lease ends may still signal it.
+        using AutoResetEvent frameAvailable = new(initialState: false);
         ReconnectingCameraFeed camera = new(new FFmpegCameraFeedFactory(), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
         await using CameraStreamHub hub = new(camera, TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
-        using CameraFrameSubscription lease = hub.SubscribeFrames("mk4", TestFixtures.Buddy3D);
+        // CI fix (T-220): the consumer sleeps until the hub reports a new frame, like the camera window (which posts to
+        // its UI thread), instead of spinning. A spinning consumer on a loaded 4-CPU runner got so little CPU beside the
+        // decoder thread that it took 3 frames while the file played 40-71 of its 71 frames, so no pass had enough of the
+        // fixture left; a woken waiter gets the CPU at once (Windows boosts it), so it misses few frames. Both the wait
+        // (WaitOne) and the signal (Set) allocate nothing.
+        CameraFrameSubscriptionOptions options = new()
+        {
+            DisplaySize = displaySize,
+            Grayscale = grayscale,
+            FrameAvailable = () => frameAvailable.Set(),
+        };
+        using CameraFrameSubscription lease = hub.SubscribeFrames("mk4", TestFixtures.Buddy3D, options);
         // The file plays as fast as it decodes; frames the consumer misses are dropped (and counted).
         long Seen(ref int taken)
         {
@@ -117,14 +183,20 @@ public sealed class FFmpegCameraFeedAllocationTests
             return taken + lease.DroppedFrames;
         }
 
+        // The timeout only covers a notification that raced with TakeLatest; normally the wait ends with the next frame.
+        long Next(ref int taken)
+        {
+            frameAvailable.WaitOne(10);
+            return Seen(ref taken);
+        }
+
         int taken = 0;
         DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
         // The exchange's third buffer gets its pixels only after the consumer took frames (the third take proves it): a
         // consumer starved by a loaded machine that took none in the warm-up would allocate it inside the measurement.
-        while (Seen(ref taken) < WarmUpFrames || taken < 3)
+        while (Next(ref taken) < WarmUpFrames || taken < 3)
         {
             Assert.True(DateTime.UtcNow < deadline, "No frames.");
-            Thread.Yield();
         }
 
         long start = Seen(ref taken);
@@ -135,14 +207,97 @@ public sealed class FFmpegCameraFeedAllocationTests
 
         int threads = ThreadPool.ThreadCount;
         long before = GC.GetTotalAllocatedBytes(precise: true);
-        while (Seen(ref taken) < start + HubMeasuredFrames)
+        while (Next(ref taken) < start + HubMeasuredFrames)
         {
-            Thread.Yield();
+            Assert.True(DateTime.UtcNow < deadline, "The frames stopped.");
         }
 
         long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
-        // The end of the file (and the reconnect) inside the measurement is no steady state.
-        return lease.Status.State == CameraConnectionState.Streaming && ThreadPool.ThreadCount == threads ? allocated : null;
+        // The end of the file (and the reconnect) inside the measurement is no steady state. The status alone does not
+        // show it in time: after the last frame the feed closes the decoder (waiting for its thread) and plans the
+        // reconnect (~240 B) before it reports the end, so a consumer that was off the CPU while the rest of the file
+        // played still saw "Streaming" (CI fix, T-220). Every frame published counts as taken or dropped once the latest
+        // is taken, so fewer than all of them, counted after the measurement, prove that the end was not reached in it.
+        bool beforeTheEnd = Seen(ref taken) < TestFixtures.Buddy3DFrameCount;
+        return beforeTheEnd && lease.Status.State == CameraConnectionState.Streaming && ThreadPool.ThreadCount == threads ? allocated : null;
+    }
+
+    /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> display frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
+    private static async Task<long?> MeasureDisplayPassAsync(bool switchSizes, bool hardware = false)
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        CameraFrameSize large = new(640, 640);
+        CameraFrameSize small = new(320, 320);
+        CameraStreamDemand demand = new(frames: true, packets: false) { DisplaySize = large };
+        demand.CancelFullResolution();
+        await using FFmpegCameraFeed feed = hardware
+            ? (FFmpegCameraFeed)new FFmpegCameraFeedFactory { HardwareDecoding = CameraHardwareDecoding.Automatic, Hardware = { AutomaticDevice = HardwareDecodingTestEnvironment.Device } }.Create(TestFixtures.Buddy3D)
+            : TestFixtures.CreateFeed(TestFixtures.Buddy3D);
+        IAsyncEnumerator<CameraStreamItem> items = feed.ReadAsync(demand, ct).GetAsyncEnumerator(ct);
+        try
+        {
+            // Description, then frames; the warm-up uses both sizes once.
+            for (int i = 0; i < 1 + WarmUpFrames; i++)
+            {
+                demand.DisplaySize = switchSizes && i % 2 == 0 ? small : large;
+                Assert.True(await items.MoveNextAsync());
+            }
+
+            int threads = ThreadPool.ThreadCount;
+            long before = GC.GetTotalAllocatedBytes(precise: true);
+            for (int i = 0; i < MeasuredFrames; i++)
+            {
+                if (switchSizes)
+                {
+                    // Every fifth frame, like a window that changes its mode now and then.
+                    demand.DisplaySize = i / 5 % 2 == 0 ? small : large;
+                }
+
+                Assert.True(await items.MoveNextAsync());
+                Assert.True(items.Current.DisplayFrame.Width > 0);
+            }
+
+            long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            Assert.True(!hardware || HardwareDecodingDeviceTests.ConvertedInHardware(feed) >= WarmUpFrames + MeasuredFrames, "The frames came from the hardware decoder.");
+            return ThreadPool.ThreadCount == threads ? allocated : null;
+        }
+        finally
+        {
+            await items.DisposeAsync();
+        }
+    }
+
+    /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> grayscale frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
+    private static async Task<long?> MeasureGrayscalePassAsync()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        CameraStreamDemand demand = new(frames: true, packets: false);
+        demand.CancelFullResolution();
+        demand.RequestGrayscale(new CameraGrayscaleSize(320, 180), long.MinValue);
+        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
+        IAsyncEnumerator<CameraStreamItem> items = feed.ReadAsync(demand, ct).GetAsyncEnumerator(ct);
+        try
+        {
+            for (int i = 0; i < 1 + WarmUpFrames; i++)
+            {
+                Assert.True(await items.MoveNextAsync());
+            }
+
+            int threads = ThreadPool.ThreadCount;
+            long before = GC.GetTotalAllocatedBytes(precise: true);
+            for (int i = 0; i < MeasuredFrames; i++)
+            {
+                Assert.True(await items.MoveNextAsync());
+                Assert.True(items.Current.GrayscaleFrame.Width > 0);
+            }
+
+            long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+            return ThreadPool.ThreadCount == threads ? allocated : null;
+        }
+        finally
+        {
+            await items.DisposeAsync();
+        }
     }
 
     /// <returns>The bytes allocated over <see cref="MeasuredFrames"/> frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>

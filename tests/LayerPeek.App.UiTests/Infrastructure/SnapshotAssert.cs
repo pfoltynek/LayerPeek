@@ -131,10 +131,16 @@ public static class SnapshotAssert
     private static void CompareWithReference(Image actual, string name, int maxDifferentPixels, string referenceSetDirectory, bool updating)
     {
         string reference = Path.Combine(referenceSetDirectory, name + ".png");
+        bool realSet = string.Equals(referenceSetDirectory, CurrentReferenceDirectory, StringComparison.Ordinal);
         if (updating)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(reference)!);
             actual.Save(reference);
+            if (realSet)
+            {
+                RenderingOrigin.Record(referenceSetDirectory);
+            }
+
             return;
         }
 
@@ -144,6 +150,12 @@ public static class SnapshotAssert
             Assert.Fail(
                 $"Snapshot '{name}': no {ReferenceSet.Current.Name} reference image '{reference}' (every OS has its own set). "
                 + $"Create it on {ReferenceSet.Current.Name} with {UpdateVariable}=1 dotnet test --project tests/LayerPeek.App.UiTests and review it.");
+        }
+
+        // The size and layout checks above and in the tests still run; only the pixels depend on the OS release.
+        if (realSet && RenderingOrigin.SkipReason(referenceSetDirectory) is { } skip)
+        {
+            Assert.Skip($"Snapshot '{name}': {skip}");
         }
 
         Image expected = Image.Load(reference);
@@ -359,6 +371,45 @@ public static class SnapshotAssert
 
             bitmap.Save(path, new PngBitmapEncoderOptions());
         }
+    }
+}
+
+/// <summary>
+/// The OS release a reference set was rendered on (T-218), in <c>rendered-on.txt</c> of the set, written by every update.
+/// Only macOS records one: Skia draws glyphs through Core Graphics there, so the same Inter font rasterizes with other edge
+/// pixels on another major macOS release (seen between macOS 26 on the GitHub runner and macOS 27, isolated pixels on the
+/// glyph edges only). On another major release the pixel comparison is skipped with the reason; Windows has no file and
+/// always compares.
+/// </summary>
+internal static class RenderingOrigin
+{
+    public const string FileName = "rendered-on.txt";
+
+    private const string Prefix = "macOS ";
+
+    /// <summary>What this machine writes: "macOS &lt;major&gt;" on macOS, nothing elsewhere.</summary>
+    public static string? Current => OperatingSystem.IsMacOS() ? Prefix + Environment.OSVersion.Version.Major.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+
+    public static void Record(string referenceSetDirectory)
+    {
+        if (Current is { } current)
+        {
+            File.WriteAllText(Path.Combine(referenceSetDirectory, FileName), current + "\n");
+        }
+    }
+
+    /// <summary>Why the pixels of this set cannot be compared here, or <see langword="null"/> when they can.</summary>
+    public static string? SkipReason(string referenceSetDirectory) => SkipReason(ReadRecorded(referenceSetDirectory), Current);
+
+    internal static string? SkipReason(string? recorded, string? current) =>
+        recorded is null || current is null || string.Equals(recorded, current, StringComparison.Ordinal)
+            ? null
+            : $"the references were rendered on {recorded} ({FileName}), this machine is {current}; glyph edges differ between macOS releases, so the pixels are not compared.";
+
+    private static string? ReadRecorded(string referenceSetDirectory)
+    {
+        string path = Path.Combine(referenceSetDirectory, FileName);
+        return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
     }
 }
 

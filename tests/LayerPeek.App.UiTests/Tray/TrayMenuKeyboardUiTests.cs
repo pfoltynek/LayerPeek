@@ -191,6 +191,7 @@ public sealed class TrayMenuKeyboardUiTests(HeadlessSession session)
                     root.Item(Strings.MenuDiagnostics, enabled: false),
                     root.Item(Strings.MenuSettings, enabled: true),
                     new Separator(),
+                    root.Item(Strings.MenuManual, enabled: true),
                     root.Item(Strings.MenuAbout, enabled: true),
                     root.Item(Strings.MenuQuit, enabled: true),
                 },

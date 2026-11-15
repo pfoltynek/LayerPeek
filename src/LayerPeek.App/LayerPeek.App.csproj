@@ -26,6 +26,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="LayerPeek.App.Tests" />
     <InternalsVisibleTo Include="LayerPeek.App.UiTests" />
+    <InternalsVisibleTo Include="LayerPeek.App.UiTests.SystemFont" />
   </ItemGroup>
   <PropertyGroup>
     <!-- English strings live in the main assembly; other languages in satellite assemblies (compiled into the AOT binary). -->
@@ -58,6 +59,8 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <!-- Default font on macOS (T-223, Platform/AppFont.cs); Windows keeps Segoe UI. -->
+    <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Velopack" />
   </ItemGroup>
@@ -79,5 +82,15 @@
     <ProjectReference Include="..\LayerPeek.Detection\LayerPeek.Detection.csproj" />
     <!-- Camera decoder (T-014); its native FFmpeg DLLs flow here through the reference (do not import build/FFmpeg.targets). -->
     <ProjectReference Include="..\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" />
+  </ItemGroup>
+  <!--
+    The FFmpeg libraries of the App's RID (T-224, T-225: win-arm64 gets ARM64 libraries cross-built on x64). The library
+    project is RID-agnostic: the SDK builds it without RuntimeIdentifier, so build/FFmpeg.targets cannot see the RID and
+    would hand over the libraries of the host. The App's RID goes to it as LayerPeekAppRuntimeIdentifier instead (read by
+    build/FFmpeg.targets; LayerPeek.Camera.FFmpeg.csproj keeps it from its own references, so LayerPeek.Core is still
+    built once). Every RID, so that -r win-x64 also gets x64 libraries on an ARM64 machine.
+  -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <ProjectReference Update="..\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" AdditionalProperties="LayerPeekAppRuntimeIdentifier=$(RuntimeIdentifier)" />
   </ItemGroup>
 </Project>

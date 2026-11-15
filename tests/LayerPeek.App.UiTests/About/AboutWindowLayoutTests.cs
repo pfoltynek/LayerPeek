@@ -131,7 +131,7 @@ public sealed class AboutWindowLayoutTests(HeadlessSession session)
                 }
             }
 
-            string[] expected = [Strings.AboutRepository, Strings.AboutThirdPartyLicenses, "SupportSaveBundle", "SupportCopyInfo", "SupportOpenLogFolder", "AboutClose"];
+            string[] expected = [Strings.AboutRepository, Strings.AboutThirdPartyLicenses, Strings.AboutFFmpegSource, "SupportSaveBundle", "SupportCopyInfo", "SupportOpenLogFolder", "AboutClose"];
             int start = order.IndexOf(Strings.AboutRepository);
             Assert.True(start >= 0, string.Join(", ", order));
             Assert.Equal(expected, order.Skip(start).Take(expected.Length));

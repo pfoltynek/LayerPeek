@@ -1,0 +1,429 @@
+# CI (T-218): build (Debug + Release), tests without the end-to-end tests and the Native AOT publish on Windows and
+# macOS for every push to develop / release/* / hotfix/* and every pull request into develop / main, plus the Native AOT
+# publish of win-arm64 cross-compiled on Windows x64 with a check of its PE architecture, never started (T-236).
+#
+# The required status check of the ruleset is the job "CI result" (docs/prerequisites.md, section CI). It always
+# reports: a pull request that touches only files no build or test reads (task notes, most docs) passes it at once
+# without the expensive jobs, so a required check never waits for a run that does not start (no paths-ignore on
+# purpose). A push always builds and tests: its run may stand for earlier pushes whose runs never ran (see concurrency).
+#
+# Security: read-only token, no secrets, pull_request (never pull_request_target), every action pinned to the commit
+# of its release tag (the comment names the tag; .github/dependabot.yml proposes updates).
+
+name: CI
+
+on:
+  push:
+    branches: [develop, 'release/**', 'hotfix/**']
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pull requests: a new push to the PR cancels the running check (each run covers the whole PR). Pushes to a branch: the
+# running run always finishes; GitHub keeps one pending run per group and a newer push replaces it, so the newest pending
+# run tests the tip, which contains the commits of the replaced runs. That is why a push never takes the docs-only
+# shortcut: its own diff (before..after) would not show the code of a replaced or cancelled run (T-218, run 43722485576
+# was cancelled by a docs-only push whose run then went green without testing that code).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  # No XML documentation files in the NuGet folder: smaller package cache, nothing reads them in CI.
+  NUGET_XMLDOC_MODE: skip
+  # Skips the few tests known to fail on a runner for a tracked reason (tests/Shared/ContinuousIntegration.cs; each skip
+  # names its task; none at the moment: T-220 and T-221 removed theirs). Never set on a developer's machine.
+  LAYERPEEK_CI: '1'
+
+jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      # Pull requests only. Two commits: a pull request is checked out as its merge commit, whose first parent is the
+      # target branch, so HEAD^1..HEAD is the whole pull request whatever runs were cancelled before.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Classify the changed files
+        id: classify
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          code=true
+          files=""
+          # Push and workflow_dispatch: always everything (see concurrency above).
+          if [ "$EVENT" = pull_request ]; then
+            files=$(git diff --name-only HEAD^1 HEAD)
+          fi
+          # Docs-only means: every changed file is one that no build or test reads. Tests do read manuals/*/manual.md
+          # (UserManualTests: the anchors of the manual), docs/troubleshooting.md and CHANGELOG.md (the release notes
+          # of the version, ReleaseOrchestrator.Tests.ps1), so those always count as code.
+          if [ -n "$files" ]; then
+            code=false
+            while IFS= read -r file; do
+              case "$file" in
+                docs/troubleshooting.md|CHANGELOG.md) code=true ;;
+                tasks/*|docs/*) ;;
+                */*) code=true ;;
+                *.md) ;;
+                *) code=true ;;
+              esac
+            done <<< "$files"
+          fi
+          # A push, workflow_dispatch or an empty diff: run everything.
+          echo "Changed files:"
+          echo "${files:-(not a pull request or no diff: full run)}"
+          echo "code=$code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and test (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-2025
+            rid: win-x64
+            timeout: 60
+            # The inputs of the FFmpeg cache folder in build/FFmpeg.targets (the pinned tarball there and the build
+            # script of the OS). Windows compiles FFmpeg with MSYS2 + MinGW-w64 since T-202.
+            ffmpeg-script: build/windows/build-ffmpeg.sh
+          # macOS 27 (label xcode-27, still a preview image of GitHub; macos-latest is macOS 26): the macOS snapshot
+          # references are rendered on macOS 27 and glyph edges differ between major releases (user decision
+          # 2026-11-14, T-218). Back to a macos-NN label once GitHub has one for 27.
+          - name: macOS
+            os: xcode-27
+            rid: osx-arm64
+            timeout: 60
+            ffmpeg-script: build/macos/build-ffmpeg.sh
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      # The tags too (a few refs, no history): the release tests skip the real CHANGELOG.md check once v<version> exists.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-tags: true
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      # Outside the checkout: the build and the tests never see the cache or the test results as repository files.
+      # Join-Path gives native separators (FFmpeg.targets runs cmd's move with this path on Windows). CI_SYSTEM_TEMP is
+      # the temp folder of the test processes (not changed), where the UI tests leave the images of failed snapshots.
+      - name: Point the FFmpeg cache and the test results to the runner's temp folder
+        run: |
+          "LayerPeekFFmpegCacheRoot=$(Join-Path $env:RUNNER_TEMP ffmpeg)" >> $env:GITHUB_ENV
+          "TEST_RESULTS=$(Join-Path $env:RUNNER_TEMP TestResults)" >> $env:GITHUB_ENV
+          "CI_SYSTEM_TEMP=$([System.IO.Path]::GetTempPath())" >> $env:GITHUB_ENV
+
+      # What the tests depend on, for reading a failed run (rendering and macOS security differ between machines).
+      - name: Describe the runner
+        run: |
+          "OS: $([System.Runtime.InteropServices.RuntimeInformation]::OSDescription) ($([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)), $([Environment]::ProcessorCount) CPUs, image $env:ImageOS $env:ImageVersion"
+          if ($IsMacOS) { & /usr/bin/csrutil status; & /usr/bin/sw_vers }
+
+      # Restore and save apart (as FFmpeg): the combined action saves only after a green job.
+      - name: Restore NuGet packages
+        id: nuget
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Exact key only (no restore-keys): another recipe would only add an unused folder to the cache. The image is part
+      # of the key because the macOS libraries are compiled with its Xcode.
+      - name: Restore FFmpeg
+        id: ffmpeg
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg
+          key: ffmpeg-v1-${{ matrix.os }}-${{ matrix.rid }}-${{ hashFiles('build/FFmpeg.targets', matrix.ffmpeg-script) }}
+
+      # T-202: on a cache miss the first build compiles the Windows FFmpeg libraries (build/windows/build-ffmpeg.sh) with
+      # MSYS2 + MinGW-w64, the toolchain of docs/prerequisites.md; the build itself never installs anything. Only the
+      # packages of the docs, no update of the base system; LayerPeekMsys2Root points build/FFmpeg.targets to it.
+      - name: Install MSYS2 with MinGW-w64 (FFmpeg build)
+        id: msys2
+        if: matrix.rid == 'win-x64' && steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MINGW64
+          update: false
+          install: make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm
+
+      - name: Point the FFmpeg build to MSYS2
+        if: steps.msys2.outcome == 'success'
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          "LayerPeekMsys2Root=$env:MSYS2_LOCATION" >> $env:GITHUB_ENV
+
+      # Pester 5+ is on both images; without it ScriptPesterTestsPass would be skipped instead of failing.
+      - name: Check PowerShell and Pester
+        run: |
+          $pester = Get-Module -ListAvailable Pester | Where-Object Version -ge ([version]'5.0.0') | Sort-Object Version -Descending | Select-Object -First 1
+          if (-not $pester) { throw 'Pester 5 or newer is not installed on the runner; the Pester tests would be skipped.' }
+          "PowerShell $($PSVersionTable.PSVersion), Pester $($pester.Version)"
+
+      - name: Build (Release)
+        run: dotnet build LayerPeek.slnx -c Release
+
+      # Right after the first build (it restores the packages and builds FFmpeg), so a failing test does not
+      # throw the caches away.
+      - name: Save NuGet packages
+        if: steps.nuget.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget.outputs.cache-primary-key }}
+
+      - name: Save FFmpeg
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg
+          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
+
+      - name: Build (Debug)
+        id: build-debug
+        run: dotnet build LayerPeek.slnx -c Debug
+
+      # Every test project except tests/LayerPeek.E2E.Tests: the Windows image has Edge, so its browser tests would run
+      # instead of skipping. The other end-to-end and interactive tests stay off by themselves (LAYERPEEK_E2E and the
+      # other on-demand variables are never set here, see docs/prerequisites.md).
+      - name: Test (Debug, without the browser end-to-end tests)
+        run: |
+          $all = @(dotnet sln LayerPeek.slnx list | Where-Object { $_ -like '*.csproj' })
+          $projects = @($all | Where-Object { (Split-Path $_ -Leaf) -ne 'LayerPeek.E2E.Tests.csproj' })
+          if ($LASTEXITCODE -ne 0 -or $all.Count -eq 0 -or $all.Count - $projects.Count -ne 1) {
+            throw "Expected exactly one LayerPeek.E2E.Tests.csproj among the $($all.Count) projects of LayerPeek.slnx."
+          }
+          $filter = Join-Path $env:RUNNER_TEMP 'ci-tests.slnf'
+          @{ solution = @{ path = (Resolve-Path LayerPeek.slnx).Path; projects = $projects } } | ConvertTo-Json -Depth 3 | Set-Content $filter
+          dotnet test --solution $filter -c Debug --no-build --no-progress --filter-not-trait "Category=AllocationSensitive" --results-directory $env:TEST_RESULTS --results-directory-layout per-module --report-xunit-trx
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # T-220 (user decision 2026-11-15): the zero-allocation tests (collection AllocationSensitive, tests/Shared/
+      # AllocationProbe.cs) count the allocations of every thread. In the main step the test platform is still sending
+      # thousands of earlier results to dotnet test while they run, so they run here, in processes that ran nothing else.
+      # Same projects as above (a project without such tests reports "Zero tests ran", the run still passes; a run in
+      # which no test at all matches fails with exit code 8). Runs also when the main test step failed, so both results
+      # are always there; the job fails if either step fails.
+      - name: Test the allocation-sensitive tests (Debug, in their own processes)
+        if: ${{ !cancelled() && steps.build-debug.outcome == 'success' }}
+        run: |
+          $filter = Join-Path $env:RUNNER_TEMP 'ci-tests.slnf'
+          dotnet test --solution $filter -c Debug --no-build --no-progress --filter-trait "Category=AllocationSensitive" --results-directory $env:TEST_RESULTS --results-directory-layout per-module --report-xunit-trx
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Native AOT, without starting the app (scripts/aot-smoke.ps1 changes the profile and needs a display).
+      - name: Publish Native AOT (${{ matrix.rid }})
+        run: dotnet publish src/LayerPeek.App -c Release -r ${{ matrix.rid }}
+
+      - name: Upload the test results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-${{ matrix.rid }}
+          path: ${{ runner.temp }}/TestResults
+          retention-days: 3
+          if-no-files-found: ignore
+
+      # Apart from the TRX: another folder (on Windows another drive) than the test results.
+      - name: Upload the images of failed UI snapshots
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: snapshot-failures-${{ matrix.rid }}
+          path: ${{ env.CI_SYSTEM_TEMP }}/LayerPeek.App.UiTests*/*.png
+          retention-days: 3
+          if-no-files-found: ignore
+
+  # T-236: the Windows ARM64 app (T-224..T-226) is cross-compiled on the x64 runner and never started there; the PE
+  # header check (Get-PublishArchitectureCheck, T-224) proves every native file is ARM64. A job of its own, not steps of
+  # the Windows build: it runs in parallel (the wall time of CI does not grow), a failing test does not hide an ARM64
+  # break (and the other way round), and its FFmpeg cache root holds only the ARM64 files, never the x64 cache.
+  # The MSVC ARM64 build tools (Microsoft.VisualStudio.Component.VC.Tools.ARM64) are part of the windows-2025 image.
+  cross-arm64:
+    name: Cross-publish (win-arm64)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      # As in the build job: native separators (FFmpeg.targets runs cmd's move with this path).
+      - name: Point the FFmpeg cache and the publish folder to the runner's temp folder
+        run: |
+          "LayerPeekFFmpegCacheRoot=$(Join-Path $env:RUNNER_TEMP ffmpeg)" >> $env:GITHUB_ENV
+          "ARM64_PUBLISH_DIR=$(Join-Path $env:RUNNER_TEMP publish-win-arm64)" >> $env:GITHUB_ENV
+
+      # Fails in seconds, not after the FFmpeg build, when an image update drops the component (vswhere, the same
+      # check as scripts/release-build.ps1).
+      - name: Check the MSVC ARM64 build tools
+        run: |
+          Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
+          $problems = @(Get-NativeToolchainProblems -Runtimes win-arm64 -HostOs windows)
+          if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+          "MSVC ARM64 build tools: installed."
+
+      # The cache folder of llvm-mingw is named by the pin in build/FFmpeg.targets; its SHA-256 is the cache key.
+      - name: Read the llvm-mingw pin
+        id: llvm-mingw-pin
+        run: |
+          $targets = Get-Content -Raw build/FFmpeg.targets
+          $sha256 = [regex]::Match($targets, '<LayerPeekLlvmMingwSha256>([0-9a-f]{64})</LayerPeekLlvmMingwSha256>').Groups[1].Value
+          $folder = [regex]::Match($targets, '<LayerPeekLlvmMingwFolder>([A-Za-z0-9._-]+)</LayerPeekLlvmMingwFolder>').Groups[1].Value
+          if (-not $sha256 -or -not $folder) { throw 'build/FFmpeg.targets has no LayerPeekLlvmMingwSha256 / LayerPeekLlvmMingwFolder.' }
+          "llvm-mingw $folder, SHA-256 $sha256"
+          "sha256=$sha256" >> $env:GITHUB_OUTPUT
+          "folder=$folder" >> $env:GITHUB_OUTPUT
+
+      # Own prefix: the build job's fallback key (nuget-<os>-) must not pick up this smaller set; this job may start
+      # from the build job's packages and download only the ARM64 runtime and ILCompiler packs.
+      - name: Restore NuGet packages
+        id: nuget
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-win-arm64-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
+          restore-keys: |
+            nuget-win-arm64-${{ runner.os }}-
+            nuget-${{ runner.os }}-
+
+      # Only the ARM64 folder of the cache root (never llvm-mingw, ~570 MB). Exact key: FFmpeg.targets holds the source
+      # and llvm-mingw pins, the script the recipe; the same inputs as the folder name.
+      - name: Restore FFmpeg (win-arm64)
+        id: ffmpeg
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg/win-arm64-*
+          key: ffmpeg-v1-windows-2025-win-arm64-${{ hashFiles('build/FFmpeg.targets', 'build/windows/build-ffmpeg.sh') }}
+
+      # llvm-mingw is needed only to compile FFmpeg, so only on an FFmpeg miss (then the build does not download it
+      # when this hits, e.g. after a change of the build script).
+      - name: Restore llvm-mingw
+        id: llvm-mingw
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg/${{ steps.llvm-mingw-pin.outputs.folder }}
+          key: llvm-mingw-v1-${{ runner.os }}-${{ steps.llvm-mingw-pin.outputs.sha256 }}
+
+      # T-225: the ARM64 cross build needs only the shell and tools of MSYS2 (the compiler is llvm-mingw).
+      - name: Install MSYS2 (FFmpeg build)
+        id: msys2
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MSYS
+          update: false
+          install: make diffutils
+
+      - name: Point the FFmpeg build to MSYS2
+        if: steps.msys2.outcome == 'success'
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          "LayerPeekMsys2Root=$env:MSYS2_LOCATION" >> $env:GITHUB_ENV
+
+      # Restores the packages and, on a miss, downloads llvm-mingw and cross-compiles FFmpeg (build/FFmpeg.targets).
+      - name: Build (Release, win-arm64)
+        id: build
+        run: dotnet build src/LayerPeek.App -c Release -r win-arm64
+
+      # Right after the build, so a failing AOT link does not throw the compiled FFmpeg away.
+      - name: Save FFmpeg (win-arm64)
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg/win-arm64-*
+          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
+
+      - name: Save llvm-mingw
+        if: steps.llvm-mingw.outcome == 'success' && steps.llvm-mingw.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg/${{ steps.llvm-mingw-pin.outputs.folder }}
+          key: ${{ steps.llvm-mingw.outputs.cache-primary-key }}
+
+      # Native AOT for ARM64 with the host's (x64) ILCompiler; not started (an x64 runner cannot run it).
+      - name: Publish Native AOT (win-arm64)
+        run: dotnet publish src/LayerPeek.App -c Release -r win-arm64 -o $env:ARM64_PUBLISH_DIR
+
+      # After the publish (it may restore packs the build did not need), also when the publish failed, so a retry does
+      # not download the packages again; only after a successful build (its restore completed the package folder).
+      - name: Save NuGet packages
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.nuget.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget.outputs.cache-primary-key }}
+
+      # T-224: the exe and every DLL are ARM64 (0xAA64); a file of another architecture would fail only on the device.
+      # The camera libraries must be there too (a build without them would pass the PE check).
+      - name: Check the architecture of the publish folder
+        run: |
+          Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
+          $check = Get-PublishArchitectureCheck -Directory $env:ARM64_PUBLISH_DIR -Runtime win-arm64
+          if ($check.Problems.Count -gt 0) { throw "The win-arm64 publish folder does not match: $($check.Problems -join ' ')" }
+          $missing = @('avformat-*.dll', 'avcodec-*.dll', 'avutil-*.dll', 'swscale-*.dll', 'FFmpeg-LICENSE.txt' | Where-Object { -not (Test-Path (Join-Path $env:ARM64_PUBLISH_DIR $_)) })
+          if ($missing.Count -gt 0) { throw "The camera libraries are missing in the win-arm64 publish folder: $($missing -join ', ')" }
+          "Architecture: $($check.Files.Count) PE file(s), all $($check.Expected): $($check.Files -join ', ')"
+
+  # The single required status check: green when the build jobs passed, or when they were not needed (docs only).
+  result:
+    name: CI result
+    needs: [changes, build, cross-arm64]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate
+        shell: bash
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          BUILD: ${{ needs.build.result }}
+          ARM64: ${{ needs.cross-arm64.result }}
+        run: |
+          echo "changes=$CHANGES code=$CODE build=$BUILD arm64=$ARM64"
+          if [ "$CHANGES" != success ]; then echo "::error::Classifying the changes failed ($CHANGES)."; exit 1; fi
+          failed=0
+          if [ "$CODE" = true ] && [ "$BUILD" != success ]; then echo "::error::Build and test: $BUILD."; failed=1; fi
+          if [ "$CODE" = true ] && [ "$ARM64" != success ]; then echo "::error::Cross-publish (win-arm64): $ARM64."; failed=1; fi
+          if [ "$failed" = 1 ]; then exit 1; fi
+          if [ "$CODE" != true ]; then echo "Only files no build or test reads changed: build and test skipped."; fi

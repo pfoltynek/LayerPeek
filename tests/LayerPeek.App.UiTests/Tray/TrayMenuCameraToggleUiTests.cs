@@ -95,6 +95,14 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
         {
         }
 
+        public void ShowUpdateSettings()
+        {
+        }
+
+        public void OpenManual()
+        {
+        }
+
         public void Quit()
         {
         }

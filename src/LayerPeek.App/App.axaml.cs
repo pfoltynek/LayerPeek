@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml;
 
 using LayerPeek.App.Composition;
 using LayerPeek.App.Diagnostics;
+using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Platform.Windows;
@@ -211,11 +212,14 @@ public partial class App : Application, ITrayAppCommands
         }
 
         // macOS (T-139): that Dock icon is LayerPeek's also without a bundle icon (dotnet run, the test bundle).
-        // T-141: Cmd-. reaches the windows as a key (Avalonia's view lacks cancelOperation:).
+        // T-141: Cmd-. reaches the windows as a key (Avalonia's view lacks cancelOperation:); T-240: Cmd-Shift-[ / ] too
+        // (AppKit took Cmd-Shift-[ on the Czech layout as Show Help menu); T-241: the Dock menu lists the windows.
         if (OperatingSystem.IsMacOS())
         {
             Platform.MacOS.MacAppIcon.ApplyWhenTheBundleHasNone();
             Platform.MacOS.MacCommandPeriod.Install(host.CreateLogger<App>());
+            Platform.MacOS.MacTabShortcutKeys.Install(host.CreateLogger<App>());
+            Platform.MacOS.MacWindowsMenu.Install(host.CreateLogger<App>());
         }
 
         // macOS (T-102): a Dock icon while a window that is not always on top is open.
@@ -384,6 +388,20 @@ public partial class App : Application, ITrayAppCommands
 
         // Never throws; the menu item shows the download while it runs.
         _ = host.UpdateOffer.RunAsync();
+    }
+
+    /// <summary>"Update refused…" (T-181): the same tab as a click on the notification about the refused update.</summary>
+    void ITrayAppCommands.ShowUpdateSettings() => ShowSettings(addPrinter: false, SettingsPage.StartupUpdates);
+
+    void ITrayAppCommands.OpenManual()
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        // Never throws: launch problems are logged by the launcher.
+        _ = host.UrlLauncher.OpenAsync(UserManual.UriFor(UiLanguage.CurrentTextCulture()));
     }
 
     void ITrayAppCommands.ShowAbout()

@@ -7,7 +7,8 @@ namespace LayerPeek.App.Tests.Installer;
 /// <summary>
 /// The Velopack update wiring of T-017 as the update checker of an installation (T-058): a failed check throws for the update
 /// service to log, pre-releases are asked for as told, and an update is applied only after the app quit normally (its state
-/// saved), because Velopack ends every process of the installation.
+/// saved), because Velopack ends every process of the installation. T-181 (user decision 2026-11-11): while the feed is refused
+/// nothing is installed, neither the release of an earlier good check nor one remembered from an earlier run.
 /// </summary>
 public sealed class AppUpdatesTests
 {
@@ -183,6 +184,75 @@ public sealed class AppUpdatesTests
     }
 
     [Fact]
+    public async Task ARefusedFeedBlocksTheReleaseOfAnEarlierGoodCheckUntilAGoodCheck()
+    {
+        _engine.Next = new AvailableUpdate("0.2.0", null);
+        AppUpdates updates = Updates();
+        UpdateRelease release = (await updates.CheckAsync(false, TestContext.Current.CancellationToken))!;
+        _engine.CheckFailure = Refused();
+        await Assert.ThrowsAsync<UpdateFeedRejectedException>(() => updates.CheckAsync(false, TestContext.Current.CancellationToken));
+        bool quit = false;
+
+        bool applied = await updates.ApplyAsync(release, false, () =>
+        {
+            quit = true;
+            return Task.CompletedTask;
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(updates.IsFeedRejected);
+        Assert.False(applied);
+        Assert.False(quit);
+        Assert.Empty(_engine.Steps);
+        Assert.Equal(2, _engine.Checks.Count);
+        Assert.Contains(_logger.Entries, static entry => entry.Message.Contains("the update feed is refused", StringComparison.Ordinal));
+
+        // A good check ends it.
+        _engine.CheckFailure = null;
+        release = (await updates.CheckAsync(false, TestContext.Current.CancellationToken))!;
+        Assert.False(updates.IsFeedRejected);
+        Assert.True(await updates.ApplyAsync(release, false, () => Task.CompletedTask, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ARememberedReleaseWhoseFeedIsRefusedIsNotInstalled()
+    {
+        _engine.CheckFailure = Refused();
+        AppUpdates updates = Updates();
+
+        bool applied = await updates.ApplyAsync(Release("0.2.0"), true, () => Task.CompletedTask, TestContext.Current.CancellationToken);
+
+        Assert.False(applied);
+        Assert.True(updates.IsFeedRejected);
+        Assert.Empty(_engine.Steps);
+        Assert.Empty(_engine.Scheduled);
+    }
+
+    [Fact]
+    public async Task ARefusalDuringTheDownloadSchedulesNothing()
+    {
+        _engine.Next = new AvailableUpdate("0.2.0", null);
+        AppUpdates updates = Updates();
+        UpdateRelease release = (await updates.CheckAsync(false, TestContext.Current.CancellationToken))!;
+        // The automatic check of the service refuses the feed while the package downloads.
+        _engine.DuringDownload = async () =>
+        {
+            _engine.CheckFailure = Refused();
+            await Assert.ThrowsAsync<UpdateFeedRejectedException>(() => updates.CheckAsync(false, TestContext.Current.CancellationToken));
+        };
+        bool quit = false;
+
+        bool applied = await updates.ApplyAsync(release, false, () =>
+        {
+            quit = true;
+            return Task.CompletedTask;
+        }, TestContext.Current.CancellationToken);
+
+        Assert.False(applied);
+        Assert.False(quit);
+        Assert.Empty(_engine.Scheduled);
+    }
+
+    [Fact]
     public void TheUpdatesComeFromTheGitHubReleasesOfTheProject()
     {
         Assert.Equal("https://github.com/pfoltynek/LayerPeek", AppUpdates.RepositoryUrl);
@@ -192,6 +262,9 @@ public sealed class AppUpdatesTests
         new(ReleaseVersion.Parse(version), UpdateRelease.PageFor(ReleaseVersion.Parse(version)), IsPrerelease: false);
 
     private AppUpdates Updates() => new(_engine, _logger);
+
+    private static UpdateFeedRejectedException Refused() =>
+        new(new RejectedUpdateFeed("releases.win-x64.json", UpdateFeedRejection.SignatureUntrusted, ReleaseVersion.Parse("9.9.9"), new string('A', 64)));
 
     private sealed class FakeUpdateEngine : IUpdateEngine
     {
@@ -209,21 +282,28 @@ public sealed class AppUpdatesTests
 
         public List<string> Steps { get; set; } = [];
 
+        /// <summary>Runs inside <see cref="DownloadAsync"/> before it completes.</summary>
+        public Func<Task>? DuringDownload { get; set; }
+
         public Task<AvailableUpdate?> CheckAsync(bool prereleases, CancellationToken cancellationToken)
         {
             Checks.Add(prereleases);
             return CheckFailure is not null ? Task.FromException<AvailableUpdate?>(CheckFailure) : Task.FromResult(Next);
         }
 
-        public Task DownloadAsync(AvailableUpdate update, CancellationToken cancellationToken)
+        public async Task DownloadAsync(AvailableUpdate update, CancellationToken cancellationToken)
         {
             if (DownloadFailure is not null)
             {
-                return Task.FromException(DownloadFailure);
+                throw DownloadFailure;
+            }
+
+            if (DuringDownload is { } during)
+            {
+                await during();
             }
 
             Steps.Add($"download {update.Version}");
-            return Task.CompletedTask;
         }
 
         public void ApplyOnExit(AvailableUpdate update)

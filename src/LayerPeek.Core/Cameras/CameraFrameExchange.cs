@@ -13,6 +13,12 @@ public sealed class CameraFrameBuffer
 
     public int Height { get; private set; }
 
+    /// <summary>Width of the camera's image the frame was scaled from (T-184, <see cref="CameraFrame.SourceWidth"/>).</summary>
+    public int SourceWidth { get; private set; }
+
+    /// <summary>Height of the camera's image the frame was scaled from (T-184, <see cref="CameraFrame.SourceHeight"/>).</summary>
+    public int SourceHeight { get; private set; }
+
     /// <summary><see cref="CameraPixelFormat.Bgra32"/> unless the exchange converts to grayscale.</summary>
     public CameraPixelFormat Format { get; private set; }
 
@@ -52,6 +58,44 @@ public sealed class CameraFrameBuffer
         scaler.Scale(frame, size, _pixels);
         Width = size.Width;
         Height = size.Height;
+        SourceWidth = frame.SourceWidth;
+        SourceHeight = frame.SourceHeight;
+        Format = CameraPixelFormat.Gray8;
+    }
+
+    /// <summary>Copies the borrowed grayscale <paramref name="frame"/> (T-189, valid only now) into this buffer.</summary>
+    internal void CopyGrayscaleFrom(in CameraGrayscaleFrame frame)
+    {
+        if (frame.Width <= 0 || frame.Height <= 0)
+        {
+            throw new ArgumentException("An empty frame cannot be copied.", nameof(frame));
+        }
+
+        int width = frame.Width;
+        int required = checked(width * frame.Height);
+        if (_pixels.Length < required)
+        {
+            _pixels = GC.AllocateUninitializedArray<byte>(required);
+        }
+
+        ReadOnlySpan<byte> source = frame.Pixels.Span;
+        Span<byte> target = _pixels.AsSpan(0, required);
+        if (frame.Stride == width)
+        {
+            source[..required].CopyTo(target);
+        }
+        else
+        {
+            for (int row = 0; row < frame.Height; row++)
+            {
+                source.Slice(row * frame.Stride, width).CopyTo(target.Slice(row * width, width));
+            }
+        }
+
+        Width = width;
+        Height = frame.Height;
+        SourceWidth = frame.SourceWidth;
+        SourceHeight = frame.SourceHeight;
         Format = CameraPixelFormat.Gray8;
     }
 
@@ -70,7 +114,9 @@ public sealed class CameraFrameBuffer
         int required = checked(rowBytes * frame.Height);
         if (_pixels.Length < required)
         {
-            _pixels = GC.AllocateUninitializedArray<byte>(required);
+            // A display frame grows step by step while its window is resized (T-184): with some headroom that is a few
+            // allocations, not one per size.
+            _pixels = GC.AllocateUninitializedArray<byte>(_pixels.Length == 0 ? required : Math.Max(required, (int)Math.Min(Array.MaxLength, _pixels.Length * 3L / 2)));
         }
 
         ReadOnlySpan<byte> source = frame.Pixels.Span;
@@ -89,6 +135,8 @@ public sealed class CameraFrameBuffer
 
         Width = frame.Width;
         Height = frame.Height;
+        SourceWidth = frame.SourceWidth;
+        SourceHeight = frame.SourceHeight;
         Format = CameraPixelFormat.Bgra32;
     }
 }
@@ -122,7 +170,10 @@ public sealed class CameraFrameExchange
     {
     }
 
-    /// <summary>Copies frames as 8-bit grayscale of <paramref name="grayscale"/> (T-153), converted while copying.</summary>
+    /// <summary>
+    /// Copies frames as 8-bit grayscale of <paramref name="grayscale"/> (T-153): grayscale frames of that size as they are
+    /// (T-189), BGRA frames converted while copying.
+    /// </summary>
     public CameraFrameExchange(CameraGrayscaleSize grayscale)
     {
         if (!grayscale.IsValid)
@@ -152,6 +203,29 @@ public sealed class CameraFrameExchange
             _back.CopyGrayscaleFrom(frame, _grayscale, _scaler);
         }
 
+        return Swap(generation);
+    }
+
+    /// <summary>
+    /// Streaming thread: copies the grayscale <paramref name="frame"/> (T-189: converted by the feed, borrowed, valid only
+    /// during this call) and makes it the newest. Only for an exchange of grayscale of exactly the frame's size.
+    /// </summary>
+    /// <returns><see langword="true"/> when the UI must be notified (it has no notification pending).</returns>
+    /// <exception cref="ArgumentException">The exchange copies BGRA, or grayscale of another size.</exception>
+    public bool PublishGrayscale(in CameraGrayscaleFrame frame, int generation = 0)
+    {
+        if (_scaler is null || !frame.Is(_grayscale))
+        {
+            throw new ArgumentException("The frame is not grayscale of the exchange's size.", nameof(frame));
+        }
+
+        _back.CopyGrayscaleFrom(frame);
+        return Swap(generation);
+    }
+
+    /// <summary>Streaming thread: the back buffer holds the newest frame; swaps it into the "ready" slot.</summary>
+    private bool Swap(int generation)
+    {
         _back.Generation = generation;
         lock (_gate)
         {

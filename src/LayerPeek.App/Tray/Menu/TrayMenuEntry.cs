@@ -83,6 +83,9 @@ public enum TrayMenuCommand
     /// <summary>"Cancel timelapse from recording (42 %)" (T-164), instead of <see cref="CreateTimelapseFromRecording"/> while one is made.</summary>
     CancelTimelapseFromRecording,
 
+    /// <summary>"User manual" (T-172), right above "About": the manual in the language of the texts in the browser.</summary>
+    Manual,
+
     About,
 
     /// <summary>
@@ -90,6 +93,12 @@ public enum TrayMenuCommand
     /// installation.
     /// </summary>
     Update,
+
+    /// <summary>
+    /// "Update refused…" (T-181, user decision 2026-11-11), instead of <see cref="Update"/> while the update feed is refused:
+    /// the settings window on the Startup and updates tab, where the error is.
+    /// </summary>
+    UpdateRejected,
     Quit,
 }
 

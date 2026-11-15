@@ -17,8 +17,9 @@ namespace LayerPeek.Core.Detection;
 /// globally and for the printer and at least one detector is on. Otherwise (idle, paused, waiting for the user, offline,
 /// finished) it holds no camera lease, nothing is decoded or analysed for it and no timer or task exists.</item>
 /// <item><b>Samples:</b> a lease of key frames only (<see cref="CameraFrameSubscriptionOptions.KeyFramesOnly"/>), one per
-/// <see cref="PrintFailureDetectionSettings.SampleInterval"/>, downscaled into 8-bit grayscale of the detectors'
-/// <see cref="DetectionFrameSpec"/> while the hub copies it. Without a camera window only those key frames are decoded.
+/// <see cref="PrintFailureDetectionSettings.SampleInterval"/>, as 8-bit grayscale of the detectors' <see cref="DetectionFrameSpec"/>
+/// scaled by the decoder straight from the picture's luma (T-189, no BGRA frame). Without a camera window only those key
+/// frames are decoded.
 /// The camera window does not have to be open.</item>
 /// <item><b>Analysis:</b> on the thread pool, never on the decoder or UI thread; a slow detector only drops samples (the
 /// hub keeps the newest). Every start, resume, camera reconnect and the light coming back reset the detectors; while a

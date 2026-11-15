@@ -99,6 +99,9 @@
   <data name="MenuAbout" xml:space="preserve">
     <value>_O aplikaci</value>
   </data>
+  <data name="MenuManual" xml:space="preserve">
+    <value>_Uživatelská příručka</value>
+  </data>
   <data name="MenuAddPrinter" xml:space="preserve">
     <value>_Přidat tiskárnu…</value>
   </data>
@@ -807,6 +810,12 @@
   <data name="CameraError" xml:space="preserve">
     <value>Chyba kamery</value>
   </data>
+  <data name="CameraNextAttemptSeconds" xml:space="preserve">
+    <value>Další pokus asi za {0} s</value>
+  </data>
+  <data name="CameraNextAttemptMinutes" xml:space="preserve">
+    <value>Další pokus asi za {0} min</value>
+  </data>
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Celá obrazovka (F11)</value>
   </data>
@@ -833,6 +842,12 @@
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licence třetích stran…</value>
+  </data>
+  <data name="AboutFFmpegNotice" xml:space="preserve">
+    <value>Tento software používá knihovny projektu FFmpeg pod licencí LGPLv3 nebo novější.</value>
+  </data>
+  <data name="AboutFFmpegSource" xml:space="preserve">
+    <value>Zdrojový kód FFmpeg této verze</value>
   </data>
   <data name="LicensesTitle" xml:space="preserve">
     <value>Licence třetích stran</value>
@@ -865,25 +880,19 @@
     <value>Knihovny FFmpeg nebyly vedle aplikace nalezeny, kamera proto nefunguje.</value>
   </data>
   <data name="LicensesFFmpegNote" xml:space="preserve">
-    <value>FFmpeg je licencovaný pod GNU LGPL verze 3 nebo novější. Aplikace používá neupravený LGPL build od BtbN a linkuje ho dynamicky: knihovny DLL avcodec, avformat, avutil, swscale a swresample vedle aplikace lze nahradit kompatibilním buildem FFmpeg (stejné verze knihoven, např. avcodec-63).</value>
+    <value>FFmpeg je licencovaný pod GNU LGPL verze 3 nebo novější. Aplikace používá neupravené vydání FFmpeg, sestavené z oficiálních zdrojových kódů jako LGPL build, a linkuje ho dynamicky: knihovny DLL avcodec, avformat, avutil a swscale vedle aplikace lze nahradit kompatibilním buildem FFmpeg (stejné verze knihoven, např. avcodec-63).</value>
   </data>
   <data name="LicensesFFmpegSource" xml:space="preserve">
     <value>Zdrojový kód FFmpeg</value>
   </data>
   <data name="LicensesFFmpegBuild" xml:space="preserve">
-    <value>Použitý build FFmpeg (vydání BtbN)</value>
+    <value>Použité zdrojové vydání FFmpeg (ffmpeg.org)</value>
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
-    <value>Konfigurace a skripty buildu (BtbN)</value>
+    <value>Konfigurace a skript buildu (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
     <value>FFmpeg je licencovaný pod GNU LGPL verze 3 nebo novější. Aplikace používá neupravené vydání FFmpeg, sestavené z oficiálních zdrojových kódů jako LGPL build, a linkuje ho dynamicky: knihovny libavcodec, libavformat, libavutil a libswscale (.dylib) v LayerPeek.app/Contents/MacOS lze nahradit kompatibilním buildem FFmpeg (stejné verze knihoven, např. libavcodec.63.dylib). Aplikaci je pak potřeba znovu podepsat, stačí ad-hoc podpis.</value>
-  </data>
-  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
-    <value>Použité zdrojové vydání FFmpeg (ffmpeg.org)</value>
-  </data>
-  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
-    <value>Konfigurace a skript buildu (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Text licence FFmpeg (FFmpeg-LICENSE.txt) nebyl vedle aplikace nalezen. GNU LGPL 3.0 je zveřejněná na https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -896,6 +905,12 @@
   </data>
   <data name="LicensesComponentTmdsDBus" xml:space="preserve">
     <value>Tmds.DBus.Protocol (jen Linux)</value>
+  </data>
+  <data name="LicensesComponentInter" xml:space="preserve">
+    <value>Inter (písmo, jen macOS)</value>
+  </data>
+  <data name="LicensesComponentMinGW" xml:space="preserve">
+    <value>MinGW-w64 runtime (v knihovnách DLL FFmpeg, jen Windows)</value>
   </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Okno kamery</value>
@@ -914,6 +929,63 @@
   </data>
   <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
     <value>Platí pro všechny tiskárny. Okno, které zavřete sami, zůstane zavřené.</value>
+  </data>
+  <data name="SettingsCameraTabHint" xml:space="preserve">
+    <value>Platí pro všechny kamery. Kameru jednotlivé tiskárny nastavíte na záložce Tiskárny.</value>
+  </data>
+  <data name="SettingsMiniFrameRate" xml:space="preserve">
+    <value>Snímková frekvence malého náhledu</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomy" xml:space="preserve">
+    <value>Úsporný</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalanced" xml:space="preserve">
+    <value>Vyvážený</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmooth" xml:space="preserve">
+    <value>Plynulý</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustom" xml:space="preserve">
+    <value>Vlastní</value>
+  </data>
+  <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
+    <value>5 fps: nejnižší zátěž procesoru a nejméně kopírovaných obrazových dat, pohyb v obraze je trhanější.</value>
+  </data>
+  <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
+    <value>10 fps (doporučeno): pro malý obraz dost plynulé při zlomku zátěže procesoru a kopírovaných dat.</value>
+  </data>
+  <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
+    <value>Každý snímek kamery jako v normálním okně: nejvyšší zátěž procesoru a nejvíc kopírovaných dat.</value>
+  </data>
+  <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
+    <value>Vlastní hodnota: méně snímků za sekundu znamená menší zátěž procesoru a méně kopírovaných dat.</value>
+  </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Hardwarové dekódování</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automaticky</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Vypnuto</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>Video kamery dekóduje grafický hardware, když to jde, jinak procesor: menší zátěž procesoru.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Vždy dekóduje procesor: méně paměti, bez systémového dekodéru. Zkuste, je-li obraz kamery poškozený nebo černý.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>Na Windows zatím i Automaticky dekóduje software.</value>
+  </data>
+  <data name="SettingsMiniFrameRateValue" xml:space="preserve">
+    <value>{0} fps</value>
+  </data>
+  <data name="SettingsMiniFrameRateNoLimit" xml:space="preserve">
+    <value>Bez omezení</value>
+  </data>
+  <data name="SettingsMiniFrameRateSlider" xml:space="preserve">
+    <value>Snímky za sekundu v malém náhledu</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otevřít jako</value>
@@ -1411,6 +1483,9 @@
   <data name="MenuUpdateDownloading" xml:space="preserve">
     <value>Stahuje se verze {0}…</value>
   </data>
+  <data name="MenuUpdateRejected" xml:space="preserve">
+    <value>Aktualizace odmítnuta…</value>
+  </data>
   <data name="MenuUpdateInstallHint" xml:space="preserve">
     <value>Stáhne aktualizaci, ukončí LayerPeek a spustí novou verzi.</value>
   </data>
@@ -1449,6 +1524,18 @@
   </data>
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Přesuňte LayerPeek do složky Aplikace, pak se bude aktualizovat sám.</value>
+  </data>
+  <data name="NotificationUpdateRejectedTitle" xml:space="preserve">
+    <value>Aktualizace LayerPeeku odmítnuta</value>
+  </data>
+  <data name="NotificationUpdateRejectedBody" xml:space="preserve">
+    <value>Aktualizace se nenainstalovala, protože nešlo ověřit její podpis. Klikněte pro podrobnosti.</value>
+  </data>
+  <data name="SettingsUpdateRejectedResult" xml:space="preserve">
+    <value>Aktualizace byla odmítnuta.</value>
+  </data>
+  <data name="SettingsUpdateRejected" xml:space="preserve">
+    <value>LayerPeek aktualizaci odmítl, protože nešlo ověřit její podpis, a nic nenainstaloval. Tuto verzi neinstalujte ručně: počkejte na další vydání nebo sledujte oznámení projektu.</value>
   </data>
   <data name="MenuStartRecording" xml:space="preserve">
     <value>_Nahrávat</value>
@@ -1905,5 +1992,32 @@
   </data>
   <data name="SettingsDetectionDarkFilamentHint" xml:space="preserve">
     <value>Černý nebo velmi tmavý filament: jako změna se počítá i menší ztmavnutí na podložce. Na tmavém plátu najde o něco víc, s vyšším rizikem falešných poplachů.</value>
+  </data>
+  <data name="SettingsAddressUntrustedNetwork" xml:space="preserve">
+    <value>Nešifrované spojení mimo místní síť: heslo PrusaLink může někdo zachytit. Použijte https:// (reverzní proxy) nebo VPN.</value>
+  </data>
+  <data name="SettingsCameraUrlUntrustedNetwork" xml:space="preserve">
+    <value>Nešifrované spojení mimo místní síť: obraz kamery může někdo zachytit. Použijte VPN.</value>
+  </data>
+  <data name="SettingsSecurityMoreInfo" xml:space="preserve">
+    <value>Více informací</value>
+  </data>
+  <data name="SettingsSecurityMoreInfoHint" xml:space="preserve">
+    <value>Otevře v uživatelské příručce kapitolu o zabezpečení přístupu k PrusaLinku.</value>
+  </data>
+  <data name="TextBoxCut" xml:space="preserve">
+    <value>Vyj_mout</value>
+  </data>
+  <data name="TextBoxCopy" xml:space="preserve">
+    <value>_Kopírovat</value>
+  </data>
+  <data name="TextBoxPaste" xml:space="preserve">
+    <value>V_ložit</value>
+  </data>
+  <data name="TextBoxPasteMac" xml:space="preserve">
+    <value>V_ložit</value>
+  </data>
+  <data name="TextBoxSelectAll" xml:space="preserve">
+    <value>Vybrat _vše</value>
   </data>
 </root>

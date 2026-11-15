@@ -1,6 +1,7 @@
 using Microsoft.Playwright;
 
 using LayerPeek.E2E.Tests.Infrastructure;
+using LayerPeek.Tests.Shared;
 
 namespace LayerPeek.E2E.Tests;
 
@@ -174,6 +175,5 @@ public sealed class BrowserLifecycleTests(EdgeFixture edge)
     }
 
     /// <summary>OS listener table (a refused connect to loopback takes seconds on Windows).</summary>
-    private static bool IsListening(int port) =>
-        System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(e => e.Port == port);
+    private static bool IsListening(int port) => TcpListenerTable.IsListening(port);
 }

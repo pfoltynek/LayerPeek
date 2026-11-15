@@ -44,7 +44,7 @@ public sealed class LicensesWindowUiTests(HeadlessSession session)
             Assert.NotEqual("Detecting the FFmpeg libraries…", viewModel.FFmpegVersionText);
 
             Expander avalonia = Ui.Find<Expander>(licences, static expander => expander.DataContext is LicenseItemViewModel { Name: "Avalonia" });
-            Assert.True(Ui.ShowsText(licences, "Version 12.1.4"));
+            Assert.True(Ui.ShowsText(licences, "Version 12.1.6"));
             Click(licences, avalonia.GetVisualDescendants().OfType<ToggleButton>().First());
 
             TextBox text = Ui.Find<TextBox>(avalonia, static box => box.IsEffectivelyVisible);
@@ -82,7 +82,7 @@ public sealed class LicensesWindowUiTests(HeadlessSession session)
             Assert.Equal("Licences tierces", licences.Title);
             Assert.True(Ui.ShowsText(licences, "FFmpeg (décodage vidéo de la caméra)"));
             Assert.True(Ui.ShowsText(licences, "Licence\u00A0: LGPL-3.0-or-later"));
-            Assert.True(Ui.ShowsText(licences, "Version 12.1.4"));
+            Assert.True(Ui.ShowsText(licences, "Version 12.1.6"));
             Assert.True(Ui.ShowsText(licences, "Licence\u00A0: MIT"));
             Assert.True(Ui.ShowsText(licences, "Tmds.DBus.Protocol (Linux uniquement)"));
             Assert.StartsWith("FFmpeg est distribué sous licence GNU LGPL", viewModel.FFmpegNote, StringComparison.Ordinal);

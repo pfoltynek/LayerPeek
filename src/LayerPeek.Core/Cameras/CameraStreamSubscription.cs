@@ -52,6 +52,9 @@ public abstract class CameraStreamSubscription : IDisposable, IAsyncDisposable
 
     public string PrinterId { get; }
 
+    /// <summary>The hub of the lease; <see langword="null"/> for one that never belonged to a hub.</summary>
+    private protected CameraStreamHub? Hub => _hub;
+
     /// <summary>The last status reported to this subscriber; <see cref="CameraStatus.Connecting"/> before the first.</summary>
     public CameraStatus Status => Volatile.Read(ref _reported) ?? CameraStatus.Connecting;
 
@@ -163,6 +166,9 @@ public abstract class CameraStreamSubscription : IDisposable, IAsyncDisposable
     }
 }
 
+/// <summary>Receives a borrowed frame on the streaming thread (see <see cref="CameraFrameSubscriptionOptions.FrameReceived"/>).</summary>
+public delegate void CameraFrameHandler(in CameraFrame frame);
+
 /// <summary>Options of <see cref="CameraStreamHub.SubscribeFrames"/>.</summary>
 public sealed class CameraFrameSubscriptionOptions
 {
@@ -208,8 +214,11 @@ public sealed class CameraFrameSubscriptionOptions
     public bool KeyFramesOnly { get; init; }
 
     /// <summary>
-    /// 8-bit grayscale copies of this size instead of BGRA copies (T-153), converted while copying (see
-    /// <see cref="CameraGrayscaleSize"/>); <see langword="null"/> (the default): BGRA as decoded.
+    /// 8-bit grayscale copies of this size instead of BGRA copies (T-153, see <see cref="CameraGrayscaleSize"/>); the feed
+    /// scales them straight from the picture's luma (T-189, <see cref="CameraStreamItem.GrayscaleFrame"/>), so no BGRA frame
+    /// in full resolution is converted for this subscriber. <see langword="null"/> (the default): BGRA as decoded. While
+    /// subscribers of several sizes watch one camera, the feed converts one of them; the others are converted from full
+    /// frames while copying, as for a feed that does not convert to grayscale.
     /// </summary>
     public CameraGrayscaleSize? Grayscale
     {
@@ -224,6 +233,53 @@ public sealed class CameraFrameSubscriptionOptions
             field = value;
         }
     }
+
+    /// <summary>
+    /// T-184: frames for display only, scaled down to fit this size in device pixels (aspect ratio kept, never scaled up;
+    /// see <see cref="CameraFrameSize.Fit"/>); changed later with <see cref="CameraFrameSubscription.SetDisplaySize"/>.
+    /// <see langword="null"/> (the default): frames in the camera's resolution. Snapshots, exports, recordings and print
+    /// failure detection always use full resolution (user decision 2026-11-10; detection's grayscale samples are scaled
+    /// from the full picture, never from a display frame, T-189); a display reader that needs one full
+    /// frame takes a short lease of its own without this size. While several display readers watch one camera, each gets
+    /// the frame of the largest size any of them wants (it may be larger than its own).
+    /// </summary>
+    public CameraFrameSize? DisplaySize { get; init; }
+
+    /// <summary>
+    /// T-185: at most this many frames per second (the mini preview, user decision 2026-11-11); changed later with
+    /// <see cref="CameraFrameSubscription.SetMaxFrameRate"/>. <see langword="null"/> (the default): every frame. The frames
+    /// in between are skipped before they are copied; for a display reader they are not even converted (the decoder still
+    /// decodes every frame, the next ones depend on it). The pace follows a fixed grid of 1 / rate, so a source that is not a
+    /// multiple of the rate still gets the rate on average; a frame up to a quarter of the interval early counts as on time
+    /// (network jitter must not halve a rate close to the camera's).
+    /// </summary>
+    public int? MaxFrameRate
+    {
+        get;
+        init
+        {
+            CameraFrameSubscription.ValidateFrameRate(value);
+            field = value;
+        }
+    }
+
+    /// <summary>
+    /// T-184: hands every frame this subscriber takes directly to this callback, on the streaming thread, instead of
+    /// copying it into the subscription's own buffers: the frame is borrowed and valid only during the call, so the
+    /// callback copies it where it is needed (e.g. straight into the bitmap that is shown) and returns quickly.
+    /// <see cref="CameraFrameSubscription.TakeLatest"/> then returns nothing and <see cref="FrameAvailable"/> is not called.
+    /// Cannot be combined with <see cref="Grayscale"/>. If it throws, the subscription ends with
+    /// <see cref="CameraStreamEndReason.Failed"/>.
+    /// </summary>
+    public CameraFrameHandler? FrameReceived { get; init; }
+
+    /// <summary>
+    /// T-188 (user decision 2026-11-11): the camera window opened or was restored, or (T-194) the camera test in the
+    /// settings started. When this lease is taken while the connection waits between reconnect attempts, the next attempt
+    /// starts at once and its backoff starts over. Off for print failure detection, recording and every other consumer:
+    /// they never shorten the wait.
+    /// </summary>
+    public bool ShortensReconnectWait { get; init; }
 }
 
 /// <summary>
@@ -236,13 +292,32 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
     /// <summary><see cref="_lastPublished"/> before the first frame.</summary>
     private const long NeverPublished = long.MinValue;
 
-    private readonly CameraFrameExchange _exchange;
+    /// <summary><see cref="_nextPaced"/> while the next frame is taken whenever it comes.</summary>
+    private const long NotPaced = long.MinValue;
+
+    /// <summary>A frame up to 1 / this of the interval early counts as on time (T-185).</summary>
+    private const long EarlyFraction = 4;
+
+    private readonly long _timestampFrequency;
+
+    private readonly CameraFrameExchange? _exchange;
+    private readonly CameraFrameHandler? _frameReceived;
     private readonly Action? _frameAvailable;
     private readonly long _minInterval;
     private readonly Lock _gate = new();
 
+    // CameraFrameSize.Pack of the display size; 0: full resolution. Read without a lock by the streaming thread.
+    private long _displaySize;
+
     // Written by the streaming thread; read by the hub under its lock (NextKeyFrameDue).
     private long _lastPublished = NeverPublished;
+
+    // T-185: the frame interval of MaxFrameRate in timestamp ticks (0: no limit) and its rate, written by any thread; the
+    // time the next frame is due on the grid (NotPaced: the next frame), written by the streaming thread and reset by a
+    // new rate.
+    private long _frameInterval;
+    private int _maxFrameRate;
+    private long _nextPaced = NotPaced;
 
     // Written under _gate, read without it on the streaming thread.
     private volatile bool _hasFrame;
@@ -252,18 +327,96 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
         : base(hub, printerId, options.Status, options.Ended)
     {
         _frameAvailable = options.FrameAvailable;
+        _timestampFrequency = timeProvider.TimestampFrequency;
+        SetFrameRate(options.MaxFrameRate);
         _minInterval = options.MinFrameInterval == TimeSpan.Zero
             ? 0
             : (long)(options.MinFrameInterval.TotalSeconds * timeProvider.TimestampFrequency);
         KeyFramesOnly = options.KeyFramesOnly;
-        _exchange = options.Grayscale is { } grayscale ? new CameraFrameExchange(grayscale) : new CameraFrameExchange();
+        ShortensReconnectWait = options.ShortensReconnectWait;
+        _displaySize = CameraFrameSize.Pack(options.DisplaySize);
+        Grayscale = options.Grayscale;
+        _frameReceived = options.FrameReceived;
+        if (_frameReceived is not null && options.Grayscale is not null)
+        {
+            throw new ArgumentException("Frames handed to a callback cannot be converted to grayscale.", nameof(options));
+        }
+
+        // A frame receiver copies the frames itself: no buffers of the subscription.
+        _exchange = _frameReceived is not null ? null
+            : options.Grayscale is { } grayscale ? new CameraFrameExchange(grayscale)
+            : new CameraFrameExchange();
     }
 
     /// <summary>Frames replaced before the consumer took them.</summary>
-    public long DroppedFrames => _exchange.DroppedFrames;
+    public long DroppedFrames => _exchange?.DroppedFrames ?? 0;
+
+    /// <summary>
+    /// The size display frames are scaled to fit (T-184, see <see cref="CameraFrameSubscriptionOptions.DisplaySize"/>);
+    /// <see langword="null"/>: full resolution.
+    /// </summary>
+    public CameraFrameSize? DisplaySize => CameraFrameSize.Unpack(Interlocked.Read(ref _displaySize));
+
+    /// <summary>
+    /// Any thread: a new display size (the window was resized, switched to the mini preview or full screen, or moved to a
+    /// monitor with another scaling); <see langword="null"/> switches to full resolution. The running stream reconfigures
+    /// its conversion from the next frame on, without reconnecting; a frame converted before may still arrive in the old
+    /// size. Cheap when the size did not change.
+    /// </summary>
+    public void SetDisplaySize(CameraFrameSize? size)
+    {
+        long packed = CameraFrameSize.Pack(size);
+        if (Interlocked.Exchange(ref _displaySize, packed) != packed && !IsEnded)
+        {
+            Hub?.OnScheduleChanged(this);
+        }
+    }
+
+    /// <summary>
+    /// At most this many frames per second (T-185, see <see cref="CameraFrameSubscriptionOptions.MaxFrameRate"/>);
+    /// <see langword="null"/>: every frame.
+    /// </summary>
+    public int? MaxFrameRate => Volatile.Read(ref _maxFrameRate) is > 0 and int rate ? rate : null;
+
+    /// <summary>
+    /// Any thread: a new frame rate limit (the window switched to or from the mini preview, or the setting changed);
+    /// <see langword="null"/>: every frame. Applies from the next frame on, without reconnecting: the next frame is taken
+    /// right away and the new pace starts from it. Cheap when the rate did not change.
+    /// </summary>
+    public void SetMaxFrameRate(int? rate)
+    {
+        ValidateFrameRate(rate);
+        if (SetFrameRate(rate) && !IsEnded)
+        {
+            Hub?.OnScheduleChanged(this);
+        }
+    }
+
+    internal static void ValidateFrameRate(int? rate)
+    {
+        if (rate is { } value)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1, nameof(rate));
+        }
+    }
+
+    /// <summary>Takes the frames for display (<see cref="CameraStreamItem.DisplayFrame"/>), not the full resolution ones.</summary>
+    internal bool IsDisplay => Interlocked.Read(ref _displaySize) != 0;
+
+    /// <summary>
+    /// Takes at most one frame per <see cref="CameraFrameSubscriptionOptions.MinFrameInterval"/>, or has a
+    /// <see cref="MaxFrameRate"/> (T-185).
+    /// </summary>
+    internal bool IsThrottled => _minInterval > 0 || Interlocked.Read(ref _frameInterval) > 0;
 
     /// <summary>See <see cref="CameraFrameSubscriptionOptions.KeyFramesOnly"/>.</summary>
     internal bool KeyFramesOnly { get; }
+
+    /// <summary>See <see cref="CameraFrameSubscriptionOptions.ShortensReconnectWait"/>.</summary>
+    internal bool ShortensReconnectWait { get; }
+
+    /// <summary>See <see cref="CameraFrameSubscriptionOptions.Grayscale"/>.</summary>
+    internal CameraGrayscaleSize? Grayscale { get; }
 
     /// <summary>When this subscriber wants its next frame (a timestamp of the hub's clock); <see cref="long.MinValue"/>: now.</summary>
     internal long NextFrameDue
@@ -271,15 +424,24 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
         get
         {
             long last = Interlocked.Read(ref _lastPublished);
-            return last == NeverPublished ? NeverPublished : last + _minInterval;
+            long due = last == NeverPublished ? NeverPublished : last + _minInterval;
+            if (Interlocked.Read(ref _frameInterval) > 0)
+            {
+                // The grid's time minus the tolerance of TryTake (NotPaced is long.MinValue: now).
+                long paced = Interlocked.Read(ref _nextPaced);
+                due = Math.Max(due, paced == NotPaced ? NotPaced : paced - (Interlocked.Read(ref _frameInterval) / EarlyFraction));
+            }
+
+            return due;
         }
     }
 
     /// <summary>
-    /// Consumer thread: the newest frame since the last call, or <see langword="null"/>. The buffer is owned by the
-    /// subscription and stays valid until the next call.
+    /// Consumer thread: the newest frame since the last call, or <see langword="null"/> (always with
+    /// <see cref="CameraFrameSubscriptionOptions.FrameReceived"/>). The buffer is owned by the subscription and stays valid
+    /// until the next call.
     /// </summary>
-    public CameraFrameBuffer? TakeLatest() => IsEnded ? null : _exchange.TakeLatest();
+    public CameraFrameBuffer? TakeLatest() => IsEnded ? null : _exchange?.TakeLatest();
 
     internal override void OnConnectionStatus(CameraStatus status)
     {
@@ -303,6 +465,46 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
     /// <returns>Whether the frame was taken (not skipped).</returns>
     internal bool Publish(in CameraFrame frame, long timestamp)
     {
+        if (!TryTake(timestamp))
+        {
+            return false;
+        }
+
+        bool notify;
+        if (_exchange is null)
+        {
+            _frameReceived!(frame);
+            notify = false;
+        }
+        else
+        {
+            notify = _exchange.Publish(frame);
+        }
+
+        Published(notify);
+        return true;
+    }
+
+    /// <summary>
+    /// Streaming thread: copies the grayscale <paramref name="frame"/> of this subscriber's <see cref="Grayscale"/> size
+    /// (T-189, borrowed, valid only now) unless it is skipped.
+    /// </summary>
+    /// <returns>Whether the frame was taken (not skipped).</returns>
+    internal bool PublishGrayscale(in CameraGrayscaleFrame frame, long timestamp)
+    {
+        if (!TryTake(timestamp))
+        {
+            return false;
+        }
+
+        // A grayscale subscriber always has its exchange (it cannot have a frame receiver).
+        Published(_exchange!.PublishGrayscale(frame));
+        return true;
+    }
+
+    /// <summary>Streaming thread: whether a frame at <paramref name="timestamp"/> is taken; then it counts as the last one.</summary>
+    private bool TryTake(long timestamp)
+    {
         if (IsEnded)
         {
             // Removed meanwhile; the stream still had it in its list.
@@ -315,9 +517,54 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
             return false;
         }
 
-        Interlocked.Exchange(ref _lastPublished, timestamp);
+        long interval = Interlocked.Read(ref _frameInterval);
+        if (interval > 0 && !TryPace(timestamp, interval))
+        {
+            return false;
+        }
 
-        bool notify = _exchange.Publish(frame);
+        Interlocked.Exchange(ref _lastPublished, timestamp);
+        return true;
+    }
+
+    /// <summary>
+    /// Streaming thread (T-185): whether a frame at <paramref name="timestamp"/> keeps the <see cref="MaxFrameRate"/>; then
+    /// the grid moves on by one <paramref name="interval"/>. A frame up to a quarter interval early counts as on time; one
+    /// late by a whole interval or more (the first frame, a stall) starts a new grid from itself.
+    /// </summary>
+    private bool TryPace(long timestamp, long interval)
+    {
+        long next = Interlocked.Read(ref _nextPaced);
+        if (next != NotPaced && timestamp < next - (interval / EarlyFraction))
+        {
+            return false;
+        }
+
+        long following = next == NotPaced || timestamp - next >= interval ? timestamp + interval : next + interval;
+        // A new rate set meanwhile reset the grid: the reset wins (its next frame is taken right away).
+        Interlocked.CompareExchange(ref _nextPaced, following, next);
+        return true;
+    }
+
+    /// <summary>Any thread: the interval of <paramref name="rate"/>; <see langword="true"/> when it changed.</summary>
+    private bool SetFrameRate(int? rate)
+    {
+        int value = rate ?? 0;
+        if (Interlocked.Exchange(ref _maxFrameRate, value) == value)
+        {
+            return false;
+        }
+
+        long interval = value == 0 ? 0 : Math.Max(1, (long)Math.Round(_timestampFrequency / (double)value));
+        Interlocked.Exchange(ref _frameInterval, interval);
+        // The next frame is taken right away, the new pace starts from it.
+        Interlocked.Exchange(ref _nextPaced, NotPaced);
+        return true;
+    }
+
+    /// <summary>Streaming thread: a frame was taken; reports the first one and notifies the consumer when it must be.</summary>
+    private void Published(bool notify)
+    {
         if (!_hasFrame)
         {
             bool streaming;
@@ -337,8 +584,6 @@ public sealed class CameraFrameSubscription : CameraStreamSubscription
         {
             _frameAvailable?.Invoke();
         }
-
-        return true;
     }
 }
 

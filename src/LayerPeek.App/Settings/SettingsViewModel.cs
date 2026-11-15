@@ -61,6 +61,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// </summary>
     public const int RecordingTab = 4;
 
+    /// <summary>
+    /// Main tab of the settings of every camera (T-185, user decision 2026-11-11: a tab of its own, as the printer's Camera
+    /// sub-tab has no room left), with the frame rate of the mini preview.
+    /// </summary>
+    public const int CameraTab = 5;
+
     /// <summary>Sub-tabs of the selected printer (<see cref="SelectedPrinterTabIndex"/>, T-033): connection fields.</summary>
     public const int ConnectionPrinterTab = 0;
 
@@ -76,7 +82,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>How many sub-tabs a printer has (the Overlay sub-tab of T-036 gave way to the Widgets tab, T-092).</summary>
     public const int PrinterTabCount = 4;
 
-    private const int TabCount = 5;
+    private const int TabCount = 6;
 
     private const int MaxIdAttempts = 100;
 
@@ -372,7 +378,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         private set => SetProperty(ref _statusIsError, value);
     }
 
-    /// <summary>One of the main tabs (<see cref="PrintersTab"/> … <see cref="RecordingTab"/>); switched by a failed save to the part with the error.</summary>
+    /// <summary>One of the main tabs (<see cref="PrintersTab"/> … <see cref="CameraTab"/>); switched by a failed save to the part with the error.</summary>
     public int SelectedTabIndex
     {
         get => _selectedTabIndex;
@@ -861,6 +867,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
     }
 
+    /// <summary>
+    /// The start after logon to save as the user's choice (T-201, user decision 2026-11-12): the option when the user switched
+    /// it in the window (saved even when the OS then refuses the switch: it stays the user's choice and the next Save tries
+    /// again), otherwise the saved choice as it is, so that the install hook of a reinstall (<c>winget upgrade</c>) keeps an
+    /// autostart the user switched off. A state the window only followed from the OS (macOS) is no choice.
+    /// </summary>
+    private bool? StartAtLoginChoice() =>
+        _autostart is not null && _startWithWindows != _autostartBaseline ? _startWithWindows : _baseline.StartAtLogin;
+
     /// <summary>The pre-release choice to save: none while the shown value is the default of a never-made choice.</summary>
     private bool? PrereleaseChoice() =>
         _baseline.OfferPrereleaseUpdates is null && _offerPrereleaseUpdates == PrereleaseUpdates.IsDefaultFor(_productVersion)
@@ -880,6 +895,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         ForgetLastFramesOfUnsavedPrinters();
         DisposeWidgets();
         DisposeTopmost();
+        DisposeUpdates();
         foreach (PrinterEditorViewModel printer in Printers)
         {
             printer.Detach();
@@ -913,6 +929,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         RefreshUpdateTexts();
         RefreshRecordingTexts();
         RefreshDetectionTexts();
+        RefreshMiniFrameRateTexts();
+        RefreshHardwareDecodingTexts();
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -962,14 +980,19 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     /// <summary>
     /// A click on a notification: the General tab for the test notification, where the test came from (T-101), the Recording
-    /// tab for a failed recording, where its folder and limit are (T-146); edits and the selection of the other tabs are
-    /// kept. UI thread.
+    /// tab for a failed recording, where its folder and limit are (T-146), the Startup and updates tab for a refused update,
+    /// where its error is (T-181); edits and the selection of the other tabs are kept. UI thread.
     /// </summary>
     internal void ShowPage(SettingsPage page)
     {
         if (!_disposed)
         {
-            SelectedTabIndex = page == SettingsPage.Recording ? RecordingTab : GeneralTab;
+            SelectedTabIndex = page switch
+            {
+                SettingsPage.Recording => RecordingTab,
+                SettingsPage.StartupUpdates => StartupUpdatesTab,
+                _ => GeneralTab,
+            };
         }
     }
 
@@ -1065,6 +1088,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _startWithWindows = _autostartBaseline;
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
         _cameraWindowAutoClose = settings.CameraWindowAutoClose;
+        PopulateMiniFrameRate(settings.MiniPreviewFrameRate);
+        _hardwareDecoding = settings.CameraHardwareDecoding;
         PopulateRecording(settings.Recording);
         PopulateDetection(settings.Detection);
 
@@ -1478,10 +1503,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 DebugLogging = _debugLogging,
                 OfferPrereleaseUpdates = PrereleaseChoice(),
                 CheckForUpdates = _checkForUpdates,
+                StartAtLogin = StartAtLoginChoice(),
 
                 // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,
                 CameraWindowAutoClose = _cameraWindowAutoClose,
+                // T-185: always valid (the slider is clamped and rounded by its property).
+                MiniPreviewFrameRate = _miniFrameRate,
+                // T-204: the window keeps a saved "Off" (before it, every save wrote the default).
+                CameraHardwareDecoding = _hardwareDecoding,
                 Recording = recording,
                 Detection = detection,
                 Notifications = new NotificationSettings
@@ -1572,7 +1602,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             dirty |= printer.HasNewPassword || printer.ForgetsRememberedCameraWindow || printer.PendingImage is not null;
         }
 
-        // T-017: the start after logon is the state of the OS, not part of the settings file.
+        // T-017: the start after logon is the state of the OS; the settings file only remembers the choice (T-201).
         dirty |= _autostart is not null && _startWithWindows != _autostartBaseline;
         IsDirty = dirty || !TryBuildSettings(out AppSettings? current) || !current.Equals(_baseline);
     }

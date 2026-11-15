@@ -10,13 +10,27 @@ namespace LayerPeek.Core.Updates;
 /// <summary>
 /// What the update check remembers between runs (T-058): when it last succeeded (Q1 a: once a day from that time), the
 /// newest release it found (so that the tray menu offers it right after a start, before the next check) and the version a
-/// notification was shown for (one notification per version). App state, not a setting: it lives in its own file
+/// notification was shown for (one notification per version), and the rejected update feed one was shown for and whether
+/// the version's notification was withdrawn for it (T-181). App state, not a setting: it lives in its own file
 /// (<see cref="JsonUpdateStateStore"/>), so a save of the settings window never overwrites it and vice versa.
 /// </summary>
 /// <param name="LastCheck">The last successful check; <see langword="null"/> before the first one.</param>
 /// <param name="Latest">The newest release that check found on offer; <see langword="null"/> when there was none.</param>
 /// <param name="NotifiedVersion">The newest version a notification was shown for; <see langword="null"/> before the first one.</param>
-public sealed record UpdateState(DateTimeOffset? LastCheck, UpdateRelease? Latest, ReleaseVersion? NotifiedVersion)
+/// <param name="NotifiedRejection">
+/// The key of the rejected update feed the last notification about a refused update was shown for (T-181,
+/// <see cref="UpdateCheckService.RejectionKey"/>); <see langword="null"/> before the first one.
+/// </param>
+/// <param name="NotifiedVersionWithdrawn">
+/// The notification for <paramref name="NotifiedVersion"/> was withdrawn when a feed was refused (T-181, user decision
+/// 2026-11-11, open question 27): once a check succeeds again, that version is notified once more.
+/// </param>
+public sealed record UpdateState(
+    DateTimeOffset? LastCheck,
+    UpdateRelease? Latest,
+    ReleaseVersion? NotifiedVersion,
+    string? NotifiedRejection = null,
+    bool NotifiedVersionWithdrawn = false)
 {
     public static UpdateState Empty { get; } = new(null, null, null);
 }
@@ -46,6 +60,9 @@ public sealed partial class JsonUpdateStateStore : IUpdateStateStore
 
     /// <summary>A real file has a few hundred bytes.</summary>
     private const long MaxFileSizeBytes = 16 * 1024;
+
+    /// <summary>Longest key of a notified rejection read back (<see cref="UpdateCheckService.RejectionKey"/> makes far shorter ones).</summary>
+    private const int MaxRejectionKeyLength = 256;
 
     private readonly string _directory;
     private readonly TimeProvider _timeProvider;
@@ -182,6 +199,8 @@ public sealed partial class JsonUpdateStateStore : IUpdateStateStore
             ? new UpdateReleaseDocument { Version = latest.Version.ToString(), Page = latest.ReleasePage.AbsoluteUri, Prerelease = latest.IsPrerelease }
             : null,
         NotifiedVersion = state.NotifiedVersion?.ToString(),
+        NotifiedRejection = state.NotifiedRejection,
+        NotifiedVersionWithdrawn = state.NotifiedVersionWithdrawn ? true : null,
     };
 
     /// <summary>Values that cannot be used (an unknown version text, a page off GitHub) read as missing.</summary>
@@ -193,7 +212,11 @@ public sealed partial class JsonUpdateStateStore : IUpdateStateStore
             ? new UpdateRelease(version, uri, document.Latest.Prerelease ?? version.IsPrerelease)
             : null;
         ReleaseVersion? notified = ReleaseVersion.TryParse(document.NotifiedVersion, out ReleaseVersion? n) ? n : null;
-        return new UpdateState(document.LastCheck, latest, notified);
+        // Only compared, never shown or parsed: any short text will do (a damaged one at worst notifies once more).
+        string? rejection = document.NotifiedRejection is { Length: > 0 and <= MaxRejectionKeyLength } key ? key : null;
+        // Without a notified version there is nothing to notify again.
+        bool withdrawn = notified is not null && document.NotifiedVersionWithdrawn is true;
+        return new UpdateState(document.LastCheck, latest, notified, rejection, withdrawn);
     }
 
     private static void TryDelete(string path)
@@ -254,6 +277,12 @@ internal sealed class UpdateStateDocument
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NotifiedVersion { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NotifiedRejection { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? NotifiedVersionWithdrawn { get; set; }
 }
 
 internal sealed class UpdateReleaseDocument

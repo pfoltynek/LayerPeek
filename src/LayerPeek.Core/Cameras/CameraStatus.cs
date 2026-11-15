@@ -48,4 +48,13 @@ public sealed record CameraStatus
     /// (<see cref="CameraFeedException.IsHostUnreachable"/>); the UI may explain it per platform (T-097).
     /// </summary>
     public bool IsHostUnreachable { get; init; }
+
+    /// <summary>
+    /// When the next connection attempt starts (the feed's <see cref="TimeProvider.GetUtcNow"/> clock): set for
+    /// <see cref="CameraConnectionState.NoSignal"/> and <see cref="CameraConnectionState.Error"/> reported by
+    /// <see cref="ReconnectingCameraFeed"/>, which backs off (T-188). A point in time rather than a delay, so that a
+    /// subscriber that gets the status later (<see cref="CameraStreamHub"/> replays the current one) still counts down
+    /// correctly.
+    /// </summary>
+    public DateTimeOffset? NextAttemptAt { get; init; }
 }

@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     Shared helpers of the release scripts (T-055): version, tag, changelog, runtime selection, git state checks,
-    build marker, archives, checksums and the GitHub upload plan.
+    build marker, archives, checksums, the update feed signature (T-181) and the GitHub upload plan.
 
 .DESCRIPTION
     Pure functions (no git, gh or dotnet calls) take plain values and return values or problem lists, so that the
@@ -15,12 +15,14 @@ $ErrorActionPreference = 'Stop'
 # Single configuration point of the released runtimes.
 #   Os          host OS that can build it (Native AOT does not compile across operating systems)
 #   Default     built when the build script gets no -Runtime
-#   Uploadable  its files may be uploaded to GitHub (a RID built for local verification only would set it to $false
-#               with a BlockedReason; none does now)
-# Windows ARM64 (win-arm64) is not supported (user decision 2026-11-01, T-130): it is not in this table, so every script
-# refuses it as an unknown runtime.
+#   Uploadable  its files may be uploaded to GitHub (a RID built for local verification only sets it to $false with a
+#               BlockedReason: release-upload.ps1 refuses a build containing it, release-publish.ps1 a release with its files)
+# Windows ARM64 (win-arm64, T-224 to T-227, user decision 2026-11-12, reverses T-130): built by default on Windows next to
+# win-x64, but not uploaded until it is verified on an ARM64 device (T-227 switches Uploadable on). Until then a build
+# for the upload names the uploadable RIDs (Get-ReleaseBuildRuntimeArguments: -Runtime win-x64).
 $script:ReleaseRuntimes = [ordered]@{
     'win-x64'   = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+    'win-arm64' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'not verified on an ARM64 device (T-227)' }
     'osx-arm64' = [pscustomobject]@{ Os = 'macos'; Default = $true; Uploadable = $true; BlockedReason = $null }
 }
 
@@ -134,6 +136,44 @@ function Resolve-ReleaseRuntimes {
         if (-not $result.Contains($key)) { $result.Add($key) }
     }
     $result.ToArray()
+}
+
+function Get-UploadableReleaseRuntimes {
+    <#
+    .SYNOPSIS
+        The default RIDs of an OS whose files may be uploaded (Default and Uploadable), in the order of the table: what a
+        release build for the upload builds (T-226: Windows win-x64 until win-arm64 is verified, T-227).
+    #>
+    param([Parameter(Mandatory)] [string] $HostOs, $Config = $script:ReleaseRuntimes)
+    @($Config.Keys | Where-Object { $Config[$_].Os -eq $HostOs -and $Config[$_].Default -and $Config[$_].Uploadable })
+}
+
+function Get-ReleaseBuildRuntimeArguments {
+    <#
+    .SYNOPSIS
+        Pure: the arguments of release-build.ps1 for a build that release-upload.ps1 accepts on an OS. None when the default
+        RIDs of the OS are all uploadable; otherwise -Runtime with the uploadable ones (comma-separated: pwsh -File passes a
+        list as one string), e.g. -Runtime win-x64 while win-arm64 is built by default but not uploadable (T-226, T-227).
+        Throws when no RID of the OS may be uploaded.
+    #>
+    param([Parameter(Mandatory)] [string] $Os, $Config = $script:ReleaseRuntimes)
+    $uploadable = @(Get-UploadableReleaseRuntimes -HostOs $Os -Config $Config)
+    if ($uploadable.Count -eq 0) { throw "No runtime of $Os may be uploaded (Uploadable in the runtime table of scripts/ReleaseTools/ReleaseTools.psm1)." }
+    $defaults = @($Config.Keys | Where-Object { $Config[$_].Os -eq $Os -and $Config[$_].Default })
+    if ($defaults.Count -eq $uploadable.Count) { return @() }
+    @('-Runtime', ($uploadable -join ','))
+}
+
+function Get-HostRuntime {
+    <#
+    .SYNOPSIS
+        The RID of this machine (or of the given OS and architecture): win-x64, win-arm64, osx-arm64 or osx-x64. The tools
+        and tests that publish or install the app use it, so that they also run on a Windows ARM64 device (T-226, T-227).
+    #>
+    param([string] $HostOs = (Get-HostOs), [string] $HostArchitecture = (Get-HostArchitecture))
+    $prefix = @{ windows = 'win'; macos = 'osx' }[$HostOs]
+    if (-not $prefix -or $HostArchitecture -notin 'x64', 'arm64') { throw "No runtime for $HostOs $HostArchitecture (only x64 and arm64 on Windows and macOS)." }
+    "$prefix-$HostArchitecture"
 }
 
 function Test-RuntimeRunnable {
@@ -259,12 +299,15 @@ function Get-ReleaseGitState {
     .SYNOPSIS
         Collects the git facts the release checks need. Reads origin with a single git ls-remote and changes nothing,
         neither on origin nor in the local repository (no fetch). Remote failures are returned in RemoteErrors.
+        -LocalOnly collects only the local facts (HEAD, working tree, tags of HEAD) and does not query the remote at all
+        (release-build.ps1 -SignOnly, T-197: the remote is checked by release-upload.ps1).
     #>
     param(
         [Parameter(Mandatory)] [string] $RepoRoot,
         [Parameter(Mandatory)] [string] $Tag,
         [string] $Remote = 'origin',
-        [string] $MainBranch = 'main'
+        [string] $MainBranch = 'main',
+        [switch] $LocalOnly
     )
     $head = Get-GitHead $RepoRoot
     $status = @(Get-GitStatusLines $RepoRoot)
@@ -277,8 +320,11 @@ function Get-ReleaseGitState {
     $onMain = $null
     # One read-only query of the remote; nothing is fetched, so no local ref changes. Without a remote (it could not be
     # resolved; the caller reports why) only the local facts are collected.
-    $lsRemote = if ($Remote) { Invoke-Git $RepoRoot @('ls-remote', $Remote, "refs/heads/$MainBranch", "refs/tags/$Tag", "refs/tags/$Tag^{}") } else { $null }
-    if (-not $Remote) {
+    $lsRemote = if ($Remote -and -not $LocalOnly) { Invoke-Git $RepoRoot @('ls-remote', $Remote, "refs/heads/$MainBranch", "refs/tags/$Tag", "refs/tags/$Tag^{}") } else { $null }
+    if ($LocalOnly) {
+        # Only the local facts: no remote error, and Get-ReleaseGitProblems judges nothing about the remote.
+    }
+    elseif (-not $Remote) {
         $remoteErrors.Add('The tag and the main branch were not checked: there is no remote to check them on.')
     }
     elseif ($lsRemote.ExitCode -ne 0) {
@@ -321,7 +367,7 @@ function Get-ReleaseGitState {
         Remote          = $Remote
         MainBranch      = $MainBranch
         RemoteErrors    = $remoteErrors.ToArray()
-        RemoteQueried   = [bool]($Remote -and $lsRemote.ExitCode -eq 0)
+        RemoteQueried   = [bool]($lsRemote -and $lsRemote.ExitCode -eq 0)
     }
 }
 
@@ -520,7 +566,10 @@ function Get-BuildInfoProblems {
     <#
     .SYNOPSIS
         Pure check of a build marker before upload: same version and commit as HEAD, built from a clean tree, only
-        uploadable runtimes, and the files in dist exactly the files listed in the marker. Returns problem messages.
+        uploadable runtimes, the update feeds signed (T-181: FeedSignature.Status 'signed' and a releases.<rid>.json.sig
+        next to every releases.<rid>.json; a trial build of -SkipFeedSignature, a build whose signing did not finish
+        (status 'pending', T-197) or a marker without the status is refused),
+        and the files in dist exactly the files listed in the marker. Returns problem messages.
     #>
     param(
         $BuildInfo,
@@ -539,13 +588,104 @@ function Get-BuildInfoProblems {
     if ($BuildInfo.Dirty) { $problems.Add('Build output was made from a working tree with uncommitted or untracked files. Rebuild from a clean checkout.') }
     foreach ($rid in @($BuildInfo.Runtimes)) {
         if (-not $Config.Contains($rid)) { $problems.Add("Build output contains unknown runtime '$rid'."); continue }
-        if (-not $Config[$rid].Uploadable) { $problems.Add("Build output contains $rid, which must not be uploaded: $($Config[$rid].BlockedReason). Rebuild without it.") }
+        if (-not $Config[$rid].Uploadable) {
+            # T-226: name the build that leaves it out (Windows: -Runtime win-x64 while win-arm64 is not uploadable).
+            $uploadable = @(Get-UploadableReleaseRuntimes -HostOs $Config[$rid].Os -Config $Config)
+            $rebuild = if ($uploadable.Count -gt 0) { "Rebuild without it: pwsh scripts/release-build.ps1 -Runtime $($uploadable -join ',')" } else { 'Rebuild without it.' }
+            $problems.Add("Build output contains $rid, which must not be uploaded: $($Config[$rid].BlockedReason). $rebuild")
+        }
+    }
+    # T-181: installations that verify the update feed refuse a feed without a valid signature.
+    $signature = if ($BuildInfo.PSObject.Properties['FeedSignature']) { $BuildInfo.FeedSignature } else { $null }
+    $status = if ($signature -and $signature.PSObject.Properties['Status']) { $signature.Status } else { $null }
+    if ($status -ceq 'pending') { $problems.Add('Build output is not signed yet: the signing at the end of release-build.ps1 did not finish (key medium disconnected, aborted or wrong password). Sign the finished build without building it again: pwsh scripts/release-build.ps1 -SignOnly (docs/release.md).') }
+    elseif ($status -ceq 'skipped') { $problems.Add('Build output was made with -SkipFeedSignature (a trial build): its update feed is not signed, and installed apps that verify the feed would refuse the update. Rebuild with the signing key (docs/release.md).') }
+    elseif ($status -cne 'signed') { $problems.Add('Build output has no update feed signature (made before T-181?). Rebuild with the signing key (docs/release.md).') }
+    $names = @($BuildInfo.Files | ForEach-Object { $_.Name })
+    foreach ($feed in @($names | Where-Object { $_ -cmatch '^releases\.[^/\\]+\.json$' })) {
+        if ($names -cnotcontains "$feed.sig") { $problems.Add("Build output has $feed without its signature $feed.sig. Rebuild with the signing key.") }
     }
     $expected = @($BuildInfo.Files | ForEach-Object { $_.Name }) + @($BuildInfo.ChecksumFile)
     $missing = @($expected | Where-Object { $DistFiles -cnotcontains $_ })
     $extra = @($DistFiles | Where-Object { $expected -cnotcontains $_ })
     if ($missing.Count -gt 0) { $problems.Add("Files listed in the build marker are missing in dist: $($missing -join ', ').") }
     if ($extra.Count -gt 0) { $problems.Add("dist contains files not produced by the build: $($extra -join ', '). Rebuild instead of adding files by hand.") }
+    $problems.ToArray()
+}
+
+function Get-SignOnlyProblems {
+    <#
+    .SYNOPSIS
+        Pure check of release-build.ps1 -SignOnly (T-197) before anything is signed: BuildInfo is the build record that
+        release-build.ps1 writes after packaging and before signing (build-info.json with FeedSignature.Status 'pending'
+        and the public key checked before the build), and dist must be exactly the packaged files of that record. Returns
+        problem messages (empty = this dist may be signed).
+    .DESCRIPTION
+        Refused: no record; a record that is already signed, of a trial build (-SkipFeedSignature) or without the pending
+        status; another version, commit (Head) or OS; a build from a dirty tree; an unknown runtime or one of another OS;
+        another checksum file name; no fingerprint of the checked key; a record listing a feed signature, the checksum file,
+        a file twice or no feed of a runtime; and any file of dist that is missing, added or has another SHA-256. The git
+        state (clean tree, tag of HEAD) is checked by Get-ReleaseGitProblems.
+    .PARAMETER DistFiles
+        Objects with Name and Sha256 of every file in dist.
+    #>
+    param(
+        $BuildInfo,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $Head,
+        [Parameter(Mandatory)] [string] $Os,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $DistFiles,
+        $Config = $script:ReleaseRuntimes
+    )
+    $rebuild = 'Nothing was signed; build again with the signing key (docs/release.md).'
+    if ($null -eq $BuildInfo) {
+        return @("There is no build record ($script:BuildInfoFileName) of version $Version to sign. -SignOnly signs only a dist/ that release-build.ps1 packaged in this checkout and could not sign. $rebuild")
+    }
+    function Value($Object, [string] $Name) { if ($null -ne $Object -and $Object.PSObject.Properties[$Name]) { $Object.$Name } else { $null } }
+    $missing = @('Version', 'Commit', 'Dirty', 'Os', 'Runtimes', 'ChecksumFile', 'Files', 'FeedSignature' | Where-Object { -not $BuildInfo.PSObject.Properties[$_] })
+    if ($missing.Count -gt 0) { return @("The build record $script:BuildInfoFileName is incomplete (no $($missing -join ', ')). $rebuild") }
+    $status = Value $BuildInfo.FeedSignature 'Status'
+    if ($status -ceq 'signed') { return @("The build of version $Version is already signed (FeedSignature.Status 'signed'); a signed dist/ is never signed again. Upload it: pwsh scripts/release-upload.ps1 -DryRun") }
+    if ($status -ceq 'skipped') { return @("The build of version $Version is a trial build of -SkipFeedSignature; it cannot be signed afterwards. $rebuild") }
+    if ($status -cne 'pending') { return @("The build record $script:BuildInfoFileName has no pending signature (FeedSignature.Status '$status'); only a build whose signing did not finish can be signed with -SignOnly. $rebuild") }
+
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if ($BuildInfo.Version -cne $Version) { $problems.Add("The build record is of version $($BuildInfo.Version), the source is $Version.") }
+    if ($BuildInfo.Commit -cne $Head) { $problems.Add("dist/ was built from commit $($BuildInfo.Commit), HEAD is $Head. Sign only in the checkout of the commit it was built from.") }
+    if ($BuildInfo.Dirty -ne $false) { $problems.Add('dist/ was built from a working tree with uncommitted or untracked files; it can never be uploaded.') }
+    if ($BuildInfo.Os -cne $Os) { $problems.Add("dist/ was built on $($BuildInfo.Os), this machine is $Os.") }
+    $runtimes = @($BuildInfo.Runtimes | Where-Object { $_ })
+    if ($runtimes.Count -eq 0) { $problems.Add('The build record names no runtime.') }
+    foreach ($rid in $runtimes) {
+        if (-not $Config.Contains($rid)) { $problems.Add("The build record contains unknown runtime '$rid'.") }
+        elseif ($Config[$rid].Os -cne $Os) { $problems.Add("The build record contains $rid, a runtime of $($Config[$rid].Os).") }
+    }
+    if ($BuildInfo.ChecksumFile -cne (Get-ChecksumFileName $Os)) { $problems.Add("The build record names the checksum file '$($BuildInfo.ChecksumFile)', expected $(Get-ChecksumFileName $Os).") }
+    if ("$(Value $BuildInfo.FeedSignature 'PublicKeySha256')" -cnotmatch '^[0-9a-f]{64}$') { $problems.Add('The build record does not name the public key (SHA-256) checked before the build.') }
+
+    $files = @($BuildInfo.Files | Where-Object { $null -ne $_ })
+    $names = @($files | ForEach-Object { "$(Value $_ 'Name')" })
+    if (@($names | Where-Object { $_ -cnotmatch '^[^\\/]+$' }).Count -gt 0) { $problems.Add('The build record lists a file without a plain file name.') }
+    if (@($names | Sort-Object -Unique -CaseSensitive).Count -ne $names.Count) { $problems.Add('The build record lists a file twice.') }
+    $listedOutputs = @($names | Where-Object { $_ -cmatch '\.json\.sig$' -or $_ -ceq $BuildInfo.ChecksumFile })
+    if ($listedOutputs.Count -gt 0) { $problems.Add("The build record lists $($listedOutputs -join ', '), which only the signing writes.") }
+    foreach ($rid in $runtimes) {
+        $feed = Get-UpdateFeedFileName $rid
+        if ($names -cnotcontains $feed) { $problems.Add("The build record has no update feed $feed of $rid to sign.") }
+    }
+
+    # dist/ unchanged since the build: exactly the files of the record, each with its SHA-256.
+    $distNames = @($DistFiles | ForEach-Object Name)
+    $absent = @($names | Where-Object { $distNames -cnotcontains $_ })
+    $extra = @($distNames | Where-Object { $names -cnotcontains $_ })
+    $changed = @(foreach ($file in $files) {
+            $name = "$(Value $file 'Name')"
+            if (@($DistFiles | Where-Object { $_.Name -ceq $name -and $_.Sha256 -cne "$(Value $file 'Sha256')" }).Count -gt 0) { $name }
+        })
+    if ($absent.Count -gt 0) { $problems.Add("Files of the build are missing in dist/: $($absent -join ', ').") }
+    if ($extra.Count -gt 0) { $problems.Add("dist/ contains files not produced by the build: $($extra -join ', ').") }
+    if ($changed.Count -gt 0) { $problems.Add("Files in dist/ changed after the build (SHA-256 differs from the build record): $($changed -join ', ').") }
+    if ($problems.Count -gt 0) { $problems.Add($rebuild) }
     $problems.ToArray()
 }
 
@@ -581,7 +721,8 @@ function Test-ReleaseMarkerFileName {
         True for the files that make an OS visible in a release: its checksum file (GitHubReleaseChecker of the app, T-113)
         and the Velopack feed files (releases.<rid>.json, assets.<rid>.json, RELEASES-<rid>; Velopack, T-058). Added to a
         published release (release-upload.ps1 -AddToPublished) they are uploaded only after every other file, so that no
-        app is offered a release whose packages are not there yet.
+        app is offered a release whose packages are not there yet. The feed signature (releases.<rid>.json.sig, T-181) is
+        no marker: it goes with the packages, before its feed (Get-UploadBatches).
     #>
     param([Parameter(Mandatory)] [string] $Name)
     [bool]($Name -cmatch '^(SHA256SUMS-[a-z]+\.txt|releases\.[^/\\]+\.json|assets\.[^/\\]+\.json|RELEASES-[^/\\]+)$')
@@ -679,7 +820,7 @@ function Get-GitHubRelease {
         Throws on any other gh failure (network, permissions).
     #>
     param([Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Tag)
-    $all = & gh release view $Tag --repo $Repository --json 'tagName,name,isDraft,isPrerelease,url,assets' 2>&1
+    $all = & gh release view $Tag --repo $Repository --json 'tagName,name,isDraft,isPrerelease,url,assets,publishedAt' 2>&1
     $exitCode = $LASTEXITCODE
     $stdout = @($all | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join "`n"
     $stderr = (@($all | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join ' ').Trim()
@@ -694,9 +835,10 @@ function Get-PublishProblems {
     <#
     .SYNOPSIS
         Pure check before a draft release is published: it exists, is a draft, has the checksum file of every
-        expected OS and the Velopack feed (releases.<rid>.json) of every released RID of that OS (T-058), every file
-        listed in the checksum files is uploaded with the listed SHA256, no other file is uploaded and no file of a
-        runtime that must not be uploaded (Uploadable = $false in the runtime table) is there.
+        expected OS and the Velopack feed (releases.<rid>.json) of every released RID of that OS (T-058), every uploaded
+        feed has its signature releases.<rid>.json.sig (T-181), every file listed in the checksum files is uploaded with
+        the listed SHA256, no other file is uploaded and no file of a runtime that must not be uploaded (Uploadable =
+        $false in the runtime table) is there.
     .PARAMETER Release
         Release as returned by Get-GitHubRelease ($null = no release).
     .PARAMETER Checksums
@@ -731,6 +873,10 @@ function Get-PublishProblems {
             if (-not (@($assets | Where-Object { $_.name -ceq $feed }))) { $problems.Add("Release $Tag has no $($feed): installations of $rid would not find the update.") }
         }
     }
+    # T-181: also with -AllowIncomplete (no expected OS), every feed that is there must be signed.
+    foreach ($feed in @($assets | ForEach-Object name | Where-Object { $_ -cmatch '^releases\.[^/\\]+\.json$' })) {
+        if (-not (@($assets | Where-Object { $_.name -ceq "$feed.sig" }))) { $problems.Add("Release $Tag has $feed but no $($feed).sig: installed apps that verify the update feed would refuse the update. Rebuild with the signing key and upload.") }
+    }
     $listed = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($sumsName in $Checksums.Keys) {
         $null = $listed.Add($sumsName)
@@ -764,6 +910,842 @@ function Test-RuntimeFileName {
     #>
     param([Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $Runtime)
     [bool]($Name -match "(^|[-.])$([regex]::Escape($Runtime))([-.]|$)")
+}
+
+# Signed update feed (T-181, docs/release.md "Podpis feedu aktualizací", format in docs/velopack.md point 13 and in
+# LayerPeek.Core.Updates.UpdateFeedVerifier): every releases.<rid>.json gets releases.<rid>.json.sig, an ECDSA P-256 /
+# SHA-256 signature (IEEE P1363, 64 bytes, one line of base64) over "LayerPeek-feed-v1\n" + RID + "\n" + the feed bytes.
+# The private key is an encrypted PKCS#8 PEM on offline media; it is read from its path, decrypted only in memory with a
+# password given as a SecureString, and never copied, printed or written anywhere. release-build.ps1 reads and decrypts it
+# twice (decision of question 17): once before the build to check it (Confirm-FeedSigningKey, then everything is dropped)
+# and once after packaging to sign (Invoke-FeedSigning), so that neither the key text nor the password stays in memory
+# during the build. The trusted public keys are read from
+# the C# source of the app (UpdateFeedKeys.Production), the single source of truth, so that the script refuses a key that
+# the released app would not trust.
+$script:FeedSignature = [pscustomobject]@{
+    Domain             = 'LayerPeek-feed-v1'
+    KeysSource         = 'src/LayerPeek.App/Installer/UpdateFeedKeys.cs'
+    KeysList           = 'Production'
+    KeyVariable        = 'LAYERPEEK_FEED_SIGNING_KEY'
+    SignatureLength    = 64
+    MaxSignatureBytes  = 256
+    # An encrypted PKCS#8 PEM of a P-256 key has about 400 bytes; anything much larger is not a key file.
+    MaxKeyFileBytes    = 16384
+    # New keys (New-UpdateFeedSigningKey): PBES2 with PBKDF2-SHA256 and AES-256-CBC, like the test key of the fixtures.
+    KdfIterations      = 600000
+    MinPasswordLength  = 16
+    P256Oid            = '1.2.840.10045.3.1.7'
+}
+
+function Get-FeedSignatureSettings {
+    <# .SYNOPSIS The fixed values of the update feed signature (T-181). #>
+    $script:FeedSignature
+}
+
+function Get-UpdateFeedFileName {
+    <# .SYNOPSIS The Velopack update feed of a RID (channel = RID): releases.<rid>.json. #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    "releases.$Runtime.json"
+}
+
+function Get-UpdateFeedSignatureFileName {
+    <# .SYNOPSIS The signature of the update feed of a RID: releases.<rid>.json.sig (T-181). #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    "releases.$Runtime.json.sig"
+}
+
+function Get-UpdateFeedSignedData {
+    <#
+    .SYNOPSIS
+        The bytes a feed signature covers: ASCII "LayerPeek-feed-v1" LF RID LF, then the exact bytes of the feed file, so that
+        the signature of one RID's feed is worthless for another RID or any other purpose. Same as
+        UpdateFeedVerifier.SignedDataOf of the app.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [byte[]] $Feed, [Parameter(Mandatory)] [string] $Runtime)
+    if ($Runtime -cnotmatch '^[A-Za-z0-9._-]{1,64}$') { throw "The update channel must be a RID such as 'osx-arm64', not '$Runtime'." }
+    $prefix = [System.Text.Encoding]::ASCII.GetBytes("$($script:FeedSignature.Domain)`n$Runtime`n")
+    $data = [byte[]]::new($prefix.Length + $Feed.Length)
+    [Array]::Copy($prefix, $data, $prefix.Length)
+    [Array]::Copy($Feed, 0, $data, $prefix.Length, $Feed.Length)
+    # The comma keeps the array one object (PowerShell would unroll it into single bytes).
+    , $data
+}
+
+function Get-FeedKeyFingerprint {
+    <# .SYNOPSIS Lower-case SHA-256 of a SubjectPublicKeyInfo: names a public key in messages and in build-info.json. #>
+    param([Parameter(Mandatory)] [byte[]] $SubjectPublicKeyInfo)
+    [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($SubjectPublicKeyInfo)).ToLowerInvariant()
+}
+
+function ConvertFrom-FeedPublicKeyPem {
+    <#
+    .SYNOPSIS
+        One PEM 'PUBLIC KEY' (SubjectPublicKeyInfo) of an ECDSA P-256 key, leading whitespace of its lines ignored (the
+        indentation of a C# raw string literal). Returns Pem, SubjectPublicKeyInfo and Sha256; throws for anything else,
+        including a private key.
+    #>
+    param([Parameter(Mandatory)] [string] $Pem)
+    $normalized = ((($Pem -replace "`r", '') -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join "`n")
+    if ($normalized -cnotmatch '^-----BEGIN PUBLIC KEY-----\n(?<base64>[A-Za-z0-9+/=\n]+)\n-----END PUBLIC KEY-----$') {
+        throw 'A trusted update feed key must be one PEM PUBLIC KEY (SubjectPublicKeyInfo).'
+    }
+    $spki = [Convert]::FromBase64String(($Matches.base64 -replace "`n", ''))
+    $key = [System.Security.Cryptography.ECDsa]::Create()
+    try {
+        $read = 0
+        try { $key.ImportSubjectPublicKeyInfo($spki, [ref] $read) }
+        catch { throw 'A trusted update feed key must be an ECDSA P-256 public key.' }
+        if ($read -ne $spki.Length -or $key.ExportParameters($false).Curve.Oid.Value -cne $script:FeedSignature.P256Oid) {
+            throw 'A trusted update feed key must be an ECDSA P-256 public key.'
+        }
+    }
+    finally { $key.Dispose() }
+    [pscustomobject]@{ Pem = $normalized; SubjectPublicKeyInfo = $spki; Sha256 = Get-FeedKeyFingerprint $spki }
+}
+
+function Get-TrustedFeedKeys {
+    <#
+    .SYNOPSIS
+        The trusted public keys of a list in UpdateFeedKeys.cs of the app (default: Production, the keys of the GitHub
+        feed), parsed from the C# source text: the list is '<name> = [ ... ];' with one raw string literal PEM per key.
+        Throws when the list is not found or contains anything but PEM literals, commas and // comments, so that a changed
+        source never reads as "no keys" or "fewer keys" silently. Returns ConvertFrom-FeedPublicKeyPem objects.
+    .DESCRIPTION
+        Parsing the source keeps the app the single place of the keys (decision of T-181: constants in the binary, never
+        read from a file); Get-AppLanguageCodes reads AppLanguages.cs the same way. The release list (Production) must be
+        declared exactly once: of two declarations (#if DEBUG / #else) the script could not know which one the Release build
+        compiles. Of the two declarations of the Test list (Debug: the test key, Release: none) the first is read.
+    #>
+    param([Parameter(Mandatory)] [string] $SourceText, [string] $ListName = $script:FeedSignature.KeysList)
+    $declarations = [regex]::Matches($SourceText, "(?s)\bIReadOnlyList<string>\s+$([regex]::Escape($ListName))\s*=\s*\[(?<body>.*?)\];")
+    if ($declarations.Count -eq 0) { throw "The list UpdateFeedKeys.$ListName ('IReadOnlyList<string> $ListName = [ ... ];') was not found in $($script:FeedSignature.KeysSource)." }
+    if ($declarations.Count -gt 1 -and $ListName -ceq $script:FeedSignature.KeysList) { throw "UpdateFeedKeys.$ListName is declared $($declarations.Count) times in $($script:FeedSignature.KeysSource) (#if?); the release scripts cannot tell which one a Release build trusts." }
+    $body = $declarations[0].Groups['body'].Value
+    $literal = '(?s)"""(?<pem>.*?)"""'
+    $keys = @(foreach ($match in [regex]::Matches($body, $literal)) { ConvertFrom-FeedPublicKeyPem $match.Groups['pem'].Value })
+    $rest = [regex]::Replace([regex]::Replace($body, $literal, ''), '//[^\n]*', '')
+    if ($rest -notmatch '^[\s,]*$') { throw "UpdateFeedKeys.$ListName in $($script:FeedSignature.KeysSource) has entries other than raw string PEM literals; the release scripts cannot read it." }
+    $fingerprints = @($keys | ForEach-Object Sha256)
+    if (@($fingerprints | Sort-Object -Unique).Count -ne $fingerprints.Count) { throw "UpdateFeedKeys.$ListName lists a key twice." }
+    $keys
+}
+
+function Get-FeedSigningTrustProblems {
+    <#
+    .SYNOPSIS
+        Pure check of a signing key against the keys the released app trusts: the list must not be empty (the app would
+        accept no update at all, fail closed) and, given PublicKey (the SubjectPublicKeyInfo of the signing key) or
+        PublicKeySha256 (its fingerprint, e.g. the key a build record names, T-197), must contain it. Returns problem
+        messages.
+    #>
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys,
+        [byte[]] $PublicKey,
+        [string] $PublicKeySha256,
+        [string] $ListName = $script:FeedSignature.KeysList
+    )
+    $source = "$($script:FeedSignature.KeysSource) (UpdateFeedKeys.$ListName)"
+    if ($TrustedKeys.Count -eq 0) {
+        return @("$source trusts no key yet, so the app of this build would accept no signed update at all. Add the public key of the signing key there first (docs/release.md, 'Podpis feedu aktualizací'), or make a trial build that cannot be uploaded with -SkipFeedSignature.")
+    }
+    $fingerprint = if ($null -ne $PublicKey) { Get-FeedKeyFingerprint $PublicKey } else { $PublicKeySha256 }
+    if (-not $fingerprint) { return @() }
+    if (@($TrustedKeys | Where-Object Sha256 -CEQ $fingerprint).Count -eq 0) {
+        return @("The signing key (public key SHA-256 $fingerprint) is not trusted by $source, which trusts $(@($TrustedKeys | ForEach-Object Sha256) -join ', '). The installed apps would refuse its signature: wrong key medium, or the public key was never added (docs/release.md).")
+    }
+    @()
+}
+
+function Read-FeedSigningKeyFile {
+    <#
+    .SYNOPSIS
+        The text of the encrypted signing key at Path (offline media), checked to be one encrypted PKCS#8 PEM. An unencrypted
+        private key is refused: it must never lie on a medium in clear. Never prints the content.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "The update feed signing key $Path does not exist. Is the key medium connected?" }
+    $length = (Get-Item -LiteralPath $Path).Length
+    if ($length -gt $script:FeedSignature.MaxKeyFileBytes) { throw "$Path ($length bytes) is no update feed signing key (an encrypted PKCS#8 PEM, docs/release.md)." }
+    $text = [System.IO.File]::ReadAllText($Path)
+    if ($text -cmatch '-----BEGIN (?:EC |RSA )?PRIVATE KEY-----') { throw "$Path is an unencrypted private key. The update feed signing key must be an encrypted PKCS#8 PEM ('ENCRYPTED PRIVATE KEY', docs/release.md); never keep it unencrypted." }
+    if ([regex]::Matches($text, '-----BEGIN ENCRYPTED PRIVATE KEY-----').Count -ne 1) { throw "$Path is no update feed signing key: expected one encrypted PKCS#8 PEM ('ENCRYPTED PRIVATE KEY', docs/release.md)." }
+    $text
+}
+
+function Read-FeedSigningKeyPassword {
+    <#
+    .SYNOPSIS
+        Asks for the password of the signing key (SecureString, not echoed); throws in a non-interactive session. Purpose
+        tells which of the two prompts of release-build.ps1 this is (check before the build, signing after it).
+    #>
+    param([Parameter(Mandatory)] [string] $Path, [string] $Purpose)
+    $suffix = if ($Purpose) { " ($Purpose)" } else { '' }
+    try { $password = Read-Host -AsSecureString -Prompt "Password of the update feed signing key $Path$suffix" }
+    catch { throw "No password for the update feed signing key: this session is not interactive. Run the build in a terminal, or pass -FeedSigningKeyPassword (a SecureString)." }
+    if ($null -eq $password -or $password.Length -eq 0) {
+        if ($password) { $password.Dispose() }
+        throw 'No password for the update feed signing key was entered.'
+    }
+    $password
+}
+
+function Invoke-WithSecureStringChars {
+    <#
+    .SYNOPSIS
+        Runs Action with the characters of a SecureString in a char[] and zeroes both the char[] and the unmanaged copy
+        afterwards, also on failure. The characters never become a .NET string.
+    #>
+    param([Parameter(Mandatory)] [System.Security.SecureString] $SecureString, [Parameter(Mandatory)] [scriptblock] $Action)
+    $pointer = [IntPtr]::Zero
+    $chars = [char[]]::new($SecureString.Length)
+    try {
+        $pointer = [System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($SecureString)
+        [System.Runtime.InteropServices.Marshal]::Copy($pointer, $chars, 0, $chars.Length)
+        & $Action $chars
+    }
+    finally {
+        [Array]::Clear($chars)
+        if ($pointer -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($pointer) }
+    }
+}
+
+function Import-FeedSigningKey {
+    <#
+    .SYNOPSIS
+        Decrypts the signing key (text of Read-FeedSigningKeyFile) with its password into an ECDsa object; the caller must
+        dispose it as soon as it is not needed. Refuses a key that is not ECDSA P-256. Wrong password: a clear error that
+        contains neither the password nor the key.
+    #>
+    param([Parameter(Mandatory)] [string] $EncryptedPem, [Parameter(Mandatory)] [System.Security.SecureString] $Password)
+    $key = [System.Security.Cryptography.ECDsa]::Create()
+    try {
+        $imported = Invoke-WithSecureStringChars -SecureString $Password -Action {
+            param([char[]] $Chars)
+            try { $key.ImportFromEncryptedPem($EncryptedPem, $Chars); $true }
+            catch { $false }
+        }
+        if (-not $imported) { throw 'The update feed signing key cannot be decrypted: wrong password, or the key file is damaged.' }
+        if ($key.ExportParameters($false).Curve.Oid.Value -cne $script:FeedSignature.P256Oid) { throw 'The update feed signing key is not an ECDSA P-256 key.' }
+        $result = $key
+        $key = $null
+        $result
+    }
+    finally {
+        if ($key) { $key.Dispose() }
+    }
+}
+
+function Unlock-FeedSigningKey {
+    <#
+    .SYNOPSIS
+        Decrypts the signing key text (Read-FeedSigningKeyFile) with a copy of Password, or with a password asked for, and
+        returns the ECDsa key; the caller disposes it. The password copy is disposed before the function returns, also on
+        failure. A password asked for may be typed again after a wrong one (MaxAttempts in total); a given Password is
+        tried once (a script cannot type it differently).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $EncryptedPem,
+        [Parameter(Mandatory)] [string] $KeyPath,
+        [System.Security.SecureString] $Password,
+        [string] $Purpose,
+        [ValidateRange(1, 10)] [int] $MaxAttempts = 3
+    )
+    for ($attempt = 1; ; $attempt++) {
+        $owned = if ($Password) { $Password.Copy() } else { Read-FeedSigningKeyPassword $KeyPath -Purpose $Purpose }
+        try { return Import-FeedSigningKey -EncryptedPem $EncryptedPem -Password $owned }
+        catch {
+            if ($Password -or $attempt -ge $MaxAttempts) { throw }
+            Write-Host "$_ Try again ($attempt of $MaxAttempts attempts failed)." -ForegroundColor Yellow
+        }
+        finally { $owned.Dispose() }
+    }
+}
+
+function Confirm-FeedSigningKey {
+    <#
+    .SYNOPSIS
+        The key check of release-build.ps1 before the long build (T-181, decision of question 17): the file at KeyPath is
+        an encrypted PKCS#8 PEM, TrustedKeys (UpdateFeedKeys.Production) is not empty (checked before the password is asked
+        for), the password decrypts the key and its public key is trusted. The key, its text and the password copy are
+        dropped right here; returns only KeyPath and PublicKeySha256, which Invoke-FeedSigning needs after the build to
+        read and check the key again.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $KeyPath,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys,
+        [System.Security.SecureString] $Password
+    )
+    $encrypted = Read-FeedSigningKeyFile $KeyPath
+    try {
+        # An empty list is refused before the password is asked for: no key could be accepted.
+        $problems = @(Get-FeedSigningTrustProblems -TrustedKeys $TrustedKeys)
+        if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+        $key = Unlock-FeedSigningKey -EncryptedPem $encrypted -KeyPath $KeyPath -Password $Password -Purpose 'check before the build; asked again for signing at the end'
+        try { $publicKey = $key.ExportSubjectPublicKeyInfo() }
+        finally { $key.Dispose() }
+    }
+    finally { $encrypted = $null }
+    $problems = @(Get-FeedSigningTrustProblems -TrustedKeys $TrustedKeys -PublicKey $publicKey)
+    if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+    [pscustomobject]@{ KeyPath = $KeyPath; PublicKeySha256 = Get-FeedKeyFingerprint $publicKey }
+}
+
+function Wait-FeedSigningKeyFile {
+    <#
+    .SYNOPSIS
+        Before signing (at the end of the build or with -SignOnly): returns once the key file at Path exists (key medium
+        connected). While it is missing it asks to connect the medium and press Enter (or type 'abort'), so that a
+        disconnected medium does not throw away the build; throws when the session is not interactive, the input ended, or
+        the answer is 'abort'. The packages stay unsigned then and release-build.ps1 -SignOnly signs them later (T-197).
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $unsigned = 'The packages are built, but the update feeds are not signed and this build cannot be uploaded yet. Connect the key medium and sign the finished build without building it again: pwsh scripts/release-build.ps1 -SignOnly (docs/release.md).'
+    while (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        $answer = $null
+        try { $answer = Read-Host -Prompt "The update feed signing key $Path is not there (key medium disconnected?). Connect the key medium and press Enter to try again, or type 'abort'" }
+        catch { }
+        if ($null -eq $answer) {
+            throw "The update feed signing key $Path is not there for signing (key medium disconnected?) and this session is not interactive, so the script cannot wait for it. $unsigned"
+        }
+        if ($answer.Trim() -ieq 'abort') { throw "Signing aborted: the update feed signing key $Path is not there. $unsigned" }
+    }
+}
+
+function Invoke-FeedSigning {
+    <#
+    .SYNOPSIS
+        The signing step of release-build.ps1 after packaging (T-181, decision of question 17): waits for the key file at
+        KeyPath (Wait-FeedSigningKeyFile), reads it again, asks for the password a second time (or copies Password),
+        refuses a key whose public key is not ExpectedPublicKeySha256 (the key checked before the build), signs and
+        verifies every feed (Add-UpdateFeedSignatures) and disposes the key. Returns the paths of the .sig files. Purpose
+        is shown in the password prompt (release-build.ps1 -SignOnly asks only once, T-197).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $KeyPath,
+        [Parameter(Mandatory)] [string] $ExpectedPublicKeySha256,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys,
+        [Parameter(Mandatory)] [string] $DistDirectory,
+        [Parameter(Mandatory)] [string[]] $Runtimes,
+        [System.Security.SecureString] $Password,
+        [string] $Purpose = 'second time: sign the update feeds'
+    )
+    Wait-FeedSigningKeyFile $KeyPath
+    $encrypted = Read-FeedSigningKeyFile $KeyPath
+    try { $key = Unlock-FeedSigningKey -EncryptedPem $encrypted -KeyPath $KeyPath -Password $Password -Purpose $Purpose }
+    finally { $encrypted = $null }
+    try {
+        $fingerprint = Get-FeedKeyFingerprint $key.ExportSubjectPublicKeyInfo()
+        if ($fingerprint -cne $ExpectedPublicKeySha256) {
+            throw "The update feed signing key $KeyPath (public key SHA-256 $fingerprint) is not the key checked before the build (public key SHA-256 $ExpectedPublicKeySha256). Was the key medium or the key file swapped? Nothing was signed."
+        }
+        Add-UpdateFeedSignatures -Key $key -DistDirectory $DistDirectory -Runtimes $Runtimes -TrustedKeys $TrustedKeys
+    }
+    finally { $key.Dispose() }
+}
+
+function New-UpdateFeedSignature {
+    <# .SYNOPSIS Signs a feed for a RID with the (decrypted) signing key; returns the base64 text of the .sig file (88 characters). #>
+    param(
+        [Parameter(Mandatory)] [System.Security.Cryptography.ECDsa] $Key,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [byte[]] $Feed,
+        [Parameter(Mandatory)] [string] $Runtime
+    )
+    $signature = $Key.SignData((Get-UpdateFeedSignedData -Feed $Feed -Runtime $Runtime), [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+        [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)
+    if ($signature.Length -ne $script:FeedSignature.SignatureLength) { throw "Unexpected signature length $($signature.Length); the signing key is not ECDSA P-256." }
+    [Convert]::ToBase64String($signature)
+}
+
+function Test-UpdateFeedSignature {
+    <#
+    .SYNOPSIS
+        True when SignatureFile (the bytes of releases.<rid>.json.sig) is a signature of one of TrustedKeys over Feed for
+        the RID, by the rules of the app's UpdateFeedVerifier: at most 256 bytes, ASCII whitespace around one base64 line of
+        exactly 64 signature bytes. Never throws for any content of Feed or SignatureFile.
+    #>
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [byte[]] $Feed,
+        [Parameter(Mandatory)] [string] $Runtime,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [byte[]] $SignatureFile,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys
+    )
+    if ($SignatureFile.Length -eq 0 -or $SignatureFile.Length -gt $script:FeedSignature.MaxSignatureBytes) { return $false }
+    $text = [System.Text.Encoding]::ASCII.GetString($SignatureFile).Trim(' ', "`t", "`r", "`n")
+    if ($text -cnotmatch '^[A-Za-z0-9+/]{86}==$') { return $false }
+    $signature = [Convert]::FromBase64String($text)
+    if ($signature.Length -ne $script:FeedSignature.SignatureLength) { return $false }
+    $data = Get-UpdateFeedSignedData -Feed $Feed -Runtime $Runtime
+    foreach ($trusted in $TrustedKeys) {
+        $key = [System.Security.Cryptography.ECDsa]::Create()
+        try {
+            $read = 0
+            $key.ImportSubjectPublicKeyInfo($trusted.SubjectPublicKeyInfo, [ref] $read)
+            if ($key.VerifyData($data, $signature, [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+                    [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)) { return $true }
+        }
+        catch { }
+        finally { $key.Dispose() }
+    }
+    $false
+}
+
+function Add-UpdateFeedSignatures {
+    <#
+    .SYNOPSIS
+        Signs releases.<rid>.json of every RID in DistDirectory into releases.<rid>.json.sig (base64 + LF), then reads the
+        written file back and verifies it against TrustedKeys (the keys of the app) like the app will. Returns the paths of
+        the .sig files. Throws when a feed is missing, a .sig already exists or the verification fails (the .sig is then
+        deleted).
+    #>
+    param(
+        [Parameter(Mandatory)] [System.Security.Cryptography.ECDsa] $Key,
+        [Parameter(Mandatory)] [string] $DistDirectory,
+        [Parameter(Mandatory)] [string[]] $Runtimes,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TrustedKeys
+    )
+    foreach ($rid in $Runtimes) {
+        $feedPath = Join-Path $DistDirectory (Get-UpdateFeedFileName $rid)
+        $signaturePath = Join-Path $DistDirectory (Get-UpdateFeedSignatureFileName $rid)
+        if (-not (Test-Path -LiteralPath $feedPath -PathType Leaf)) { throw "There is no update feed $(Split-Path -Leaf $feedPath) of $rid in $DistDirectory to sign." }
+        if (Test-Path -LiteralPath $signaturePath) { throw "Release file already exists: $signaturePath" }
+        $feed = [System.IO.File]::ReadAllBytes($feedPath)
+        $signature = New-UpdateFeedSignature -Key $Key -Feed $feed -Runtime $rid
+        [System.IO.File]::WriteAllText($signaturePath, "$signature`n", [System.Text.UTF8Encoding]::new($false))
+        if (-not (Test-UpdateFeedSignature -Feed $feed -Runtime $rid -SignatureFile ([System.IO.File]::ReadAllBytes($signaturePath)) -TrustedKeys $TrustedKeys)) {
+            Remove-Item -LiteralPath $signaturePath -Force
+            throw "The signature of $(Split-Path -Leaf $feedPath) does not verify with the keys of $($script:FeedSignature.KeysSource); nothing was signed."
+        }
+        $signaturePath
+    }
+}
+
+function New-UpdateFeedSigningKey {
+    <#
+    .SYNOPSIS
+        Creates a new update feed key pair (docs/release.md, 'Podpis feedu aktualizací'): the private key as an encrypted
+        PKCS#8 PEM (PBES2, PBKDF2-SHA256 with 600 000 iterations, AES-256-CBC) at Path, the public key (SubjectPublicKeyInfo
+        PEM, not secret) at PublicKeyPath. Asks for the password twice unless Password is given; at least 16 characters.
+        Never overwrites a file. Returns the paths, the public key PEM to put into UpdateFeedKeys.Production and its SHA-256.
+    .EXAMPLE
+        Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
+        New-UpdateFeedSigningKey -Path /Volumes/LP-KEY/layerpeek-feed-key.pem -PublicKeyPath /Volumes/LP-KEY/layerpeek-feed-key.public.pem
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Path,
+        [Parameter(Mandatory)] [string] $PublicKeyPath,
+        [System.Security.SecureString] $Password
+    )
+    foreach ($file in $Path, $PublicKeyPath) { if (Test-Path -LiteralPath $file) { throw "$file already exists; a key file is never overwritten." } }
+    $owned = $null
+    if (-not $Password) {
+        $owned = Read-Host -AsSecureString -Prompt 'Password of the new update feed signing key'
+        $again = Read-Host -AsSecureString -Prompt 'The same password again'
+        try {
+            $same = Invoke-WithSecureStringChars -SecureString $owned -Action {
+                param([char[]] $First)
+                Invoke-WithSecureStringChars -SecureString $again -Action {
+                    param([char[]] $Second)
+                    $equal = $First.Length -eq $Second.Length
+                    for ($i = 0; $equal -and $i -lt $First.Length; $i++) { $equal = $First[$i] -ceq $Second[$i] }
+                    $equal
+                }
+            }
+        }
+        finally { $again.Dispose() }
+        if (-not $same) { $owned.Dispose(); throw 'The two passwords differ; no key was created.' }
+        $Password = $owned
+    }
+    try {
+        if ($Password.Length -lt $script:FeedSignature.MinPasswordLength) { throw "The password must have at least $($script:FeedSignature.MinPasswordLength) characters; no key was created." }
+        $key = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+        try {
+            $pbe = [System.Security.Cryptography.PbeParameters]::new([System.Security.Cryptography.PbeEncryptionAlgorithm]::Aes256Cbc,
+                [System.Security.Cryptography.HashAlgorithmName]::SHA256, $script:FeedSignature.KdfIterations)
+            $encrypted = Invoke-WithSecureStringChars -SecureString $Password -Action { param([char[]] $Chars) $key.ExportEncryptedPkcs8PrivateKeyPem($Chars, $pbe) }
+            $publicPem = $key.ExportSubjectPublicKeyInfoPem()
+            $fingerprint = Get-FeedKeyFingerprint $key.ExportSubjectPublicKeyInfo()
+        }
+        finally { $key.Dispose() }
+        $utf8 = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($Path, "$encrypted`n", $utf8)
+        # Owner only where the file system supports it (not on FAT / exFAT media); the file is encrypted either way.
+        if (-not $IsWindows) { try { [System.IO.File]::SetUnixFileMode($Path, [System.IO.UnixFileMode]'UserRead, UserWrite') } catch { } }
+        [System.IO.File]::WriteAllText($PublicKeyPath, "$publicPem`n", $utf8)
+        [pscustomobject]@{ Path = $Path; PublicKeyPath = $PublicKeyPath; PublicKeyPem = $publicPem; PublicKeySha256 = $fingerprint }
+    }
+    finally {
+        if ($owned) { $owned.Dispose() }
+    }
+}
+
+function Get-UploadBatches {
+    <#
+    .SYNOPSIS
+        The order of an upload, one gh call per batch: first the packages and the feed signatures (releases.<rid>.json.sig,
+        T-181), then the files that make an OS visible (Test-ReleaseMarkerFileName: checksum file and Velopack feed). So the
+        signature is always uploaded before its feed, and no app sees a feed whose packages or signature are not there yet.
+        Returns objects with Files (paths, in the given order); empty batches are left out.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $Paths)
+    $packages = @($Paths | Where-Object { -not (Test-ReleaseMarkerFileName (Split-Path -Leaf $_)) })
+    $markers = @($Paths | Where-Object { Test-ReleaseMarkerFileName (Split-Path -Leaf $_) })
+    foreach ($batch in @(, $packages) + @(, $markers)) {
+        if ($batch.Count -gt 0) { [pscustomobject]@{ Files = [string[]] $batch } }
+    }
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# FFmpeg source of a release (T-199, user decision 2026-11-11; docs/release.md "Zdrojový kód FFmpeg"): every release
+# attaches ffmpeg-source-<version>-<os>.tar.xz, the exact source of the FFmpeg libraries of that OS with how they were
+# built (https://ffmpeg.org/legal.html, checklist points 3-8). Both OSes build the same official release tarball
+# (LayerPeekFFmpegSource* in build/FFmpeg.targets; Windows since T-202, before it the BtbN build); each build makes its
+# own archive with the tarball, unchanged, and the build script of the OS that compiled it:
+#   macos    build/macos/build-ffmpeg.sh (Xcode Command Line Tools, T-026)
+#   windows  build/windows/build-ffmpeg.sh (win-x64: MSYS2 + MinGW-w64, T-202; win-arm64: llvm-mingw, T-225)
+# One archive per OS covers all its RIDs (user decision 2026-11-12, T-225): Windows ships win-x64 and win-arm64 from the
+# same tarball and script, the README names the configure line of each shipped build and the ARM64 toolchain.
+# The tarball is verified against the pinned SHA-256 and kept in a cache next to the FFmpeg build cache
+# (LayerPeek.Build/ffmpeg-source); the version embedded in the published libraries must match the pinned source.
+# Nothing in the cache is ever deleted; a file with the wrong hash is replaced.
+# ---------------------------------------------------------------------------------------------------------------------
+
+function Get-FFmpegSourceFileName {
+    <# .SYNOPSIS ffmpeg-source-<version>-<os>.tar.xz (the app links it from the About window, ThirdPartyLicenses.FFmpeg). #>
+    param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os)
+    "ffmpeg-source-$Version-$Os.tar.xz"
+}
+
+function Get-FFmpegSourceNotice {
+    <#
+    .SYNOPSIS
+        Pure: the FFmpeg sentence of the release notes (ffmpeg.org/legal.html checklist point 9, decided 2026-11-12),
+        linking the FFmpeg source archives of both OS in the release of Repository (T-199).
+    .DESCRIPTION
+        LGPLv3 or later, not the LGPLv2.1 of the template: both FFmpeg builds use --enable-version3.
+    #>
+    param([Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Version)
+    $base = "https://github.com/$Repository/releases/download/v$Version"
+    $links = foreach ($os in @(@('Windows', 'windows'), @('macOS', 'macos'))) {
+        $name = Get-FFmpegSourceFileName -Version $Version -Os $os[1]
+        "$($os[0]) [``$name``]($base/$name)"
+    }
+    "This software uses code of [FFmpeg](https://ffmpeg.org/) licensed under the LGPLv3 or later and its source can be downloaded here: $($links -join ', ')."
+}
+
+function Get-ReleaseNotes {
+    <#
+    .SYNOPSIS
+        Pure: the text of a new GitHub release, the CHANGELOG.md section followed by the FFmpeg sentence
+        (Get-FFmpegSourceNotice). Only the GitHub release gets the sentence; the Velopack package keeps the plain section.
+    #>
+    param([Parameter(Mandatory)] [string] $ChangelogSection, [Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Version)
+    "$ChangelogSection`n`n---`n`n$(Get-FFmpegSourceNotice -Repository $Repository -Version $Version)"
+}
+
+function Get-FFmpegSourceCacheDirectory {
+    <# .SYNOPSIS The cache of the FFmpeg source inputs, next to the FFmpeg build cache of build/FFmpeg.targets. #>
+    if ($IsWindows) { return Join-Path $env:LOCALAPPDATA 'LayerPeek.Build' 'ffmpeg-source' }
+    if ($IsMacOS) { return Join-Path $HOME 'Library' 'Caches' 'LayerPeek.Build' 'ffmpeg-source' }
+    throw 'The FFmpeg source is packed on Windows and macOS only.'
+}
+
+function Get-FFmpegSourcePins {
+    <#
+    .SYNOPSIS
+        Pure: the pinned FFmpeg source of an OS from the text of build/FFmpeg.targets, checked for consistency; throws
+        with every problem. Both OSes build the same official tarball (T-202); they differ in the build script.
+    .OUTPUTS
+        Os, Rids (the runtime identifiers the script builds: windows win-x64 and win-arm64, macos osx-arm64), Version (the
+        FFmpeg version the libraries report, e.g. '9.0.2'), Inputs (one Kind 'download' input with Name, Url and Sha256),
+        BuildScript (the build script of the OS, relative to the repository) and LlvmMingw (windows: the pinned toolchain
+        of the win-arm64 cross build with Url, Sha256 and Folder, T-225; macos: $null).
+    #>
+    param([Parameter(Mandatory)] [string] $TargetsText, [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os)
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $value = {
+        param([string] $Name, [string] $Pattern)
+        $found = @([regex]::Matches($TargetsText, "<$Name>([^<]*)</$Name>"))
+        if ($found.Count -ne 1) { $problems.Add("build/FFmpeg.targets must contain <$Name> exactly once (found $($found.Count))."); return $null }
+        $text = $found[0].Groups[1].Value.Trim()
+        if ($text -cnotmatch $Pattern) { $problems.Add("<$Name> in build/FFmpeg.targets is '$text', expected $Pattern."); return $null }
+        $text
+    }
+    $folder = & $value 'LayerPeekFFmpegSourceFolder' '^ffmpeg-\d+\.\d+(\.\d+)*$'
+    $url = & $value 'LayerPeekFFmpegSourceUrl' '^https://ffmpeg\.org/releases/ffmpeg-[0-9.]+\.tar\.xz$'
+    $hash = & $value 'LayerPeekFFmpegSourceSha256' '^[0-9a-f]{64}$'
+    if ($folder -and $url -and -not $url.EndsWith("/$folder.tar.xz", [StringComparison]::Ordinal)) {
+        $problems.Add("LayerPeekFFmpegSourceUrl ($url) is not the tarball of LayerPeekFFmpegSourceFolder ($folder).")
+    }
+    $llvmMingw = $null
+    if ($Os -eq 'windows') {
+        $llvmFolder = & $value 'LayerPeekLlvmMingwFolder' '^llvm-mingw-\d{8}-ucrt-x86_64$'
+        $llvmUrl = & $value 'LayerPeekLlvmMingwUrl' '^https://github\.com/mstorsjo/llvm-mingw/releases/download/\d{8}/llvm-mingw-\d{8}-ucrt-x86_64\.zip$'
+        $llvmHash = & $value 'LayerPeekLlvmMingwSha256' '^[0-9a-f]{64}$'
+        if ($llvmFolder -and $llvmUrl -and -not $llvmUrl.EndsWith("/$llvmFolder.zip", [StringComparison]::Ordinal)) {
+            $problems.Add("LayerPeekLlvmMingwUrl ($llvmUrl) is not the zip of LayerPeekLlvmMingwFolder ($llvmFolder).")
+        }
+        $llvmMingw = [pscustomobject]@{ Url = $llvmUrl; Sha256 = $llvmHash; Folder = $llvmFolder }
+    }
+    if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+    [pscustomobject]@{
+        Os          = $Os
+        Rids        = if ($Os -eq 'windows') { @('win-x64', 'win-arm64') } else { @('osx-arm64') }
+        Version     = $folder.Substring('ffmpeg-'.Length)
+        Inputs      = @([pscustomobject]@{ Kind = 'download'; Name = "$folder.tar.xz"; Url = $url; Sha256 = $hash })
+        BuildScript = if ($Os -eq 'windows') { 'build/windows/build-ffmpeg.sh' } else { 'build/macos/build-ffmpeg.sh' }
+        LlvmMingw   = $llvmMingw
+    }
+}
+
+function Invoke-FFmpegSourceDownload {
+    <# .SYNOPSIS Downloads a file (read-only HTTPS GET, with retries); the only network access of a 'download' input. #>
+    param([Parameter(Mandatory)] [string] $Uri, [Parameter(Mandatory)] [string] $OutFile)
+    Invoke-WebRequest -Uri $Uri -OutFile $OutFile -MaximumRetryCount 3 -RetryIntervalSec 2
+}
+
+function Save-FFmpegSourceInput {
+    <#
+    .SYNOPSIS
+        The verified file of one input of Get-FFmpegSourcePins in CacheDirectory: a cached file with the pinned SHA-256 is
+        used as it is (nothing is downloaded); otherwise the input is downloaded into a work folder of the cache, verified
+        and moved into place (replacing a cached file with the wrong hash). Returns its path.
+    #>
+    param([Parameter(Mandatory)] $SourceInput, [Parameter(Mandatory)] [string] $CacheDirectory)
+    if ($SourceInput.Kind -cne 'download') { throw "Unsupported FFmpeg source input kind '$($SourceInput.Kind)' (only 'download')." }
+    $target = Join-Path $CacheDirectory $SourceInput.Name
+    if (Test-Path -LiteralPath $target -PathType Leaf) {
+        if ((Get-FileSha256 $target) -ceq $SourceInput.Sha256) {
+            Write-Host "$($SourceInput.Name): verified in the cache $CacheDirectory"
+            return $target
+        }
+        Write-Host "$($SourceInput.Name) in the cache $CacheDirectory has another SHA-256; fetching it again." -ForegroundColor Yellow
+    }
+    $work = Join-Path $CacheDirectory "tmp-$([guid]::NewGuid().ToString('N'))"
+    $null = New-Item -ItemType Directory -Path $work -Force
+    try {
+        $file = Join-Path $work $SourceInput.Name
+        Write-Host "==> Downloading $($SourceInput.Url)" -ForegroundColor Cyan
+        Invoke-FFmpegSourceDownload -Uri $SourceInput.Url -OutFile $file
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "$($SourceInput.Name) was not created." }
+        $actual = Get-FileSha256 $file
+        if ($actual -cne $SourceInput.Sha256) {
+            throw "$($SourceInput.Name) ($($SourceInput.Url)) has SHA-256 $actual, build/FFmpeg.targets pins $($SourceInput.Sha256). It was discarded."
+        }
+        Move-Item -LiteralPath $file -Destination $target -Force
+        Write-Host "$($SourceInput.Name): verified (SHA-256 $actual) and cached in $CacheDirectory"
+    }
+    finally {
+        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $target
+}
+
+function Get-FFmpegSourceInputs {
+    <#
+    .SYNOPSIS
+        The pinned FFmpeg source of an OS (Get-FFmpegSourcePins of build/FFmpeg.targets) with the verified file of every
+        input (Save-FFmpegSourceInput). Called before the long build, so that a missing source fails the release early.
+    .OUTPUTS
+        Pins and Files (the paths, in the order of Pins.Inputs).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $RepoRoot,
+        [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os,
+        [string] $CacheDirectory = (Get-FFmpegSourceCacheDirectory)
+    )
+    $pins = Get-FFmpegSourcePins -TargetsText ([System.IO.File]::ReadAllText((Join-Path $RepoRoot 'build' 'FFmpeg.targets'))) -Os $Os
+    $null = New-Item -ItemType Directory -Path $CacheDirectory -Force
+    $files = @(foreach ($sourceInput in $pins.Inputs) { Save-FFmpegSourceInput -SourceInput $sourceInput -CacheDirectory $CacheDirectory })
+    [pscustomobject]@{ Pins = $pins; Files = $files }
+}
+
+function Get-FFmpegLibraryFacts {
+    <#
+    .SYNOPSIS
+        Pure: what an FFmpeg library (avcodec) says about itself in its bytes: Version ('FFmpeg version <v>' of the
+        library) and Configuration (the configure line it was built with, the installation prefix replaced by <prefix>:
+        it names a folder of the build machine). $null for what is not found.
+    #>
+    param([Parameter(Mandatory)] [byte[]] $Bytes)
+    $text = [System.Text.Encoding]::Latin1.GetString($Bytes)
+    $version = [regex]::Match($text, 'FFmpeg version ([\x21-\x7e]+)\x00')
+    $configuration = [regex]::Match($text, "--prefix=[\x20-\x7e]*(?=\x00)")
+    [pscustomobject]@{
+        Version       = $version.Success ? $version.Groups[1].Value : $null
+        Configuration = $configuration.Success ? ($configuration.Value -replace "^--prefix=('[^']*'|\S+)", '--prefix=<prefix>') : $null
+    }
+}
+
+function Get-FFmpegLibraryVersionProblems {
+    <#
+    .SYNOPSIS
+        Pure: the published library must be built from the pinned source: exactly the version of the tarball (both OS).
+    #>
+    param([Parameter(Mandatory)] $Pins, [AllowNull()] [AllowEmptyString()] [string] $LibraryVersion, [Parameter(Mandatory)] [string] $LibraryName)
+    if (-not $LibraryVersion) { return @("$LibraryName names no FFmpeg version; it cannot be matched with the pinned source.") }
+    if ($LibraryVersion -cne $Pins.Version) {
+        return @("$LibraryName is FFmpeg $LibraryVersion, but the pinned source in build/FFmpeg.targets is $($Pins.Version): the published libraries and the attached source would differ.")
+    }
+    @()
+}
+
+function Get-FFmpegSourceReadme {
+    <#
+    .SYNOPSIS
+        Pure: README.txt of the FFmpeg source archive (what it contains, where it comes from, how it was built).
+    .PARAMETER Builds
+        The shipped builds, in order: objects with Rid, LibraryName (the avcodec library the line was read from) and
+        Configuration (its configure line). All of the same FFmpeg version, LibraryVersion.
+    #>
+    param(
+        [Parameter(Mandatory)] $Pins,
+        [Parameter(Mandatory)] [string] $AppVersion,
+        [Parameter(Mandatory)] [object[]] $Builds,
+        [Parameter(Mandatory)] [string] $LibraryVersion
+    )
+    $rids = @($Builds | ForEach-Object Rid)
+    $platform = if ($Pins.Os -eq 'windows') { "Windows ($($rids -join ', '))" } else { "macOS ($($rids -join ', '))" }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add("FFmpeg source code of LayerPeek $AppVersion for $platform")
+    $lines.Add('')
+    $lines.Add('LayerPeek uses libraries from the FFmpeg project (https://ffmpeg.org/) under the GNU Lesser General Public')
+    $lines.Add('License version 3 or later (LGPL). This archive contains the source code these libraries were built from and')
+    $lines.Add('how they were built. FFmpeg itself was not modified, so there is no changes.diff (it would be empty).')
+    $lines.Add('')
+    $lines.Add("FFmpeg version of the shipped libraries: $LibraryVersion")
+    $lines.Add('')
+    $lines.Add('Files')
+    $lines.Add('-----')
+    $tarball = $Pins.Inputs[0]
+    $lines.Add("$($tarball.Name)")
+    $lines.Add("    The official FFmpeg source release, unchanged: $($tarball.Url)")
+    $lines.Add("    (signature: $($tarball.Url).asc)")
+    $lines.Add("    SHA-256: $($tarball.Sha256)")
+    $lines.Add('build-ffmpeg.sh')
+    $lines.Add("    The script that built the libraries ($($Pins.BuildScript) of LayerPeek, tag v$AppVersion,")
+    if ($Pins.Os -eq 'macos') {
+        $lines.Add('    https://github.com/pfoltynek/LayerPeek). It extracts the tarball, runs configure with the line below,')
+        $lines.Add('    make and make install with the Xcode Command Line Tools in a clean environment, and keeps libavformat,')
+        $lines.Add('    libavcodec, libavutil and libswscale. To build them again:')
+        $lines.Add("        bash build-ffmpeg.sh $($tarball.Name) ffmpeg-$($Pins.Version) <work folder> <output folder>")
+    }
+    else {
+        $lines.Add('    https://github.com/pfoltynek/LayerPeek). It extracts the tarball, runs configure with the line of its RID below,')
+        $lines.Add('    make and make install in a clean environment, and keeps avformat-63.dll, avcodec-63.dll, avutil-61.dll')
+        $lines.Add('    and swscale-10.dll. The compiler runtime and the MinGW-w64 runtime with winpthreads are linked statically')
+        $lines.Add('    (their notices are in the licences window of LayerPeek).')
+        if ($rids -contains 'win-x64') {
+            $lines.Add('    win-x64: built with MSYS2 and MinGW-w64 (packages make, diffutils, mingw-w64-x86_64-gcc and')
+            $lines.Add('    mingw-w64-x86_64-nasm). To build them again, in an MSYS2 shell:')
+            $lines.Add("        bash build-ffmpeg.sh win-x64 $($tarball.Name) ffmpeg-$($Pins.Version) <work folder> <output folder>")
+        }
+        if ($rids -contains 'win-arm64') {
+            $lines.Add('    win-arm64: cross-compiled on Windows x64 with llvm-mingw, run from an MSYS2 shell (packages make and')
+            $lines.Add('    diffutils). The toolchain is the release zip')
+            $lines.Add("        llvm-mingw: $($Pins.LlvmMingw.Url)")
+            $lines.Add("        SHA-256: $($Pins.LlvmMingw.Sha256)")
+            $lines.Add('    extracted into a folder. To build them again, in an MSYS2 shell:')
+            $lines.Add("        bash build-ffmpeg.sh win-arm64 $($tarball.Name) ffmpeg-$($Pins.Version) <work folder> <output folder> <llvm-mingw folder>")
+            $lines.Add("    (<llvm-mingw folder>: the extracted $($Pins.LlvmMingw.Folder) with its bin folder).")
+        }
+    }
+    $lines.Add('README.txt')
+    $lines.Add('    This file.')
+    foreach ($build in $Builds) {
+        $lines.Add('')
+        $lines.Add("Configure line of the shipped $($build.Rid) libraries (read from $($build.LibraryName); the installation prefix replaced by <prefix>):")
+        $lines.Add("    $($build.Configuration)")
+    }
+    $lines.Add('')
+    $lines.Add('The license texts of FFmpeg are in its source (COPYING.LGPLv3, LICENSE.md). LayerPeek itself is licensed under')
+    $lines.Add('the GPL-3.0-only: https://github.com/pfoltynek/LayerPeek')
+    ($lines -join "`n") + "`n"
+}
+
+function Get-FFmpegPublishedLibrary {
+    <# .SYNOPSIS The avcodec library of a publish folder (avcodec-<n>.dll / libavcodec.<n>.dylib); throws unless there is exactly one. #>
+    param([Parameter(Mandatory)] [string] $PublishDirectory, [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os)
+    $pattern = if ($Os -eq 'windows') { '^avcodec-\d+\.dll$' } else { '^libavcodec\.\d+\.dylib$' }
+    $found = @(Get-ChildItem -LiteralPath $PublishDirectory -File | Where-Object { $_.Name -cmatch $pattern })
+    if ($found.Count -ne 1) { throw "Expected exactly one FFmpeg avcodec library in $PublishDirectory, found $($found.Count) (build/FFmpeg.targets)." }
+    $found[0].FullName
+}
+
+function New-FFmpegSourceArchive {
+    <#
+    .SYNOPSIS
+        Packs the FFmpeg source of a release: <Destination> (ffmpeg-source-<version>-<os>.tar.xz) with one top folder of
+        the same name holding the verified tarball, the build script of the OS and README.txt. One archive covers every
+        RID of the OS in the release (PublishDirectories, RID -> publish folder, in order; Windows: win-x64 and
+        win-arm64, T-225): the library of each publish folder must report the version of the pinned source, and the
+        README names the configure line of each. The archive is listed afterwards and must hold exactly these files.
+        WorkDirectory (must not exist) holds the copies while packing and is deleted afterwards. Returns Destination.
+    #>
+    param(
+        [Parameter(Mandatory)] $Source,
+        [Parameter(Mandatory)] [System.Collections.IDictionary] $PublishDirectories,
+        [Parameter(Mandatory)] [string] $AppVersion,
+        [Parameter(Mandatory)] [string] $Destination,
+        [Parameter(Mandatory)] [string] $WorkDirectory,
+        [Parameter(Mandatory)] [string] $RepoRoot
+    )
+    if (Test-Path -LiteralPath $Destination) { throw "Archive already exists: $Destination" }
+    if (Test-Path -LiteralPath $WorkDirectory) { throw "Work folder already exists: $WorkDirectory" }
+    $pins = $Source.Pins
+    if ($PublishDirectories.Count -eq 0) { throw "No publish folder for the FFmpeg source of $($pins.Os)." }
+    $foreign = @($PublishDirectories.Keys | Where-Object { $pins.Rids -cnotcontains $_ })
+    if ($foreign.Count -gt 0) { throw "The FFmpeg source of $($pins.Os) covers $($pins.Rids -join ', '), not $($foreign -join ', ')." }
+    $problems = @()
+    $builds = @(foreach ($rid in $PublishDirectories.Keys) {
+            $library = Get-FFmpegPublishedLibrary -PublishDirectory $PublishDirectories[$rid] -Os $pins.Os
+            $libraryName = Split-Path -Leaf $library
+            $facts = Get-FFmpegLibraryFacts -Bytes ([System.IO.File]::ReadAllBytes($library))
+            $problems += @(Get-FFmpegLibraryVersionProblems -Pins $pins -LibraryVersion $facts.Version -LibraryName $libraryName | ForEach-Object { "${rid}: $_" })
+            if (-not $facts.Configuration) { $problems += "${rid}: $libraryName names no configure line (--prefix=...)." }
+            [pscustomobject]@{ Rid = $rid; LibraryName = $libraryName; Configuration = $facts.Configuration }
+        })
+    if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+
+    $name = [System.IO.Path]::GetFileName($Destination)
+    if (-not $name.EndsWith('.tar.xz', [StringComparison]::Ordinal)) { throw "Unsupported archive type: $Destination" }
+    $top = $name.Substring(0, $name.Length - '.tar.xz'.Length)
+    $work = $WorkDirectory
+    $folder = Join-Path $work $top
+    $null = New-Item -ItemType Directory -Path $folder
+    try {
+        $entries = [System.Collections.Generic.List[string]]::new()
+        foreach ($file in $Source.Files) {
+            Copy-Item -LiteralPath $file -Destination $folder
+            $entries.Add("$top/$(Split-Path -Leaf $file)")
+        }
+        Copy-Item -LiteralPath (Join-Path $RepoRoot $pins.BuildScript) -Destination $folder
+        $entries.Add("$top/$(Split-Path -Leaf $pins.BuildScript)")
+        $readme = Get-FFmpegSourceReadme -Pins $pins -AppVersion $AppVersion -Builds $builds -LibraryVersion $pins.Version
+        [System.IO.File]::WriteAllText((Join-Path $folder 'README.txt'), $readme, [System.Text.UTF8Encoding]::new($false))
+        $entries.Add("$top/README.txt")
+
+        # As New-ReleaseArchive: no AppleDouble entries or extended attributes of macOS in the archive.
+        [string[]] $macArguments = if ($IsMacOS) { @('--no-mac-metadata') } else { @() }
+        $savedCopyFile = $env:COPYFILE_DISABLE
+        if ($IsMacOS) { $env:COPYFILE_DISABLE = '1' }
+        try {
+            Write-Host "==> Packing $name (xz)" -ForegroundColor Cyan
+            & (Get-TarCommand) @macArguments -cJf $Destination -C $work $top
+            if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE (does this tar write xz? docs/prerequisites.md)." }
+        }
+        finally { if ($IsMacOS) { $env:COPYFILE_DISABLE = $savedCopyFile } }
+        $listed = @(& (Get-TarCommand) -tJf $Destination | ForEach-Object { "$_".TrimEnd('/') } | Where-Object { $_ -cne $top })
+        if ($LASTEXITCODE -ne 0) { throw "tar could not list $Destination (exit code $LASTEXITCODE)." }
+        $expected = @($entries | Sort-Object -CaseSensitive)
+        if ((@($listed | Sort-Object -CaseSensitive) -join "`n") -cne ($expected -join "`n")) {
+            Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+            throw "$name holds $($listed -join ', ') instead of $($expected -join ', ')."
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $Destination
 }
 
 # Velopack packaging (T-017, docs/velopack.md point 12). Fixed by the user: package id, title and AppUserModelID
@@ -1626,6 +2608,114 @@ function Get-MacSignatureProblems {
     @("codesign --verify --deep --strict failed for $($AppPath): $(($output | ForEach-Object { "$_" }) -join ' ')")
 }
 
+function Get-MacLoadPathRules {
+    <#
+    .SYNOPSIS
+        Where the Mach-O files of a downloaded bundle may load libraries from (T-217, pure): only the bundle (@rpath,
+        @loader_path, @executable_path) and the system (/usr/lib, /System/Library). Forbidden names the places a build
+        machine has and a clean Mac does not (Homebrew, /usr/local, /opt, the build output artifacts/ and the FFmpeg build
+        cache LayerPeek.Build), so that a problem says where a reference points.
+    #>
+    param([Parameter(Mandatory)] [string] $RepoRoot, [Parameter(Mandatory)] [string] $HomePath)
+    # macOS paths joined with '/' (not Join-Path, which would use '\' when the tests run on Windows).
+    $folder = { param($Path) $Path.TrimEnd('/') + '/' }
+    [pscustomobject]@{
+        Allowed   = @('@rpath/', '@loader_path/', '@executable_path/', '/usr/lib/', '/System/Library/')
+        Forbidden = [ordered]@{
+            '/opt/homebrew/'                                              = 'Homebrew'
+            '/usr/local/'                                                 = '/usr/local (Homebrew on Intel, hand-built libraries)'
+            '/opt/'                                                       = '/opt'
+            (& $folder ((& $folder $RepoRoot) + 'artifacts'))             = 'the build output artifacts/'
+            (& $folder ((& $folder $HomePath) + 'Library/Caches/LayerPeek.Build')) = 'the FFmpeg build cache LayerPeek.Build'
+        }
+        # LC_RPATH entries: relative to the bundle only.
+        RpathPrefixes = @('@executable_path', '@loader_path')
+    }
+}
+
+function Get-MacLoadPathProblem {
+    <# .SYNOPSIS Why a library reference of `otool -L` is not allowed by Get-MacLoadPathRules, or $null (pure). #>
+    param([Parameter(Mandatory)] [string] $Reference, [Parameter(Mandatory)] $Rules)
+    foreach ($prefix in $Rules.Forbidden.Keys) {
+        if ($Reference.StartsWith($prefix, [StringComparison]::Ordinal)) { return "$Reference ($($Rules.Forbidden[$prefix]))" }
+    }
+    foreach ($prefix in $Rules.Allowed) {
+        if ($Reference.StartsWith($prefix, [StringComparison]::Ordinal)) { return $null }
+    }
+    "$Reference (outside the bundle and the system)"
+}
+
+function Get-MacLoadCommandRpaths {
+    <# .SYNOPSIS The paths of the LC_RPATH load commands in `otool -l` output (pure). #>
+    param([AllowEmptyCollection()] [string[]] $OtoolLoadCommands = @())
+    $inRpath = $false
+    foreach ($line in $OtoolLoadCommands) {
+        $text = "$line".Trim()
+        if ($text -match '^cmd\s+(?<cmd>\S+)$') { $inRpath = $Matches.cmd -ceq 'LC_RPATH'; continue }
+        if ($inRpath -and $text -match '^path\s+(?<path>.+?)\s+\(offset \d+\)$') { $Matches.path; $inRpath = $false }
+    }
+}
+
+function Get-MacMachOLoadPathProblems {
+    <#
+    .SYNOPSIS
+        Load path problems of one Mach-O file (pure; T-217): every `otool -L` reference except its own install name
+        (-InstallName, `otool -D`: only an identifier) must pass Get-MacLoadPathProblem, every LC_RPATH of `otool -l` must
+        start with @executable_path or @loader_path.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $File,
+        [AllowEmptyCollection()] [string[]] $OtoolList = @(),
+        [AllowEmptyCollection()] [string[]] $OtoolLoadCommands = @(),
+        [string] $InstallName,
+        [Parameter(Mandatory)] $Rules
+    )
+    # The references are the indented lines; a universal file has one header line "<path> (architecture <arch>):" per
+    # architecture.
+    foreach ($line in @($OtoolList | Where-Object { "$_" -match '^\s' })) {
+        $reference = ("$line".Trim() -split ' \(compatibility version')[0].Trim()
+        if (-not $reference -or $reference -ceq $InstallName) { continue }
+        $problem = Get-MacLoadPathProblem -Reference $reference -Rules $Rules
+        if ($problem) { "$File loads $problem." }
+    }
+    foreach ($rpath in @(Get-MacLoadCommandRpaths $OtoolLoadCommands)) {
+        if (-not ($Rules.RpathPrefixes | Where-Object { $rpath -ceq $_ -or $rpath.StartsWith("$_/", [StringComparison]::Ordinal) })) {
+            "$File has the LC_RPATH $rpath (only @executable_path and @loader_path are allowed)."
+        }
+    }
+}
+
+function Get-MacBundleLoadPathProblems {
+    <# .SYNOPSIS Get-MacMachOLoadPathProblems of every Mach-O file of a bundle (otool -L, -D and -l); empty = fine. #>
+    param([Parameter(Mandatory)] [string] $AppPath, [Parameter(Mandatory)] $Rules)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $app 'Contents') -Recurse -File -Force | Where-Object { Test-MachOFile $_.FullName })) {
+        $list = @(& /usr/bin/otool -L $file.FullName 2>&1 | ForEach-Object { "$_" })
+        if ($LASTEXITCODE -ne 0) { "otool -L failed for $($file.FullName): $($list -join ' ')"; continue }
+        $commands = @(& /usr/bin/otool -l $file.FullName 2>&1 | ForEach-Object { "$_" })
+        if ($LASTEXITCODE -ne 0) { "otool -l failed for $($file.FullName)."; continue }
+        $id = @(& /usr/bin/otool -D $file.FullName 2>$null | Select-Object -Skip 1) | Select-Object -First 1
+        Get-MacMachOLoadPathProblems -File $file.FullName.Substring($app.Length + 1) -OtoolList $list -OtoolLoadCommands $commands -InstallName "$id".Trim() -Rules $Rules
+    }
+}
+
+function Get-MacReleasePlistProblems {
+    <#
+    .SYNOPSIS
+        Problems of the Info.plist of a released bundle (T-217, pure; XML text, e.g. from plutil -convert xml1): both
+        versions equal the build version, the bundle identifier of build/macos/Info.plist, LSUIElement true.
+    #>
+    param([Parameter(Mandatory)] [string] $PlistText, [Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $BundleIdentifier)
+    try { $entries = Get-PlistEntries -Text $PlistText }
+    catch { return "Info.plist is no property list: $($_.Exception.Message)" }
+    $value = { param($Key) if ($entries.Contains($Key)) { $entries[$Key].InnerText } else { $null } }
+    foreach ($key in 'CFBundleShortVersionString', 'CFBundleVersion') {
+        if ((& $value $key) -cne $Version) { "Info.plist $key is '$(& $value $key)', expected the build version $Version." }
+    }
+    if ((& $value 'CFBundleIdentifier') -cne $BundleIdentifier) { "Info.plist CFBundleIdentifier is '$(& $value 'CFBundleIdentifier')', expected $BundleIdentifier." }
+    if (-not $entries.Contains('LSUIElement') -or $entries['LSUIElement'].Name -cne 'true') { 'Info.plist does not set LSUIElement to true (the app would get a Dock icon).' }
+}
+
 function Get-MacDiskImageArguments {
     <#
     .SYNOPSIS
@@ -1770,13 +2860,30 @@ function Write-Problems {
     foreach ($problem in $Problems) { Write-Host "  - $problem" -ForegroundColor Red }
 }
 
+# MSVC component of the Visual Studio (Build Tools) installation that the Native AOT publish of a Windows RID needs: the
+# ILCompiler targets look it up with vswhere -requires (Microsoft.NETCore.Native.Windows.targets). Cross-compiling from
+# x64 to ARM64 needs "C++ ARM64/ARM64EC build tools" (Microsoft Learn, Native AOT "Cross-compilation", T-224).
+$script:MsvcToolchainComponents = [ordered]@{
+    'win-x64'   = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
+    'win-arm64' = 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+}
+
+function Get-MsvcToolchainComponent {
+    <# .SYNOPSIS The MSVC component id the AOT publish of a Windows RID needs; $null for a RID without one. #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    if ($script:MsvcToolchainComponents.Contains($Runtime)) { $script:MsvcToolchainComponents[$Runtime] } else { $null }
+}
+
 function Get-NativeToolchainProblems {
     <#
     .SYNOPSIS
         Checks the Native AOT toolchain of the requested RIDs before a long build (docs/prerequisites.md): Xcode Command
-        Line Tools on macOS, the MSVC component of every Windows RID. Returns problem messages. Reads only (xcrun, vswhere).
+        Line Tools on macOS, the MSVC component of every Windows RID (Get-MsvcToolchainComponent). Returns problem
+        messages. Reads only (xcrun, vswhere).
+    .PARAMETER VswherePath
+        vswhere to ask; default the one of the Visual Studio Installer. The tests pass a stand-in script.
     #>
-    param([Parameter(Mandatory)] [string[]] $Runtimes, [Parameter(Mandatory)] [string] $HostOs)
+    param([Parameter(Mandatory)] [string[]] $Runtimes, [Parameter(Mandatory)] [string] $HostOs, [string] $VswherePath)
     $problems = [System.Collections.Generic.List[string]]::new()
     if ($HostOs -eq 'macos') {
         $found = $false
@@ -1787,22 +2894,96 @@ function Get-NativeToolchainProblems {
         if (-not $found) { $problems.Add('Xcode Command Line Tools are missing (xcode-select --install). See docs/prerequisites.md.') }
         return $problems.ToArray()
     }
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio' 'Installer' 'vswhere.exe'
+    $vswhere = if ($VswherePath) { $VswherePath } else { Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio' 'Installer' 'vswhere.exe' }
     if (-not (Test-Path -LiteralPath $vswhere)) {
         $problems.Add("Visual Studio Build Tools are missing ($vswhere not found). See docs/prerequisites.md.")
         return $problems.ToArray()
     }
-    $components = @{
-        'win-x64' = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
-    }
     foreach ($rid in $Runtimes) {
-        $component = $components[$rid]
+        $component = Get-MsvcToolchainComponent $rid
+        if (-not $component) {
+            $problems.Add("No MSVC component is known for '$rid' (known: $($script:MsvcToolchainComponents.Keys -join ', ')).")
+            continue
+        }
         $found = @(& $vswhere -products * -requires $component -property installationPath)
         if ($LASTEXITCODE -ne 0 -or -not ($found | Where-Object { $_ })) {
             $problems.Add("The MSVC component $component needed for the $rid AOT publish is not installed. See docs/prerequisites.md.")
         }
     }
     $problems.ToArray()
+}
+
+# Machine type (IMAGE_FILE_HEADER.Machine) of the exe and the native DLLs of a Windows publish folder (T-224). Every
+# NuGet package and FFmpeg build must deliver its native files for the RID; a file of another architecture fails only
+# when it is loaded (on the device), so the build checks the headers.
+$script:WindowsRuntimeMachines = [ordered]@{
+    'win-x64'   = 0x8664
+    'win-arm64' = 0xAA64
+}
+$script:PeMachineNames = @{ 0x014C = 'x86'; 0x01C4 = 'ARM'; 0x8664 = 'x64'; 0xAA64 = 'ARM64' }
+
+function Get-PeMachine {
+    <#
+    .SYNOPSIS The machine type of the COFF header of a PE image (exe, dll); $null when the file is not a PE image.
+    .DESCRIPTION Reads only the DOS header ("MZ", e_lfanew at 0x3C), the "PE\0\0" signature and the following 16-bit field.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $reader = [System.IO.BinaryReader]::new($stream)
+        if ($stream.Length -lt 0x40 -or $reader.ReadUInt16() -ne 0x5A4D) { return $null }
+        $stream.Position = 0x3C
+        $offset = $reader.ReadUInt32()
+        if ($offset -gt $stream.Length - 6) { return $null }
+        $stream.Position = $offset
+        if ($reader.ReadUInt32() -ne 0x00004550) { return $null }
+        [int] $reader.ReadUInt16()
+    }
+    finally { $stream.Dispose() }
+}
+
+function Format-PeMachine {
+    <# .SYNOPSIS 'ARM64 (0xAA64)' for a known machine type, '0x1234' for another. #>
+    param([Parameter(Mandatory)] [int] $Machine)
+    $number = '0x{0:X4}' -f $Machine
+    if ($script:PeMachineNames.ContainsKey($Machine)) { "$($script:PeMachineNames[$Machine]) ($number)" } else { $number }
+}
+
+function Get-PublishArchitectureCheck {
+    <#
+    .SYNOPSIS
+        Checks that the exe and every DLL of a Windows publish folder (also in subfolders) are PE images of the RID's
+        architecture (win-x64: x64 0x8664, win-arm64: ARM64 0xAA64). Reads only.
+        Meant for Native AOT publish folders, which hold only native files: an IL-only (AnyCPU) managed DLL has the machine
+        type x86 0x014C and would be reported.
+    .OUTPUTS
+        Expected (the expected machine type as text), Files (checked files, relative, sorted) and Problems (empty = all fit).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Directory,
+        [Parameter(Mandatory)] [string] $Runtime,
+        [string] $ExecutableName = 'LayerPeek.exe'
+    )
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if (-not $script:WindowsRuntimeMachines.Contains($Runtime)) {
+        $problems.Add("No PE machine type is known for runtime '$Runtime' (known: $($script:WindowsRuntimeMachines.Keys -join ', ')).")
+        return [pscustomobject]@{ Expected = $null; Files = @(); Problems = $problems.ToArray() }
+    }
+    $expected = $script:WindowsRuntimeMachines[$Runtime]
+    $expectedText = Format-PeMachine $expected
+    $root = (Resolve-Path -LiteralPath $Directory).ProviderPath.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    if (-not (Test-Path -LiteralPath (Join-Path $root $ExecutableName) -PathType Leaf)) { $problems.Add("$ExecutableName is missing in $root.") }
+    $files = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in @(Get-ChildItem -LiteralPath $root -Recurse -File -Force | Where-Object { $_.Extension -in '.exe', '.dll' })) {
+        $files.Add($file.FullName.Substring($root.Length + 1))
+    }
+    $files.Sort([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($name in $files) {
+        $machine = Get-PeMachine (Join-Path $root $name)
+        if ($null -eq $machine) { $problems.Add("$name is not a PE image.") }
+        elseif ($machine -ne $expected) { $problems.Add("$name is $(Format-PeMachine $machine), expected $expectedText for $Runtime.") }
+    }
+    [pscustomobject]@{ Expected = $expectedText; Files = $files.ToArray(); Problems = $problems.ToArray() }
 }
 
 function Get-ReleaseBuildOutput {
@@ -2328,7 +3509,9 @@ function Get-ReleaseFlowFacts {
     $checksumFile = Get-ChecksumFileName $HostOs
 
     $toolchainProblems = [System.Collections.Generic.List[string]]::new()
-    $runtimes = @(Resolve-ReleaseRuntimes -HostOs $HostOs)
+    # The RIDs release.ps1 builds for the upload (T-226: not win-arm64 until it is uploadable, T-227), so that a missing
+    # ARM64 toolchain does not stop a release of win-x64.
+    $runtimes = @(Get-UploadableReleaseRuntimes -HostOs $HostOs)
     $skipToolchain = Test-ReleaseTestToolchainSkip -RepoRoot $RepoRoot
     if (-not $skipToolchain) {
         foreach ($problem in @(Get-NativeToolchainProblems -Runtimes $runtimes -HostOs $HostOs)) { $toolchainProblems.Add($problem) }
@@ -2594,7 +3777,7 @@ function Get-ReleaseFlowPlan {
         [pscustomobject]@{ Id = 'DeleteBranch'; Outward = $false; Title = "Delete the local branch $branch"
             Detail = "git branch -d $branch" }
         [pscustomobject]@{ Id = 'Build'; Outward = $false; Title = "Build $($f.Runtimes -join ', ') from the tag"
-            Detail = "git switch --detach $tag; pwsh scripts/release-build.ps1" }
+            Detail = "git switch --detach $tag; pwsh $((@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $f.HostOs)) -join ' ') (signing key: `$env:LAYERPEEK_FEED_SIGNING_KEY, password asked)" }
         [pscustomobject]@{ Id = 'Upload'; Outward = $true; Title = 'Create or fill the draft release (confirm y/N)'
             Detail = "pwsh scripts/release-upload.ps1$repoArgument -DryRun, then pwsh scripts/release-upload.ps1$repoArgument; never published here" }
     )
@@ -2624,7 +3807,8 @@ function Format-ReleaseFlowPlan {
             # T-113: the other OS went first; this one is added to the published release, not by release.ps1.
             $repoArgument = if ($Facts.RepositoryArgument) { " -Repo $($Facts.RepositoryArgument)" } else { '' }
             "  It has no $($Facts.ChecksumFile) yet. Add the files of this OS (docs/release.md, release on two machines):"
-            "    git switch --detach $($Facts.Tag); pwsh scripts/release-build.ps1; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
+            $build = (@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $Facts.HostOs)) -join ' '
+            "    git switch --detach $($Facts.Tag); pwsh $build -FeedSigningKey <key file>; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
         }
     }
     if ($Facts.PSObject.Properties['ToolchainSkipped'] -and $Facts.ToolchainSkipped) {
@@ -2650,7 +3834,10 @@ function Get-ReleaseNextSteps {
     $repoArgument = if ($Repository) { " -Repo $Repository" } else { '' }
     $names = @{ windows = 'Windows'; macos = 'macOS' }
     $this = $names[$HostOs]
-    $other = $names[$(if ($HostOs -eq 'windows') { 'macos' } else { 'windows' })]
+    $otherOs = if ($HostOs -eq 'windows') { 'macos' } else { 'windows' }
+    $other = $names[$otherOs]
+    # T-226: the build of the other OS for the upload (Windows: -Runtime win-x64 while win-arm64 is not uploadable).
+    $otherBuild = (@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $otherOs)) -join ' '
     @(
         "Publishing is a separate manual step. Check the draft $tag on GitHub (text, files), then:"
         "  git switch --detach $tag"
@@ -2658,7 +3845,7 @@ function Get-ReleaseNextSteps {
         "  pwsh scripts/release-publish.ps1$repoArgument -AllowIncomplete   # only the $this files so far"
         '  git switch develop'
         "The $other files follow on a $other machine (docs/release.md, release on two machines), without release.ps1:"
-        "  git fetch $Remote --tags; git switch --detach $tag; pwsh scripts/release-build.ps1"
+        "  git fetch $Remote --tags; git switch --detach $tag; pwsh $otherBuild -FeedSigningKey <key file>"
         "  pwsh scripts/release-upload.ps1$repoArgument -AddToPublished   # after the publish above"
         "  (or before publishing: pwsh scripts/release-upload.ps1$repoArgument into the draft, then publish without -AllowIncomplete)"
     )
@@ -2857,21 +4044,52 @@ function Invoke-ReleasePush {
     if ($result.ExitCode -ne 0) { throw "git push $Remote $($refspecs -join ' ') failed (exit code $($result.ExitCode)). Nothing is force-pushed; see docs/release.md." }
 }
 
+function Get-SmokeCleanEnvironmentArguments {
+    <#
+    .SYNOPSIS
+        The arguments of /usr/bin/env for a start without the developer's environment (T-217, pure): env -i, then only
+        HOME, the system PATH and TMPDIR, then the executable and its arguments. Nothing else reaches the app: no
+        DOTNET_ROOT or other DOTNET_*, no DYLD_*, no Homebrew in PATH.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Executable,
+        [AllowEmptyCollection()] [string[]] $Arguments = @(),
+        [Parameter(Mandatory)] [string] $HomePath,
+        [Parameter(Mandatory)] [string] $TempPath
+    )
+    foreach ($value in $HomePath, $TempPath) {
+        if (-not [System.IO.Path]::IsPathRooted($value) -or $value.Contains('=')) { throw "'$value' is no absolute path for the clean environment." }
+    }
+    @('-i', "HOME=$HomePath", 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', "TMPDIR=$TempPath", $Executable) + @($Arguments)
+}
+
+function Get-SmokeNativeLoadErrors {
+    <#
+    .SYNOPSIS
+        The lines of the app's output or log that report a native library that failed to load (T-217, pure): dyld errors
+        and the .NET exceptions of a missing or broken native library (FFmpeg, Avalonia, SkiaSharp, HarfBuzz).
+    #>
+    param([AllowEmptyCollection()] [AllowEmptyString()] [string[]] $Lines = @())
+    $pattern = 'dyld\[\d+\]|Library not loaded|image not found|DllNotFoundException|Unable to load (shared library|DLL)|BadImageFormatException|EntryPointNotFoundException|TypeInitializationException|video decoder \(FFmpeg\) is not available'
+    @($Lines | Where-Object { $_ -match $pattern })
+}
+
 function Get-SmokeProfile {
     <#
     .SYNOPSIS
         The places of the user profile that the Release exe writes (it has no test mode, T-095) and the journal of their
-        backup during the AOT smoke check, never anything else (on Windows only the logs below %LOCALAPPDATA%\LayerPeek,
-        which may also hold the installed app).
+        backup during the AOT smoke check, never anything else (on Windows only the logs and the cache below
+        %LOCALAPPDATA%\LayerPeek, which may also hold the installed app).
     .DESCRIPTION
-        Folders: data and logs of the app; on macOS also what AppKit and the system keep under the bundle identifier
+        Folders: data, logs and cache of the app (AppDataPaths.GetDefaultCacheDirectory, T-196; never the FFmpeg build
+        cache LayerPeek.Build next to it); on macOS also what AppKit and the system keep under the bundle identifier
         (T-019): ~/Library/Saved Application State/<id>.savedState, ~/Library/Caches/<id> and ~/Library/HTTPStorages/<id>.
         Preferences (macOS): the defaults domains of the app, the bundle identifier (LayerPeek.app) and LayerPeek (the
         executable outside a bundle). They belong to cfprefsd, so they are never moved as files: the backup exports the
         domain and deletes it, the restore deletes what the exe wrote and imports the backup (Defaults, /usr/bin/defaults).
     .PARAMETER ProfileRoot
         A stand-in profile for the tests: <root>/data/LayerPeek, <root>/logs/LayerPeek, <root>/state/<id>.savedState,
-        <root>/caches/<id>, <root>/http/<id> and the domains as files <root>/prefs/<domain>.plist, which a file-based
+        <root>/caches/<id>, <root>/http/<id>, <root>/caches/LayerPeek and the domains as files <root>/prefs/<domain>.plist, which a file-based
         stand-in of defaults changes (on every OS).
     .PARAMETER BundleIdentifier
         The bundle identifier; default: CFBundleIdentifier of build/macos/Info.plist.
@@ -2885,7 +4103,8 @@ function Get-SmokeProfile {
             (Join-Path $ProfileRoot 'logs' 'LayerPeek'),
             (Join-Path $ProfileRoot 'state' "$BundleIdentifier.savedState"),
             (Join-Path $ProfileRoot 'caches' $BundleIdentifier),
-            (Join-Path $ProfileRoot 'http' $BundleIdentifier))
+            (Join-Path $ProfileRoot 'http' $BundleIdentifier),
+            (Join-Path $ProfileRoot 'caches' 'LayerPeek'))
         $preferences = Join-Path $ProfileRoot 'prefs'
         $defaults = { param($Verb, $Domain, $File) Invoke-StandInDefaults -Folder $preferences -Verb $Verb -Domain $Domain -File $File }.GetNewClosure()
     }
@@ -2896,14 +4115,16 @@ function Get-SmokeProfile {
             (Join-Path $library 'Logs' 'LayerPeek'),
             (Join-Path $library 'Saved Application State' "$BundleIdentifier.savedState"),
             (Join-Path $library 'Caches' $BundleIdentifier),
-            (Join-Path $library 'HTTPStorages' $BundleIdentifier))
+            (Join-Path $library 'HTTPStorages' $BundleIdentifier),
+            (Join-Path $library 'Caches' 'LayerPeek'))
         $preferences = Join-Path $library 'Preferences'
         $defaults = { param($Verb, $Domain, $File) $arguments = @($Verb, $Domain) + @($File | Where-Object { $_ }); $null = & /usr/bin/defaults @arguments 2>&1; $LASTEXITCODE }
     }
     elseif ($IsWindows) {
         $folders = @(
             (Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek'),
-            (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs'))
+            (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs'),
+            (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'cache'))
         $preferences = $null
         $defaults = $null
     }
@@ -3139,6 +4360,753 @@ function Format-RegistryTreeState {
         $lines.Add((Format-RegistryTreeState -State $State.SubKeys[$name] -Indent "$Indent  "))
     }
     $lines -join "`n"
+}
+
+# winget (T-059). Decided by the user 2026-11-11: package identifier 3DPrint.LayerPeek, publisher "Petr Foltýnek" (the
+# same as --packAuthors, which Velopack writes as Publisher of the Apps & features entry), stable versions from 1.0.0 on,
+# the submission an optional step after publishing (release-publish.ps1, release-upload.ps1 -AddToPublished) or
+# scripts/release-winget.ps1 on its own. The first version is submitted from the reviewed manifest templates in
+# build/winget (wingetcreate submit), every later one with wingetcreate update. The token comes from gh auth token at run
+# time and reaches wingetcreate only through WINGET_CREATE_GITHUB_TOKEN of this process while it runs (never as an
+# argument, never printed; wingetcreate's output is redacted). Windows only: wingetcreate and winget are Windows tools.
+$script:Winget = [pscustomobject]@{
+    PackageIdentifier  = '3DPrint.LayerPeek'
+    Repository         = 'pfoltynek/LayerPeek'
+    Runtime            = 'win-x64'
+    # T-226 (user decision 2026-11-12, question 3): the arm64 installer goes into the manifest only when the release has
+    # it, i.e. from the first release that uploads win-arm64 (T-227); the x64 installer is always required.
+    Arm64Runtime       = 'win-arm64'
+    TemplateDirectory  = 'build/winget'
+    PackagesRepository = 'microsoft/winget-pkgs'
+    TokenVariable      = 'WINGET_CREATE_GITHUB_TOKEN'
+}
+
+function Get-WingetSettings {
+    <# .SYNOPSIS The fixed values of the winget submission (T-059). #>
+    $script:Winget
+}
+
+function Get-WingetInstallerFileName {
+    <#
+    .SYNOPSIS
+        The Velopack installer of the winget package in the release: LayerPeek-<version>-win-x64-Setup.exe, or with
+        -Runtime win-arm64 the one of the arm64 node (T-226).
+    #>
+    param([Parameter(Mandatory)] [string] $Version, [string] $Runtime = $script:Winget.Runtime)
+    Get-VelopackSetupFileName -Version $Version -Runtime $Runtime
+}
+
+function Get-WingetUrls {
+    <#
+    .SYNOPSIS
+        Pure: the version-specific URLs of the manifest (installer x64, installer arm64 for a release that has it, T-226,
+        release notes) for a release of the package repository.
+    #>
+    param([Parameter(Mandatory)] [string] $Version)
+    $base = "https://github.com/$($script:Winget.Repository)"
+    $tag = ConvertTo-ReleaseTag $Version
+    [pscustomobject]@{
+        Installer      = "$base/releases/download/$tag/$(Get-WingetInstallerFileName -Version $Version)"
+        InstallerArm64 = "$base/releases/download/$tag/$(Get-WingetInstallerFileName -Version $Version -Runtime $script:Winget.Arm64Runtime)"
+        ReleaseNotes   = "$base/releases/tag/$tag"
+    }
+}
+
+function Test-WingetArm64Installer {
+    <#
+    .SYNOPSIS
+        Pure: true when the GitHub release has the win-arm64 installer (LayerPeek-<version>-win-arm64-Setup.exe), so that
+        its manifest gets the arm64 node (T-226, question 3: from the first release that uploads win-arm64).
+    #>
+    param([AllowNull()] $Release, [Parameter(Mandatory)] [string] $Version)
+    if ($null -eq $Release) { return $false }
+    $setup = Get-WingetInstallerFileName -Version $Version -Runtime $script:Winget.Arm64Runtime
+    [bool](@($Release.assets | Where-Object { $_ -and $_.name -ceq $setup }).Count -gt 0)
+}
+
+function Get-WingetManifestRelativePath {
+    <#
+    .SYNOPSIS
+        Pure: the folder of the package in microsoft/winget-pkgs (manifests/3/3DPrint/LayerPeek) or, with -Version, of
+        one version (manifests/3/3DPrint/LayerPeek/1.0.0): lower-case first letter, then each segment of the identifier.
+    #>
+    param([string] $Version)
+    $id = $script:Winget.PackageIdentifier
+    $parts = @('manifests', $id.Substring(0, 1).ToLowerInvariant()) + $id.Split('.')
+    if ($Version) { $parts += $Version }
+    $parts -join '/'
+}
+
+function ConvertTo-WingetManifests {
+    <#
+    .SYNOPSIS
+        Pure: the manifest files of one version (file name -> text) from the templates in build/winget: @VERSION@,
+        @RELEASE_DATE@ (YYYY-MM-DD) and @INSTALLER_SHA256@ (upper case, as wingetcreate writes it) are replaced.
+        The installer template has the arm64 node between the lines '# @ARM64_BEGIN@' and '# @ARM64_END@' (T-226): with
+        -Arm64InstallerSha256 (the release has the win-arm64 installer) the marker lines are dropped and
+        @INSTALLER_SHA256_ARM64@ is replaced, without it the whole block is dropped (a manifest with x64 only).
+        Throws when a template is missing, the installer template has not exactly one arm64 block, a placeholder is left
+        over or a value is malformed.
+    #>
+    param(
+        [Parameter(Mandatory)] [hashtable] $Templates,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $ReleaseDate,
+        [Parameter(Mandatory)] [string] $InstallerSha256,
+        [string] $Arm64InstallerSha256
+    )
+    if (-not (Test-ReleaseVersion $Version)) { throw "'$Version' is not a version in the form X.Y.Z." }
+    if ($ReleaseDate -notmatch '^\d{4}-\d{2}-\d{2}$') { throw "Release date '$ReleaseDate' is not in the form YYYY-MM-DD." }
+    if ($InstallerSha256 -notmatch '^[0-9A-Fa-f]{64}$') { throw "'$InstallerSha256' is no SHA256 (64 hex digits)." }
+    if ($PSBoundParameters.ContainsKey('Arm64InstallerSha256') -and $Arm64InstallerSha256 -notmatch '^[0-9A-Fa-f]{64}$') { throw "'$Arm64InstallerSha256' is no SHA256 of the arm64 installer (64 hex digits)." }
+    $id = $script:Winget.PackageIdentifier
+    $names = @("$id.yaml", "$id.installer.yaml", "$id.locale.en-US.yaml")
+    $missing = @($names | Where-Object { -not $Templates.ContainsKey($_) })
+    if ($missing.Count -gt 0) { throw "winget manifest template(s) missing: $($missing -join ', ')." }
+    $arm64Block = [regex]::new('(?m)^# @ARM64_BEGIN@[^\n]*\n(?<node>(?:(?!# @ARM64_(?:BEGIN|END)@)[^\n]*\n)*?)# @ARM64_END@[^\n]*(?:\n|$)')
+    $result = [ordered]@{}
+    foreach ($name in $names) {
+        $text = $Templates[$name] -replace '\r\n', "`n"
+        if ($name -ceq "$id.installer.yaml") {
+            $blocks = $arm64Block.Matches($text)
+            $markers = [regex]::Matches($text, '(?m)^# @ARM64_(?:BEGIN|END)@').Count
+            if ($blocks.Count -ne 1 -or $markers -ne 2) { throw "winget manifest template $name must have exactly one arm64 block ('# @ARM64_BEGIN@' ... '# @ARM64_END@')." }
+            $node = if ($Arm64InstallerSha256) { $blocks[0].Groups['node'].Value.Replace('@INSTALLER_SHA256_ARM64@', $Arm64InstallerSha256.ToUpperInvariant()) } else { '' }
+            $text = $text.Substring(0, $blocks[0].Index) + $node + $text.Substring($blocks[0].Index + $blocks[0].Length)
+        }
+        $text = $text.Replace('@VERSION@', $Version).Replace('@RELEASE_DATE@', $ReleaseDate).Replace('@INSTALLER_SHA256@', $InstallerSha256.ToUpperInvariant())
+        if ($text -match '@[A-Z0-9_]+@') { throw "winget manifest template $name has an unknown placeholder $($Matches[0])." }
+        $result[$name] = $text
+    }
+    $result
+}
+
+function Read-WingetTemplates {
+    <# .SYNOPSIS The manifest templates of build/winget (file name -> text, UTF-8). #>
+    param([Parameter(Mandatory)] [string] $Directory)
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) { throw "The winget manifest templates are missing: $Directory." }
+    $templates = @{}
+    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -Filter '*.yaml')) {
+        $templates[$file.Name] = [System.IO.File]::ReadAllText($file.FullName, [System.Text.UTF8Encoding]::new($false))
+    }
+    $templates
+}
+
+function Write-WingetManifests {
+    <# .SYNOPSIS Writes the manifest files into an empty or new folder (UTF-8 without BOM, LF); returns the folder. #>
+    param([Parameter(Mandatory)] $Manifests, [Parameter(Mandatory)] [string] $Directory)
+    if ((Test-Path -LiteralPath $Directory) -and @(Get-ChildItem -LiteralPath $Directory -Force).Count -gt 0) {
+        throw "The folder $Directory is not empty; the manifests go into an empty or new folder."
+    }
+    $null = New-Item -ItemType Directory -Path $Directory -Force
+    foreach ($name in $Manifests.Keys) {
+        [System.IO.File]::WriteAllText((Join-Path $Directory $name), ($Manifests[$name] -replace '\r\n', "`n"), [System.Text.UTF8Encoding]::new($false))
+    }
+    (Resolve-Path -LiteralPath $Directory).ProviderPath
+}
+
+function Get-WingetPreflightProblems {
+    <#
+    .SYNOPSIS
+        Pure: what rules out a winget submission before anything is read from GitHub. Only stable versions (not 0.x; the
+        user decided 2026-11-11 to start with 1.0.0), only releases of the package repository (never a trial repository),
+        and only on Windows unless -AnyOs (writing the manifest files for review works everywhere).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [Parameter(Mandatory)] [string] $HostOs,
+        [switch] $AnyOs
+    )
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if (-not (Test-ReleaseVersion $Version)) { $problems.Add("'$Version' is not a version in the form X.Y.Z.") }
+    elseif (Test-PrereleaseVersion $Version) { $problems.Add("Version $Version is a pre-release (0.x). winget gets stable versions only, from 1.0.0 on (T-059).") }
+    if ($Repository -and $Repository -ne $script:Winget.Repository) {
+        $problems.Add("winget installs the releases of $($script:Winget.Repository) only; $Repository is not submitted (a trial repository never goes to winget).")
+    }
+    if (-not $AnyOs -and $HostOs -ne 'windows') {
+        $problems.Add('The winget submission runs on Windows only (wingetcreate and winget are Windows tools). Run it on a Windows machine: pwsh scripts/release-winget.ps1 -Version ' + $Version + ' (docs/release.md, "Publikace do winget").')
+    }
+    $problems.ToArray()
+}
+
+function Get-WingetReleaseProblems {
+    <#
+    .SYNOPSIS
+        Pure: the published GitHub release must have the Windows installer, completely uploaded with its SHA256 (winget
+        downloads it from the release URL and compares the hash). Returns the problems.
+    #>
+    param([AllowNull()] $Release, [Parameter(Mandatory)] [string] $Version)
+    $tag = ConvertTo-ReleaseTag $Version
+    $setup = Get-WingetInstallerFileName -Version $Version
+    if ($null -eq $Release) { return @("There is no release $tag on GitHub. winget gets a version only after it is published (scripts/release-publish.ps1).") }
+    if ($Release.isDraft) { return @("Release $tag is still a draft. Publish it first (scripts/release-publish.ps1); winget downloads the installer from the published release.") }
+    $asset = @($Release.assets | Where-Object { $_.name -ceq $setup }) | Select-Object -First 1
+    if ($null -eq $asset) { return @("Release $tag has no $setup yet. Add the Windows files first (on Windows: pwsh scripts/release-upload.ps1 -AddToPublished).") }
+    # T-226: the arm64 installer is optional, but when the release has it, it goes into the manifest and must be complete too.
+    $setups = @($setup)
+    if (Test-WingetArm64Installer -Release $Release -Version $Version) { $setups += Get-WingetInstallerFileName -Version $Version -Runtime $script:Winget.Arm64Runtime }
+    foreach ($name in $setups) {
+        $asset = @($Release.assets | Where-Object { $_.name -ceq $name }) | Select-Object -First 1
+        if ($asset.PSObject.Properties['state'] -and $asset.state -and $asset.state -ne 'uploaded') { return @("$name in release $tag is not completely uploaded (state $($asset.state)).") }
+        $digest = if ($asset.PSObject.Properties['digest']) { "$($asset.digest)" } else { '' }
+        if ($digest -notmatch '^sha256:[0-9a-fA-F]{64}$') { return @("GitHub reports no SHA256 for $name in release $tag; it is needed for the manifest.") }
+    }
+    @()
+}
+
+function Get-WingetInstallerSha256 {
+    <#
+    .SYNOPSIS
+        The SHA256 of the installer asset (upper case) from GitHub's digest, x64 or with -Runtime win-arm64 the arm64 one
+        (T-226); checked by Get-WingetReleaseProblems.
+    #>
+    param([Parameter(Mandatory)] $Release, [Parameter(Mandatory)] [string] $Version, [string] $Runtime = $script:Winget.Runtime)
+    $setup = Get-WingetInstallerFileName -Version $Version -Runtime $Runtime
+    $asset = @($Release.assets | Where-Object { $_.name -ceq $setup }) | Select-Object -First 1
+    "$($asset.digest)".Substring('sha256:'.Length).ToUpperInvariant()
+}
+
+function Get-WingetReleaseDate {
+    <# .SYNOPSIS The release date (YYYY-MM-DD, UTC) from publishedAt of the GitHub release; $Fallback when GitHub has none. #>
+    param([Parameter(Mandatory)] $Release, [Parameter(Mandatory)] [string] $Fallback)
+    $published = if ($Release.PSObject.Properties['publishedAt']) { $Release.publishedAt } else { $null }
+    if (-not $published) { return $Fallback }
+    $value = if ($published -is [datetime]) { $published } else { [datetime]::Parse("$published", [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal) }
+    $value.ToUniversalTime().ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-WingetPullRequestProblems {
+    <#
+    .SYNOPSIS
+        Pure: open pull requests in microsoft/winget-pkgs whose title names the package (objects with title and url).
+        One for the same version: never a second one. The first version not merged yet (Mode new): a later version would
+        be a second "New package" pull request, so wait until it is merged.
+    #>
+    param([AllowEmptyCollection()] [object[]] $PullRequests = @(), [Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [ValidateSet('new', 'update')] [string] $Mode)
+    $id = [regex]::Escape($script:Winget.PackageIdentifier)
+    $mine = @($PullRequests | Where-Object { $_ -and "$($_.title)" -match "(?i)(^|[^\w.])$id([^\w.]|$)" })
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $escaped = [regex]::Escape($Version)
+    foreach ($pr in $mine) {
+        if ("$($pr.title)" -match "(^|[^\d.])$escaped([^\d.]|$)") { $problems.Add("An open pull request for $($script:Winget.PackageIdentifier) $Version already exists: $($pr.url)") }
+        elseif ($Mode -eq 'new') { $problems.Add("The package is not in winget yet and its pull request is still open: $($pr.url) ($($pr.title)). Wait until it is merged, then submit $Version (wingetcreate update).") }
+    }
+    $problems.ToArray()
+}
+
+function Get-WingetCreateArguments {
+    <#
+    .SYNOPSIS
+        Pure: the wingetcreate arguments, never with a token (it reaches wingetcreate through the environment).
+        new: wingetcreate submit of the folder with the reviewed manifests; update: wingetcreate update with the version,
+        the installer URL (with -Arm64 also the one of the arm64 installer, T-226), release notes URL and release date,
+        submitted at once. The architecture needs no override ('<url>|x64'): wingetcreate takes it from the URL first
+        (…-win-x64-Setup.exe, …-win-arm64-Setup.exe, doc/update.md of winget-create). Pull request titles as the
+        winget-pkgs template asks: "New package: <id> version X.Y.Z" / "Update: <id> to X.Y.Z".
+    #>
+    param(
+        [Parameter(Mandatory)] [ValidateSet('new', 'update')] [string] $Mode,
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $ManifestDirectory,
+        [string] $ReleaseDate,
+        [switch] $Arm64
+    )
+    $id = $script:Winget.PackageIdentifier
+    if ($Mode -eq 'new') {
+        if (-not $ManifestDirectory) { throw 'wingetcreate submit needs the folder of the manifests.' }
+        return @('submit', '--prtitle', "New package: $id version $Version", $ManifestDirectory)
+    }
+    if ($ReleaseDate -notmatch '^\d{4}-\d{2}-\d{2}$') { throw "Release date '$ReleaseDate' is not in the form YYYY-MM-DD." }
+    $urls = Get-WingetUrls -Version $Version
+    $installers = @($urls.Installer) + @(if ($Arm64) { $urls.InstallerArm64 })
+    @(
+        'update', $id,
+        '--version', $Version,
+        '--urls') + $installers + @(
+        '--release-notes-url', $urls.ReleaseNotes,
+        '--release-date', $ReleaseDate,
+        '--prtitle', "Update: $id to $Version",
+        '--submit'
+    )
+}
+
+function Get-WingetTokenProblems {
+    <#
+    .SYNOPSIS
+        Pure: whether the token of gh can be used by wingetcreate. Never puts the token into a message. Fine-grained
+        personal access tokens (github_pat_…) are not supported by wingetcreate (doc/token.md of winget-create) and cannot
+        fork microsoft/winget-pkgs when they are limited to the LayerPeek repository (T-180).
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Token)
+    if ([string]::IsNullOrWhiteSpace($Token)) { return @('gh auth token returned no token. Log in for the submission with gh auth login (steps below).') }
+    if ($Token.StartsWith('github_pat_', [StringComparison]::Ordinal)) {
+        return @('The token of gh is a fine-grained personal access token (for example from GH_TOKEN, T-180). wingetcreate supports gh OAuth logins and classic tokens only (it forks microsoft/winget-pkgs). Log in for the submission with gh auth login (steps below).')
+    }
+    if ($Token -match '\s') { return @('The token of gh contains white space; gh auth token returned something unexpected.') }
+    @()
+}
+
+# The scopes wingetcreate needs (verified 2026-11-11): doc/token.md of winget-create asks for a classic token with
+# public_repo ("to allow access to public repositories"; delete_repo only optional, to delete a fork after a failed PR),
+# its own OAuth login (GitHubOAuth.cs) requests repo, which includes public_repo. Fine-grained tokens: not supported (#595).
+$script:WingetTokenScopes = @('public_repo', 'repo')
+
+function Get-WingetTokenScopeProblems {
+    <#
+    .SYNOPSIS
+        Pure: whether the scopes of the gh token (the X-OAuth-Scopes header GitHub sends for gh OAuth logins and classic
+        tokens) let wingetcreate fork microsoft/winget-pkgs and open the pull request. No header: a fine-grained or GitHub
+        App token, which wingetcreate does not support. Never gets or names the token itself.
+    #>
+    param([Parameter(Mandatory)] $Scopes)
+    if ($Scopes.Invalid) { return @('GitHub does not accept the token of gh (HTTP 401, expired or revoked). Log in for the submission with gh auth login (steps below).') }
+    if (-not $Scopes.HasScopes) {
+        return @('The token of gh has no OAuth scopes: it is a fine-grained personal access token or a GitHub App token (for example GH_TOKEN of T-180). wingetcreate supports gh OAuth logins and classic tokens only, with the public_repo scope (it forks microsoft/winget-pkgs). Log in for the submission with gh auth login (steps below).')
+    }
+    $granted = @($Scopes.Scopes | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+    if (-not @($granted | Where-Object { $script:WingetTokenScopes -ccontains $_ })) {
+        $list = if ($granted.Count -gt 0) { $granted -join ', ' } else { 'none' }
+        return @("The token of gh lacks the public_repo scope that wingetcreate needs to fork microsoft/winget-pkgs (scopes: $list). Log in for the submission with gh auth login (steps below).")
+    }
+    @()
+}
+
+function Get-GhTokenScopes {
+    <#
+    .SYNOPSIS
+        The OAuth scopes of the token gh uses, from the X-OAuth-Scopes header of GET /user (gh api --include). The token
+        itself is never read, printed or passed: gh sends it. HasScopes is $false when GitHub sends no such header
+        (fine-grained and GitHub App tokens); Invalid when GitHub answers 401. Throws on any other gh failure.
+    #>
+    $all = & gh api --include user 2>&1
+    $exitCode = $LASTEXITCODE
+    $lines = @($all | ForEach-Object { "$_" })
+    if ($exitCode -ne 0) {
+        $text = ($lines -join ' ').Trim()
+        if ($text -match 'HTTP 401|Bad credentials') { return [pscustomobject]@{ Invalid = $true; HasScopes = $false; Scopes = @() } }
+        throw "gh api user failed (exit code $exitCode): $text"
+    }
+    foreach ($line in $lines) {
+        if ($line -match '^\s*$') { break }
+        if ($line -match '^(?i:X-OAuth-Scopes):\s*(.*)$') {
+            return [pscustomobject]@{ Invalid = $false; HasScopes = $true; Scopes = @($Matches[1].Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
+        }
+    }
+    [pscustomobject]@{ Invalid = $false; HasScopes = $false; Scopes = @() }
+}
+
+function Get-WingetLoginInstructions {
+    <#
+    .SYNOPSIS
+        Pure: how to log in for the submission (user decision 2026-11-11): a temporary gh auth login (OAuth in the
+        browser) only for it, then gh auth logout and the usual authentication again (T-180: GH_TOKEN). gh prefers
+        GH_TOKEN / GITHUB_TOKEN over a login and gh auth login refuses to run while one is set, so a set variable is
+        cleared first, in this terminal only. -TokenVariables: the names of those variables that are set (never values).
+    #>
+    param([Parameter(Mandatory)] [string] $Version, [AllowEmptyCollection()] [string[]] $TokenVariables = @())
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('Log in to GitHub only for this submission (docs/release.md, "Publikace do winget", Token):')
+    $step = 1
+    foreach ($name in @($TokenVariables | Where-Object { $_ })) {
+        $lines.Add("  $step. Remove-Item Env:$name   # this terminal only; gh uses $name instead of a login")
+        $step++
+    }
+    $lines.Add("  $step. gh auth login --hostname github.com --web --git-protocol https")
+    $lines.Add('     OAuth in the browser. gh asks for its default scopes (repo, read:org, gist); repo covers the public_repo that')
+    $lines.Add('     wingetcreate needs. Answer No to "Authenticate Git with your GitHub credentials?".')
+    $step++
+    $lines.Add("  $step. pwsh scripts/release-winget.ps1 -Version $Version")
+    $step++
+    $lines.Add("  $step. gh auth logout --hostname github.com   # afterwards; then your usual login again (T-180: set GH_TOKEN as before)")
+    $lines.ToArray()
+}
+
+function Write-WingetLoginInstructions {
+    <# .SYNOPSIS Prints Get-WingetLoginInstructions for the token variables set in this process (names only). #>
+    param([Parameter(Mandatory)] [string] $Version)
+    $set = @('GH_TOKEN', 'GITHUB_TOKEN' | Where-Object { [Environment]::GetEnvironmentVariable($_) })
+    foreach ($line in (Get-WingetLoginInstructions -Version $Version -TokenVariables $set)) { Write-Host $line -ForegroundColor Yellow }
+}
+
+# wingetcreate's settings.json (verified in winget-create 2026-11-11, UserSettings.cs and Common.cs): in the app state
+# folder, which is the LocalState folder of the MSIX package when wingetcreate runs packaged and
+# %LOCALAPPDATA%\Microsoft\WindowsPackageManagerManifestCreator otherwise (the portable wingetcreate.exe). The winget
+# manifest of Microsoft.WingetCreate offers both (msix and portable), so both are handled. Telemetry is read at the start of every run (Program.cs) and is on by default; the first run
+# without settings.json writes it with telemetry on. User decision 2026-11-11: switch it off before wingetcreate runs.
+$script:WingetCreate = [pscustomobject]@{
+    PackageFamilyName = 'Microsoft.WindowsPackageManagerManifestCreator_8wekyb3d8bbwe'
+    ModuleName        = 'WindowsPackageManagerManifestCreator'
+    SettingsFileName  = 'settings.json'
+    SettingsSchema    = 'https://aka.ms/wingetcreate-settings.schema.0.1.json'
+}
+
+function Get-WingetCreateSettingsPaths {
+    <#
+    .SYNOPSIS
+        Pure: the settings.json files of wingetcreate to switch telemetry off in. The packaged one when the MSIX package
+        folder exists (-PackageFolderExists); the unpackaged one when wingetcreate is not the app execution alias of the
+        package (…\Microsoft\WindowsApps\wingetcreate.exe), or when there is no package folder. Both can apply.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $LocalAppData,
+        [AllowNull()] [AllowEmptyString()] [string] $CommandPath,
+        [switch] $PackageFolderExists
+    )
+    $paths = [System.Collections.Generic.List[string]]::new()
+    $c = $script:WingetCreate
+    if ($PackageFolderExists) { $paths.Add((Join-Path $LocalAppData 'Packages' $c.PackageFamilyName 'LocalState' $c.SettingsFileName)) }
+    $alias = "$CommandPath" -match '(?i)[\\/]Microsoft[\\/]WindowsApps[\\/]'
+    if (-not $PackageFolderExists -or -not $alias) { $paths.Add((Join-Path $LocalAppData 'Microsoft' $c.ModuleName $c.SettingsFileName)) }
+    $paths.ToArray()
+}
+
+function ConvertTo-WingetCreateSettingsWithoutTelemetry {
+    <#
+    .SYNOPSIS
+        Pure: the text of wingetcreate's settings.json with "Telemetry": { "disable": true }, every other setting kept.
+        $null when it is already switched off (nothing to write). Throws when the existing text is not a JSON object:
+        wingetcreate would ignore such a file (and run with telemetry on), and it is not ours to overwrite.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        $settings = [ordered]@{ '$schema' = $script:WingetCreate.SettingsSchema; Telemetry = [ordered]@{ disable = $true } }
+        return ($settings | ConvertTo-Json -Depth 10)
+    }
+    try { $settings = $Text | ConvertFrom-Json -AsHashtable -Depth 64 }
+    catch { throw "wingetcreate's settings.json is not valid JSON ($($_.Exception.Message)); fix or delete it (wingetcreate settings)." }
+    if ($settings -isnot [System.Collections.IDictionary]) { throw "wingetcreate's settings.json is not a JSON object; fix or delete it (wingetcreate settings)." }
+    # Newtonsoft (wingetcreate) matches property names case-insensitively; keep the spelling the file has.
+    $key = @($settings.Keys | Where-Object { "$_" -ieq 'Telemetry' }) | Select-Object -First 1
+    if (-not $key) { $key = 'Telemetry'; $settings[$key] = [ordered]@{} }
+    $telemetry = $settings[$key]
+    if ($telemetry -isnot [System.Collections.IDictionary]) { $telemetry = [ordered]@{}; $settings[$key] = $telemetry }
+    $disableKey = @($telemetry.Keys | Where-Object { "$_" -ieq 'disable' }) | Select-Object -First 1
+    if ($disableKey -and $telemetry[$disableKey] -is [bool] -and $telemetry[$disableKey]) { return $null }
+    if (-not $disableKey) { $disableKey = 'disable' }
+    $telemetry[$disableKey] = $true
+    $settings | ConvertTo-Json -Depth 64
+}
+
+function Set-WingetCreateTelemetryDisabled {
+    <#
+    .SYNOPSIS
+        Switches wingetcreate's telemetry off in one settings.json (created with its folder when missing), idempotently and
+        without touching other settings. Returns 'created', 'updated' or 'unchanged'. Throws when the file is no JSON object.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $exists = Test-Path -LiteralPath $Path -PathType Leaf
+    $text = if ($exists) { [System.IO.File]::ReadAllText($Path) } else { $null }
+    $new = ConvertTo-WingetCreateSettingsWithoutTelemetry -Text $text
+    if ($null -eq $new) { return 'unchanged' }
+    $null = New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force
+    [System.IO.File]::WriteAllText($Path, $new, [System.Text.UTF8Encoding]::new($false))
+    if ($exists -and -not [string]::IsNullOrWhiteSpace($text)) { 'updated' } else { 'created' }
+}
+
+function Disable-WingetCreateTelemetry {
+    <#
+    .SYNOPSIS
+        Switches wingetcreate's telemetry off in each of its settings.json files (Get-WingetCreateSettingsPaths for this
+        user) and prints what it did. Run before every wingetcreate call of the release scripts; can be run by hand right
+        after installing wingetcreate. -Paths overrides the files (tests). Throws when a file cannot be fixed.
+    #>
+    param([string[]] $Paths)
+    if (-not $Paths) {
+        $localAppData = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath('LocalApplicationData') }
+        $command = Get-Command wingetcreate -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        $packageFolder = Join-Path $localAppData 'Packages' $script:WingetCreate.PackageFamilyName
+        $Paths = Get-WingetCreateSettingsPaths -LocalAppData $localAppData -CommandPath $(if ($command) { $command.Source } else { '' }) -PackageFolderExists:(Test-Path -LiteralPath $packageFolder -PathType Container)
+    }
+    foreach ($path in $Paths) {
+        $result = Set-WingetCreateTelemetryDisabled -Path $path
+        Write-Host "wingetcreate telemetry: off ($result, $path)"
+    }
+}
+
+function Protect-WingetOutput {
+    <# .SYNOPSIS Pure: a line of tool output with every occurrence of the secret replaced by ***. #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Line, [AllowNull()] [AllowEmptyString()] [string] $Secret)
+    if ([string]::IsNullOrEmpty($Line) -or [string]::IsNullOrEmpty($Secret)) { return "$Line" }
+    $Line.Replace($Secret, '***')
+}
+
+function Invoke-WingetTool {
+    <#
+    .SYNOPSIS
+        Runs wingetcreate (or winget) with the arguments and returns its exit code. With -Token the token is in
+        WINGET_CREATE_GITHUB_TOKEN of this process only while the tool runs (an earlier value is restored afterwards),
+        never on the command line. Every output line (stdout and stderr) is printed with the token replaced by ***.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Tool,
+        [Parameter(Mandatory)] [string[]] $Arguments,
+        [AllowNull()] [AllowEmptyString()] [string] $Token
+    )
+    $variable = $script:Winget.TokenVariable
+    $saved = [Environment]::GetEnvironmentVariable($variable)
+    try {
+        if ($Token) { [Environment]::SetEnvironmentVariable($variable, $Token) }
+        & $Tool @Arguments 2>&1 | ForEach-Object { Write-Host (Protect-WingetOutput -Line "$_" -Secret $Token) }
+        $LASTEXITCODE
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable($variable, $saved)
+    }
+}
+
+function Get-WingetPackageState {
+    <#
+    .SYNOPSIS
+        'update' when microsoft/winget-pkgs has the package folder (manifests/3/3DPrint/LayerPeek), 'new' when GitHub
+        answers 404. Throws on any other gh failure (network, rate limit), so that a failure never leads to a second
+        "New package" pull request.
+    #>
+    $path = "repos/$($script:Winget.PackagesRepository)/contents/$(Get-WingetManifestRelativePath)"
+    $all = & gh api $path --silent 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) { return 'update' }
+    $stderr = (@($all | ForEach-Object { "$_" }) -join ' ').Trim()
+    if ($stderr -match 'HTTP 404|Not Found') { return 'new' }
+    throw "gh api $path failed (exit code $exitCode): $stderr"
+}
+
+function Get-WingetOpenPullRequests {
+    <# .SYNOPSIS Open pull requests in microsoft/winget-pkgs that name the package in their title (title, url). #>
+    $id = $script:Winget.PackageIdentifier
+    $all = & gh pr list --repo $script:Winget.PackagesRepository --state open --search "$id in:title" --json 'number,title,url' 2>&1
+    $exitCode = $LASTEXITCODE
+    $stdout = @($all | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join "`n"
+    if ($exitCode -ne 0) {
+        $stderr = (@($all | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join ' ').Trim()
+        throw "gh pr list --repo $($script:Winget.PackagesRepository) failed (exit code $exitCode): $stderr"
+    }
+    if ([string]::IsNullOrWhiteSpace($stdout)) { return @() }
+    @($stdout | ConvertFrom-Json)
+}
+
+function Get-WingetOffer {
+    <#
+    .SYNOPSIS
+        Pure: what release-publish.ps1 and release-upload.ps1 -AddToPublished say about winget once a release is published
+        (T-059). Ask = $true only when the submission can run now: a stable version of the package repository on Windows
+        whose release has the Windows installer. Otherwise Lines say why not, or how to submit later on Windows.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [Parameter(Mandatory)] [string] $HostOs,
+        [AllowEmptyCollection()] [string[]] $AssetNames = @()
+    )
+    $command = "pwsh scripts/release-winget.ps1 -Version $Version"
+    if (-not (Test-ReleaseVersion $Version) -or (Test-PrereleaseVersion $Version)) {
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: $Version is a pre-release, it is not submitted (stable versions only, T-059).") }
+    }
+    if ($Repository -and $Repository -ne $script:Winget.Repository) {
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: $Repository is not $($script:Winget.Repository), nothing is submitted.") }
+    }
+    $setup = Get-WingetInstallerFileName -Version $Version
+    if ($AssetNames -cnotcontains $setup) {
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: the release has no $setup yet. Once the Windows files are added (on Windows: pwsh scripts/release-upload.ps1 -AddToPublished), that step offers the winget submission.") }
+    }
+    if ($HostOs -ne 'windows') {
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: submit $Version on a Windows machine (wingetcreate is a Windows tool): $command (docs/release.md, ""Publikace do winget"").") }
+    }
+    [pscustomobject]@{ Ask = $true; Lines = @("winget: $Version can be submitted to microsoft/winget-pkgs now ($command does the same later).") }
+}
+
+function Invoke-WingetReleaseOffer {
+    <#
+    .SYNOPSIS
+        The optional winget step at the end of release-publish.ps1 and release-upload.ps1 -AddToPublished: prints the
+        offer and, when it can run and the user answers y, runs the submission (Invoke-WingetRelease, which prints the plan
+        and asks once more before the pull request is opened). Never throws: a
+        failed submission is reported with the command to re-run it, the release itself stays published.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $RepoRoot,
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [AllowEmptyCollection()] [string[]] $AssetNames = @(),
+        [string] $HostOs = (Get-HostOs),
+        [scriptblock] $Confirm = { param($Question) Read-Host $Question }
+    )
+    try {
+        $offer = Get-WingetOffer -Version $Version -Repository $Repository -HostOs $HostOs -AssetNames $AssetNames
+        foreach ($line in $offer.Lines) { Write-Host $line }
+        if (-not $offer.Ask) { return }
+        $answer = try { & $Confirm "Submit LayerPeek $Version to winget (microsoft/winget-pkgs) now? [y/N]" } catch { '' }
+        if ("$answer".Trim() -notmatch '^(?i:y|yes)$') {
+            Write-Host "winget: not submitted. Later on Windows: pwsh scripts/release-winget.ps1 -Version $Version" -ForegroundColor Yellow
+            return
+        }
+        # The plan is printed next and confirmed once more before the pull request is opened.
+        $ok = Invoke-WingetRelease -RepoRoot $RepoRoot -Version $Version -Repository $Repository -HostOs $HostOs -Confirm $Confirm
+        if (-not $ok) { Write-Host "winget: the submission did not finish. Fix the cause and re-run: pwsh scripts/release-winget.ps1 -Version $Version" -ForegroundColor Yellow }
+    }
+    catch {
+        Write-Host "winget: the submission FAILED: $_" -ForegroundColor Red
+        Write-Host "Re-run it on Windows: pwsh scripts/release-winget.ps1 -Version $Version (docs/release.md)" -ForegroundColor Yellow
+    }
+}
+
+function Invoke-WingetRelease {
+    <#
+    .SYNOPSIS
+        The winget submission of a published release (T-059, docs/release.md "Publikace do winget"). Returns $true when it
+        is done (submitted, or the manifests written / the dry run printed), $false when refused or not confirmed.
+    .DESCRIPTION
+        Checks: stable version of the package repository, Windows (except -OutputDirectory), gh logged in, wingetcreate
+        (and for the first version winget) installed, the published release has the installer with its SHA256, no open
+        pull request in the way. The first version (the package folder is not in microsoft/winget-pkgs yet) is made from
+        the templates in build/winget, checked with winget validate and sent with wingetcreate submit; every later version
+        with wingetcreate update --submit. Before the plan the scopes of the gh token are checked (gh api, the token itself
+        is not read): without public_repo (a fine-grained GH_TOKEN of T-180) it refuses and prints how to log in only for
+        the submission (gh auth login, afterwards gh auth logout). The token is read with gh auth token only after the
+        confirmation; wingetcreate's telemetry is switched off in its settings.json right before it runs.
+        -OutputDirectory only writes the manifests of the version (for winget validate and winget install --manifest
+        before the first submission, or for review on any OS); -DryRun only prints the plan.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $RepoRoot,
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [string] $HostOs = (Get-HostOs),
+        [string] $OutputDirectory,
+        [switch] $DryRun,
+        [scriptblock] $Confirm = { param($Question) Read-Host $Question },
+        [string[]] $WingetCreateSettingsPaths
+    )
+    $settings = $script:Winget
+    $problems = [System.Collections.Generic.List[string]]::new()
+    foreach ($p in @(Get-WingetPreflightProblems -Version $Version -Repository $Repository -HostOs $HostOs -AnyOs:([bool]$OutputDirectory))) { $problems.Add($p) }
+    if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+
+    foreach ($p in @(Get-GhProblems)) { $problems.Add($p) }
+    if (-not $OutputDirectory -and -not (Get-Command wingetcreate -ErrorAction SilentlyContinue)) {
+        $problems.Add('wingetcreate is not installed. Install it: winget install --id Microsoft.WingetCreate (docs/prerequisites.md).')
+    }
+    if ($problems.Count -gt 0) {
+        Write-Problems -Problems $problems -Action 'winget'
+        if (@($problems | Where-Object { $_ -match 'not logged in' })) { Write-WingetLoginInstructions -Version $Version }
+        return $false
+    }
+
+    $tag = ConvertTo-ReleaseTag $Version
+    $release = Get-GitHubRelease -Repository $settings.Repository -Tag $tag
+    foreach ($p in @(Get-WingetReleaseProblems -Release $release -Version $Version)) { $problems.Add($p) }
+    if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+
+    $sha256 = Get-WingetInstallerSha256 -Release $release -Version $Version
+    # T-226: the arm64 node only for a release that has the win-arm64 installer (question 3).
+    $arm64 = Test-WingetArm64Installer -Release $release -Version $Version
+    $arm64Sha256 = if ($arm64) { Get-WingetInstallerSha256 -Release $release -Version $Version -Runtime $settings.Arm64Runtime } else { $null }
+    $shaText = if ($arm64) { "$sha256 (x64), $arm64Sha256 (arm64)" } else { $sha256 }
+    $today = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+    $releaseDate = Get-WingetReleaseDate -Release $release -Fallback $today
+    $urls = Get-WingetUrls -Version $Version
+    $armArgument = if ($arm64) { @{ Arm64InstallerSha256 = $arm64Sha256 } } else { @{} }
+    # The templates of this checkout (the tag, when run from release-publish.ps1); an update does not need them.
+    $newManifests = { ConvertTo-WingetManifests -Templates (Read-WingetTemplates -Directory (Join-Path $RepoRoot $settings.TemplateDirectory)) -Version $Version -ReleaseDate $releaseDate -InstallerSha256 $sha256 @armArgument }
+
+    if ($OutputDirectory) {
+        $manifests = & $newManifests
+        $folder = Write-WingetManifests -Manifests $manifests -Directory $OutputDirectory
+        Write-Host "winget manifests of $($settings.PackageIdentifier) $Version (installer SHA256 $shaText, release date $releaseDate) in $($folder):"
+        foreach ($name in $manifests.Keys) { Write-Host "  $name" }
+        Write-Host 'Check them on Windows before the first submission (docs/release.md, "Publikace do winget"):'
+        Write-Host "  winget validate --manifest `"$folder`""
+        Write-Host "  winget install --manifest `"$folder`"   # needs: winget settings --enable LocalManifestFiles (as administrator)"
+        return $true
+    }
+
+    $mode = Get-WingetPackageState
+    foreach ($p in @(Get-WingetPullRequestProblems -PullRequests @(Get-WingetOpenPullRequests) -Version $Version -Mode $mode)) { $problems.Add($p) }
+    if ($mode -eq 'new' -and -not (Get-Command winget -ErrorAction SilentlyContinue)) { $problems.Add('winget is not installed (App Installer); it validates the first manifest before the submission.') }
+    if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
+    # Before the plan and the question: a token wingetcreate cannot use is refused at once (the token is not read here).
+    $scopeProblems = @(Get-WingetTokenScopeProblems -Scopes (Get-GhTokenScopes))
+    if ($scopeProblems.Count -gt 0) {
+        Write-Problems -Problems $scopeProblems -Action 'winget'
+        Write-WingetLoginInstructions -Version $Version
+        return $false
+    }
+    $manifests = if ($mode -eq 'new') { & $newManifests } else { $null }
+
+    $placeholder = if ($mode -eq 'new') { "<temporary folder>/$($settings.PackageIdentifier)/$Version" } else { $null }
+    $shown = Get-WingetCreateArguments -Mode $mode -Version $Version -ManifestDirectory $placeholder -ReleaseDate $releaseDate -Arm64:$arm64
+    $what = if ($mode -eq 'new') { "first version: the package is not in $($settings.PackagesRepository) yet, manifests from $($settings.TemplateDirectory)" } else { "update of the package in $($settings.PackagesRepository)" }
+    Write-Host "winget $($settings.PackageIdentifier) $Version ($what)"
+    Write-Host "  installer x64   $($urls.Installer)"
+    if ($arm64) { Write-Host "  installer arm64 $($urls.InstallerArm64)" }
+    Write-Host "  SHA256    $shaText, release date $releaseDate"
+    Write-Host "  wingetcreate $($shown -join ' ')"
+    Write-Host '  The GitHub token of gh reaches wingetcreate through WINGET_CREATE_GITHUB_TOKEN only while it runs; it is never shown.'
+    Write-Host '  wingetcreate telemetry is switched off in its settings.json before it runs.'
+    if ($DryRun) {
+        Write-Host 'Dry run: nothing was submitted.' -ForegroundColor Green
+        return $true
+    }
+    $answer = try { & $Confirm "Open the pull request in $($settings.PackagesRepository) for $($settings.PackageIdentifier) $($Version)? [y/N]" } catch { '' }
+    if ("$answer".Trim() -notmatch '^(?i:y|yes)$') {
+        Write-Host 'winget: not confirmed, nothing was submitted.' -ForegroundColor Yellow
+        return $false
+    }
+
+    $token = $null
+    $tokenUsed = $false
+    $tempDir = $null
+    try {
+        $token = (@(& gh auth token 2>$null) -join '').Trim()
+        $tokenExit = $LASTEXITCODE
+        $tokenProblems = @(Get-WingetTokenProblems -Token $(if ($tokenExit -eq 0) { $token } else { '' }))
+        if ($tokenProblems.Count -gt 0) {
+            Write-Problems -Problems $tokenProblems -Action 'winget'
+            Write-WingetLoginInstructions -Version $Version
+            return $false
+        }
+        $tokenUsed = $true
+        try { Disable-WingetCreateTelemetry -Paths $WingetCreateSettingsPaths }
+        catch {
+            Write-Problems -Problems @("wingetcreate telemetry could not be switched off: $($_.Exception.Message) Nothing was submitted.") -Action 'winget'
+            return $false
+        }
+
+        $folder = $null
+        if ($mode -eq 'new') {
+            $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-winget-$([guid]::NewGuid().ToString('N'))"
+            $folder = Write-WingetManifests -Manifests $manifests -Directory (Join-Path $tempDir $settings.PackageIdentifier $Version)
+            Write-Host "==> winget validate --manifest $folder" -ForegroundColor Cyan
+            $validate = Invoke-WingetTool -Tool 'winget' -Arguments @('validate', '--manifest', $folder)
+            if ($validate -ne 0) {
+                Write-Problems -Problems @("winget validate failed (exit code $validate); nothing was submitted. Fix build/winget, or write the manifests with -OutputDirectory and check them by hand.") -Action 'winget'
+                return $false
+            }
+        }
+        $arguments = Get-WingetCreateArguments -Mode $mode -Version $Version -ManifestDirectory $folder -ReleaseDate $releaseDate -Arm64:$arm64
+        Write-Host "==> wingetcreate $($arguments -join ' ')" -ForegroundColor Cyan
+        $exitCode = Invoke-WingetTool -Tool 'wingetcreate' -Arguments $arguments -Token $token
+        if ($exitCode -ne 0) {
+            # T-226: wingetcreate update needs one URL per installer of the previous manifest, so the first release with the
+            # arm64 installer (the previous version has x64 only) cannot be an update; that manifest goes in by hand.
+            # The reverse: a release without the arm64 installer after one with it gives one URL for two installers.
+            $hint = if ($mode -ne 'update') { '' }
+            elseif ($arm64) { " The release has the arm64 installer: if the previous version in $($settings.PackagesRepository) has no arm64 installer yet (the first release with win-arm64), wingetcreate update refuses two URLs for one installer. Write the manifests with -OutputDirectory, check them with winget validate and submit that folder by hand with wingetcreate submit (docs/release.md, ""Publikace do winget"")." }
+            else { " The release has no $(Get-WingetInstallerFileName -Version $Version -Runtime $settings.Arm64Runtime): if the previous version in $($settings.PackagesRepository) has an arm64 installer, wingetcreate update refuses one URL for two installers. Add the win-arm64 files to the release (release-upload.ps1 -AddToPublished), or write the x64-only manifests with -OutputDirectory, check them with winget validate and submit that folder by hand with wingetcreate submit (docs/release.md, ""Publikace do winget"")." }
+            Write-Problems -Problems @("wingetcreate failed with exit code $exitCode. Check the pull requests of $($settings.PackagesRepository) before a re-run (one pull request per version).$hint") -Action 'winget'
+            return $false
+        }
+        Write-Host "winget: the pull request for $($settings.PackageIdentifier) $Version is open in $($settings.PackagesRepository). Watch its validation (docs/release.md, ""Publikace do winget"")." -ForegroundColor Green
+        $true
+    }
+    finally {
+        if ($tokenUsed) {
+            Write-Host 'If you logged in with gh auth login only for this submission, log out now: gh auth logout --hostname github.com' -ForegroundColor Yellow
+            Write-Host '(then your usual login again, T-180: set GH_TOKEN as before).' -ForegroundColor Yellow
+        }
+        $token = $null
+        if ($tempDir -and (Test-Path -LiteralPath $tempDir)) { Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 Export-ModuleMember -Function *

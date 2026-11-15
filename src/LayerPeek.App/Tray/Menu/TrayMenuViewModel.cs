@@ -28,8 +28,8 @@ namespace LayerPeek.App.Tray.Menu;
 /// <see cref="TrayMenuEntry"/> really differs, so the platform menu is never rebuilt on a poll. The fixed items are
 /// replaced as a whole (and the platform menu rebuilt) only on a language switch; enabling or disabling "Diagnostics…"
 /// changes that one entry (<see cref="FixedItemChanged"/>), updated in place so that an open menu stays as it is.
-/// T-058: while a new version is offered (<see cref="UpdateOffer"/>), "A new version X.Y.Z is available" stands right above
-/// "About…"; it appearing or disappearing replaces the fixed items (a rebuild, once per found version), its text changing
+/// T-058: while a new version is offered (<see cref="UpdateOffer"/>), "A new version X.Y.Z is available" stands above "User
+/// manual" (T-172, right above "About…"); it appearing or disappearing replaces the fixed items (a rebuild, once per found version), its text changing
 /// while an update downloads updates it in place.
 /// T-146: with recordings, a printer with a camera also has, after a separator, "Start recording" / "Stop recording"
 /// (disabled with the reason while it starts or stops, or when this build cannot record), "Play last recording" and "Open
@@ -435,7 +435,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// <summary>The offered update changed (any thread): the item is formatted again on the UI thread.</summary>
     private void OnUpdateChanged(object? sender, EventArgs e) => _dispatcher.Post(RefreshUpdateEntry);
 
-    /// <summary>UI thread (T-058): shows, hides or updates the update item.</summary>
+    /// <summary>UI thread (T-058): shows, hides or updates the update item (T-181: or swaps it for "Update refused…").</summary>
     private void RefreshUpdateEntry()
     {
         lock (_gate)
@@ -456,7 +456,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _updateEntry = entry;
         if (sameLayout && entry is not null)
         {
-            // The download started or ended: the same item with another text, in place (an open menu stays open).
+            // The download started or ended, or the feed was refused or accepted again: the same slot with another text and
+            // click target, in place (an open menu stays open).
             int index = UpdateIndex;
             TrayMenuEntry[] items = [.. FixedItems];
             items[index] = entry;
@@ -471,11 +472,23 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     /// <summary>
     /// UI thread. "A new version X.Y.Z is available" while one is offered (disabled with "Downloading…" while a Velopack update
-    /// downloads); its tooltip says what a click does. Plain text: the version is no menu text with an access key.
+    /// downloads); its tooltip says what a click does. Plain text: the version is no menu text with an access key. T-181 (user
+    /// decision 2026-11-11): while the update feed is refused "Update refused…" instead, which opens the Startup and updates tab
+    /// (no version: the one a refused feed claims is untrusted).
     /// </summary>
     private TrayMenuEntry? UpdateEntry()
     {
-        if (_updates?.Available is not { } release)
+        if (_updates is null)
+        {
+            return null;
+        }
+
+        if (_updates.FeedRejection is not null)
+        {
+            return new TrayMenuEntry(TrayMenuCommand.UpdateRejected, Strings.MenuUpdateRejected, IsEnabled: true);
+        }
+
+        if (_updates.Available is not { } release)
         {
             return null;
         }
@@ -490,7 +503,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         return new TrayMenuEntry(TrayMenuCommand.Update, Format(Strings.MenuUpdateAvailable, version), IsEnabled: true, toolTip);
     }
 
-    /// <summary>Index of the update item in <see cref="FixedItems"/> (right above "About…").</summary>
+    /// <summary>Index of the update item in <see cref="FixedItems"/> (right above "User manual").</summary>
     private const int UpdateIndex = 3;
 
     private static string Format(string format, string version) => string.Format(System.Globalization.CultureInfo.CurrentCulture, format, version);
@@ -564,7 +577,10 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// <summary>Index of "Diagnostics…" in <see cref="FixedItems"/>.</summary>
     private const int DiagnosticsIndex = 0;
 
-    /// <summary>UI thread. The update item (T-058) right above "About…" while a new version is offered.</summary>
+    /// <summary>
+    /// UI thread. The update item (T-058) above "User manual" (T-172, right above "About…") while a new version is offered or the
+    /// update feed is refused (T-181).
+    /// </summary>
     private TrayMenuEntry[] CreateFixedItems()
     {
         List<TrayMenuEntry> items =
@@ -578,6 +594,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             items.Add(update);
         }
 
+        items.Add(new TrayMenuEntry(TrayMenuCommand.Manual, Strings.MenuManual, IsEnabled: true) { HasAccessKey = true });
         items.Add(new TrayMenuEntry(TrayMenuCommand.About, Strings.MenuAbout, IsEnabled: true) { HasAccessKey = true });
         items.Add(new TrayMenuEntry(TrayMenuCommand.Quit, Strings.MenuQuit, IsEnabled: true) { HasAccessKey = true });
         return [.. items];
