@@ -142,9 +142,8 @@ public sealed class PasswordAutomationTests(E2EFixture fixture)
     /// Avalonia does not answer the property at all and its peers have no API for it (follow-up task T-234). It is no
     /// leak of the password, so it is only reported.
     /// </summary>
-    // TODO(T-234): once Avalonia answers UIA_IsPasswordPropertyId (upstream issue draft:
-    // docs/upstream/avalonia-ispassword-issue.md) and the app is updated to that version, require IsPassword == True
-    // here (add it to the failures instead of only reporting it).
+    // T-234: Avalonia 12.1.6 never answers UIA_IsPasswordPropertyId, so IsPassword is only reported. If a later Avalonia
+    // version answers it, require IsPassword == True here (add it to the failures instead of only reporting it).
     private static void RecordIsPassword(AutomationElement box, StringBuilder report)
     {
         bool? isPassword = Try<bool?>(() => box.Properties.IsPassword.ValueOrDefault);
