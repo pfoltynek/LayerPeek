@@ -1,20 +1,20 @@
 <#
 .SYNOPSIS
-    Maintainer tool for a new FFmpeg version: downloads the new FFmpeg archive of each platform, verifies it against
+    Maintainer tool for a new FFmpeg version: downloads the new official FFmpeg source tarball, verifies it against
     independent sources and prints (or with -Update writes) the pinned values of build/FFmpeg.targets and
     src/LayerPeek.App/Licenses/ThirdPartyLicenses.cs.
 
 .DESCRIPTION
     Only needed when the pinned FFmpeg version is bumped; a normal build never runs it (build/FFmpeg.targets verifies
-    the pinned SHA256 itself on every first build). Both platforms are checked by default (-Platform all); every step
-    fails the script on any mismatch (exit code 1) and then nothing is written.
+    the pinned SHA256 itself on every first build). Every step fails the script on any mismatch (exit code 1) and then
+    nothing is written.
 
-    Before any download: the inputs are validated and both platforms must stay on the same FFmpeg release branch
-    (major.minor, e.g. 9.0): the new value of one platform is compared with the new or the currently pinned value of the
-    other one. The library names of both platforms in build/FFmpeg.targets must have the same major versions
-    (avformat-63.dll <-> libavformat.63.dylib ...).
+    Both platforms build the same tarball (macOS: build/macos/build-ffmpeg.sh, T-026; Windows:
+    build/windows/build-ffmpeg.sh, T-202; before it the prebuilt BtbN release), so there is one set of values. Before any
+    download the inputs are validated and the library names of both platforms in build/FFmpeg.targets must be the same
+    libraries with the same major versions (avformat-63.dll <-> libavformat.63.dylib ...).
 
-    macOS (-Version, the official source tarball built by build/macos/build-ffmpeg.sh, T-026):
+    -Version (the official source tarball):
       1. Downloads https://ffmpeg.org/releases/ffmpeg-<version>.tar.xz into a new temporary folder and computes its
          SHA256 (FFmpeg publishes no checksums, only GPG signatures).
       2. Cross-checks the SHA256 against the Homebrew formula (https://formulae.brew.sh/api/formula/ffmpeg.json,
@@ -25,55 +25,29 @@
       3. When gpg is on PATH: verifies the detached signature <tarball>.asc with the FFmpeg release signing key
          (https://ffmpeg.org/ffmpeg-devel.asc, fingerprint pinned below) in a temporary GnuPG home folder, so the
          user's keyring is never touched. Without gpg the step is skipped and the script says so.
-      Values: LayerPeekFFmpegMacSourceUrl, LayerPeekFFmpegMacSourceSha256, LayerPeekFFmpegMacSourceFolder and
-      MacOSBuildUri.
-
-    Windows (-BtbNTag and -BtbNAsset, the LGPL shared win64 build of BtbN, T-014):
-      1. Downloads checksums.sha256 of the release (https://github.com/BtbN/FFmpeg-Builds/releases/download/<tag>/,
-         sha256sum format) and takes the line of the asset. A release without that file, or without the asset in it,
-         fails the script (no silent skip).
-      2. Downloads the zip into the temporary folder, computes its SHA256 and compares it with that line.
-      3. Checks the zip: exactly one top folder named like the asset (LayerPeekFFmpegArchiveFolder), LICENSE.txt with the
-         LGPL 3 text, and bin/<dll> for every Windows library of build/FFmpeg.targets (avformat-63.dll ...).
-      Values: LayerPeekFFmpegUrl, LayerPeekFFmpegSha256, LayerPeekFFmpegArchiveFolder and WindowsBuildUri.
-      Not written: the corresponding source the releases attach (T-199, LayerPeekFFmpegWindowsSource* and
-      LayerPeekFFmpegWindowsScripts*: the FFmpeg commit and BtbN's scripts at the commit of the tag). Pin them by hand
-      (docs/prerequisites.md, "Nová verze FFmpeg"); until then a Pester test and scripts/release-build.ps1 fail.
+      Values: LayerPeekFFmpegSourceUrl, LayerPeekFFmpegSourceSha256, LayerPeekFFmpegSourceFolder (build/FFmpeg.targets)
+      and SourceTarballUri (ThirdPartyLicenses.cs).
 
     The temporary folder is deleted at the end. Nothing is installed; only read-only HTTPS GETs. Procedure:
     docs/prerequisites.md ("Nová verze FFmpeg").
 
-.PARAMETER Platform
-    macos, windows or all (default): which pinned build to verify and update.
-
 .PARAMETER Version
-    macOS: the FFmpeg release, e.g. 9.0.3 (the tarball ffmpeg-<version>.tar.xz on ffmpeg.org).
-
-.PARAMETER BtbNTag
-    Windows: the BtbN release tag of a month-end build (the only ones BtbN keeps), e.g. autobuild-2026-10-31-12-59.
-
-.PARAMETER BtbNAsset
-    Windows: the asset of that release, e.g. ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip (only LGPL shared
-    win64 builds of a release branch are accepted).
+    The FFmpeg release, e.g. 9.0.3 (the tarball ffmpeg-<version>.tar.xz on ffmpeg.org).
 
 .PARAMETER Update
     Writes the verified values into build/FFmpeg.targets and ThirdPartyLicenses.cs (otherwise they are only printed).
 
 .EXAMPLE
-    pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -BtbNTag autobuild-2026-11-30-12-00 -BtbNAsset ffmpeg-n9.0.3-...-win64-lgpl-shared-9.0.zip
+    pwsh build/update-ffmpeg.ps1 -Version 9.0.3
 
 .EXAMPLE
-    pwsh build/update-ffmpeg.ps1 -Platform macos -Version 9.0.3 -Update
+    pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -Update
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
 param(
-    [ValidateSet('macos', 'windows', 'all')]
-    [string] $Platform = 'all',
-    # Not mandatory, so that the Pester tests can dot-source the script; the main part checks them.
+    # Not mandatory, so that the Pester tests can dot-source the script; the main part checks it.
     [string] $Version,
-    [string] $BtbNTag,
-    [string] $BtbNAsset,
     [switch] $Update
 )
 
@@ -85,9 +59,6 @@ $script:HomebrewFormulaUrl = 'https://formulae.brew.sh/api/formula/ffmpeg.json'
 $script:SigningKeyUrl = 'https://ffmpeg.org/ffmpeg-devel.asc'
 # "FFmpeg release signing key <ffmpeg-devel@ffmpeg.org>", as published on https://ffmpeg.org/download.html.
 $script:SigningKeyFingerprint = 'FCF986EA15E6E293A5644F10B4322F04D67658D8'
-$script:BtbNDownloadBaseUrl = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/'
-# The checksum file BtbN attaches to every autobuild release (sha256sum format, one line per asset).
-$script:BtbNChecksumsName = 'checksums.sha256'
 
 <#
 .SYNOPSIS
@@ -109,57 +80,9 @@ function Get-FFmpegSource {
 
 <#
 .SYNOPSIS
-    The BtbN LGPL shared win64 build of a release: URLs of the zip and of the checksum file, archive folder and release
-    branch. Throws on anything else (GPL, static, other targets, the master builds N-..., a malformed tag).
-#>
-function Get-BtbNBuild {
-    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Tag, [Parameter(Mandatory)] [AllowEmptyString()] [string] $Asset)
-    if ($Tag -notmatch '^autobuild-(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})-\d{2}-\d{2}$') {
-        throw "'$Tag' is not a BtbN release tag (e.g. autobuild-2026-10-31-12-59)."
-    }
-    # BtbN deletes its daily releases after about two weeks and keeps only the last build of each month (T-162), so only
-    # a month-end build stays downloadable for clean builds.
-    $year = [int] $Matches.year
-    $month = [int] $Matches.month
-    if ($month -lt 1 -or $month -gt 12 -or [int] $Matches.day -ne [DateTime]::DaysInMonth($year, $month)) {
-        throw "'$Tag' is not the last build of a month; BtbN deletes the other builds after about two weeks (e.g. autobuild-2026-10-31-12-59)."
-    }
-    if ($Asset -notmatch '^ffmpeg-n(?<major>\d+)\.(?<minor>\d+)(\.\d+)?(-\d+-g[0-9a-f]+)?-win64-lgpl-shared-(?<branch>\d+\.\d+)\.zip$') {
-        throw "'$Asset' is not an LGPL shared win64 build of a BtbN release branch (e.g. ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip)."
-    }
-    $branch = "$($Matches.major).$($Matches.minor)"
-    if ($Matches.branch -ne $branch) {
-        throw "'$Asset' names FFmpeg $branch but the release branch $($Matches.branch)."
-    }
-    $releaseUrl = "$($script:BtbNDownloadBaseUrl)$Tag/"
-    [pscustomobject]@{
-        Tag          = $Tag
-        Asset        = $Asset
-        Branch       = $branch
-        Url          = "$releaseUrl$Asset"
-        ChecksumsUrl = "$releaseUrl$($script:BtbNChecksumsName)"
-        Folder       = $Asset.Substring(0, $Asset.Length - '.zip'.Length)
-    }
-}
-
-<#
-.SYNOPSIS
-    The FFmpeg release branch (major.minor) of the builds currently pinned in build/FFmpeg.targets.
-#>
-function Get-PinnedBranches {
-    param([Parameter(Mandatory)] [string] $TargetsText)
-    $mac = [regex]::Match($TargetsText, '<LayerPeekFFmpegMacSourceFolder>ffmpeg-(\d+\.\d+)[^<]*</LayerPeekFFmpegMacSourceFolder>')
-    $windows = [regex]::Match($TargetsText, '<LayerPeekFFmpegArchiveFolder>ffmpeg-n(\d+\.\d+)[^<]*</LayerPeekFFmpegArchiveFolder>')
-    if (-not $mac.Success) { throw 'build/FFmpeg.targets has no LayerPeekFFmpegMacSourceFolder of the form ffmpeg-<version>.' }
-    if (-not $windows.Success) { throw 'build/FFmpeg.targets has no LayerPeekFFmpegArchiveFolder of the form ffmpeg-n<version>-...' }
-    [pscustomobject]@{ MacOS = $mac.Groups[1].Value; Windows = $windows.Groups[1].Value }
-}
-
-<#
-.SYNOPSIS
     The library file names of both platforms in build/FFmpeg.targets (the _LayerPeekFFmpegLibrary items). Throws unless
-    every macOS library has its Windows counterpart with the same major version (libavformat.63.dylib <->
-    avformat-63.dll); Windows may have more (swresample, only a dependency of the BtbN build).
+    both platforms list the same libraries with the same major versions (libavformat.63.dylib <-> avformat-63.dll),
+    since T-202 one for one: both build the same tarball.
 #>
 function Get-FFmpegLibraries {
     param([Parameter(Mandatory)] [string] $TargetsText)
@@ -174,12 +97,17 @@ function Get-FFmpegLibraries {
     foreach ($name in $windows) {
         if ($name -notmatch '^[a-z]+-\d+\.dll$') { throw "Unexpected Windows library name '$name' in build/FFmpeg.targets." }
     }
-    foreach ($name in $mac) {
+    $counterparts = foreach ($name in $mac) {
         if ($name -notmatch '^lib(?<lib>[a-z]+)\.(?<major>\d+)\.dylib$') { throw "Unexpected macOS library name '$name' in build/FFmpeg.targets." }
         $counterpart = "$($Matches.lib)-$($Matches.major).dll"
         if ($windows -notcontains $counterpart) {
             throw "build/FFmpeg.targets lists $name for macOS but not $counterpart for Windows: both platforms must use the same library major versions."
         }
+        $counterpart
+    }
+    $extra = @($windows | Where-Object { $counterparts -notcontains $_ })
+    if ($extra.Count -gt 0) {
+        throw "build/FFmpeg.targets lists $($extra -join ', ') for Windows but not for macOS: both platforms build the same libraries."
     }
     [pscustomobject]@{ Windows = $windows; MacOS = $mac }
 }
@@ -205,60 +133,6 @@ function Get-HomebrewChecksum {
         throw "The Homebrew formula has no SHA256 for $Url (urls.stable.checksum: '$checksum')."
     }
     $checksum.ToLowerInvariant()
-}
-
-<#
-.SYNOPSIS
-    SHA256 of one asset in the text of a BtbN checksums.sha256 (sha256sum format); throws when the asset is missing,
-    listed twice or the file is malformed.
-#>
-function Get-BtbNChecksum {
-    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Text, [Parameter(Mandatory)] [string] $Asset)
-    $found = [System.Collections.Generic.List[string]]::new()
-    foreach ($line in ($Text -split "`r?`n")) {
-        if ([string]::IsNullOrWhiteSpace($line)) { continue }
-        if ($line -notmatch '^(?<hash>[0-9a-fA-F]{64}) [ *](?<name>[^\\/]+)$') {
-            throw "Malformed line in $($script:BtbNChecksumsName): '$line'"
-        }
-        if ($Matches.name -ceq $Asset) { $found.Add($Matches.hash.ToLowerInvariant()) }
-    }
-    if ($found.Count -eq 0) { throw "$($script:BtbNChecksumsName) of the release does not list $Asset." }
-    if ($found.Count -gt 1) { throw "$($script:BtbNChecksumsName) of the release lists $Asset $($found.Count) times." }
-    $found[0]
-}
-
-<#
-.SYNOPSIS
-    Checks the BtbN zip without extracting it: one top folder named Folder, Folder/LICENSE.txt with the LGPL 3 text and
-    Folder/bin/<name> for every library. Throws with what is missing (and the FFmpeg DLLs that are there instead).
-#>
-function Test-BtbNArchive {
-    param([Parameter(Mandatory)] [string] $Path, [Parameter(Mandatory)] [string] $Folder, [Parameter(Mandatory)] [string[]] $Libraries)
-    Add-Type -AssemblyName System.IO.Compression
-    $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
-    try {
-        $names = @($zip.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
-        $tops = @($names | ForEach-Object { ($_ -split '/')[0] } | Sort-Object -Unique)
-        if ($tops.Count -ne 1 -or $tops[0] -cne $Folder) {
-            throw "The zip must contain exactly one top folder $Folder (LayerPeekFFmpegArchiveFolder), found: $($tops -join ', ')."
-        }
-        $license = $zip.Entries | Where-Object { $_.FullName.Replace('\', '/') -ceq "$Folder/LICENSE.txt" } | Select-Object -First 1
-        if (-not $license) { throw "The zip has no $Folder/LICENSE.txt." }
-        $reader = [System.IO.StreamReader]::new($license.Open())
-        try { $licenseText = $reader.ReadToEnd() } finally { $reader.Dispose() }
-        if ($licenseText -notmatch 'GNU LESSER GENERAL PUBLIC LICENSE\s+Version 3') {
-            throw "$Folder/LICENSE.txt is not the LGPL 3 text: not an LGPL build."
-        }
-        $missing = @($Libraries | Where-Object { $names -cnotcontains "$Folder/bin/$_" })
-        if ($missing.Count -gt 0) {
-            $present = @($names | Where-Object { $_ -match "^$([regex]::Escape($Folder))/bin/(av|sw)[a-z]+-\d+\.dll$" } | ForEach-Object { ($_ -split '/')[-1] } | Sort-Object)
-            throw "The zip has no $($missing -join ', ') in $Folder/bin (it has $($present -join ', ')). Other library major versions mean a new FFmpeg branch: the library names change in build/FFmpeg.targets, build/macos/build-ffmpeg.sh and FFmpegRuntime (docs/prerequisites.md)."
-        }
-    }
-    finally {
-        $zip.Dispose()
-    }
-    'Verified'
 }
 
 <#
@@ -315,8 +189,8 @@ function Update-TargetsText {
 
 <#
 .SYNOPSIS
-    Text of ThirdPartyLicenses.cs with the given Uri properties (MacOSBuildUri, WindowsBuildUri -> URL) replaced; each
-    must occur exactly once (a test keeps them equal to build/FFmpeg.targets).
+    Text of ThirdPartyLicenses.cs with the given Uri properties (SourceTarballUri -> URL) replaced; each must occur
+    exactly once (a test keeps it equal to build/FFmpeg.targets).
 #>
 function Update-LicensesText {
     param([Parameter(Mandatory)] [string] $Text, [Parameter(Mandatory)] [System.Collections.IDictionary] $Uris)
@@ -335,10 +209,10 @@ function Get-DefaultGpg {
     if ($command) { $command.Source } else { $null }
 }
 
-function Invoke-MacOSCheck {
+function Invoke-SourceCheck {
     param($Source, [string] $Work, [scriptblock] $Download, [scriptblock] $GetJson, [AllowNull()] [string] $Gpg, [scriptblock] $InvokeGpg)
     $tarball = Join-Path $Work $Source.FileName
-    Write-Host "macOS: downloading $($Source.Url) ..."
+    Write-Host "Downloading $($Source.Url) ..."
     & $Download $Source.Url $tarball
     if (-not (Test-Path -LiteralPath $tarball -PathType Leaf)) { throw "The download of $($Source.Url) produced no file." }
     $sha256 = (Get-FileHash -LiteralPath $tarball -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -383,33 +257,6 @@ function Invoke-MacOSCheck {
     $sha256
 }
 
-function Invoke-WindowsCheck {
-    param($Build, [string] $Work, [scriptblock] $Download, [string[]] $Libraries)
-    $checksums = Join-Path $Work $script:BtbNChecksumsName
-    Write-Host "Windows: downloading $($Build.ChecksumsUrl) ..."
-    try { & $Download $Build.ChecksumsUrl $checksums }
-    catch { throw "The BtbN release $($Build.Tag) publishes no $($script:BtbNChecksumsName) (or it cannot be downloaded: $($_.Exception.Message)). Without it the zip cannot be verified; do not pin it." }
-    if (-not (Test-Path -LiteralPath $checksums -PathType Leaf)) { throw "The download of $($Build.ChecksumsUrl) produced no file." }
-    $published = Get-BtbNChecksum -Text ([System.IO.File]::ReadAllText($checksums)) -Asset $Build.Asset
-
-    $zip = Join-Path $Work $Build.Asset
-    Write-Host "Windows: downloading $($Build.Url) ..."
-    & $Download $Build.Url $zip
-    if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) { throw "The download of $($Build.Url) produced no file." }
-    $sha256 = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-    Write-Host "SHA256 of the download:   $sha256"
-    Write-Host "SHA256 in BtbN checksums: $published ($($Build.ChecksumsUrl))"
-    if ($published -ne $sha256) {
-        throw "SHA256 mismatch: the download has $sha256, $($script:BtbNChecksumsName) of the release $published. Do not pin this zip."
-    }
-    Write-Host 'BtbN checksum:            OK' -ForegroundColor Green
-    $null = Test-BtbNArchive -Path $zip -Folder $Build.Folder -Libraries $Libraries
-    Write-Host "Archive contents:         OK ($($Build.Folder)/, LICENSE.txt LGPL 3, bin/$($Libraries -join ', bin/'))" -ForegroundColor Green
-    # The zip is large (about 80 MB); delete it right away.
-    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
-    $sha256
-}
-
 <#
 .SYNOPSIS
     The whole run; returns the exit code. Download: { param($Url, $Path) } (throws on HTTP errors), GetJson:
@@ -418,10 +265,7 @@ function Invoke-WindowsCheck {
 #>
 function Invoke-Main {
     param(
-        [ValidateSet('macos', 'windows', 'all')] [string] $Platform = 'all',
         [string] $Version,
-        [string] $BtbNTag,
-        [string] $BtbNAsset,
         [switch] $Update,
         [string] $RepoRoot = $script:RepoRoot,
         [scriptblock] $Download = { param($Url, $Path) Invoke-WebRequest -Uri $Url -OutFile $Path -UseBasicParsing -MaximumRetryCount 3 -RetryIntervalSec 2 },
@@ -433,44 +277,22 @@ function Invoke-Main {
     $work = Join-Path $TempRoot "layerpeek-ffmpeg-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     $null = New-Item -ItemType Directory -Path $work
     try {
-        $mac = $Platform -in 'macos', 'all'
-        $windows = $Platform -in 'windows', 'all'
         $targetsPath = Join-Path $RepoRoot 'build' 'FFmpeg.targets'
         $licensesPath = Join-Path $RepoRoot 'src' 'LayerPeek.App' 'Licenses' 'ThirdPartyLicenses.cs'
         $targetsText = [System.IO.File]::ReadAllText($targetsPath)
 
         # Everything that needs no download first.
-        if ($mac -and [string]::IsNullOrEmpty($Version)) { throw 'macOS needs -Version <FFmpeg release>, e.g. -Version 9.0.3.' }
-        if ($windows -and ([string]::IsNullOrEmpty($BtbNTag) -or [string]::IsNullOrEmpty($BtbNAsset))) {
-            throw 'Windows needs -BtbNTag <autobuild-...> and -BtbNAsset <ffmpeg-n...-win64-lgpl-shared-x.y.zip>.'
-        }
-        $source = if ($mac) { Get-FFmpegSource -Version $Version } else { $null }
-        $build = if ($windows) { Get-BtbNBuild -Tag $BtbNTag -Asset $BtbNAsset } else { $null }
-        $libraries = Get-FFmpegLibraries -TargetsText $targetsText
-        $pinned = Get-PinnedBranches -TargetsText $targetsText
-        $macBranch = if ($source) { $source.Branch } else { $pinned.MacOS }
-        $windowsBranch = if ($build) { $build.Branch } else { $pinned.Windows }
-        if ($macBranch -ne $windowsBranch) {
-            throw "Both platforms must use the same FFmpeg release branch: macOS would be on $macBranch, Windows on $windowsBranch. Bump both together (-Platform all)."
-        }
+        if ([string]::IsNullOrEmpty($Version)) { throw 'Needs -Version <FFmpeg release>, e.g. -Version 9.0.3.' }
+        $source = Get-FFmpegSource -Version $Version
+        $null = Get-FFmpegLibraries -TargetsText $targetsText
 
-        $values = [ordered]@{}
-        $uris = [ordered]@{}
-        if ($mac) {
-            $sha256 = Invoke-MacOSCheck -Source $source -Work $work -Download $Download -GetJson $GetJson -Gpg $Gpg -InvokeGpg $InvokeGpg
-            $values['LayerPeekFFmpegMacSourceUrl'] = $source.Url
-            $values['LayerPeekFFmpegMacSourceSha256'] = $sha256
-            $values['LayerPeekFFmpegMacSourceFolder'] = $source.Folder
-            $uris['MacOSBuildUri'] = $source.Url
+        $sha256 = Invoke-SourceCheck -Source $source -Work $work -Download $Download -GetJson $GetJson -Gpg $Gpg -InvokeGpg $InvokeGpg
+        $values = [ordered]@{
+            LayerPeekFFmpegSourceUrl    = $source.Url
+            LayerPeekFFmpegSourceSha256 = $sha256
+            LayerPeekFFmpegSourceFolder = $source.Folder
         }
-        if ($windows) {
-            if ($mac) { Write-Host '' }
-            $sha256 = Invoke-WindowsCheck -Build $build -Work $work -Download $Download -Libraries $libraries.Windows
-            $values['LayerPeekFFmpegUrl'] = $build.Url
-            $values['LayerPeekFFmpegSha256'] = $sha256
-            $values['LayerPeekFFmpegArchiveFolder'] = $build.Folder
-            $uris['WindowsBuildUri'] = $build.Url
-        }
+        $uris = [ordered]@{ SourceTarballUri = $source.Url }
 
         Write-Host ''
         Write-Host 'Pinned values (build/FFmpeg.targets):'
@@ -490,8 +312,9 @@ function Invoke-Main {
             Write-Host 'These are the values already pinned in build/FFmpeg.targets.' -ForegroundColor Green
         }
         Write-Host ''
-        Write-Host 'Also check (docs/prerequisites.md, "Nová verze FFmpeg"): the version check in build/macos/build-ffmpeg.sh,'
-        Write-Host 'the versions in ThirdPartyLicensesTests and the docs; then dotnet build and dotnet test on both platforms.'
+        Write-Host 'Also check (docs/prerequisites.md, "Nová verze FFmpeg"): the version check in build/macos/build-ffmpeg.sh and'
+        Write-Host 'build/windows/build-ffmpeg.sh, the versions in ThirdPartyLicensesTests and the docs; then dotnet build and'
+        Write-Host 'dotnet test on both platforms.'
         return 0
     }
     catch {
@@ -506,5 +329,5 @@ function Invoke-Main {
 # Dot-sourced (the Pester tests): only the functions above.
 if ($MyInvocation.InvocationName -ne '.') {
     $ErrorActionPreference = 'Stop'
-    exit (Invoke-Main -Platform $Platform -Version $Version -BtbNTag $BtbNTag -BtbNAsset $BtbNAsset -Update:$Update)
+    exit (Invoke-Main -Version $Version -Update:$Update)
 }

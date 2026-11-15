@@ -880,25 +880,19 @@
     <value>Nie znaleziono bibliotek FFmpeg obok aplikacji, więc kamera nie działa.</value>
   </data>
   <data name="LicensesFFmpegNote" xml:space="preserve">
-    <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanej kompilacji LGPL od BtbN i łączy ją dynamicznie: biblioteki DLL avcodec, avformat, avutil, swscale i swresample obok aplikacji można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. avcodec-63).</value>
+    <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanego wydania FFmpeg, skompilowanego jako LGPL z oficjalnego kodu źródłowego, i łączy je dynamicznie: biblioteki DLL avcodec, avformat, avutil i swscale obok aplikacji można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. avcodec-63).</value>
   </data>
   <data name="LicensesFFmpegSource" xml:space="preserve">
     <value>Kod źródłowy FFmpeg</value>
   </data>
   <data name="LicensesFFmpegBuild" xml:space="preserve">
-    <value>Użyta kompilacja FFmpeg (wydanie BtbN)</value>
+    <value>Użyte wydanie źródłowe FFmpeg (ffmpeg.org)</value>
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
-    <value>Konfiguracja i skrypty kompilacji (BtbN)</value>
+    <value>Konfiguracja i skrypt kompilacji (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
     <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanego wydania FFmpeg, skompilowanego jako LGPL z oficjalnego kodu źródłowego, i łączy je dynamicznie: biblioteki libavcodec, libavformat, libavutil i libswscale (.dylib) w LayerPeek.app/Contents/MacOS można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. libavcodec.63.dylib). Aplikację trzeba następnie ponownie podpisać; wystarczy podpis ad hoc.</value>
-  </data>
-  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
-    <value>Użyte wydanie źródłowe FFmpeg (ffmpeg.org)</value>
-  </data>
-  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
-    <value>Konfiguracja i skrypt kompilacji (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Nie znaleziono treści licencji FFmpeg (FFmpeg-LICENSE.txt) obok aplikacji. GNU LGPL 3.0 jest opublikowana pod adresem https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -914,6 +908,9 @@
   </data>
   <data name="LicensesComponentInter" xml:space="preserve">
     <value>Inter (czcionka, tylko macOS)</value>
+  </data>
+  <data name="LicensesComponentMinGW" xml:space="preserve">
+    <value>MinGW-w64 runtime (w bibliotekach DLL FFmpeg, tylko Windows)</value>
   </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Okno kamery</value>

@@ -13,7 +13,7 @@ Doplněno 2026-11-04 (architekt). Všechny funkce od 0.4.0 (T-143 až T-166) vzn
 nepřeložily ani neotestovaly. `scripts/release-build.ps1` spouští celý `dotnet test`, takže soubory Windows pro 0.5.0
 jdou sestavit až po krocích 1–2. Odkazy jsou oddíly níže, body se odškrtávají tam. Co blokuje vydání, rozhodne uživatel.
 
-1. **Build a testy (blokuje build vydání):** 2d · **T-162** (prázdná cache FFmpeg, nový build BtbN) → `dotnet test` na
+1. **Build a testy (blokuje build vydání):** 2d · **T-162** (prázdná cache FFmpeg; od T-202 se FFmpeg na Windows překládá ze zdrojů, BtbN odpadl) → `dotnet test` na
    Windows (testovací body 2c–2q: T-143, T-144, T-145, T-146, T-148, T-154, T-155, T-158, T-160, T-161, T-164, T-165,
    T-159, T-163, T-167).
 2. **Snímky UI sady Windows (blokuje build vydání; bez nich selžou snímkové testy nastavení):** jeden běh
@@ -472,6 +472,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 > nahradí ho T-202 (vlastní build FFmpeg na Windows). Pokud T-202 skončí dřív než toto ověření, 3. bod se ověří už
 > podle T-202 (archiv jen s tarballem FFmpeg a skriptem buildu). Text vydání z `release-upload.ps1 -DryRun` má na konci
 > větu o FFmpeg s odkazy na oba archivy (T-199, rozhodnutí 2026-11-12).
+> Doplněno 2026-11-15 (T-202 hotový): 3. bod je přepsaný podle T-202; `git archive` a tary BtbN odpadly.
 - [x] **T-199** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*AboutWindowLayoutTests"`
       a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) blok licence s větou o FFmpeg
       drobným písmem a řádek odkazů se třemi odkazy (třetí „FFmpeg source code of this version“ na dalším řádku):
@@ -484,13 +485,14 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       zapíše a přečte `.tar.xz`, `git archive` bez převodu konců řádků i s `core.autocrlf=true`).
       Hotovo v T-228 (2026-11-12): plný `dotnet test` na Windows 2× bez chyb (11 056 testů, 0 selhání), uvedené testy
       proběhly (nepřeskočené).
-- [ ] **T-199** (vydání, bez nahrání): `pwsh scripts/release-build.ps1 -SkipFeedSignature` vytvoří
-      `dist/ffmpeg-source-<verze>-windows.tar.xz` a před buildem v `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\`
-      `ffmpeg-n9.0.2-39-g7adfbe40dc.tar` a `FFmpeg-Builds-autobuild-2026-10-31-12-59.tar` se SHA-256 z `build/FFmpeg.targets`
-      (Git for Windows musí `git archive` zapsat stejně jako git na Macu: `bb3aaf57…ae28` a `61c8b7b2…7c23`; jinak chyba
-      s vypsaným hashem, výsledek zapsat do poznámek T-199). Kontrola verze `avcodec-63.dll` (`n9.0.2-39-g7adfbe40dc-20261031`)
-      projde, `README.txt` v archivu má řádek configure z DLL, `SHA256SUMS-windows.txt` a `build-info.json` soubor uvádějí.
-      Druhý běh nic nestahuje. Doba kroku (xz z ~100 MB) do poznámek T-199.
+- [ ] **T-199 / T-202** (vydání, bez nahrání): `pwsh scripts/release-build.ps1 -SkipFeedSignature` (MSYS2 s MinGW-w64
+      nainstalovaný, `docs/prerequisites.md`) vytvoří `dist/ffmpeg-source-<verze>-windows.tar.xz` se třemi soubory:
+      `ffmpeg-9.0.2.tar.xz` (stejný tarball jako macOS, SHA-256 `8c385028…e002e` z `build/FFmpeg.targets`, před buildem
+      v `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\`), `build-ffmpeg.sh` (= `build/windows/build-ffmpeg.sh`) a
+      `README.txt` (MSYS2 / MinGW-w64, statický runtime, řádek configure z `avcodec-63.dll` s `--enable-d3d11va`, žádné
+      BtbN ani `git archive`). Kontrola verze `avcodec-63.dll` (`9.0.2`) projde, `SHA256SUMS-windows.txt` a
+      `build-info.json` soubor uvádějí, v publish složce nejsou `swresample-7.dll` ani DLL MSYS2. Druhý běh nic nestahuje.
+      Sbalení s reálným tarballem a reálnou publish složkou (bez celého `release-build.ps1`) ověřil T-202 2026-11-15.
 
 ### 2ac. Nastavení > Kamera – Hardwarové dekódování (z T-204, implementováno na Macu 2026-11-12)
 - [x] **T-204** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
@@ -504,6 +506,17 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] **T-204** (ruční, krátce): v nainstalované / spuštěné aplikaci Nastavení > Kamera ukazuje poznámku Windows;
       „Vypnuto“ uložit, v `%APPDATA%\LayerPeek\settings.json` je `"cameraHardwareDecoding": "Off"`, okno kamery dál
       ukazuje obraz; zpět „Automaticky“ hodnotu ze souboru odebere.
+
+### 2ad. Vlastní build FFmpeg na Windows (z T-202, implementováno na Windows 2026-11-15)
+- [ ] **T-202** (E2E na klidné ploše): `pwsh tools/run-e2e.ps1 -Class '*Camera*' -NoSystemChanges -PublishAot` bez
+      jiné práce na počítači (žádní souběžní agenti, odemčená plocha, myš v klidu). Na sdílené ploše 2026-11-15 prošly
+      testy videa (okno kamery, nahrávání a timelapse i proti Native AOT exe, malý náhled, widgety, monitory při opakování),
+      selhávaly jen testy ukazatele a hlavního panelu (`CameraPinTests` 3, `CameraMiniOutlineTests` 2,
+      `CameraTaskbarAndModeSwitchTests` 1 – pokaždé jiný; pod ukazatelem byl kurzor textového pole cizího okna, `QueryDisplayConfig`
+      chyba 5 při zamčené ploše). Ověřit, že na klidné ploše projdou všechny; kdyby ne, porovnat s `develop` před T-202.
+- [ ] **T-202** (ruční, krátce): aplikace z `dotnet publish src/LayerPeek.App -c Release -r win-x64` se skutečnou kamerou
+      (Buddy3D) ukazuje živý obraz, nahrává a O aplikaci > Licence třetích stran ukazuje u FFmpeg odkazy na tarball
+      ffmpeg.org a `build/windows/build-ffmpeg.sh` a položku „MinGW-w64 runtime“.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

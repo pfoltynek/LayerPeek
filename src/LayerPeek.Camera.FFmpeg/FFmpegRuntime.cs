@@ -90,7 +90,7 @@ internal static class FFmpegRuntime
             // FFmpeg writes diagnostics to stderr by default, and some of them contain the stream address. Failures
             // reach the application through return codes instead (see FFmpegDecoder).
             ffmpeg.av_log_set_level(ffmpeg.AV_LOG_QUIET);
-            // Each call loads one library (and fails if a dependency such as swresample is missing).
+            // Each call loads one library (and fails if one of the libraries it depends on is missing).
             string version = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"avformat {Format(ffmpeg.avformat_version())}, avcodec {Format(ffmpeg.avcodec_version())}, avutil {Format(ffmpeg.avutil_version())}, swscale {Format(ffmpeg.swscale_version())} ({ffmpeg.avcodec_license()})");

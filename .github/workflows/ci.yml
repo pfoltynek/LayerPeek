@@ -30,7 +30,7 @@ env:
   # No XML documentation files in the NuGet folder: smaller package cache, nothing reads them in CI.
   NUGET_XMLDOC_MODE: skip
   # Skips the few tests known to fail on a runner for a tracked reason (tests/Shared/ContinuousIntegration.cs; each skip
-  # names its task: T-220, T-221). Never set on a developer's machine.
+  # names its task: T-220). Never set on a developer's machine.
   LAYERPEEK_CI: '1'
 
 jobs:
@@ -98,10 +98,9 @@ jobs:
             os: windows-2025
             rid: win-x64
             timeout: 60
-            # The inputs of the FFmpeg cache folder in build/FFmpeg.targets. Today Windows downloads the pinned BtbN zip
-            # (URL and SHA-256 in FFmpeg.targets); T-202 adds build/windows/build-ffmpeg.*, which the pattern already
-            # covers (a pattern without a match adds nothing to the hash).
-            ffmpeg-script: build/windows/build-ffmpeg.*
+            # The inputs of the FFmpeg cache folder in build/FFmpeg.targets (the pinned tarball there and the build
+            # script of the OS). Windows compiles FFmpeg with MSYS2 + MinGW-w64 since T-202.
+            ffmpeg-script: build/windows/build-ffmpeg.sh
           # macOS 27 (label xcode-27, still a preview image of GitHub; macos-latest is macOS 26): the macOS snapshot
           # references are rendered on macOS 27 and glyph edges differ between major releases (user decision
           # 2026-11-14, T-218). Back to a macos-NN label once GitHub has one for 27.
@@ -157,6 +156,25 @@ jobs:
           path: ${{ runner.temp }}/ffmpeg
           key: ffmpeg-v1-${{ matrix.os }}-${{ matrix.rid }}-${{ hashFiles('build/FFmpeg.targets', matrix.ffmpeg-script) }}
 
+      # T-202: on a cache miss the first build compiles the Windows FFmpeg libraries (build/windows/build-ffmpeg.sh) with
+      # MSYS2 + MinGW-w64, the toolchain of docs/prerequisites.md; the build itself never installs anything. Only the
+      # packages of the docs, no update of the base system; LayerPeekMsys2Root points build/FFmpeg.targets to it.
+      - name: Install MSYS2 with MinGW-w64 (FFmpeg build)
+        id: msys2
+        if: matrix.rid == 'win-x64' && steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MINGW64
+          update: false
+          install: make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm
+
+      - name: Point the FFmpeg build to MSYS2
+        if: steps.msys2.outcome == 'success'
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          "LayerPeekMsys2Root=$env:MSYS2_LOCATION" >> $env:GITHUB_ENV
+
       # Pester 5+ is on both images; without it ScriptPesterTestsPass would be skipped instead of failing.
       - name: Check PowerShell and Pester
         run: |
@@ -167,7 +185,7 @@ jobs:
       - name: Build (Release)
         run: dotnet build LayerPeek.slnx -c Release
 
-      # Right after the first build (it restores the packages and downloads / builds FFmpeg), so a failing test does not
+      # Right after the first build (it restores the packages and builds FFmpeg), so a failing test does not
       # throw the caches away.
       - name: Save NuGet packages
         if: steps.nuget.outputs.cache-hit != 'true'

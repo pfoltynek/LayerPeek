@@ -60,6 +60,13 @@ your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this
   minute, instead of every 5 s; a successful stream starts over at 5 s. Opening or restoring the camera window, and
   **Test camera** in the settings, try again at once.
 - **Built with the stable .NET 11** release instead of a release candidate.
+- **Windows: own minimal FFmpeg build.** The camera libraries are compiled from the official FFmpeg 9.0.2 source, the
+  same tarball as on macOS, with only what LayerPeek uses (RTSP, H.264, MP4 recording, Direct3D 11 video decoding for a
+  later hardware decoding option) instead of a prebuilt build with about 50 bundled third-party libraries: 6.4 MB
+  instead of 118 MB of DLLs, a smaller attack surface for camera data from the network, and the release's FFmpeg source
+  archive holds only the FFmpeg source and the build script. `swresample-7.dll` is no longer shipped (nothing loaded
+  it). The MinGW-w64 runtime linked into the DLLs is listed under **About → Third-party licences…**. Developers: the
+  first build on Windows needs MSYS2 with MinGW-w64 (see the README).
 - **Window font on macOS:** the settings, diagnostics, About and camera windows use the bundled Inter font instead of the
   system font San Francisco, which the UI framework (Avalonia 12.1) laid out too tightly: text was 7–20 % narrower than
   in native apps and semibold and bold letters touched. The menu bar menu, notifications and system dialogs keep the
