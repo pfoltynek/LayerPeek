@@ -35,6 +35,10 @@ your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this
   scripts and the configure line. The About window says "This software uses libraries from the FFmpeg project under the
   LGPLv3 or later." (in all eight languages) and links to the source of its version; the release notes and the README
   link the source archives too.
+- **Windows on ARM64 (in preparation):** the release scripts now build and package a native Windows ARM64 version
+  (`win-arm64`: installer, ZIP and its own update channel, camera libraries included) next to the x64 one. It is not
+  offered for download yet, until it has been tested on an ARM64 device. The README and the manual explain how to tell
+  an x64 from an ARM PC and how to switch from the x64 version by hand (uninstall it, then install the ARM64 one).
 
 ### Changed
 

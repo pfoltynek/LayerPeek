@@ -15,12 +15,14 @@ $ErrorActionPreference = 'Stop'
 # Single configuration point of the released runtimes.
 #   Os          host OS that can build it (Native AOT does not compile across operating systems)
 #   Default     built when the build script gets no -Runtime
-#   Uploadable  its files may be uploaded to GitHub (a RID built for local verification only would set it to $false
-#               with a BlockedReason; none does now)
-# Windows ARM64 (win-arm64) is not supported (user decision 2026-11-01, T-130): it is not in this table, so every script
-# refuses it as an unknown runtime.
+#   Uploadable  its files may be uploaded to GitHub (a RID built for local verification only sets it to $false with a
+#               BlockedReason: release-upload.ps1 refuses a build containing it, release-publish.ps1 a release with its files)
+# Windows ARM64 (win-arm64, T-224 to T-227, user decision 2026-11-12, reverses T-130): built by default on Windows next to
+# win-x64, but not uploaded until it is verified on an ARM64 device (T-227 switches Uploadable on). Until then a build
+# for the upload names the uploadable RIDs (Get-ReleaseBuildRuntimeArguments: -Runtime win-x64).
 $script:ReleaseRuntimes = [ordered]@{
     'win-x64'   = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+    'win-arm64' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'not verified on an ARM64 device (T-227)' }
     'osx-arm64' = [pscustomobject]@{ Os = 'macos'; Default = $true; Uploadable = $true; BlockedReason = $null }
 }
 
@@ -134,6 +136,44 @@ function Resolve-ReleaseRuntimes {
         if (-not $result.Contains($key)) { $result.Add($key) }
     }
     $result.ToArray()
+}
+
+function Get-UploadableReleaseRuntimes {
+    <#
+    .SYNOPSIS
+        The default RIDs of an OS whose files may be uploaded (Default and Uploadable), in the order of the table: what a
+        release build for the upload builds (T-226: Windows win-x64 until win-arm64 is verified, T-227).
+    #>
+    param([Parameter(Mandatory)] [string] $HostOs, $Config = $script:ReleaseRuntimes)
+    @($Config.Keys | Where-Object { $Config[$_].Os -eq $HostOs -and $Config[$_].Default -and $Config[$_].Uploadable })
+}
+
+function Get-ReleaseBuildRuntimeArguments {
+    <#
+    .SYNOPSIS
+        Pure: the arguments of release-build.ps1 for a build that release-upload.ps1 accepts on an OS. None when the default
+        RIDs of the OS are all uploadable; otherwise -Runtime with the uploadable ones (comma-separated: pwsh -File passes a
+        list as one string), e.g. -Runtime win-x64 while win-arm64 is built by default but not uploadable (T-226, T-227).
+        Throws when no RID of the OS may be uploaded.
+    #>
+    param([Parameter(Mandatory)] [string] $Os, $Config = $script:ReleaseRuntimes)
+    $uploadable = @(Get-UploadableReleaseRuntimes -HostOs $Os -Config $Config)
+    if ($uploadable.Count -eq 0) { throw "No runtime of $Os may be uploaded (Uploadable in the runtime table of scripts/ReleaseTools/ReleaseTools.psm1)." }
+    $defaults = @($Config.Keys | Where-Object { $Config[$_].Os -eq $Os -and $Config[$_].Default })
+    if ($defaults.Count -eq $uploadable.Count) { return @() }
+    @('-Runtime', ($uploadable -join ','))
+}
+
+function Get-HostRuntime {
+    <#
+    .SYNOPSIS
+        The RID of this machine (or of the given OS and architecture): win-x64, win-arm64, osx-arm64 or osx-x64. The tools
+        and tests that publish or install the app use it, so that they also run on a Windows ARM64 device (T-226, T-227).
+    #>
+    param([string] $HostOs = (Get-HostOs), [string] $HostArchitecture = (Get-HostArchitecture))
+    $prefix = @{ windows = 'win'; macos = 'osx' }[$HostOs]
+    if (-not $prefix -or $HostArchitecture -notin 'x64', 'arm64') { throw "No runtime for $HostOs $HostArchitecture (only x64 and arm64 on Windows and macOS)." }
+    "$prefix-$HostArchitecture"
 }
 
 function Test-RuntimeRunnable {
@@ -548,7 +588,12 @@ function Get-BuildInfoProblems {
     if ($BuildInfo.Dirty) { $problems.Add('Build output was made from a working tree with uncommitted or untracked files. Rebuild from a clean checkout.') }
     foreach ($rid in @($BuildInfo.Runtimes)) {
         if (-not $Config.Contains($rid)) { $problems.Add("Build output contains unknown runtime '$rid'."); continue }
-        if (-not $Config[$rid].Uploadable) { $problems.Add("Build output contains $rid, which must not be uploaded: $($Config[$rid].BlockedReason). Rebuild without it.") }
+        if (-not $Config[$rid].Uploadable) {
+            # T-226: name the build that leaves it out (Windows: -Runtime win-x64 while win-arm64 is not uploadable).
+            $uploadable = @(Get-UploadableReleaseRuntimes -HostOs $Config[$rid].Os -Config $Config)
+            $rebuild = if ($uploadable.Count -gt 0) { "Rebuild without it: pwsh scripts/release-build.ps1 -Runtime $($uploadable -join ',')" } else { 'Rebuild without it.' }
+            $problems.Add("Build output contains $rid, which must not be uploaded: $($Config[$rid].BlockedReason). $rebuild")
+        }
     }
     # T-181: installations that verify the update feed refuse a feed without a valid signature.
     $signature = if ($BuildInfo.PSObject.Properties['FeedSignature']) { $BuildInfo.FeedSignature } else { $null }
@@ -3464,7 +3509,9 @@ function Get-ReleaseFlowFacts {
     $checksumFile = Get-ChecksumFileName $HostOs
 
     $toolchainProblems = [System.Collections.Generic.List[string]]::new()
-    $runtimes = @(Resolve-ReleaseRuntimes -HostOs $HostOs)
+    # The RIDs release.ps1 builds for the upload (T-226: not win-arm64 until it is uploadable, T-227), so that a missing
+    # ARM64 toolchain does not stop a release of win-x64.
+    $runtimes = @(Get-UploadableReleaseRuntimes -HostOs $HostOs)
     $skipToolchain = Test-ReleaseTestToolchainSkip -RepoRoot $RepoRoot
     if (-not $skipToolchain) {
         foreach ($problem in @(Get-NativeToolchainProblems -Runtimes $runtimes -HostOs $HostOs)) { $toolchainProblems.Add($problem) }
@@ -3730,7 +3777,7 @@ function Get-ReleaseFlowPlan {
         [pscustomobject]@{ Id = 'DeleteBranch'; Outward = $false; Title = "Delete the local branch $branch"
             Detail = "git branch -d $branch" }
         [pscustomobject]@{ Id = 'Build'; Outward = $false; Title = "Build $($f.Runtimes -join ', ') from the tag"
-            Detail = "git switch --detach $tag; pwsh scripts/release-build.ps1 (signing key: `$env:LAYERPEEK_FEED_SIGNING_KEY, password asked)" }
+            Detail = "git switch --detach $tag; pwsh $((@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $f.HostOs)) -join ' ') (signing key: `$env:LAYERPEEK_FEED_SIGNING_KEY, password asked)" }
         [pscustomobject]@{ Id = 'Upload'; Outward = $true; Title = 'Create or fill the draft release (confirm y/N)'
             Detail = "pwsh scripts/release-upload.ps1$repoArgument -DryRun, then pwsh scripts/release-upload.ps1$repoArgument; never published here" }
     )
@@ -3760,7 +3807,8 @@ function Format-ReleaseFlowPlan {
             # T-113: the other OS went first; this one is added to the published release, not by release.ps1.
             $repoArgument = if ($Facts.RepositoryArgument) { " -Repo $($Facts.RepositoryArgument)" } else { '' }
             "  It has no $($Facts.ChecksumFile) yet. Add the files of this OS (docs/release.md, release on two machines):"
-            "    git switch --detach $($Facts.Tag); pwsh scripts/release-build.ps1 -FeedSigningKey <key file>; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
+            $build = (@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $Facts.HostOs)) -join ' '
+            "    git switch --detach $($Facts.Tag); pwsh $build -FeedSigningKey <key file>; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
         }
     }
     if ($Facts.PSObject.Properties['ToolchainSkipped'] -and $Facts.ToolchainSkipped) {
@@ -3786,7 +3834,10 @@ function Get-ReleaseNextSteps {
     $repoArgument = if ($Repository) { " -Repo $Repository" } else { '' }
     $names = @{ windows = 'Windows'; macos = 'macOS' }
     $this = $names[$HostOs]
-    $other = $names[$(if ($HostOs -eq 'windows') { 'macos' } else { 'windows' })]
+    $otherOs = if ($HostOs -eq 'windows') { 'macos' } else { 'windows' }
+    $other = $names[$otherOs]
+    # T-226: the build of the other OS for the upload (Windows: -Runtime win-x64 while win-arm64 is not uploadable).
+    $otherBuild = (@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $otherOs)) -join ' '
     @(
         "Publishing is a separate manual step. Check the draft $tag on GitHub (text, files), then:"
         "  git switch --detach $tag"
@@ -3794,7 +3845,7 @@ function Get-ReleaseNextSteps {
         "  pwsh scripts/release-publish.ps1$repoArgument -AllowIncomplete   # only the $this files so far"
         '  git switch develop'
         "The $other files follow on a $other machine (docs/release.md, release on two machines), without release.ps1:"
-        "  git fetch $Remote --tags; git switch --detach $tag; pwsh scripts/release-build.ps1 -FeedSigningKey <key file>"
+        "  git fetch $Remote --tags; git switch --detach $tag; pwsh $otherBuild -FeedSigningKey <key file>"
         "  pwsh scripts/release-upload.ps1$repoArgument -AddToPublished   # after the publish above"
         "  (or before publishing: pwsh scripts/release-upload.ps1$repoArgument into the draft, then publish without -AllowIncomplete)"
     )
@@ -4322,6 +4373,9 @@ $script:Winget = [pscustomobject]@{
     PackageIdentifier  = '3DPrint.LayerPeek'
     Repository         = 'pfoltynek/LayerPeek'
     Runtime            = 'win-x64'
+    # T-226 (user decision 2026-11-12, question 3): the arm64 installer goes into the manifest only when the release has
+    # it, i.e. from the first release that uploads win-arm64 (T-227); the x64 installer is always required.
+    Arm64Runtime       = 'win-arm64'
     TemplateDirectory  = 'build/winget'
     PackagesRepository = 'microsoft/winget-pkgs'
     TokenVariable      = 'WINGET_CREATE_GITHUB_TOKEN'
@@ -4333,20 +4387,41 @@ function Get-WingetSettings {
 }
 
 function Get-WingetInstallerFileName {
-    <# .SYNOPSIS The Velopack installer of the winget package in the release: LayerPeek-<version>-win-x64-Setup.exe. #>
-    param([Parameter(Mandatory)] [string] $Version)
-    Get-VelopackSetupFileName -Version $Version -Runtime $script:Winget.Runtime
+    <#
+    .SYNOPSIS
+        The Velopack installer of the winget package in the release: LayerPeek-<version>-win-x64-Setup.exe, or with
+        -Runtime win-arm64 the one of the arm64 node (T-226).
+    #>
+    param([Parameter(Mandatory)] [string] $Version, [string] $Runtime = $script:Winget.Runtime)
+    Get-VelopackSetupFileName -Version $Version -Runtime $Runtime
 }
 
 function Get-WingetUrls {
-    <# .SYNOPSIS Pure: the version-specific URLs of the manifest (installer, release notes) for a release of the package repository. #>
+    <#
+    .SYNOPSIS
+        Pure: the version-specific URLs of the manifest (installer x64, installer arm64 for a release that has it, T-226,
+        release notes) for a release of the package repository.
+    #>
     param([Parameter(Mandatory)] [string] $Version)
     $base = "https://github.com/$($script:Winget.Repository)"
     $tag = ConvertTo-ReleaseTag $Version
     [pscustomobject]@{
-        Installer    = "$base/releases/download/$tag/$(Get-WingetInstallerFileName -Version $Version)"
-        ReleaseNotes = "$base/releases/tag/$tag"
+        Installer      = "$base/releases/download/$tag/$(Get-WingetInstallerFileName -Version $Version)"
+        InstallerArm64 = "$base/releases/download/$tag/$(Get-WingetInstallerFileName -Version $Version -Runtime $script:Winget.Arm64Runtime)"
+        ReleaseNotes   = "$base/releases/tag/$tag"
     }
+}
+
+function Test-WingetArm64Installer {
+    <#
+    .SYNOPSIS
+        Pure: true when the GitHub release has the win-arm64 installer (LayerPeek-<version>-win-arm64-Setup.exe), so that
+        its manifest gets the arm64 node (T-226, question 3: from the first release that uploads win-arm64).
+    #>
+    param([AllowNull()] $Release, [Parameter(Mandatory)] [string] $Version)
+    if ($null -eq $Release) { return $false }
+    $setup = Get-WingetInstallerFileName -Version $Version -Runtime $script:Winget.Arm64Runtime
+    [bool](@($Release.assets | Where-Object { $_ -and $_.name -ceq $setup }).Count -gt 0)
 }
 
 function Get-WingetManifestRelativePath {
@@ -4367,24 +4442,39 @@ function ConvertTo-WingetManifests {
     .SYNOPSIS
         Pure: the manifest files of one version (file name -> text) from the templates in build/winget: @VERSION@,
         @RELEASE_DATE@ (YYYY-MM-DD) and @INSTALLER_SHA256@ (upper case, as wingetcreate writes it) are replaced.
-        Throws when a template is missing, a placeholder is left over or a value is malformed.
+        The installer template has the arm64 node between the lines '# @ARM64_BEGIN@' and '# @ARM64_END@' (T-226): with
+        -Arm64InstallerSha256 (the release has the win-arm64 installer) the marker lines are dropped and
+        @INSTALLER_SHA256_ARM64@ is replaced, without it the whole block is dropped (a manifest with x64 only).
+        Throws when a template is missing, the installer template has not exactly one arm64 block, a placeholder is left
+        over or a value is malformed.
     #>
     param(
         [Parameter(Mandatory)] [hashtable] $Templates,
         [Parameter(Mandatory)] [string] $Version,
         [Parameter(Mandatory)] [string] $ReleaseDate,
-        [Parameter(Mandatory)] [string] $InstallerSha256
+        [Parameter(Mandatory)] [string] $InstallerSha256,
+        [string] $Arm64InstallerSha256
     )
     if (-not (Test-ReleaseVersion $Version)) { throw "'$Version' is not a version in the form X.Y.Z." }
     if ($ReleaseDate -notmatch '^\d{4}-\d{2}-\d{2}$') { throw "Release date '$ReleaseDate' is not in the form YYYY-MM-DD." }
     if ($InstallerSha256 -notmatch '^[0-9A-Fa-f]{64}$') { throw "'$InstallerSha256' is no SHA256 (64 hex digits)." }
+    if ($PSBoundParameters.ContainsKey('Arm64InstallerSha256') -and $Arm64InstallerSha256 -notmatch '^[0-9A-Fa-f]{64}$') { throw "'$Arm64InstallerSha256' is no SHA256 of the arm64 installer (64 hex digits)." }
     $id = $script:Winget.PackageIdentifier
     $names = @("$id.yaml", "$id.installer.yaml", "$id.locale.en-US.yaml")
     $missing = @($names | Where-Object { -not $Templates.ContainsKey($_) })
     if ($missing.Count -gt 0) { throw "winget manifest template(s) missing: $($missing -join ', ')." }
+    $arm64Block = [regex]::new('(?m)^# @ARM64_BEGIN@[^\n]*\n(?<node>(?:(?!# @ARM64_(?:BEGIN|END)@)[^\n]*\n)*?)# @ARM64_END@[^\n]*(?:\n|$)')
     $result = [ordered]@{}
     foreach ($name in $names) {
-        $text = $Templates[$name].Replace('@VERSION@', $Version).Replace('@RELEASE_DATE@', $ReleaseDate).Replace('@INSTALLER_SHA256@', $InstallerSha256.ToUpperInvariant())
+        $text = $Templates[$name] -replace '\r\n', "`n"
+        if ($name -ceq "$id.installer.yaml") {
+            $blocks = $arm64Block.Matches($text)
+            $markers = [regex]::Matches($text, '(?m)^# @ARM64_(?:BEGIN|END)@').Count
+            if ($blocks.Count -ne 1 -or $markers -ne 2) { throw "winget manifest template $name must have exactly one arm64 block ('# @ARM64_BEGIN@' ... '# @ARM64_END@')." }
+            $node = if ($Arm64InstallerSha256) { $blocks[0].Groups['node'].Value.Replace('@INSTALLER_SHA256_ARM64@', $Arm64InstallerSha256.ToUpperInvariant()) } else { '' }
+            $text = $text.Substring(0, $blocks[0].Index) + $node + $text.Substring($blocks[0].Index + $blocks[0].Length)
+        }
+        $text = $text.Replace('@VERSION@', $Version).Replace('@RELEASE_DATE@', $ReleaseDate).Replace('@INSTALLER_SHA256@', $InstallerSha256.ToUpperInvariant())
         if ($text -match '@[A-Z0-9_]+@') { throw "winget manifest template $name has an unknown placeholder $($Matches[0])." }
         $result[$name] = $text
     }
@@ -4453,16 +4543,26 @@ function Get-WingetReleaseProblems {
     if ($Release.isDraft) { return @("Release $tag is still a draft. Publish it first (scripts/release-publish.ps1); winget downloads the installer from the published release.") }
     $asset = @($Release.assets | Where-Object { $_.name -ceq $setup }) | Select-Object -First 1
     if ($null -eq $asset) { return @("Release $tag has no $setup yet. Add the Windows files first (on Windows: pwsh scripts/release-upload.ps1 -AddToPublished).") }
-    if ($asset.PSObject.Properties['state'] -and $asset.state -and $asset.state -ne 'uploaded') { return @("$setup in release $tag is not completely uploaded (state $($asset.state)).") }
-    $digest = if ($asset.PSObject.Properties['digest']) { "$($asset.digest)" } else { '' }
-    if ($digest -notmatch '^sha256:[0-9a-fA-F]{64}$') { return @("GitHub reports no SHA256 for $setup in release $tag; it is needed for the manifest.") }
+    # T-226: the arm64 installer is optional, but when the release has it, it goes into the manifest and must be complete too.
+    $setups = @($setup)
+    if (Test-WingetArm64Installer -Release $Release -Version $Version) { $setups += Get-WingetInstallerFileName -Version $Version -Runtime $script:Winget.Arm64Runtime }
+    foreach ($name in $setups) {
+        $asset = @($Release.assets | Where-Object { $_.name -ceq $name }) | Select-Object -First 1
+        if ($asset.PSObject.Properties['state'] -and $asset.state -and $asset.state -ne 'uploaded') { return @("$name in release $tag is not completely uploaded (state $($asset.state)).") }
+        $digest = if ($asset.PSObject.Properties['digest']) { "$($asset.digest)" } else { '' }
+        if ($digest -notmatch '^sha256:[0-9a-fA-F]{64}$') { return @("GitHub reports no SHA256 for $name in release $tag; it is needed for the manifest.") }
+    }
     @()
 }
 
 function Get-WingetInstallerSha256 {
-    <# .SYNOPSIS The SHA256 of the installer asset (upper case) from GitHub's digest; checked by Get-WingetReleaseProblems. #>
-    param([Parameter(Mandatory)] $Release, [Parameter(Mandatory)] [string] $Version)
-    $setup = Get-WingetInstallerFileName -Version $Version
+    <#
+    .SYNOPSIS
+        The SHA256 of the installer asset (upper case) from GitHub's digest, x64 or with -Runtime win-arm64 the arm64 one
+        (T-226); checked by Get-WingetReleaseProblems.
+    #>
+    param([Parameter(Mandatory)] $Release, [Parameter(Mandatory)] [string] $Version, [string] $Runtime = $script:Winget.Runtime)
+    $setup = Get-WingetInstallerFileName -Version $Version -Runtime $Runtime
     $asset = @($Release.assets | Where-Object { $_.name -ceq $setup }) | Select-Object -First 1
     "$($asset.digest)".Substring('sha256:'.Length).ToUpperInvariant()
 }
@@ -4500,15 +4600,17 @@ function Get-WingetCreateArguments {
     .SYNOPSIS
         Pure: the wingetcreate arguments, never with a token (it reaches wingetcreate through the environment).
         new: wingetcreate submit of the folder with the reviewed manifests; update: wingetcreate update with the version,
-        the installer URL, release notes URL and release date, submitted at once. The architecture needs no override
-        ('<url>|x64'): wingetcreate takes it from the URL first (…-win-x64-Setup.exe, doc/update.md of winget-create). Pull
-        request titles as the winget-pkgs template asks: "New package: <id> version X.Y.Z" / "Update: <id> to X.Y.Z".
+        the installer URL (with -Arm64 also the one of the arm64 installer, T-226), release notes URL and release date,
+        submitted at once. The architecture needs no override ('<url>|x64'): wingetcreate takes it from the URL first
+        (…-win-x64-Setup.exe, …-win-arm64-Setup.exe, doc/update.md of winget-create). Pull request titles as the
+        winget-pkgs template asks: "New package: <id> version X.Y.Z" / "Update: <id> to X.Y.Z".
     #>
     param(
         [Parameter(Mandatory)] [ValidateSet('new', 'update')] [string] $Mode,
         [Parameter(Mandatory)] [string] $Version,
         [string] $ManifestDirectory,
-        [string] $ReleaseDate
+        [string] $ReleaseDate,
+        [switch] $Arm64
     )
     $id = $script:Winget.PackageIdentifier
     if ($Mode -eq 'new') {
@@ -4517,10 +4619,11 @@ function Get-WingetCreateArguments {
     }
     if ($ReleaseDate -notmatch '^\d{4}-\d{2}-\d{2}$') { throw "Release date '$ReleaseDate' is not in the form YYYY-MM-DD." }
     $urls = Get-WingetUrls -Version $Version
+    $installers = @($urls.Installer) + @(if ($Arm64) { $urls.InstallerArm64 })
     @(
         'update', $id,
         '--version', $Version,
-        '--urls', $urls.Installer,
+        '--urls') + $installers + @(
         '--release-notes-url', $urls.ReleaseNotes,
         '--release-date', $ReleaseDate,
         '--prtitle', "Update: $id to $Version",
@@ -4895,16 +4998,21 @@ function Invoke-WingetRelease {
     if ($problems.Count -gt 0) { Write-Problems -Problems $problems -Action 'winget'; return $false }
 
     $sha256 = Get-WingetInstallerSha256 -Release $release -Version $Version
+    # T-226: the arm64 node only for a release that has the win-arm64 installer (question 3).
+    $arm64 = Test-WingetArm64Installer -Release $release -Version $Version
+    $arm64Sha256 = if ($arm64) { Get-WingetInstallerSha256 -Release $release -Version $Version -Runtime $settings.Arm64Runtime } else { $null }
+    $shaText = if ($arm64) { "$sha256 (x64), $arm64Sha256 (arm64)" } else { $sha256 }
     $today = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
     $releaseDate = Get-WingetReleaseDate -Release $release -Fallback $today
     $urls = Get-WingetUrls -Version $Version
+    $armArgument = if ($arm64) { @{ Arm64InstallerSha256 = $arm64Sha256 } } else { @{} }
     # The templates of this checkout (the tag, when run from release-publish.ps1); an update does not need them.
-    $newManifests = { ConvertTo-WingetManifests -Templates (Read-WingetTemplates -Directory (Join-Path $RepoRoot $settings.TemplateDirectory)) -Version $Version -ReleaseDate $releaseDate -InstallerSha256 $sha256 }
+    $newManifests = { ConvertTo-WingetManifests -Templates (Read-WingetTemplates -Directory (Join-Path $RepoRoot $settings.TemplateDirectory)) -Version $Version -ReleaseDate $releaseDate -InstallerSha256 $sha256 @armArgument }
 
     if ($OutputDirectory) {
         $manifests = & $newManifests
         $folder = Write-WingetManifests -Manifests $manifests -Directory $OutputDirectory
-        Write-Host "winget manifests of $($settings.PackageIdentifier) $Version (installer SHA256 $sha256, release date $releaseDate) in $($folder):"
+        Write-Host "winget manifests of $($settings.PackageIdentifier) $Version (installer SHA256 $shaText, release date $releaseDate) in $($folder):"
         foreach ($name in $manifests.Keys) { Write-Host "  $name" }
         Write-Host 'Check them on Windows before the first submission (docs/release.md, "Publikace do winget"):'
         Write-Host "  winget validate --manifest `"$folder`""
@@ -4926,11 +5034,12 @@ function Invoke-WingetRelease {
     $manifests = if ($mode -eq 'new') { & $newManifests } else { $null }
 
     $placeholder = if ($mode -eq 'new') { "<temporary folder>/$($settings.PackageIdentifier)/$Version" } else { $null }
-    $shown = Get-WingetCreateArguments -Mode $mode -Version $Version -ManifestDirectory $placeholder -ReleaseDate $releaseDate
+    $shown = Get-WingetCreateArguments -Mode $mode -Version $Version -ManifestDirectory $placeholder -ReleaseDate $releaseDate -Arm64:$arm64
     $what = if ($mode -eq 'new') { "first version: the package is not in $($settings.PackagesRepository) yet, manifests from $($settings.TemplateDirectory)" } else { "update of the package in $($settings.PackagesRepository)" }
     Write-Host "winget $($settings.PackageIdentifier) $Version ($what)"
-    Write-Host "  installer $($urls.Installer)"
-    Write-Host "  SHA256    $sha256, release date $releaseDate"
+    Write-Host "  installer x64   $($urls.Installer)"
+    if ($arm64) { Write-Host "  installer arm64 $($urls.InstallerArm64)" }
+    Write-Host "  SHA256    $shaText, release date $releaseDate"
     Write-Host "  wingetcreate $($shown -join ' ')"
     Write-Host '  The GitHub token of gh reaches wingetcreate through WINGET_CREATE_GITHUB_TOKEN only while it runs; it is never shown.'
     Write-Host '  wingetcreate telemetry is switched off in its settings.json before it runs.'
@@ -4974,11 +5083,17 @@ function Invoke-WingetRelease {
                 return $false
             }
         }
-        $arguments = Get-WingetCreateArguments -Mode $mode -Version $Version -ManifestDirectory $folder -ReleaseDate $releaseDate
+        $arguments = Get-WingetCreateArguments -Mode $mode -Version $Version -ManifestDirectory $folder -ReleaseDate $releaseDate -Arm64:$arm64
         Write-Host "==> wingetcreate $($arguments -join ' ')" -ForegroundColor Cyan
         $exitCode = Invoke-WingetTool -Tool 'wingetcreate' -Arguments $arguments -Token $token
         if ($exitCode -ne 0) {
-            Write-Problems -Problems @("wingetcreate failed with exit code $exitCode. Check the pull requests of $($settings.PackagesRepository) before a re-run (one pull request per version).") -Action 'winget'
+            # T-226: wingetcreate update needs one URL per installer of the previous manifest, so the first release with the
+            # arm64 installer (the previous version has x64 only) cannot be an update; that manifest goes in by hand.
+            # The reverse: a release without the arm64 installer after one with it gives one URL for two installers.
+            $hint = if ($mode -ne 'update') { '' }
+            elseif ($arm64) { " The release has the arm64 installer: if the previous version in $($settings.PackagesRepository) has no arm64 installer yet (the first release with win-arm64), wingetcreate update refuses two URLs for one installer. Write the manifests with -OutputDirectory, check them with winget validate and submit that folder by hand with wingetcreate submit (docs/release.md, ""Publikace do winget"")." }
+            else { " The release has no $(Get-WingetInstallerFileName -Version $Version -Runtime $settings.Arm64Runtime): if the previous version in $($settings.PackagesRepository) has an arm64 installer, wingetcreate update refuses one URL for two installers. Add the win-arm64 files to the release (release-upload.ps1 -AddToPublished), or write the x64-only manifests with -OutputDirectory, check them with winget validate and submit that folder by hand with wingetcreate submit (docs/release.md, ""Publikace do winget"")." }
+            Write-Problems -Problems @("wingetcreate failed with exit code $exitCode. Check the pull requests of $($settings.PackagesRepository) before a re-run (one pull request per version).$hint") -Action 'winget'
             return $false
         }
         Write-Host "winget: the pull request for $($settings.PackageIdentifier) $Version is open in $($settings.PackagesRepository). Watch its validation (docs/release.md, ""Publikace do winget"")." -ForegroundColor Green

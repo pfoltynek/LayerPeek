@@ -46,7 +46,7 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 - No `BuiltInComInteropSupport`; Windows interop via `[LibraryImport]` / source-generated COM (`[GeneratedComInterface]`).
 - **Every new NuGet package must be AOT/trim compatible** — verify before proposing it and state it in the task notes.
 - Never silence trim/AOT warnings with `UnconditionalSuppressMessage` or `<NoWarn>` without a justification approved by the user.
-- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS. Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload, macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug does not need the Visual Studio C++ workload. The first `dotnet build` builds the LGPL FFmpeg libraries from source into a cache and needs a native toolchain once: on Windows MSYS2 with MinGW-w64 (`C:\msys64` or `LayerPeekMsys2Root`; packages `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; T-202, `build/windows/build-ffmpeg.sh`), on macOS the Xcode Command Line Tools (T-026, `build/macos/build-ffmpeg.sh`); `-p:LayerPeekFFmpegEnabled=false` builds without them. Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
+- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS. Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload (for `win-arm64` also the component `Microsoft.VisualStudio.Component.VC.Tools.ARM64`; the first `win-arm64` build downloads the pinned llvm-mingw for FFmpeg, T-225), macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug does not need the Visual Studio C++ workload. The first `dotnet build` builds the LGPL FFmpeg libraries from source into a cache and needs a native toolchain once: on Windows MSYS2 with MinGW-w64 (`C:\msys64` or `LayerPeekMsys2Root`; packages `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; T-202, `build/windows/build-ffmpeg.sh`), on macOS the Xcode Command Line Tools (T-026, `build/macos/build-ffmpeg.sh`); `-p:LayerPeekFFmpegEnabled=false` builds without them. Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
 
 ## Repository layout
 
@@ -82,6 +82,7 @@ dotnet build                                  # whole solution
 dotnet test                                   # all tests (MTP runner)
 dotnet run --project src/LayerPeek.App
 dotnet publish src/LayerPeek.App -c Release -r win-x64     # Native AOT (needs MSVC on Windows)
+dotnet publish src/LayerPeek.App -c Release -r win-arm64   # Native AOT for Windows ARM64, cross-compiled on Windows x64 (needs the MSVC ARM64 build tools; not runnable there)
 dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # Native AOT (on macOS only)
 ```
 

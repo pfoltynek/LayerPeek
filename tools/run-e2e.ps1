@@ -53,7 +53,8 @@
     Only test methods matching this xUnit filter (e.g. '*NoPrinter*').
 
 .PARAMETER PublishAot
-    Also publish the Native AOT exe (win-x64, needs the C++ build tools) and check it for test switches, and publish the
+    Also publish the Native AOT exe (the RID of this machine: win-x64, or win-arm64 on an ARM64 device, T-226; needs the
+    C++ build tools) and check it for test switches, and publish the
     Debug configuration as Native AOT too (it keeps the test mode). After a green pass against the Debug exe, the same
     selected tests (-Class / -Method) run once more against that Native AOT exe (T-073), with a results folder of their
     own (<results>-aot); tests that make no sense there are skipped with the reason. The warning about system changes at
@@ -105,6 +106,9 @@ $results = Join-Path ([IO.Path]::GetTempPath()) "LayerPeek.App.E2E.Results.$id"
 $script:logFile = $null
 Import-Module (Join-Path $PSScriptRoot 'RunE2E.SystemChanges.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'RunE2E.Results.psm1') -Force
+# Get-HostRuntime: the RID of this machine (T-226), the same as HostRuntime.Windows of the tests.
+Import-Module (Join-Path $PSScriptRoot '..' 'scripts' 'ReleaseTools' 'ReleaseTools.psm1') -Force
+$runtime = Get-HostRuntime
 
 function Write-Log([string] $Text, [ConsoleColor] $Color = [ConsoleColor]::Gray) {
     Write-Host $Text -ForegroundColor $Color
@@ -207,11 +211,11 @@ dotnet build $app -c Debug
 if ($LASTEXITCODE -ne 0) { throw 'Building the Debug app failed.' }
 dotnet build $app -c Release
 if ($LASTEXITCODE -ne 0) { throw 'Building the Release app failed.' }
-$aotDebug = Join-Path $app 'bin/Debug/net11.0/win-x64/publish'
+$aotDebug = Join-Path $app "bin/Debug/net11.0/$runtime/publish"
 if ($PublishAot) {
-    dotnet publish $app -c Release -r win-x64
+    dotnet publish $app -c Release -r $runtime
     if ($LASTEXITCODE -ne 0) { throw 'The Native AOT publish failed.' }
-    dotnet publish $app -c Debug -r win-x64 -o $aotDebug
+    dotnet publish $app -c Debug -r $runtime -o $aotDebug
     if ($LASTEXITCODE -ne 0) { throw 'The Native AOT publish of the Debug app failed.' }
 }
 

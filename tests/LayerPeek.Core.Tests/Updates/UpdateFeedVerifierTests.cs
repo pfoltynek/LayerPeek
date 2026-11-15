@@ -59,6 +59,28 @@ public sealed class UpdateFeedVerifierTests
 
     [Theory]
     [InlineData("win-x64")]
+    [InlineData("win-arm64")]
+    [InlineData("osx-arm64")]
+    public void AFeedSignedForTheChannelOfItsInstallationIsValid(string rid)
+    {
+        // Every released RID has its own channel and feed (T-226: win-arm64 next to win-x64 and osx-arm64).
+        Assert.Equal(UpdateFeedSignatureCheck.Valid, _verifier.Verify(Feed, rid, TestUpdateFeed.Sign(Feed, rid)));
+    }
+
+    [Theory]
+    [InlineData("win-x64", "win-arm64")]
+    [InlineData("win-arm64", "win-x64")]
+    [InlineData("win-arm64", "WIN-ARM64")]
+    public void TheFeedOfOneWindowsArchitectureIsUntrustedAsTheFeedOfTheOther(string signedFor, string checkedAs)
+    {
+        // T-226: an x64 feed never passes as the feed of an ARM64 installation (and the other way round), so that no
+        // installation is offered the packages of the other architecture under a valid signature.
+        Assert.Equal(UpdateFeedSignatureCheck.Untrusted, _verifier.Verify(Feed, checkedAs, TestUpdateFeed.Sign(Feed, signedFor)));
+    }
+
+    [Theory]
+    [InlineData("win-x64")]
+    [InlineData("win-arm64")]
     [InlineData("osx-x64")]
     [InlineData("OSX-ARM64")]
     public void TheSignatureOfTheFeedOfAnotherRidIsUntrusted(string rid)

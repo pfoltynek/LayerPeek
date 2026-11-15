@@ -21,7 +21,7 @@ Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.
 
 ## Rozhodnutí (2026-10-21)
 
-- Vydávané RID: `win-x64`, `osx-arm64`. Windows ARM64 (`win-arm64`) se nepodporuje (rozhodnutí uživatele 2026-11-01, T-130): skripty ho odmítnou jako neznámý RID (`Unknown runtime 'win-arm64'`).
+- Vydávané RID: `win-x64`, `win-arm64`, `osx-arm64`. Windows ARM64 (`win-arm64`) se vydává od rozhodnutí uživatele 2026-11-12 (T-224 až T-227, ruší T-130): na Windows x64 se sestaví ve výchozím buildu vedle `win-x64`, ale **nenahrává se**, dokud se neověří na zařízení s ARM64 (T-227, otázka 1 v T-226). Do té doby se Windows pro nahrání sestavuje `release-build.ps1 -Runtime win-x64` (`release.ps1` to dělá sám), viz „Konfigurace RID“.
 - Verze: jediný zdroj je `<Version>` v kořenovém `Directory.Build.props` (tvar `X.Y.Z`). Odtud ji má exe, okno O aplikaci, názvy souborů i tag `vX.Y.Z`.
 - Vydává se jen z `main`: tagovaný commit musí být obsažený v `origin/main`.
 - První nahrání vytvoří **koncept** (`--draft`). Verze `0.x` jsou na GitHubu označené jako předběžné (`--prerelease`), od 1.0.0 vydání předběžná nejsou (`Test-PrereleaseVersion`: hlavní verze ≠ 0).
@@ -279,12 +279,14 @@ Na čistém checkoutu tagovaného commitu (pracovní strom nesmí obsahovat žá
 
 ```powershell
 git switch --detach vX.Y.Z
-pwsh scripts/release-build.ps1 -FeedSigningKey E:\layerpeek-feed-key.pem   # build, testy, publish win-x64, smoke test, zip, instalátor, podpis feedu, SHA256SUMS-windows.txt
+pwsh scripts/release-build.ps1 -Runtime win-x64 -FeedSigningKey E:\layerpeek-feed-key.pem   # build, testy, publish win-x64, smoke test, zip, instalátor, podpis feedu, SHA256SUMS-windows.txt
 pwsh scripts/release-upload.ps1 -DryRun         # jen kontroly a výpis, co by se nahrálo
 pwsh scripts/release-upload.ps1                 # vytvoří koncept vydání a nahraje soubory
 ```
 
 Smoke test spustí publikovanou aplikaci na 10 s s tvými skutečnými nastaveními (může ukázat skutečné notifikace) a odmítne běžet, když už aplikace běží. Před během ji ukonči.
+
+`-Runtime win-x64` vynechá `win-arm64`, který se do T-227 nahrávat nesmí: výchozí build bez `-Runtime` sestaví i `win-arm64` a `release-upload.ps1` ho odmítne (`Build output contains win-arm64, which must not be uploaded: not verified on an ARM64 device (T-227). Rebuild without it: pwsh scripts/release-build.ps1 -Runtime win-x64`). Po T-227 (`Uploadable = $true`) se `-Runtime` vynechá; `release.ps1` a vypsané další kroky to poznají z tabulky RID samy (`Get-ReleaseBuildRuntimeArguments`).
 
 ### 4. Běh na Macu
 
@@ -420,13 +422,14 @@ artifacts/release/<verze>/
 - Archiv: `LayerPeek-<verze>-<RID>.zip` (Windows, obsah publish složky bez nadřazené složky), `.tar.gz` (macOS, podepsaná `LayerPeek.app`, zachová spustitelný bit).
 - macOS (T-019, T-058): `LayerPeek-<verze>-osx-arm64.dmg`, balíček a feed Velopacku (`LayerPeek-<verze>-osx-arm64-full.nupkg`, `releases.osx-arm64.json`, `assets.osx-arm64.json`, `RELEASES-osx-arm64`; `Portable.zip` ani `.pkg` se nevydávají) a podepsaná aplikace od `vpk` pro místní použití v `artifacts/release/<verze>/app/osx-arm64/portable/LayerPeek.app` (nenahrává se).
 - Instalátor Velopack (jen Windows, T-017, viz „Instalátor pro Windows“ níže): `LayerPeek-<verze>-<RID>-Setup.exe` a soubory aktualizací `LayerPeek-<verze>-<RID>-full.nupkg`, `releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`. `vpk` pracuje ve vlastní složce `velopack-<RID>` vedle `dist/` a po zkopírování ji skript smaže.
+- Windows ARM64 (T-226): výchozí build na Windows má vedle souborů `win-x64` i `LayerPeek-<verze>-win-arm64.zip`, `LayerPeek-<verze>-win-arm64-Setup.exe`, `LayerPeek-<verze>-win-arm64-full.nupkg`, `releases.win-arm64.json` (+ `.sig`), `assets.win-arm64.json` a `RELEASES-win-arm64` (kanál `win-arm64`, bez kolize názvů) a jeden `SHA256SUMS-windows.txt` pro obě architektury. Před balením skript ověří, že exe a všechny DLL publish složky jsou ARM64 (`Get-PublishArchitectureCheck`, T-224; `vpk` architekturu nekontroluje). Ověřeno 2026-11-15 (zkušební build 0.5.0 na Windows x64): zip, `.nupkg` (včetně `Squirrel.exe` a `LayerPeek_ExecutionStub.exe`) a `Setup.exe` `win-arm64` jsou celé ARM64 `0xAA64`, `win-x64` celé x64.
 - **Ladicí symboly se nevydávají** (rozhodnuto 2026-10-21): archiv neobsahuje soubory `*.pdb` ani nic ze složek `*.dSYM` a nikam se nenahrávají. V publish složce zůstanou pro lokální ladění. Zip `win-x64` má tak asi 70 MB místo 120 MB.
 - Zdrojový kód FFmpeg (T-199): `ffmpeg-source-<verze>-<os>.tar.xz` (viz „Zdrojový kód FFmpeg“ níže).
 - Podpis feedu (T-181): `releases.<RID>.json.sig` ke každému `releases.<RID>.json` (jeden řádek base64 + LF). `build-info.json` má `FeedSignature`: `Status` `signed` (s `PublicKeySha256`, otiskem veřejného klíče) nebo `skipped` (`-SkipFeedSignature`).
 - Kontrolní součty: jeden soubor na OS, formát `sha256sum` (`<hash>  <soubor>`, LF), obsahuje všechny soubory z `dist/` tohoto běhu (i `.sig`).
 - Build zastaví jakékoli varování (`-warnaserror` u `dotnet build` i `dotnet publish`, tedy i trim/AOT varování z ILC). Testy běží v konfiguraci Release.
 - Na Windows skript ověří, že *Product version* exe odpovídá `<Version>`.
-- Smoke test běží jen pro RID tohoto stroje (OS a architektura). Ostatní RID skript vypíše jako „not verified by running“. Smoke test běží nad hotovou publish složkou (`aot-smoke.ps1 -PublishDir`) a skript ověří, že ji nezměnil.
+- Smoke test běží jen pro RID tohoto stroje (OS a architektura). Ostatní RID skript vypíše jako „not verified by running“ (na Windows x64 `win-arm64`: `not verified by running (this machine is windows-x64)`; Windows na x64 ARM64 binárky spustit neumí, smoke test `win-arm64` je v T-227). Smoke test běží nad hotovou publish složkou (`aot-smoke.ps1 -PublishDir`) a skript ověří, že ji nezměnil. `aot-smoke.ps1 -Runtime win-arm64` na Windows x64 skončí hláškou `AOT smoke check NOT RUN: runtime 'win-arm64' cannot run on this machine (windows-x64) …` a nic nepublikuje ani nespustí.
 
 ## Co skripty odmítnou
 
@@ -449,7 +452,8 @@ Navíc jen `release-upload.ps1`:
 | `CHANGELOG.md` nemá sekci verze, datum nebo text | `… has no section '## [X.Y.Z] - YYYY-MM-DD'` / `… has no release date` / `… is empty` |
 | chybí výstup `release-build.ps1` | `No build output for version …` |
 | výstup je z jiného commitu / verze / ze špinavého stromu | `Build output comes from commit …` / `… was made from a working tree with uncommitted …` |
-| výstup obsahuje neznámý RID (např. `win-arm64`) | `Build output contains unknown runtime …` |
+| výstup obsahuje neznámý RID (např. `win-x86`) | `Build output contains unknown runtime …` |
+| výstup obsahuje `win-arm64` (výchozí build Windows; do T-227 se nenahrává) | `Build output contains win-arm64, which must not be uploaded: not verified on an ARM64 device (T-227). Rebuild without it: pwsh scripts/release-build.ps1 -Runtime win-x64` |
 | zkušební build `release-build.ps1 -SkipFeedSignature` (T-181) | `Build output was made with -SkipFeedSignature (a trial build) …` |
 | podpis na konci buildu nedoběhl (`build-info.json` se stavem `pending`, T-197) | `Build output is not signed yet: the signing at the end of release-build.ps1 did not finish … release-build.ps1 -SignOnly` |
 | `build-info.json` bez stavu podpisu (build starší než T-181) | `Build output has no update feed signature (made before T-181?) …` |
@@ -684,7 +688,7 @@ llvm-mingw se nepřikládá (je to překladač; z něj jsou v DLL jen runtime Mi
    `libavcodec.<n>.dylib` a ověří, že je z připnutého zdroje (`FFmpeg version` v knihovně přesně `9.0.2`). Pak sbalí
    tarball, skript buildu OS a `README.txt` (řádek configure každého RID) do `dist/` (pracovní složka
    `ffmpeg-source-<os>` vedle `dist/`, po zabalení smazaná) a výsledek vypíše a porovná s očekávaným seznamem souborů.
-   Dokud se `win-arm64` nevydává (T-226), má archiv Windows jen řádek `win-x64`.
+   Výchozí build Windows (`win-x64` i `win-arm64`) má v `README.txt` oba řádky; build pro nahrání (`-Runtime win-x64`, dokud se `win-arm64` nenahrává, T-227) jen řádek `win-x64`.
 3. Soubor je jako ostatní kroky v `build-info.json` (krok `ffmpeg-source`, i v záznamu `pending` před podpisem, takže
    `-SignOnly` z T-197 funguje beze změny) a v `SHA256SUMS-<os>.txt`; `release-upload.ps1` ho nahraje v první dávce
    (není to značka OS) a `release-publish.ps1` ho zkontroluje proti součtům. Seznam povolených názvů nahrání nemá:
@@ -808,7 +812,7 @@ Test zálohuje vývojového zástupce `LayerPeek.lnk`, obsah složky `%LOCALAPPD
 
 ## Publikace do winget (T-059)
 
-Aplikace se dá nainstalovat a aktualizovat příkazem `winget` z komunitního repozitáře manifestů [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs). Manifest odkazuje na `LayerPeek-X.Y.Z-win-x64-Setup.exe` ve zveřejněném vydání na GitHubu; winget ho stáhne odtud a ověří jeho SHA256.
+Aplikace se dá nainstalovat a aktualizovat příkazem `winget` z komunitního repozitáře manifestů [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs). Manifest odkazuje na `LayerPeek-X.Y.Z-win-x64-Setup.exe` ve zveřejněném vydání na GitHubu; winget ho stáhne odtud a ověří jeho SHA256. Uzel `arm64` (`LayerPeek-X.Y.Z-win-arm64-Setup.exe`) dostane manifest jen u vydání, které ten soubor obsahuje, tedy od prvního vydání, které `win-arm64` nahraje (T-227; rozhodnutí uživatele 2026-11-12, otázka 3 v T-226). T-059 (první odeslání 1.0.0) zůstává jen `x64`.
 
 ```powershell
 winget install --id 3DPrint.LayerPeek     # nebo: winget install layerpeek
@@ -854,12 +858,14 @@ Tři revidované šablony (UTF-8 bez BOM), ze kterých skript vytvoří manifest
 | Soubor | Obsah |
 |---|---|
 | `3DPrint.LayerPeek.yaml` | `version`: identifikátor, verze, `DefaultLocale: en-US` |
-| `3DPrint.LayerPeek.installer.yaml` | `InstallerType: exe`, `Scope: user`, `InstallModes` interactive/silent/silentWithProgress, `Silent` a `SilentWithProgress`: `--silent`, `Log: --log "<LOGPATH>"`, `UpgradeBehavior: install`, `ProductCode: LayerPeek` (název klíče Uninstall), `ReleaseDate`, jediný instalátor `x64` (ARM64 se nepodporuje, T-130) |
+| `3DPrint.LayerPeek.installer.yaml` | `InstallerType: exe`, `Scope: user`, `InstallModes` interactive/silent/silentWithProgress, `Silent` a `SilentWithProgress`: `--silent`, `Log: --log "<LOGPATH>"`, `UpgradeBehavior: install`, `ProductCode: LayerPeek` (název klíče Uninstall), `ReleaseDate`, instalátor `x64` a mezi řádky `# @ARM64_BEGIN@` a `# @ARM64_END@` uzel `arm64` (`@INSTALLER_SHA256_ARM64@`, T-226): když vydání má `…-win-arm64-Setup.exe`, `ConvertTo-WingetManifests` značky odstraní a doplní SHA256, jinak odstraní celý blok (manifest jen `x64`) |
 | `3DPrint.LayerPeek.locale.en-US.yaml` | `Publisher: Petr Foltýnek`, `PackageName: LayerPeek`, `License: GPL-3.0-only`, `LicenseUrl` a `ReleaseNotesUrl` dané verze, `Moniker: layerpeek`, tagy, popis s větou, že nejde o oficiální produkt Prusa Research, odkaz na příručku |
 
 `InstallLocation` (`--installto`) záměrně chybí: instalace jinam než do `%LOCALAPPDATA%\LayerPeek` se neověřovala. Vykreslené soubory 1.0.0 prošly kontrolou proti JSON schématům 1.28.0 z `microsoft/winget-cli` (na Macu, Python `jsonschema`, 2026-11-11); `winget validate` je potřeba na Windows.
 
 Další verze se posílají `wingetcreate update`: vezme manifest předchozí verze z winget-pkgs a změní jen verzi, URL, SHA256, `ReleaseNotesUrl` a `ReleaseDate`. Ostatní pole (i `LicenseUrl` s tagem 1.0.0) zůstanou z předchozí verze; změna šablon se proto do winget dostane jen ručně (PR s celým manifestem nebo `wingetcreate update --interactive`).
+
+**Windows ARM64 ve winget (T-226):** vydání se souborem `…-win-arm64-Setup.exe` dostane `wingetcreate update` se dvěma URL (x64 a arm64, architekturu bere `wingetcreate` z URL), vydání bez něj s jednou. Protože `update` potřebuje stejný počet URL jako uzlů předchozího manifestu, **první vydání s `win-arm64`** (předchozí verze ve winget-pkgs má jen `x64`) projde jen ručně: `pwsh scripts/release-winget.ps1 -Version X.Y.Z -OutputDirectory <složka>` (manifest z šablon s uzly `x64` a `arm64`), `winget validate --manifest <složka>` a odeslání té složky `wingetcreate submit <složka>` (token jako v části [Token](#token)). Když automatické `update` v té situaci selže, skript to v chybě vypíše. Totéž obráceně: vydání bez `…-win-arm64-Setup.exe` po vydání s ním (předchozí manifest má dva uzly) `update` s jednou URL odmítne; skript poradí doplnit soubory `win-arm64` (`release-upload.ps1 -AddToPublished`) nebo ruční odeslání manifestu jen `x64`. Obě varianty šablony prošly 2026-11-15 `winget validate` (winget 1.30, schéma 1.28.0); `winget install --manifest` na ARM64 je v T-227.
 
 ### Postup: první verze 1.0.0 (Windows)
 
@@ -939,14 +945,14 @@ pwsh -NoProfile -Command "Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
 | jiný repozitář než `pfoltynek/LayerPeek` | `winget installs the releases of pfoltynek/LayerPeek only` |
 | ne Windows (kromě `-OutputDirectory`) | `The winget submission runs on Windows only (wingetcreate and winget are Windows tools)` |
 | `gh` chybí / nepřihlášený, `wingetcreate` chybí, u první verze chybí `winget` | `GitHub CLI (gh) is not installed` / `wingetcreate is not installed. Install it: winget install --id Microsoft.WingetCreate` |
-| vydání neexistuje / je koncept / nemá `Setup.exe` / nedokončený soubor / bez SHA256 | `There is no release vX.Y.Z` / `… is still a draft` / `… has no LayerPeek-X.Y.Z-win-x64-Setup.exe yet` / `… is not completely uploaded` / `GitHub reports no SHA256 …` |
+| vydání neexistuje / je koncept / nemá `Setup.exe` / nedokončený soubor / bez SHA256 (i u `…-win-arm64-Setup.exe`, když ho vydání má) | `There is no release vX.Y.Z` / `… is still a draft` / `… has no LayerPeek-X.Y.Z-win-x64-Setup.exe yet` / `… is not completely uploaded` / `GitHub reports no SHA256 …` |
 | otevřený PR pro stejnou verzi / první verze ještě nesloučená | `An open pull request for 3DPrint.LayerPeek X.Y.Z already exists` / `The package is not in winget yet and its pull request is still open` |
 | GitHub neodpoví, zda balíček existuje (síť, limit; jen 404 znamená „nový“) | výjimka `gh api repos/microsoft/winget-pkgs/contents/manifests/3/3DPrint/LayerPeek failed` – nikdy druhý PR „New package“ |
 | token `gh` bez scopes (fine-grained, aplikace GitHubu) / bez `public_repo` / odmítnutý (401); před plánem, i v `-DryRun` | `The token of gh has no OAuth scopes` / `The token of gh lacks the public_repo scope` / `GitHub does not accept the token of gh (HTTP 401` + postup přihlášení |
 | žádný / fine-grained token (po potvrzení) | `gh auth token returned no token` / `The token of gh is a fine-grained personal access token` + postup přihlášení |
 | `settings.json` `wingetcreate` není objekt JSON | `wingetcreate telemetry could not be switched off: … Nothing was submitted.` |
 | `winget validate` první verze selže | `winget validate failed (exit code N); nothing was submitted` |
-| `wingetcreate` skončí chybou | `wingetcreate failed with exit code N. Check the pull requests …` |
+| `wingetcreate` skončí chybou | `wingetcreate failed with exit code N. Check the pull requests …` (u vydání s `arm64` i návod na ruční první odeslání, viz výše) |
 
 ### Velopack a `winget upgrade`
 
@@ -970,7 +976,15 @@ Ověřeno ve zdroji Velopacku 1.2.161 ([install.rs](https://github.com/velopack/
 
 ## Konfigurace RID
 
-Konfigurace RID je na jednom místě: `$script:ReleaseRuntimes` v `scripts/ReleaseTools/ReleaseTools.psm1` (dnes `win-x64` a `osx-arm64`). RID, který v tabulce není, skripty odmítnou (`Unknown runtime …`). Windows ARM64 (`win-arm64`) se nepodporuje (rozhodnutí uživatele 2026-11-01, T-130), proto tam není; původní příprava (T-057, T-063) je zamítnutá. Mechanismus `Uploadable = $false` / `BlockedReason` (RID sestavit jen pro lokální ověření, nenahrávat) zůstává pro případné další RID, dnes ho žádný RID nepoužívá.
+Konfigurace RID je na jednom místě: `$script:ReleaseRuntimes` v `scripts/ReleaseTools/ReleaseTools.psm1`. RID, který v tabulce není, skripty odmítnou (`Unknown runtime …`).
+
+| RID | OS | `Default` | `Uploadable` | `BlockedReason` |
+|---|---|---|---|---|
+| `win-x64` | windows | ano | ano | – |
+| `win-arm64` | windows | ano | **ne** (do T-227) | `not verified on an ARM64 device (T-227)` |
+| `osx-arm64` | macos | ano | ano | – |
+
+`win-arm64` (T-226, rozhodnutí uživatele 2026-11-12, otázka 1): výchozí build na Windows x64 ho sestaví a zabalí (AOT publish s komponentou MSVC ARM64 z T-224, FFmpeg přes llvm-mingw z T-225, kontrola ARM64 PE), ale `release-upload.ps1` build s ním odmítne a `release-publish.ps1` odmítne vydání s jeho soubory; feed `releases.win-arm64.json` se ve vydání nečeká. Build pro nahrání proto vynechá RID s `Uploadable = $false`: `Get-UploadableReleaseRuntimes` (výchozí a nahratelné RID OS) a `Get-ReleaseBuildRuntimeArguments` (dnes na Windows `-Runtime win-x64`, na macOS nic) používá `release.ps1`, plán kroků (`Get-ReleaseFlowPlan`, `Format-ReleaseFlowPlan`), další kroky po konceptu (`Get-ReleaseNextSteps`) i hláška kontroly uploadu; kontrola toolchainu `release.ps1` počítá jen s nahratelnými RID (bez komponenty MSVC ARM64 vydání `win-x64` projde). Po úspěšném ověření v T-227 se `Uploadable` přepne na `$true` (a test v `ReleaseTools.Tests.ps1`); pak se `-Runtime` vynechá samo.
 
 ## Testy skriptů (Pester)
 
@@ -983,7 +997,7 @@ Invoke-Pester scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1 -Output Detaile
 
 Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `ScriptPesterTestsPass`, jeden případ na soubor testů) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
 
-Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, odmítnutí souborů RID, který se nahrávat nesmí, a odmítnutí `win-arm64`). Balení pro macOS (T-019): `Info.plist` ze šablony (verze, `LSUIElement`, bundle identifikátor shodný s aplikací), sestavení bundlu bez ladicích symbolů, lokalizace `InfoPlist.strings` (T-097: kopie do bundlu, kontroly, parser `.strings`, na macOS `plutil -lint` a podpis s nimi), pořadí a argumenty podpisu, argumenty `hdiutil`, typ procesu z `lsappinfo` a registrace v LaunchServices; na macOS i skutečný ad-hoc podpis s `codesign --verify --deep --strict` (a rozbitá pečeť po změně souboru), `.icns` (16 a 32 px ze zjednodušené varianty beze změny pixelů, 64 px a víc z předlohy; odmítnutí PNG špatné velikosti) a ověřený `.dmg` a `.tar.gz` bez `._*` nad zástupným bundlem (nic se nepřipojuje). Záloha smoke testu: místa bundle identifikátoru a domény `defaults` nad zástupnou složkou se zástupným `defaults`. Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
+Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, odmítnutí souborů RID, který se nahrávat nesmí) a `win-arm64` (T-226: výchozí RID Windows, odmítnutí výstupu i souborů ve vydání do T-227, nečekaný feed, `-Runtime win-x64` v `release.ps1` a v dalších krocích, `aot-smoke.ps1 -Runtime win-arm64` na x64, `release-upload.ps1 -DryRun` proti falešnému `gh`: výstup s `win-arm64` odmítne, výstup jen `win-x64` přijme, nic nenahraje). Balení pro macOS (T-019): `Info.plist` ze šablony (verze, `LSUIElement`, bundle identifikátor shodný s aplikací), sestavení bundlu bez ladicích symbolů, lokalizace `InfoPlist.strings` (T-097: kopie do bundlu, kontroly, parser `.strings`, na macOS `plutil -lint` a podpis s nimi), pořadí a argumenty podpisu, argumenty `hdiutil`, typ procesu z `lsappinfo` a registrace v LaunchServices; na macOS i skutečný ad-hoc podpis s `codesign --verify --deep --strict` (a rozbitá pečeť po změně souboru), `.icns` (16 a 32 px ze zjednodušené varianty beze změny pixelů, 64 px a víc z předlohy; odmítnutí PNG špatné velikosti) a ověřený `.dmg` a `.tar.gz` bez `._*` nad zástupným bundlem (nic se nepřipojuje). Záloha smoke testu: místa bundle identifikátoru a domény `defaults` nad zástupnou složkou se zástupným `defaults`. Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
 
 Podpis feedu (T-181) ověří `ReleaseTools.Tests.ps1`: sdílený testovací vektor `tests/Shared/Fixtures/UpdateFeed` (podpis z vektoru ověří PowerShell, podpis z PowerShellu ověří veřejný klíč vektoru; změněný feed, jiný RID, jiný klíč a poškozený `.sig` odmítnuty stejně jako v C#), čtení seznamu klíčů ze skutečného `UpdateFeedKeys.cs` (testovací klíč Debug = klíč vektoru, v `Production` nikdy), odmítnutí neznámého tvaru seznamu, prázdného seznamu, nedůvěryhodného klíče, nešifrovaného a chybějícího souboru klíče a špatného hesla, podpis a ověření celé složky `dist/`, vytvoření páru klíčů, pořadí nahrání (`.sig` před feedem) a značku `-SkipFeedSignature`. Skutečný `release-build.ps1` běží v dočasném repozitáři (jen skripty, verze a `UpdateFeedKeys.cs` s testovacím seznamem): bez klíče, s chybějícím / nešifrovaným klíčem, s prázdným seznamem (bez dotazu na heslo), s nedůvěryhodným klíčem, se špatným a chybějícím heslem skončí chybou ještě před buildem; s důvěryhodným klíčem ho přijme a vypíše jen otisk veřejného klíče. Ve výpisech ani souborech se nesmí objevit heslo ani žádný řádek soukromého klíče (ani šifrovaného). `ReleaseOrchestrator.Tests.ps1` proti falešnému `gh`: zkušební build odmítnut (i `-DryRun`), nový koncept vznikne prázdný a `.sig` se nahraje s balíčky před feedem, `release-publish.ps1` odmítne feed bez `.sig`. Celý podepsaný build (s `dotnet`) Pester nespouští, ověřuje ho zkušební vydání.
 

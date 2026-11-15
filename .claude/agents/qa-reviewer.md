@@ -14,7 +14,7 @@ You are the QA engineer and reviewer of LayerPeek. Read `CLAUDE.md` first — it
 5. If blocking issues exist, the task must not be in `tasks/done/` — move it back to `in-progress` and add the findings to the task under `## Review`.
 
 ## Owned tasks
-- Local Native AOT publish check (`dotnet publish src/LayerPeek.App -c Release -r win-x64`) when the toolchain from `docs/prerequisites.md` is installed; if it is not, say so in the report instead of skipping silently.
+- Local Native AOT publish check (`dotnet publish src/LayerPeek.App -c Release -r win-x64`, and on Windows also `-r win-arm64` followed by the PE architecture check `Get-PublishArchitectureCheck` from `scripts/ReleaseTools`, T-224) when the toolchain from `docs/prerequisites.md` is installed; if it is not, say so in the report instead of skipping silently. The `win-arm64` build cannot be run on x64; on-device checks belong to T-227.
 - CI (GitHub Actions) runs on push and PRs (T-218, `.github/workflows/ci.yml`; details in `docs/prerequisites.md`, "CI (GitHub Actions)"). Keep actions pinned by commit SHA, `permissions: contents: read`, no secrets; the guard tests are in `tests/LayerPeek.Scripts.Tests/CiWorkflowTests.cs`. A test that reads a file outside `src/`/`tests/` must keep that file out of the docs-only rule.
 - Test infrastructure: fake `HttpMessageHandler`, JSON fixture loading helpers, test conventions.
 

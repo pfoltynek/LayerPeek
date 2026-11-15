@@ -120,6 +120,57 @@ public sealed class SignedUpdateSourceTests : IDisposable
         Assert.Equal(UpdateFeedRejection.SignatureUntrusted, rejected.Reason);
     }
 
+    [Fact]
+    public async Task TheX64FeedOfferedToAnArm64InstallationIsRejected()
+    {
+        // T-226: the win-x64 feed with its valid win-x64 signature, offered under the name of the win-arm64 channel.
+        File.WriteAllBytes(Path.Combine(_folder, "releases.win-arm64.json"), Feed);
+        File.WriteAllBytes(Path.Combine(_folder, "releases.win-arm64.json.sig"), TestUpdateFeed.Sign(Feed, "win-x64"));
+
+        RejectedUpdateFeed rejected = await RejectedAsync(FolderSource(), "win-arm64");
+
+        Assert.Equal("releases.win-arm64.json", rejected.FeedName);
+        Assert.Equal(UpdateFeedRejection.SignatureUntrusted, rejected.Reason);
+    }
+
+#if DEBUG
+    [Fact]
+    public async Task AnArm64InstallationReadsTheFeedOfTheWinArm64ChannelOnly()
+    {
+        // T-226: the channel is the RID of the installation; next to it lies the win-x64 feed, which is never read.
+        File.WriteAllBytes(Path.Combine(_folder, "releases.win-arm64.json"), Feed);
+        File.WriteAllBytes(Path.Combine(_folder, "releases.win-arm64.json.sig"), TestUpdateFeed.Sign(Feed, "win-arm64"));
+        File.WriteAllBytes(Path.Combine(_folder, "releases.win-x64.json"), Encoding.UTF8.GetBytes("{ not the arm64 feed"));
+
+        VelopackAssetFeed feed = await FolderSource().GetReleaseFeed(NullVelopackLogger.Instance, "LayerPeek", "win-arm64");
+
+        Assert.Equal("0.3.2", Assert.Single(feed.Assets).Version.ToString());
+    }
+#endif
+
+    [Fact]
+    public async Task TheGitHubFeedOfAnArm64InstallationIsTheWinArm64FeedOfTheNewestReleaseThatHasIt()
+    {
+        // T-226: until T-227 a release carries no win-arm64 files; an ARM64 installation then looks further back and never
+        // reads the feed of the x64 installations.
+        FakeHttp http = new();
+        http.Serve("v0.3.2/releases.win-arm64.json", Feed);
+        http.Serve("v0.3.2/releases.win-arm64.json.sig", TestUpdateFeed.Sign(Feed, "win-arm64"));
+        FakeReleaseList releases = new(
+            Release("v0.3.3", "releases.win-x64.json", "releases.win-x64.json.sig"),
+            Release("v0.3.2", "releases.win-arm64.json", "releases.win-arm64.json.sig", "releases.win-x64.json", "releases.win-x64.json.sig"));
+
+        RejectedUpdateFeed rejected = await RejectedAsync(SignedUpdateSource.ForGitHub(prereleases: true, http, releases, Token), "win-arm64");
+
+        // The test key never counts for GitHub; what matters here is which feed was read.
+        Assert.Equal("releases.win-arm64.json", rejected.FeedName);
+        Assert.Equal(UpdateFeedRejection.SignatureUntrusted, rejected.Reason);
+        Assert.Equal(
+            ["https://github.com/pfoltynek/LayerPeek/releases/download/v0.3.2/releases.win-arm64.json", "https://github.com/pfoltynek/LayerPeek/releases/download/v0.3.2/releases.win-arm64.json.sig"],
+            http.Requested);
+        Assert.Empty(releases.Downloads);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(10)]
@@ -314,12 +365,31 @@ public sealed class SignedUpdateSourceTests : IDisposable
 
         Assert.Equal("0.3.2", update?.Version);
     }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    [SupportedOSPlatform("macos")]
+    public async Task TheEngineOfAnArm64InstallationChecksTheWinArm64Channel()
+    {
+        // T-226: VelopackUpdateEngine takes the channel from the installation (its manifest), here win-arm64; the feed of
+        // that channel is signed for win-arm64, the win-x64 feed next to it is unsigned and never read.
+        Assert.SkipUnless(OperatingSystem.IsMacOS() || OperatingSystem.IsWindows(), "Velopack's engine runs on Windows and macOS only.");
+        string packages = Path.Combine(_folder, "packages");
+        Directory.CreateDirectory(packages);
+        File.WriteAllBytes(Path.Combine(_folder, "releases.win-arm64.json"), Feed);
+        File.WriteAllBytes(Path.Combine(_folder, "releases.win-arm64.json.sig"), TestUpdateFeed.Sign(Feed, "win-arm64"));
+        File.WriteAllBytes(Path.Combine(_folder, "releases.win-x64.json"), Feed);
+
+        AvailableUpdate? update = await Engine(packages, "win-arm64").CheckAsync(prereleases: true, Token);
+
+        Assert.Equal("0.3.2", update?.Version);
+    }
 #endif
 
     [SupportedOSPlatform("windows")]
     [SupportedOSPlatform("macos")]
-    private VelopackUpdateEngine Engine(string packages) =>
-        new(new FakeHttp(), new UpdateSource(null, _folder), new TestVelopackLocator("LayerPeek", "0.3.1", packages, appDir: null, rootDir: null, updateExe: null, channel: Rid));
+    private VelopackUpdateEngine Engine(string packages, string channel = Rid) =>
+        new(new FakeHttp(), new UpdateSource(null, _folder), new TestVelopackLocator("LayerPeek", "0.3.1", packages, appDir: null, rootDir: null, updateExe: null, channel: channel));
 
     private IUpdateSource FolderSource() => SignedUpdateSource.ForTest(new UpdateSource(null, _folder), new FakeHttp(), Token);
 

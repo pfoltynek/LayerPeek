@@ -33,7 +33,7 @@ systemy; tam, gdzie Windows i macOS się różnią, tekst o tym wspomina albo po
 - **Drukarki Prusa z firmware Buddy 6.x i PrusaLink**: CORE One (przetestowana), MK4/MK4S, MK3.9/MK3.9S, MK3.5/MK3.5S,
   XL oraz MINI/MINI+. Original Prusa MK3/MK3S nie ma wbudowanego PrusaLink i nie jest obsługiwana.
 - **Komputera w tej samej sieci lokalnej** co drukarka:
-  - Windows 10 lub 11, x64 (Windows na ARM nie jest obsługiwany),
+  - Windows 10 lub 11, x64 (wersja dla Windows na ARM jest w przygotowaniu),
   - macOS na Apple Silicon (M1 lub nowszy).
 - **Kamery (opcjonalnie):** dowolnej kamery ze strumieniem **RTSP H.264** dostępnym z Twojego komputera, na przykład
   kamery Prusa Buddy3D. Bez kamery nadal masz ikonę, powiadomienia i diagnostykę.
@@ -60,6 +60,12 @@ Do wyboru masz dwa pakiety:
 |---|---|
 | **Instalator** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (zalecany) | Instaluje LayerPeek tylko dla Twojego użytkownika, bez uprawnień administratora, do `%LOCALAPPDATA%\LayerPeek`, dodaje go do menu Start, uruchamia po zalogowaniu i potrafi się sam aktualizować. |
 | **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Rozpakuj go w dowolnym miejscu i uruchom `LayerPeek.exe`. Nie uruchamia się po zalogowaniu i nie aktualizuje się sam (zamiast tego otwiera stronę wydania). |
+
+Oba pakiety są dla Windows na **x64** (procesory Intel i AMD): **Ustawienia → System → Informacje** pokazuje *x64* przy
+**Typ systemu**. Wersja dla Windows na **ARM** (*ARM* przy **Typ systemu**, na przykład laptopy ze Snapdragonem) jest w
+przygotowaniu i nie można jej jeszcze pobrać. Gdy będzie, przejdź na nią ręcznie: odinstaluj wersję x64 (**Ustawienia →
+Aplikacje → Zainstalowane aplikacje → LayerPeek → Odinstaluj**), a potem zainstaluj wersję ARM (`…-win-arm64-…`).
+Ustawienia i hasła zostają; instalacja nigdy sama nie zmienia architektury.
 
 Przy pierwszym uruchomieniu filtr Windows SmartScreen wyświetli komunikat **„System Windows ochronił ten komputer”**
 z informacją *Nieznany wydawca*. Kliknij **Więcej informacji**, a następnie **Uruchom mimo to**.

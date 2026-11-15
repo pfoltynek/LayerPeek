@@ -80,8 +80,9 @@ switch ($tool) {
             foreach ($file in @(Get-ChildItem -LiteralPath $folder -File | Sort-Object Name)) {
                 Add-Content -LiteralPath $env:LAYERPEEK_FAKE_LOG -Value "  file $($file.Name)"
             }
-            $sha = Select-String -LiteralPath (Join-Path $folder '3DPrint.LayerPeek.installer.yaml') -Pattern 'InstallerSha256: (\S+)'
-            Add-Content -LiteralPath $env:LAYERPEEK_FAKE_LOG -Value "  sha $($sha.Matches[0].Groups[1].Value)"
+            $installer = Join-Path $folder '3DPrint.LayerPeek.installer.yaml'
+            foreach ($line in @(Select-String -LiteralPath $installer -Pattern '^- Architecture: (\S+)$')) { Add-Content -LiteralPath $env:LAYERPEEK_FAKE_LOG -Value "  arch $($line.Matches[0].Groups[1].Value)" }
+            foreach ($line in @(Select-String -LiteralPath $installer -Pattern 'InstallerSha256: (\S+)')) { Add-Content -LiteralPath $env:LAYERPEEK_FAKE_LOG -Value "  sha $($line.Matches[0].Groups[1].Value)" }
         }
         [Console]::Out.WriteLine("fake wingetcreate: using the token $token")
         [Console]::Error.WriteLine("fake wingetcreate (stderr): token=$token")
@@ -133,11 +134,19 @@ switch ($tool) {
     }
 
     $script:Sha256 = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90'
+    $script:Arm64Sha256 = 'b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1'
     function New-FakeRelease {
-        param([string] $Version = '1.0.0', [switch] $Draft, [switch] $NoSetup, [string] $State = 'uploaded', [string] $Digest = "sha256:$script:Sha256")
+        # -Arm64: the release also has the win-arm64 installer (T-226: from the first release that uploads win-arm64, T-227).
+        param([string] $Version = '1.0.0', [switch] $Draft, [switch] $NoSetup, [string] $State = 'uploaded', [string] $Digest = "sha256:$script:Sha256",
+            [switch] $Arm64, [string] $Arm64State = 'uploaded', [string] $Arm64Digest = "sha256:$script:Arm64Sha256")
         # pscustomobject, as ConvertFrom-Json returns it for gh release view.
         $assets = @([pscustomobject]@{ name = "LayerPeek-$Version-osx-arm64.dmg"; state = 'uploaded'; digest = "sha256:$('0' * 64)" })
         if (-not $NoSetup) { $assets += [pscustomobject]@{ name = "LayerPeek-$Version-win-x64-Setup.exe"; state = $State; digest = $Digest } }
+        # The other win-arm64 files of such a release (the archive and the feed) are no installer of the manifest.
+        if ($Arm64) {
+            $assets += [pscustomobject]@{ name = "LayerPeek-$Version-win-arm64.zip"; state = 'uploaded'; digest = "sha256:$('1' * 64)" }
+            $assets += [pscustomobject]@{ name = "LayerPeek-$Version-win-arm64-Setup.exe"; state = $Arm64State; digest = $Arm64Digest }
+        }
         [pscustomobject]@{
             tagName = "v$Version"; name = "LayerPeek $Version"; isDraft = [bool]$Draft; isPrerelease = $false
             url = "https://example.invalid/pfoltynek/LayerPeek/releases/tag/v$Version"; publishedAt = '2026-11-12T21:30:00Z'; assets = $assets
@@ -186,6 +195,7 @@ switch ($tool) {
     }
     $script:Templates = Read-WingetTemplates -Directory (Join-Path $script:RepoRoot 'build' 'winget')
     $script:Manifests = ConvertTo-WingetManifests -Templates $script:Templates -Version '1.0.0' -ReleaseDate '2026-11-12' -InstallerSha256 $script:Sha256
+    $script:Arm64Manifests = ConvertTo-WingetManifests -Templates $script:Templates -Version '1.0.0' -ReleaseDate '2026-11-12' -InstallerSha256 $script:Sha256 -Arm64InstallerSha256 $script:Arm64Sha256
 }
 
 AfterAll {
@@ -232,6 +242,29 @@ Describe 'Manifest templates (build/winget)' {
         $text | Should -Match "(?m)^  InstallerUrl: $([regex]::Escape((Get-WingetUrls -Version '1.0.0').Installer))$"
         (Get-WingetUrls -Version '1.0.0').Installer | Should -BeExactly 'https://github.com/pfoltynek/LayerPeek/releases/download/v1.0.0/LayerPeek-1.0.0-win-x64-Setup.exe'
         $text | Should -Match "(?m)^  InstallerSha256: $($script:Sha256.ToUpperInvariant())$"
+        # T-226: without the win-arm64 installer in the release, nothing of the arm64 node or its markers is left.
+        $text | Should -Not -Match '(?i)arm64'
+    }
+    It 'add the arm64 installer after the x64 one when the release has it, the rest unchanged (T-226)' {
+        $text = $script:Arm64Manifests['3DPrint.LayerPeek.installer.yaml']
+        @([regex]::Matches($text, '(?m)^- Architecture: (\S+)$') | ForEach-Object { $_.Groups[1].Value }) | Should -BeExactly @('x64', 'arm64')
+        $urls = Get-WingetUrls -Version '1.0.0'
+        $urls.InstallerArm64 | Should -BeExactly 'https://github.com/pfoltynek/LayerPeek/releases/download/v1.0.0/LayerPeek-1.0.0-win-arm64-Setup.exe'
+        $expected = "- Architecture: x64`n  InstallerUrl: $($urls.Installer)`n  InstallerSha256: $($script:Sha256.ToUpperInvariant())`n" +
+            "- Architecture: arm64`n  InstallerUrl: $($urls.InstallerArm64)`n  InstallerSha256: $($script:Arm64Sha256.ToUpperInvariant())`nManifestType: installer`n"
+        ($text -replace '\r\n', "`n").Contains($expected) | Should -BeTrue -Because $text
+        $text | Should -Not -Match '@[A-Z0-9_]+@|(?m)^#.*ARM64'
+        # Everything before the installers is shared by both architectures (one package, one ProductCode, T-226 question 2).
+        ($text -split '(?m)^Installers:')[0] | Should -BeExactly ($script:Manifests['3DPrint.LayerPeek.installer.yaml'] -split '(?m)^Installers:')[0]
+        foreach ($name in '3DPrint.LayerPeek.yaml', '3DPrint.LayerPeek.locale.en-US.yaml') { $script:Arm64Manifests[$name] | Should -BeExactly $script:Manifests[$name] }
+        { ConvertTo-WingetManifests -Templates $script:Templates -Version '1.0.0' -ReleaseDate '2026-11-12' -InstallerSha256 $script:Sha256 -Arm64InstallerSha256 'xyz' } | Should -Throw '*SHA256*'
+    }
+    It 'refuse an installer template without exactly one arm64 block (T-226)' {
+        $name = '3DPrint.LayerPeek.installer.yaml'
+        $without = @{} + $script:Templates; $without[$name] = $script:Templates[$name] -replace '(?ms)^# @ARM64_BEGIN@.*?^# @ARM64_END@\r?\n', ''
+        { ConvertTo-WingetManifests -Templates $without -Version '1.0.0' -ReleaseDate '2026-11-12' -InstallerSha256 $script:Sha256 } | Should -Throw '*exactly one arm64 block*'
+        $twice = @{} + $script:Templates; $twice[$name] = $script:Templates[$name] -replace '(?ms)(^# @ARM64_BEGIN@.*?^# @ARM64_END@\r?\n)', '$1$1'
+        { ConvertTo-WingetManifests -Templates $twice -Version '1.0.0' -ReleaseDate '2026-11-12' -InstallerSha256 $script:Sha256 -Arm64InstallerSha256 $script:Arm64Sha256 } | Should -Throw '*exactly one arm64 block*'
     }
     It 'have the license, moniker and URLs decided for the package' {
         $text = $script:Manifests['3DPrint.LayerPeek.locale.en-US.yaml']
@@ -286,6 +319,18 @@ Describe 'Decisions (pure)' {
         @(Get-WingetReleaseProblems -Release (New-FakeRelease) -Version '1.0.0') | Should -BeNullOrEmpty
         Get-WingetInstallerSha256 -Release (New-FakeRelease) -Version '1.0.0' | Should -BeExactly $script:Sha256.ToUpperInvariant()
     }
+    It 'takes the arm64 installer only when the release has it, completely uploaded with its SHA256 (T-226)' {
+        Test-WingetArm64Installer -Release (New-FakeRelease) -Version '1.0.0' | Should -BeFalse
+        Test-WingetArm64Installer -Release (New-FakeRelease -Arm64) -Version '1.0.0' | Should -BeTrue
+        Get-WingetInstallerFileName -Version '1.0.0' -Runtime win-arm64 | Should -BeExactly 'LayerPeek-1.0.0-win-arm64-Setup.exe'
+        @(Get-WingetReleaseProblems -Release (New-FakeRelease -Arm64) -Version '1.0.0') | Should -BeNullOrEmpty
+        Get-WingetInstallerSha256 -Release (New-FakeRelease -Arm64) -Version '1.0.0' -Runtime win-arm64 | Should -BeExactly $script:Arm64Sha256.ToUpperInvariant()
+        Get-WingetInstallerSha256 -Release (New-FakeRelease -Arm64) -Version '1.0.0' | Should -BeExactly $script:Sha256.ToUpperInvariant()
+        @(Get-WingetReleaseProblems -Release (New-FakeRelease -Arm64 -Arm64State 'starter') -Version '1.0.0') | Should -Match 'LayerPeek-1\.0\.0-win-arm64-Setup\.exe in release v1\.0\.0 is not completely uploaded'
+        @(Get-WingetReleaseProblems -Release (New-FakeRelease -Arm64 -Arm64Digest '') -Version '1.0.0') | Should -Match 'no SHA256 for LayerPeek-1\.0\.0-win-arm64-Setup\.exe'
+        # The x64 installer stays required: an arm64 one alone is no winget release.
+        @(Get-WingetReleaseProblems -Release (New-FakeRelease -Arm64 -NoSetup) -Version '1.0.0') | Should -Match 'no LayerPeek-1\.0\.0-win-x64-Setup\.exe yet'
+    }
     It 'takes the release date from publishedAt (UTC), or the fallback' {
         Get-WingetReleaseDate -Release (New-FakeRelease) -Fallback '2000-01-01' | Should -BeExactly '2026-11-12'
         $late = New-FakeRelease; $late.publishedAt = [datetime]::new(2026, 11, 12, 23, 30, 0, [DateTimeKind]::Utc)
@@ -312,6 +357,13 @@ Describe 'Decisions (pure)' {
             '--release-date', '2026-12-01', '--prtitle', 'Update: 3DPrint.LayerPeek to 1.0.1', '--submit')
         Get-WingetCreateArguments -Mode 'new' -Version '1.0.0' -ManifestDirectory 'C:\m' | Should -BeExactly @('submit', '--prtitle', 'New package: 3DPrint.LayerPeek version 1.0.0', 'C:\m')
         @(Get-WingetCreateArguments -Mode 'update' -Version '1.0.1' -ReleaseDate '2026-12-01') -join ' ' | Should -Not -Match '--token|-t '
+        # T-226: with the arm64 installer both URLs; wingetcreate reads each architecture from its URL (…-win-arm64-Setup.exe).
+        $both = Get-WingetCreateArguments -Mode 'update' -Version '1.0.1' -ReleaseDate '2026-12-01' -Arm64
+        $both[4..6] | Should -BeExactly @('--urls',
+            'https://github.com/pfoltynek/LayerPeek/releases/download/v1.0.1/LayerPeek-1.0.1-win-x64-Setup.exe',
+            'https://github.com/pfoltynek/LayerPeek/releases/download/v1.0.1/LayerPeek-1.0.1-win-arm64-Setup.exe')
+        $both[7] | Should -BeExactly '--release-notes-url'
+        Get-WingetCreateArguments -Mode 'new' -Version '1.0.0' -ManifestDirectory 'C:\m' -Arm64 | Should -BeExactly @('submit', '--prtitle', 'New package: 3DPrint.LayerPeek version 1.0.0', 'C:\m')
         { Get-WingetCreateArguments -Mode 'new' -Version '1.0.0' } | Should -Throw
         { Get-WingetCreateArguments -Mode 'update' -Version '1.0.1' -ReleaseDate 'today' } | Should -Throw
     }
@@ -512,9 +564,60 @@ Describe 'Invoke-WingetRelease against fake gh, wingetcreate and winget' {
         $calls | Should -Contain '  file 3DPrint.LayerPeek.locale.en-US.yaml'
         $calls | Should -Contain '  file 3DPrint.LayerPeek.yaml'
         $calls | Should -Contain "  sha $($script:Sha256.ToUpperInvariant())"
+        @($calls | Where-Object { $_ -like '  arch *' }) | Should -BeExactly @('  arch x64')
         $folder = ($submit[0] -replace '^wingetcreate submit --prtitle New package: 3DPrint\.LayerPeek version 1\.0\.0 ', '') -replace ' \| token=.*$', ''
         Test-Path -LiteralPath $folder | Should -BeFalse
         Assert-NoTokenLeak $run.Output
+    }
+    It 'submits the first version with the arm64 installer when the release has it (T-226)' {
+        $env:LAYERPEEK_FAKE_PACKAGE = 'missing'
+        Set-FakeRelease (New-FakeRelease -Arm64)
+        $run = Invoke-Step @{}
+        $run.Result | Should -BeTrue -Because $run.Output
+        $calls = Get-Calls
+        @($calls | Where-Object { $_ -like '  arch *' }) | Should -BeExactly @('  arch x64', '  arch arm64')
+        @($calls | Where-Object { $_ -like '  sha *' }) | Should -BeExactly @("  sha $($script:Sha256.ToUpperInvariant())", "  sha $($script:Arm64Sha256.ToUpperInvariant())")
+        $run.Output | Should -Match 'installer x64   https://github\.com/pfoltynek/LayerPeek/releases/download/v1\.0\.0/LayerPeek-1\.0\.0-win-x64-Setup\.exe'
+        $run.Output | Should -Match 'installer arm64 https://github\.com/pfoltynek/LayerPeek/releases/download/v1\.0\.0/LayerPeek-1\.0\.0-win-arm64-Setup\.exe'
+        Assert-NoTokenLeak $run.Output
+    }
+    It 'updates with both installer URLs when the release has the arm64 installer, and with the x64 one only otherwise (T-226)' {
+        Set-FakeRelease (New-FakeRelease -Arm64)
+        $run = Invoke-Step @{}
+        $run.Result | Should -BeTrue -Because $run.Output
+        $create = @(Get-Calls | Where-Object { $_ -like 'wingetcreate *' })
+        $create.Count | Should -Be 1
+        $create[0] | Should -BeLike 'wingetcreate update 3DPrint.LayerPeek --version 1.0.0 --urls https://github.com/pfoltynek/LayerPeek/releases/download/v1.0.0/LayerPeek-1.0.0-win-x64-Setup.exe https://github.com/pfoltynek/LayerPeek/releases/download/v1.0.0/LayerPeek-1.0.0-win-arm64-Setup.exe --release-notes-url *'
+        $run.Output | Should -Match "SHA256    $($script:Sha256.ToUpperInvariant()) \(x64\), $($script:Arm64Sha256.ToUpperInvariant()) \(arm64\), release date 2026-11-12"
+        Assert-NoTokenLeak $run.Output
+
+        Reset-Fakes
+        $x64 = Invoke-Step @{}
+        $x64.Result | Should -BeTrue -Because $x64.Output
+        @(Get-Calls | Where-Object { $_ -like 'wingetcreate *' })[0] | Should -Not -Match 'arm64'
+        $x64.Output | Should -Not -Match 'installer arm64'
+    }
+    It 'explains the manual first submission when wingetcreate update refuses the arm64 URL (previous manifest x64 only, T-226)' {
+        Set-FakeRelease (New-FakeRelease -Arm64)
+        $env:LAYERPEEK_FAKE_WINGETCREATE_EXIT = '1'
+        $run = Invoke-Step @{}
+        $run.Result | Should -BeFalse
+        $run.Output | Should -Match 'wingetcreate failed with exit code 1\..*the first release with win-arm64.*-OutputDirectory.*wingetcreate submit'
+        Assert-NoTokenLeak $run.Output
+
+        Reset-Fakes
+        $env:LAYERPEEK_FAKE_WINGETCREATE_EXIT = '1'
+        $x64 = (Invoke-Step @{}).Output
+        $x64 | Should -Not -Match 'first release with win-arm64'
+        # The reverse case: the previous manifest may have arm64 while this release has none.
+        $x64 | Should -Match 'has no LayerPeek-1\.0\.0-win-arm64-Setup\.exe: if the previous version .* has an arm64 installer.*-AddToPublished.*wingetcreate submit'
+    }
+    It 'refuses an arm64 installer that is in the release but not completely uploaded, before asking (T-226)' {
+        Set-FakeRelease (New-FakeRelease -Arm64 -Arm64State 'starter')
+        $run = Invoke-Step @{} -Answer 'unexpected'
+        $run.Result | Should -BeFalse
+        $run.Output | Should -Match 'win-arm64-Setup\.exe in release v1\.0\.0 is not completely uploaded'
+        @(Get-Calls | Where-Object { $_ -like 'gh auth token*' -or $_ -like 'wingetcreate *' }) | Should -BeNullOrEmpty
     }
     It 'does not read the token or submit anything without the confirmation' {
         $run = Invoke-Step @{} -Answer 'n'
@@ -594,6 +697,16 @@ Describe 'Invoke-WingetRelease against fake gh, wingetcreate and winget' {
         $records[-1] | Should -BeTrue
         @(Get-ChildItem -LiteralPath $out -File | ForEach-Object Name | Sort-Object) | Should -BeExactly @('3DPrint.LayerPeek.installer.yaml', '3DPrint.LayerPeek.locale.en-US.yaml', '3DPrint.LayerPeek.yaml')
         [System.IO.File]::ReadAllText((Join-Path $out '3DPrint.LayerPeek.installer.yaml')) | Should -Match "InstallerSha256: $($script:Sha256.ToUpperInvariant())"
+        [System.IO.File]::ReadAllText((Join-Path $out '3DPrint.LayerPeek.installer.yaml')) | Should -Not -Match 'arm64'
+        # T-226: the manifests of a release with the arm64 installer have both nodes.
+        Set-FakeRelease (New-FakeRelease -Arm64)
+        $arm = Join-Path $script:TempRoot 'review-arm64'
+        $armRecords = @(Invoke-WingetRelease -RepoRoot $script:RepoRoot -Version '1.0.0' -HostOs 'macos' -OutputDirectory $arm -Confirm { throw 'no question expected' } *>&1)
+        $armRecords[-1] | Should -BeTrue
+        $armText = [System.IO.File]::ReadAllText((Join-Path $arm '3DPrint.LayerPeek.installer.yaml'))
+        @([regex]::Matches($armText, '(?m)^- Architecture: (\S+)$') | ForEach-Object { $_.Groups[1].Value }) | Should -BeExactly @('x64', 'arm64')
+        $armText | Should -Match "InstallerSha256: $($script:Arm64Sha256.ToUpperInvariant())"
+        Set-FakeRelease (New-FakeRelease)
         (@($records | Where-Object { $_ -isnot [bool] }) -join "`n") | Should -Match 'winget validate --manifest'
         @(Get-Calls | Where-Object { $_ -like 'gh auth token*' -or $_ -like 'wingetcreate *' -or $_ -like 'winget *' -or $_ -like 'gh api*' }) | Should -BeNullOrEmpty
         # Never into a folder that already has files.

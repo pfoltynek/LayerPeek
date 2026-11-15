@@ -339,7 +339,7 @@ cameras.
 | Platform | Status |
 |---|---|
 | Windows 10/11 x64 | ✅ supported |
-| Windows on ARM64 | ❌ not supported |
+| Windows on ARM64 | 🚧 in preparation: no download yet, until it is tested on an ARM64 device |
 | macOS (Apple Silicon) | ✅ supported since 0.3.0 (menu bar app) |
 
 ## Quick start
@@ -355,6 +355,13 @@ Get the latest build from the [Releases](https://github.com/pfoltynek/LayerPeek/
 - **Installer** `LayerPeek-X.Y.Z-win-x64-Setup.exe`: installs for your user only, without administrator rights, into
   `%LOCALAPPDATA%\LayerPeek` and adds LayerPeek to the Start menu. Uninstall it in **Settings → Apps**.
 - **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: unpack it anywhere and run `LayerPeek.exe`.
+
+Both files are for Windows on **x64** (Intel and AMD processors). To check, open **Settings → System → About** and look
+at **System type**: "x64-based processor" means these files. A native build for Windows on **ARM64** ("ARM-based
+processor", e.g. Snapdragon laptops) is in preparation and not offered for download yet. When it comes, its files will
+be named `…-win-arm64-…`. Switching from the x64 build to it is a manual step: uninstall the x64 version in
+**Settings → Apps**, then install the ARM64 version. Both use the same folder, settings and passwords, and an
+installation never switches the architecture by itself (each one updates within its own build).
 
 > [!IMPORTANT]
 > Updates within 1.x keep your settings; settings files of older versions always load. Builds are not
@@ -480,7 +487,7 @@ No. It asks for the state every few seconds (configurable), the same way the Pru
   [`global.json`](global.json); only stable SDK releases are used, no previews.
 - Git.
 - For a **Native AOT publish** only: on Windows the Visual Studio Build Tools with the *Desktop development with
-  C++* workload, on macOS the Xcode Command Line Tools.
+  C++* workload (for Windows ARM64 also the component *MSVC ARM64 build tools*), on macOS the Xcode Command Line Tools.
 - The first build downloads the official FFmpeg source (~12 MB, verified by SHA-256) and compiles a minimal LGPL
   build of the camera libraries from it, once: on Windows with [MSYS2](https://www.msys2.org/) and MinGW-w64
   (`winget install MSYS2.MSYS2`, then the packages `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; a few
@@ -507,11 +514,13 @@ for development (in Czech).
 
 ```bash
 dotnet publish src/LayerPeek.App -c Release -r win-x64     # on Windows
+dotnet publish src/LayerPeek.App -c Release -r win-arm64   # on Windows x64, for Windows on ARM64
 dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # on macOS
 ```
 
 AOT code can't be cross-compiled between operating systems: build Windows binaries on Windows and macOS binaries on
-macOS.
+macOS. The Windows ARM64 build is cross-compiled on Windows x64 (its camera libraries with
+[llvm-mingw](https://github.com/mstorsjo/llvm-mingw), downloaded on the first such build); it cannot be started there.
 
 ### Making a release
 

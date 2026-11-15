@@ -14,6 +14,12 @@
     with wingetcreate submit; every later version with wingetcreate update --submit (new URL, SHA256, version, release
     notes URL and date; the other fields stay as in the previous manifest). Asks before the pull request is opened.
 
+    Windows ARM64 (T-226): when the release also has LayerPeek-X.Y.Z-win-arm64-Setup.exe (from the first release that
+    uploads win-arm64, T-227), the manifest gets the arm64 installer next to the x64 one (template block between
+    '# @ARM64_BEGIN@' and '# @ARM64_END@') and wingetcreate update gets both URLs; without it the manifest is x64 only.
+    wingetcreate update needs one URL per installer of the previous manifest, so the first release with arm64 goes in by
+    hand: -OutputDirectory, winget validate, wingetcreate submit (docs/release.md, "Publikace do winget").
+
     The GitHub token is read with gh auth token only after the confirmation and reaches wingetcreate only through
     WINGET_CREATE_GITHUB_TOKEN of this process while it runs: never as an argument (process list, history), never
     printed (wingetcreate's output is redacted), never stored. Before the plan the scopes of the gh token are checked

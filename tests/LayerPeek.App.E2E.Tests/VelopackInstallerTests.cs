@@ -34,7 +34,8 @@ namespace LayerPeek.App.E2E.Tests;
 /// </summary>
 public sealed class VelopackInstallerTests(E2EFixture fixture)
 {
-    private const string Runtime = "win-x64";
+    /// <summary>The RID of this machine (T-226: the win-arm64 installer on an ARM64 device, T-227); win-x64 where none is released.</summary>
+    private static readonly string Runtime = HostRuntime.Windows ?? "win-x64";
 
     private const uint WmClose = 0x0010;
 
@@ -52,7 +53,7 @@ public sealed class VelopackInstallerTests(E2EFixture fixture)
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         // The installer is the release build itself, not the exe under test: one install per run is enough.
         Assert.SkipWhen(E2EFixture.IsNativeAot, "The installer of the release build is tested once, in the pass against the Debug exe.");
-        Assert.SkipUnless(RuntimeInformation.OSArchitecture == Architecture.X64, $"The {Runtime} installer runs on x64 Windows only.");
+        Assert.SkipWhen(HostRuntime.Windows is null, $"The installer runs on x64 or ARM64 Windows only, not on {RuntimeInformation.OSArchitecture}.");
         string setup = SetupPath();
         Assert.SkipUnless(File.Exists(setup), $"No installer {setup}: build it first with pwsh scripts/release-build.ps1 -SkipFeedSignature (T-055, T-017, T-181).");
         Assert.SkipWhen(InstallerKind.IsInstalled(), $"LayerPeek is installed on this machine ({InstallerKind.InstallFolder}); the test never touches a real installation.");

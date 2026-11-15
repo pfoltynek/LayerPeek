@@ -20,5 +20,10 @@ Installers:
 - Architecture: x64
   InstallerUrl: https://github.com/pfoltynek/LayerPeek/releases/download/v@VERSION@/LayerPeek-@VERSION@-win-x64-Setup.exe
   InstallerSha256: @INSTALLER_SHA256@
+# @ARM64_BEGIN@ Only for a release with LayerPeek-X.Y.Z-win-arm64-Setup.exe (T-226); release-winget.ps1 drops these marker lines, or the whole block without it.
+- Architecture: arm64
+  InstallerUrl: https://github.com/pfoltynek/LayerPeek/releases/download/v@VERSION@/LayerPeek-@VERSION@-win-arm64-Setup.exe
+  InstallerSha256: @INSTALLER_SHA256_ARM64@
+# @ARM64_END@
 ManifestType: installer
 ManifestVersion: 1.28.0

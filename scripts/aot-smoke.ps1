@@ -33,8 +33,10 @@
     display sleeps the app waits for one before its UI starts (T-096), so the run would check only that wait, not the UI.
 
 .PARAMETER Runtime
-    Runtime identifier (win-x64, osx-arm64). Defaults to the current OS/architecture. Windows ARM64 (win-arm64) is
-    not supported (T-130) and is refused, like every Windows RID other than win-x64.
+    Runtime identifier (win-x64, win-arm64, osx-arm64). Defaults to the current OS/architecture. Windows RIDs that are
+    not released (e.g. win-x86) are refused. win-arm64 runs on a Windows ARM64 device only (T-227): on Windows x64 the
+    script says so and publishes and starts nothing (Windows on x64 cannot run ARM64 binaries); release-build.ps1 then
+    records the smoke test of win-arm64 as not verified by running.
 
 .PARAMETER PublishDir
     Existing Native AOT publish folder to check instead of publishing. The folder is not modified or deleted
@@ -122,9 +124,20 @@ catch {
     exit 1
 }
 if ($RestoreOnly) { exit 0 }
-# Windows is supported as win-x64 only (user decision 2026-11-01, T-130); macOS RIDs are not restricted here.
-if ($Runtime -like 'win-*' -and $Runtime -ne 'win-x64') {
-    Write-Host "AOT smoke check NOT RUN: runtime '$Runtime' is not supported. Windows is built as win-x64 only (pass -Runtime win-x64)." -ForegroundColor Red
+# Windows: only the released RIDs (win-x64, win-arm64 since T-226); macOS RIDs are not restricted here.
+$windowsRuntimes = @((Get-ReleaseRuntimeConfig).GetEnumerator() | Where-Object { $_.Value.Os -eq 'windows' } | ForEach-Object Key)
+if ($Runtime -like 'win-*' -and $windowsRuntimes -notcontains $Runtime) {
+    Write-Host "AOT smoke check NOT RUN: runtime '$Runtime' is not a released Windows runtime ($($windowsRuntimes -join ', '))." -ForegroundColor Red
+    exit 1
+}
+# T-226: Windows on x64 cannot run ARM64 binaries (only the reverse is emulated), so a win-arm64 build is smoke-tested on
+# an ARM64 device (T-227); here nothing is published or started.
+if ($Runtime -eq 'win-arm64' -and -not ($IsWindows -and (Get-HostArchitecture) -eq 'arm64')) {
+    $hostOs = if ($IsWindows) { 'windows' } elseif ($IsMacOS) { 'macos' } elseif ($IsLinux) { 'linux' } else { 'unknown' }
+    $hostArchitecture = Get-HostArchitecture
+    $machine = "$hostOs-$hostArchitecture"
+    $why = if ($IsWindows) { "Windows on $hostArchitecture cannot run ARM64 binaries" } else { 'win-arm64 binaries run on Windows on ARM64 only' }
+    Write-Host "AOT smoke check NOT RUN: runtime 'win-arm64' cannot run on this machine ($machine): $why. Run it on a Windows ARM64 device (T-227)." -ForegroundColor Yellow
     exit 1
 }
 # Physical path: dotnet restore breaks on symlinked paths (Resolve-PhysicalPath).

@@ -67,7 +67,8 @@ Import-Module (Join-Path $PSScriptRoot '..' 'scripts' 'ReleaseTools' 'ReleaseToo
 
 $script:Repo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $script:DotnetEnv = @{ DOTNET_CLI_UI_LANGUAGE = 'en'; DOTNET_NOLOGO = '1'; DOTNET_CLI_TELEMETRY_OPTOUT = '1' }
-$script:Runtime = 'win-x64'
+# The RID of this machine (T-226): win-x64, or win-arm64 on a Windows ARM64 device (T-227).
+$script:Runtime = Get-HostRuntime
 $script:ActivatorSubKey = 'Software\Classes\CLSID\{EC47413C-984D-447A-866A-5F780E408DE7}'
 $script:UninstallSubKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\LayerPeek'
 
@@ -239,7 +240,7 @@ $checks = @(
         New-VerifyResult PASS "$(Format-Totals $run.Totals) (skipped tests with reasons in skipped.txt)"
     }
 
-    New-VerifyCheck -Id 'win.aot-smoke' -Kind Auto -Title 'Native AOT publish win-x64 without warnings and smoke start (scripts/aot-smoke.ps1)' `
+    New-VerifyCheck -Id 'win.aot-smoke' -Kind Auto -Title "Native AOT publish $script:Runtime without warnings and smoke start (scripts/aot-smoke.ps1)" `
         -Closes 'T-053 kritérium 6 (Windows beze změny: Native AOT exe startuje)', 'T-097 kritérium 5 (Windows beze změny, AOT)' -Action {
         param($c)
         $result = Invoke-ChildPwsh $c 'aot-smoke' @('-File', (Join-Path $script:Repo 'scripts' 'aot-smoke.ps1'), '-Runtime', $script:Runtime)
