@@ -26,7 +26,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 |---|---|---|
 | T-208 | `-Preset release`, `report.json` | rámec; `mac.display-sleep`, `mac.update-check`, `mac.keys` v presetu |
 | T-209 | `mac.menu-items` (helper `menu` / `menupress`) | T-018 menu; tip zakázaných položek (T-146, T-148, T-161) |
-| T-210 | `mac.recording`, `mac.dashcam`, helper `decode` | T-146, T-148 (simulátor), T-147 (simulátor), T-145 (simulátor) |
+| T-210 | `mac.decode`, `mac.recording-files`, `mac.recording`, `mac.dashcam`, helper `decode` | T-146, T-148 (simulátor), T-147 (simulátor), T-145 (simulátor); zbývá bod 1l |
 | T-211 | `mac.timelapse`, `mac.timelapse-layers` | T-161, T-159 (UI), T-160 (přehrání) |
 | T-212 | `mac.notifications-content` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101 |
 | T-213 | `mac.file-dialogs` | T-146 („Změnit…“), T-165, T-164 |
@@ -130,7 +130,8 @@ a kritérium.
       skutečnou Buddy3D (relay `tools/ncrelay.sh`): soubor obsahuje ~2 min před událostí a ~30 s po ní; v Monitoru aktivity
       roste paměť během tisku jen o ~17 MB a po konci tisku se vrátí. Záložka „Nahrávání“ má pod nahráváním sekci „Poslední
       minuty tisku (dashcam)“, nic se neuřízne se systémovým písmem.
-      **Automatizace:** simulátorová část T-210 `mac.dashcam`, uříznutí T-214. Přehrání v QuickTime nahrazuje úplné
+      **Automatizace:** simulátorová část T-210: spouštěče `mac.recording-files`, položka v menu a v místní nabídce
+      a ruční uložení `mac.dashcam`; uříznutí T-214. Přehrání v QuickTime nahrazuje úplné
       dekódování přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). Se skutečnou Buddy3D (~2 min
       před / ~30 s po, paměť +~17 MB) zůstává ruční.
       - [x] Část se systémovým písmem (sekce „Poslední minuty tisku (dashcam)“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
@@ -413,6 +414,21 @@ a kritérium.
       / T-161 výše („tip se ukáže?“). Do poznámek zapsat složku běhu, commit a řádek zprávy. `FAIL` = nový úkol (např.
       menu se přes AXPress neotevře nebo ho Esc nezavře).
 
+### 1l. Nahrávání a dashcam přes menu (z T-210, připraveno na Macu 2026-11-15)
+- [ ] **T-210** (krit. 3 a 4: `mac.recording` = `PASS`, `mac.dashcam` = `PASS`; Terminál agenta neměl Zpřístupnění, obě
+      kontroly skončily `SKIP` na předběžné podmínce, ověřit je tedy nešlo): po přípravě z `docs/macos-manual-testing.md`
+      (Zpřístupnění pro Terminál, vzorky v `~/LayerPeek-samples`) spustit
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `pwsh tools/macos-verify.ps1 -Unattended -Only mac.recording,mac.dashcam -Allow mac.recording,mac.dashcam`).
+      `PASS` obou uzavře v tomto úkolu bod T-146 (bez částí T-212 / T-213 / T-214). Spolu s `mac.recording-files` uzavře
+      i simulátorové části bodů T-148 a T-145. Do poznámek T-210 a k bodům T-146 / T-148 výše zapsat tip zakázané položky
+      „Uložit posledních 2 min“ (AXHelp v menu `evidence/mac.dashcam/menu-idle.json` a v místní nabídce okna kamery
+      `context-menu-idle.json`). Zapsat i to, co ukáže Nastavení › Nahrávání u složky bez práva zápisu
+      (`evidence/mac.recording/locked-settings-ax.json`, výňatek v řádku zprávy). Dále složku běhu, commit a řádek zprávy.
+      `FAIL` = nový úkol.
+  - [ ] Hláška v Nastavení › Nahrávání u složky bez práva zápisu nastavené v `settings.json`: čeká na otázku 3 v T-210
+        (aplikace dnes hlášku ukáže jen po výběru složky přes „Změnit…“, T-213).
+
 ### 1k. Šířka písma v běžící aplikaci (z T-214, 2026-11-14)
 - [ ] **T-214** (předpoklad kalibrace, rozhodnutí uživatele 2026-11-14): headless testy se San Francisco kalibruje
       systémové písmo Avalonie, ne AppKit (Avalonia kreslí výchozí instanci proměnného písma, o 7–21 % užší než AppKit).
@@ -454,16 +470,19 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       nahrávku z kamery simulátoru i ze skutečné Buddy3D (po T-146 z menu nebo okna kamery; do té doby soubor nahraný
       podle T-144 / T-147, poznámky) otevřít v QuickTime Playeru: obraz běží od začátku do konce, posuvník funguje, délka
       odpovídá. U nahrávky přerušené výpadkem kamery jdou přehrát oba soubory (`…mp4`, `…-2.mp4`).
-      **Automatizace:** nahrávka simulátoru T-210 (`helper decode`). Přehrání v QuickTime nahrazuje úplné dekódování
-      přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). Skutečná Buddy3D: viz T-210 otázka 2.
+      **Automatizace:** nahrávka simulátoru T-210 `mac.recording-files` (simulátor přehrává skutečný klip Buddy3D,
+      nahrávka s výpadkem kamery `…mp4` + `…-2.mp4`, vše `helper decode`). Přehrání v QuickTime nahrazuje úplné dekódování
+      přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). **Rozhodnuto uživatelem 2026-11-13 (T-210
+      otázka 2):** nahrávka simulátoru se skutečným klipem Buddy3D nahrazuje nahrávku ze skutečné Buddy3D.
 - [ ] **T-145** (automatické nahrávání tisku se skutečnou tiskárnou; doplněno 2026-11-04 před vydáním 0.5.0, ruční bod
       dosud chyběl): Core One s Buddy3D, „Automaticky nahrávat tisk“ zapnuté, okno kamery zavřené. S krátkým tiskem
       nahrávání začne samo (tooltip ikony „Nahrává se“, v podmenu tiskárny „Zastavit nahrávání“), soubor
       `~/Movies/LayerPeek/<tiskárna>/<datum>_<čas>_<název tisku>.mp4`, a skončí asi minutu po konci tisku. „Přehrát poslední
       nahrávku“ ho přehraje v QuickTime Playeru celý (obraz od začátku, posuvník, délka odpovídá). Během nahrávání je
       „Uložit posledních 2 min“ zakázané s tipem „Nahrává se celý tisk.“ (dashcam stojí). Další tisk dá nový soubor.
-      **Automatizace:** simulátorová část T-210 `mac.dashcam`. Přehrání v QuickTime nahrazuje úplné dekódování přes
-      AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). Skutečná tiskárna zůstává ruční.
+      **Automatizace:** simulátorová část T-210: soubor, konec asi minutu po tisku a další tisk `mac.recording-files`,
+      zakázané „Uložit posledních 2 min“ s tipem během nahrávání `mac.dashcam`. Přehrání v QuickTime nahrazuje úplné
+      dekódování přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13). Skutečná tiskárna zůstává ruční.
 - [ ] **T-159** (timelapse po vrstvě se skutečnou tiskárnou; detektor ověřený jen na jednom záznamu Core One s vrstvou
       0,2 mm): Core One s Buddy3D, „Pořizovat timelapse tisku“ zapnuté, na záložce Nahrávání „Každou N. vrstvu (odhad)“ s N = 1,
       polling 5 s. Krátký díl (ideálně se slicerem hlášeným počtem vrstev a drobnými vrstvami nahoře, např. kužel nebo
