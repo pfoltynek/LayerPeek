@@ -613,6 +613,13 @@ Build Tools 2026 18.12.0 (MSVC 14.52), Windows 11 SDK 10.0.26100, Edge 157.0.434
       Playwright 1.64.1 a aktuálním Edge bez chyb; verzi Edge zapsat do poznámek T-232
       (v T-232 157.0.4341.46, Mac v T-230 už .60 – ověřit, že se Edge mezitím sám aktualizoval).
 
+### 2ak. Kontextové menu textových polí (z T-242, implementováno na Macu 2026-11-15)
+- [ ] **T-242** (krit. „Kontextové menu textových polí je v jazyce aplikace…“, část Windows): LayerPeek v němčině
+      (Nastavení → Obecné), pravé tlačítko do pole „Name“ v Nastavení › Drucker: „Ausschneiden“, „Kopieren“,
+      „Einfügen“ (Windows varianta, ne „Einsetzen“), „Alles auswählen“ se zkratkami Ctrl+X / C / V / A; samotné písmeno
+      (`A`, `K`, `I`, `W`) položku spustí (T-121); u pole hesla jen „Einfügen“ a „Alles auswählen“; Ctrl+A / Ctrl+C
+      v poli dál fungují. Headless UI testy (`TextBoxContextMenuUiTests`) prošly na Macu.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

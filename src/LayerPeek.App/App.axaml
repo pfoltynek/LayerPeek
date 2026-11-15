@@ -1,6 +1,9 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="using:LayerPeek.App"
+             xmlns:loc="using:LayerPeek.App.Localization"
+             xmlns:sys="using:System"
+             xmlns:win="using:LayerPeek.App.Windows"
              x:Class="LayerPeek.App.App"
              RequestedThemeVariant="Default">
   <Application.Styles>
@@ -8,6 +11,40 @@
     <!-- One icon for every window (title bar, taskbar), T-025. Window subclasses share the Window style key. -->
     <Style Selector="Window">
       <Setter Property="Icon" Value="{x:Static app:AppIcon.Window}" />
+    </Style>
+    <!--
+      The context menu of every text field in the app's language (T-242), instead of Fluent's English default: Cut, Copy,
+      Paste, Select All (no Undo / Redo, user decision). One flyout shared by all text fields, as Fluent shares its own; each
+      item acts on the text field it opened on and is enabled as the field allows. A password field has no Cut and Copy.
+      Paste has a macOS variant (Apple's German and Slovak name it differently from Windows). The keys stay the text box's.
+    -->
+    <Style Selector="TextBox">
+      <Setter Property="ContextFlyout">
+        <MenuFlyout>
+          <MenuItem AutomationProperties.AutomationId="TextBoxCutMenuItem"
+                    Header="{Binding [TextBoxCut], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    Command="{Binding $parent[TextBox].Cut}"
+                    IsEnabled="{Binding $parent[TextBox].CanCut}"
+                    IsVisible="{Binding $parent[TextBox].PasswordChar, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static sys:Char.MinValue}}"
+                    InputGesture="{x:Static TextBox.CutGesture}" />
+          <MenuItem AutomationProperties.AutomationId="TextBoxCopyMenuItem"
+                    Header="{Binding [TextBoxCopy], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    Command="{Binding $parent[TextBox].Copy}"
+                    IsEnabled="{Binding $parent[TextBox].CanCopy}"
+                    IsVisible="{Binding $parent[TextBox].PasswordChar, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static sys:Char.MinValue}}"
+                    InputGesture="{x:Static TextBox.CopyGesture}" />
+          <MenuItem AutomationProperties.AutomationId="TextBoxPasteMenuItem"
+                    Header="{OnPlatform Default={Binding [TextBoxPaste], Source={x:Static loc:LocalizedStrings.Instance}}, macOS={Binding [TextBoxPasteMac], Source={x:Static loc:LocalizedStrings.Instance}}}"
+                    Command="{Binding $parent[TextBox].Paste}"
+                    IsEnabled="{Binding $parent[TextBox].CanPaste}"
+                    InputGesture="{x:Static TextBox.PasteGesture}" />
+          <MenuItem AutomationProperties.AutomationId="TextBoxSelectAllMenuItem"
+                    Header="{Binding [TextBoxSelectAll], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    Command="{Binding $parent[TextBox].SelectAll}"
+                    IsEnabled="{Binding $parent[TextBox].Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    InputGesture="{x:Static win:TextBoxContextMenu.SelectAllGesture}" />
+        </MenuFlyout>
+      </Setter>
     </Style>
   </Application.Styles>
 

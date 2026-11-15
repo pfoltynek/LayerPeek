@@ -2226,4 +2226,24 @@
     <value>Opens the chapter about securing the access to PrusaLink in the user manual.</value>
     <comment>T-182: tooltip and screen reader help of SettingsSecurityMoreInfo.</comment>
   </data>
+  <data name="TextBoxCut" xml:space="preserve">
+    <value>Cu_t</value>
+    <comment>T-242: item of the context menu of every text field (App.axaml). Use the wording of the platform's own Edit menu. "_" marks the access key (unique within the menu, see TextBoxContextMenuTextTests).</comment>
+  </data>
+  <data name="TextBoxCopy" xml:space="preserve">
+    <value>_Copy</value>
+    <comment>T-242: item of the context menu of text fields; not offered in password fields. "_" marks the access key.</comment>
+  </data>
+  <data name="TextBoxPaste" xml:space="preserve">
+    <value>_Paste</value>
+    <comment>T-242: item of the context menu of text fields on Windows (TextBoxPasteMac on macOS). "_" marks the access key.</comment>
+  </data>
+  <data name="TextBoxPasteMac" xml:space="preserve">
+    <value>_Paste</value>
+    <comment>T-242: macOS variant of TextBoxPaste, Apple's wording (German "Einsetzen", Slovak "Vložiť"); the same as TextBoxPaste where Windows and macOS agree.</comment>
+  </data>
+  <data name="TextBoxSelectAll" xml:space="preserve">
+    <value>Select _All</value>
+    <comment>T-242: item of the context menu of text fields; enabled when the field has text. "_" marks the access key.</comment>
+  </data>
 </root>
