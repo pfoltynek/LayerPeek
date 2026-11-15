@@ -1,11 +1,11 @@
 ---
 id: T-212
 title: macOS ověření – čtení doručených notifikací testovacího bundlu a kontroly jejich obsahu
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: macos
-depends_on: [T-208, T-209, T-210, T-211, T-233]
+depends_on: [T-208, T-209, T-210, T-211]
 ---
 
 > **Rozhodnuto uživatelem 2026-11-13:** obsah notifikací se ověřuje strojově v testovacím režimu. Body T-127 / T-126
@@ -57,7 +57,7 @@ s tlačítkem „Falešný poplach“ a co udělá klik. Tento úkol přidá čt
 - [x] `mac.notifications-content` (c) = `PASS` (uzavře v T-127 bod **T-101** kromě stavu „zamítnuto“ a `notDetermined`, ty zůstávají ruční)
       → přesunuto do T-127
 - [x] AOT: `dotnet publish` osx-arm64 bez varování (kód je jen v Debug, ověřit, že Release ho nepřekládá)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
 - (žádné)
@@ -134,7 +134,9 @@ Zpřístupnění, obrazovka během běhů zamčená, oznámení „LayerPeek E2E
   `ProxyOriginGuardTests.ClassicFormPostOfTheProxiedPageReachesThePrinter` (`LayerPeek.E2E.Tests`, Edge 157), selhává
   i samostatně; známá chyba mimo tento úkol, řeší ji **T-233**. Pester `tools/VerifyTools.Tests.ps1` 77 prošlo /
   1 přeskočen (Windows), `-SelfTest` PASSED (40 kontrol).
-- Úkol zůstává `in-progress`, dokud plný `dotnet test` neprojde (poslední kritérium; čeká na T-233, stejně jako T-231).
-  Kritéria 2–4 jsou přesunutá do T-127 (oddíl 1n). Bez nových balíčků. Nic na GitHub.
+- **Po opravě T-233 (2026-11-15):** `git merge develop` (`3bdc359a`), `dotnet build` Debug i `-c Release` 0 varování,
+  0 chyb; plný `dotnet test` 10 844 testů, 10 573 prošlo, 271 přeskočeno, 0 selhalo. Kritéria 2–4 jsou přesunutá do
+  T-127 (oddíl 1n). Bez nových balíčků. Nic na GitHub.
+- Uzavřeno 2026-11-15: zbývající ruční ověření (běh `mac.notifications-content`) přesunuto do T-127 (rozhodnutí uživatele)
 - Release build testů padal na `AutostartChoiceMigrationTests` (T-201); opravil to souběžně T-231 v `develop`,
   sloučeno sem.
