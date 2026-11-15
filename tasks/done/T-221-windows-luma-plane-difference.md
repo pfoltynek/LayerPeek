@@ -1,7 +1,7 @@
 ---
 id: T-221
 title: Windows – vzorky z roviny Y se liší od BGRA víc, než dovolují meze T-189 (1,72 / +1,44)
-status: in-progress
+status: done
 owner: core-dev
 priority: P2
 platform: windows
@@ -37,9 +37,9 @@ převodu.
 ## Akceptační kritéria
 - [x] Hodnoty z Windows vývojáře a z runneru zapsané, příčina popsaná
 - [x] Dopad na skóre detektorů na Windows změřený
-- [ ] Test v CI na Windows běží bez přeskočení a projde (s opravou nebo s mezemi schválenými uživatelem) –
-      přeskočení odstraněno v T-202 (2026-11-15), lokálně test na Windows prochází; **zelený běh v CI ověří hlavní agent
-      po pushi** (subagent nepushuje)
+- [x] Test v CI na Windows běží bez přeskočení a projde (s opravou nebo s mezemi schválenými uživatelem) –
+      přeskočení odstraněno v T-202 (2026-11-15); zelený job „Build and test (Windows)“ v CI 43745897232 (589fd360)
+      a 43748044752 (22f0000e, ruční běh), test nepřeskočen
 - [x] `dotnet build` a `dotnet test` bez chyb a varování (v rámci T-202, viz tam)
 
 ## Otevřené otázky
@@ -47,6 +47,9 @@ převodu.
   **Rozhodnuto uživatelem 2026-11-15:** ano, mez x64 2,0 / 1,7 (příčina je SIMD swscale na x64, ne build).
 
 ## Poznámky k implementaci
+- 2026-11-15 (hlavní agent): CI na Windows (`windows-2025`) s vlastním buildem FFmpeg (T-202) a mezemi x64
+  2,0 / 1,7: `GrayscaleSampleEquivalenceTests` prošel bez přeskočení v bězích 43745897232 (589fd360) a
+  43748044752 (22f0000e). Úkol uzavřen spolu s T-202.
 Řešeno v rámci T-202 (rozhodnutí uživatele 2026-11-15), měřeno 2026-11-15 na Windows 11 x64 vývojáře.
 
 - **Hodnoty (fixture `buddy3d.h264`, 71 snímků, 320 × 180):**

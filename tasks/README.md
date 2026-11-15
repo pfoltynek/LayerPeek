@@ -268,7 +268,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-202 | Windows – vlastní minimální LGPL build FFmpeg ze zdrojů (místo BtbN), s D3D11VA (hotovo 2026-11-15; ověření v T-125 2ab, 2ad) | windows | core-dev | P1 | T-199 |
 | T-206 | Windows – hardwarové dekódování D3D11VA (výchozí software do měření v T-125) (hotovo; měření a robustnost v T-125, 2ah) | windows | core-dev | P2 | T-202, T-203, T-204 |
 | T-220 | Alokační testy `ASampleDoesNotAllocate` a `SteadyStateTimelapseDoesNotAllocate` nestabilní na 4jádrovém runneru Windows (přeskočení v CI odstraněno, čeká na zelené běhy CI) | windows | qa-reviewer | P2 | – |
-| T-221 | Windows – vzorky z roviny Y se liší od BGRA víc, než dovolují meze T-189 (1,72 / +1,44; přeskočení v CI odstraněno v T-202, čeká na zelený běh CI) | windows | core-dev | P2 | – |
+| T-221 | Windows – vzorky z roviny Y se liší od BGRA víc, než dovolují meze T-189 (1,72 / +1,44; hotovo 2026-11-15 v T-202, CI zelené) | windows | core-dev | P2 | – |
 | T-224 | Windows ARM64 – sestavovací prostředí a Native AOT publish `win-arm64` z x64 (bez FFmpeg) | windows | core-dev | P2 | – |
 | T-225 | Windows ARM64 – vlastní LGPL build FFmpeg pro `win-arm64` (křížový překlad z x64) | windows | core-dev | P2 | T-202, T-224 |
 | T-226 | Windows ARM64 – vydání `win-arm64` (skripty, Velopack, aktualizace, winget, README a příručky) | windows | qa-reviewer | P2 | T-224, T-225 |
@@ -276,7 +276,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-228 | Windows – 47 selhávajících testů na develop (snapshoty UI, proxy, porty E2E, FFmpeg, Pester) | windows | qa-reviewer | P1 | – |
 | T-232 | Windows – aktualizace nativních závislostí a nástrojů (FFmpeg, MSVC/Windows SDK, Playwright/Edge, runner CI) | windows | qa-reviewer | P2 | T-202 |
 | T-234 | Pole hesla – UI Automation hlásí IsPassword = False a délku hesla (Avalonia 12.1.6) (hotovo; koncept upstream issue, macOS v T-127) | windows | ui-dev | P3 | T-054 |
-| T-236 | CI – křížový build win-arm64 (Native AOT publish + kontrola architektury, bez spuštění) | windows | qa-reviewer | P3 | T-225, T-226 |
+| T-236 | CI – křížový build win-arm64 (Native AOT publish + kontrola architektury, bez spuštění) (hotovo) | windows | qa-reviewer | P3 | T-225, T-226 |
 
 ### macOS (`macos`) – jen na Macu, později
 
