@@ -228,7 +228,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR | all | qa-reviewer | P2 | – |
 | T-219 | Nestabilní test `CameraStreamHubKeyFrameTests.WithoutDueSubscribersNoKeyFrameIsWanted` při plném `dotnet test` | all | core-dev | P2 | – |
 | T-229 | Aktualizace Avalonia 12.1.4 → 12.1.6 (hotovo) | all | ui-dev | P2 | – |
-| T-230 | Aktualizace všech NuGet balíčků a .NET nástrojů na nejnovější stabilní verze | all | qa-reviewer | P2 | – |
+| T-230 | Aktualizace všech NuGet balíčků a .NET nástrojů na nejnovější stabilní verze (hotovo; Windows v T-125) | all | qa-reviewer | P2 | – |
+| T-233 | E2E test `ClassicFormPostOfTheProxiedPageReachesThePrinter` selhává s Edge 157 na macOS | all | qa-reviewer | P2 | – |
 
 ### Windows (`windows`)
 

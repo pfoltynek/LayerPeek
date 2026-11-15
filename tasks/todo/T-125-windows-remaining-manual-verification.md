@@ -516,6 +516,12 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       (např. „DELL U2719D“) – pak by šlo v novém úkolu zvážit odstranění vlastního čtení názvu (`MonitorNameNative`,
       T-035). Nic neměnit v tomto bodě.
 
+### 2ae. Aktualizace spravovaných závislostí (z T-230, ověřeno na Macu 2026-11-15)
+- [ ] **T-230** (automaticky): `dotnet build` a `dotnet test` na Windows bez chyb a varování (TimeProvider.Testing 11.0.0,
+      Playwright 1.64.1, xunit.v3 4.0.3 – jen testy) a `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez
+      varování AOT. Známé selhání `ProxyOriginGuardTests.ClassicFormPostOfTheProxiedPageReachesThePrinter` řeší T-233;
+      zapsat, zda selhává i s Edge na Windows.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
