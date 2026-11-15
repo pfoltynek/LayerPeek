@@ -9,7 +9,7 @@ namespace LayerPeek.App.Platform.MacOS;
 /// not always on top is open the app is a regular app (<c>NSApplicationActivationPolicyRegular</c>), otherwise an
 /// accessory app with the menu bar extra only (<c>NSApplicationActivationPolicyAccessory</c>, as at the start:
 /// <c>LSUIElement</c> and <c>MacOSPlatformOptions.ShowInDock = false</c>). As a regular app AppKit lists its titled windows
-/// in the Dock menu and brings them to the front when the Dock icon is clicked (Avalonia reports the reopen, T-043).
+/// in the Dock menu (from the Window menu of <see cref="MacWindowsMenu"/>, T-241) and brings them to the front when the Dock icon is clicked (Avalonia reports the reopen, T-043).
 /// </summary>
 /// <remarks>
 /// Avalonia 12.1.4 sets the policy only once, at its start (<c>MacOptions::SetShowInDock</c>, the only caller of
