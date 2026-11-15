@@ -856,10 +856,73 @@ Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashca
         $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
         $run.ExitCode | Should -Be 0 -Because $run.Text
         foreach ($id in 'mac.decode', 'mac.recording-files', 'mac.timelapse-files') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
-        foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers') {
+        foreach ($id in 'mac.recording', 'mac.dashcam', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content') {
             @($run.Output | Where-Object { $_ -like "$id  *``[permission``]*" }) | Should -HaveCount 1 -Because $id
             $run.Output[0] | Should -BeLike "*allowed in advance:*$id*"
         }
+    }
+}
+
+Describe 'Delivered notifications (mac.notifications-content; T-212, pure)' {
+    BeforeAll {
+        $script:bundleId = 'io.github.pfoltynek.LayerPeek.E2E'
+        $script:listJson = @'
+{
+  "bundleIdentifier": "io.github.pfoltynek.LayerPeek.E2E",
+  "notifications": [
+    {
+      "identifier": "0f3c", "title": "LP verify 1", "subtitle": null,
+      "body": "Possible print failure – Detector e2e-alarm\nbenchy.bgcode",
+      "categoryIdentifier": "layerpeek.with-action", "threadIdentifier": "", "hasSound": true,
+      "attachments": [ { "identifier": "snapshot", "type": "public.jpeg" } ],
+      "launchArgument": "camera=verify", "actionArgument": "false-alarm=a1", "deliveredAt": "2026-11-15T10:20:30+00:00"
+    }
+  ],
+  "categories": [
+    { "identifier": "layerpeek.with-action", "actions": [ { "identifier": "layerpeek.action", "title": "False alarm", "options": 0 } ] }
+  ]
+}
+'@ -split "`n"
+    }
+
+    It 'reads the list of the test bundle only' {
+        $list = ConvertFrom-VerifyNotificationList -Output $listJson -BundleIdentifier $bundleId
+        $list.Notifications | Should -HaveCount 1
+        $list.Categories | Should -HaveCount 1
+        $list.Notifications[0].attachments[0].type | Should -Be 'public.jpeg'
+        ConvertFrom-VerifyNotificationList -Output $listJson -BundleIdentifier 'io.github.pfoltynek.LayerPeek' | Should -BeNullOrEmpty
+        ConvertFrom-VerifyNotificationList -Output @('The notifications are listed only in the test bundle: x.') -BundleIdentifier $bundleId | Should -BeNullOrEmpty
+        $empty = ConvertFrom-VerifyNotificationList -Output @('{ "bundleIdentifier": "io.github.pfoltynek.LayerPeek.E2E", "notifications": [], "categories": [] }') -BundleIdentifier $bundleId
+        @($empty.Notifications) | Should -HaveCount 0
+        @($empty.Categories) | Should -HaveCount 0
+    }
+
+    It 'finds nothing wrong with the alarm as designed' {
+        $list = ConvertFrom-VerifyNotificationList -Output $listJson -BundleIdentifier $bundleId
+        $expected = [ordered]@{
+            Title = 'LP verify 1'; BodyPrefix = 'Possible print failure – '; HasSound = $true; Attachments = 1; AttachmentType = 'public.jpeg'
+            LaunchArgument = 'camera=verify'; ActionArgumentPrefix = 'false-alarm='; Category = 'layerpeek.with-action'; ActionTitle = 'False alarm'
+        }
+        @(Get-VerifyNotificationProblems -Notification $list.Notifications[0] -Expected $expected -Categories $list.Categories) | Should -HaveCount 0
+        @(Get-VerifyNotificationProblems -Notification $list.Notifications[0] -Expected @{ BodyLine = 'benchy.bgcode' }) | Should -HaveCount 0
+    }
+
+    It 'names every difference' {
+        $list = ConvertFrom-VerifyNotificationList -Output $listJson -BundleIdentifier $bundleId
+        $alarm = $list.Notifications[0]
+        @(Get-VerifyNotificationProblems -Notification $null -Expected @{}) | Should -Be @('no such notification was delivered')
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Title = 'Other' }) | Should -Be @("title 'LP verify 1', expected 'Other'")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ BodyPrefix = 'Camera' }) | Should -Be @("text 'Possible print failure – Detector e2e-alarm / benchy.bgcode' does not start with 'Camera'")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ BodyLine = 'Timelapse failed' }) | Should -HaveCount 1
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ HasSound = $false }) | Should -Be @('sound on, expected off')
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Attachments = 0 }) | Should -Be @('1 attachment(s), expected 0')
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ AttachmentType = 'public.png' }) | Should -Be @("attachment of type 'public.jpeg', expected 'public.png'")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ LaunchArgument = 'settings=recording' }) | Should -Be @("click argument 'camera=verify', expected 'settings=recording'")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ ActionArgumentPrefix = 'x=' }) | Should -HaveCount 1
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Category = 'layerpeek.with-action'; ActionTitle = 'False alarm' }) | Should -Be @("the category 'layerpeek.with-action' is not registered")
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Category = 'layerpeek.with-action'; ActionTitle = 'Falešný poplach' } -Categories $list.Categories) | Should -Be @("the category 'layerpeek.with-action' has no button 'Falešný poplach' (buttons: 'False alarm')")
+        $foreground = @([pscustomobject]@{ identifier = 'layerpeek.with-action'; actions = @([pscustomobject]@{ identifier = 'layerpeek.action'; title = 'False alarm'; options = 4 }) })
+        @(Get-VerifyNotificationProblems -Notification $alarm -Expected @{ Category = 'layerpeek.with-action'; ActionTitle = 'False alarm' } -Categories $foreground) | Should -Be @("the button 'False alarm' brings the app to the front (options 4)")
     }
 }
 

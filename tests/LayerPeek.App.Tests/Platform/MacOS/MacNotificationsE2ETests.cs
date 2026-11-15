@@ -97,6 +97,16 @@ public sealed partial class MacNotificationsE2ETests
             Assert.Contains($"Notifications of {AppEnvironment.TestBundleIdentifier} are allowed in macOS.", log, StringComparison.Ordinal);
             Assert.DoesNotContain($"Notifications of {AppEnvironment.ProductionBundleIdentifier} ", log, StringComparison.Ordinal);
 
+            // T-212: the list mode reads the delivered notification as it was posted (silent, the printer's click argument).
+            (int listCode, string listOutput, string listError) = await bundle.RunAsync([AppEnvironment.NotificationListArgument], cancellationToken);
+            Assert.True(listCode == 0, $"The list mode ended with {listCode}: {listError}");
+            JsonObject list = JsonNode.Parse(listOutput)!.AsObject();
+            Assert.Equal(AppEnvironment.TestBundleIdentifier, (string?)list["bundleIdentifier"]);
+            JsonObject paused = Assert.Single(list["notifications"]!.AsArray().Select(static n => n!.AsObject()), static n => (string?)n["launchArgument"] == LayerPeek.App.Notifications.ToastLaunchArgument.ForPrinter(PrinterId));
+            Assert.StartsWith("LP E2E ", (string?)paused["title"], StringComparison.Ordinal);
+            Assert.False((bool)paused["hasSound"]!);
+            Assert.Empty(paused["attachments"]!.AsArray());
+
             // The path of a click (the delegate turns it into this instance command): the printer's web is opened.
             Assert.Equal(InstanceRole.Forwarded, SendCommand(data, suffix, new InstanceCommand(InstanceCommandKind.Toast, LayerPeek.App.Notifications.ToastLaunchArgument.ForPrinter(PrinterId))));
             await Wait.UntilAsync(() => OpenedUrls(data).Count > 0, TimeSpan.FromSeconds(15), "the printer's web opened by the click command", cancellationToken);

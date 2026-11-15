@@ -32,7 +32,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 | T-209 | `mac.menu-items` (helper `menu` / `menupress`) | T-018 menu; tip zakázaných položek (T-146, T-148, T-161) |
 | T-210 | `mac.decode`, `mac.recording-files`, `mac.recording`, `mac.dashcam`, helper `decode` | T-146, T-148 (simulátor), T-147 (simulátor), T-145 (simulátor); zbývá bod 1l |
 | T-211 | `mac.timelapse-files`, `mac.timelapse`, `mac.timelapse-layers`, simulátor `--layers` | T-161, T-159 (UI), T-160 (přehrání); zbývá bod 1m |
-| T-212 | `mac.notifications-content` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101 |
+| T-212 | `mac.notifications-content`, režim `--layerpeek-e2e-notification-list`, helper `ncpress` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101; zbývá bod 1n |
 | T-213 | `mac.file-dialogs` | T-146 („Změnit…“), T-165, T-164 |
 | T-214 | headless testy se San Francisco (hotovo 2026-11-14; od T-223 aplikace na macOS s Inter) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k (od T-223 šířky s Inter) |
 | T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188 |
@@ -466,6 +466,23 @@ a kritérium.
       snímek“ (klik na položku, záloha ↓ a Return) a zjištění skrytého čísla (chybí ve stromu AX nebo má nulovou velikost)
       agent proti skutečnému oknu neověřil – `FAIL` na tomto místě nejdřív posoudit podle `evidence/mac.timelapse-layers/
       settings-*.json`.
+
+### 1n. Obsah notifikací testovacího bundlu (z T-212, připraveno na Macu 2026-11-15)
+- [ ] **T-212** (krit. 2–4: `mac.notifications-content` (a), (b), (c) = `PASS`; oznámení „LayerPeek E2E“ byla v sezení
+      agenta `NotDetermined`, Terminál bez Zpřístupnění a obrazovka zamčená, kontrola skončila `SKIP` na předběžné
+      podmínce): po přípravě z `docs/macos-manual-testing.md` (Zpřístupnění pro Terminál, oznámení „LayerPeek E2E“
+      povolená jednou interaktivně přes `pwsh tools/macos-verify.ps1 -Only mac.notifications`, styl upozornění
+      „LayerPeek E2E“ **Trvalé**) spustit `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo samostatně
+      `pwsh tools/macos-verify.ps1 -Unattended -Only mac.notifications-content -Allow mac.notifications-content`).
+      `PASS` uzavře v tomto úkolu body **T-154** „Poplach zobrazí notifikaci …“ a „Falešný poplach funguje“ (bez vzhledu
+      banneru a editoru výřezu T-216), notifikační části **T-146** a **T-161** („Nahrávání kamery selhalo“, „Timelapse
+      selhal“, klik → Nastavení › Nahrávání) a bod **T-101** (bez stavu „zamítnuto“ a `notDetermined`, ty zůstávají ruční).
+      `SKIP` s důvodem „akce banneru není v AX“ (helper `ncpress` exit 4) = tlačítko nebo klik zůstává ruční: zapsat do
+      poznámek T-212 a ten podbod ověřit ručně (sezení 5.4, T-154 výše). Do poznámek T-212 zapsat složku běhu, commit,
+      řádek zprávy a co `ncpress` v AX našel (`evidence/mac.notifications-content/ncpress-*.txt`: role, podrole,
+      popis, akce). `FAIL` = nový úkol. Pozn.: strom AX Centra oznámení (banner, názvy vlastních akcí „Name:…“) agent
+      proti skutečnému banneru neověřil (bez Zpřístupnění a bez povolených oznámení); `FAIL` nebo `SKIP` z `ncpress`
+      nejdřív posoudit podle `evidence/mac.notifications-content/ncpress-*.txt` a `list-*.json`.
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

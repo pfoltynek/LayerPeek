@@ -142,7 +142,7 @@ internal sealed partial class TestNotificationCleanup
 
     /// <summary>The center of the test bundle without a delegate (nothing is asked, nothing shown), or <see langword="null"/>.</summary>
     [SupportedOSPlatform("macos")]
-    private static MacUserNotificationCenter? OpenTestCenter(out string? reason) =>
+    internal static MacUserNotificationCenter? OpenTestCenter(out string? reason) =>
         MacUserNotificationCenter.TryOpen(AppEnvironment.TestBundleIdentifier, MacMainBundle.Identifier, NullLogger.Instance, out reason);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Test mode: the notifications of {BundleIdentifier} were removed from the notification center.")]

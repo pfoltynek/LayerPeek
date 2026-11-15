@@ -791,6 +791,54 @@ function Get-VerifyNotificationStatus {
     $null
 }
 
+function ConvertFrom-VerifyNotificationList {
+    <#
+    .SYNOPSIS
+        The JSON of the list mode of the test bundle (--layerpeek-e2e-notification-list, T-212): an object with
+        Notifications and Categories (always arrays); $null when the output is no list of that bundle.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $Output, [Parameter(Mandatory)] [string] $BundleIdentifier)
+    try { $json = ($Output -join "`n") | ConvertFrom-Json -Depth 10 -ErrorAction Stop } catch { return $null }
+    if (-not $json -or $json.bundleIdentifier -cne $BundleIdentifier) { return $null }
+    [pscustomobject]@{ Notifications = @($json.notifications | Where-Object { $_ }); Categories = @($json.categories | Where-Object { $_ }) }
+}
+
+function Get-VerifyNotificationProblems {
+    <#
+    .SYNOPSIS
+        What a delivered notification of the list mode (T-212) does differently from -Expected: Title (exact), BodyPrefix,
+        BodyLine (one line of the body, exact), HasSound, Attachments (count), AttachmentType (exact), LaunchArgument (exact),
+        ActionArgumentPrefix, and Category with ActionTitle: the category must be registered (-Categories) with a button of
+        that title that does not bring the app to the front (UNNotificationActionOptionForeground, 4). Empty: as expected.
+    #>
+    param($Notification, [Parameter(Mandatory)] [System.Collections.IDictionary] $Expected, [object[]] $Categories = @())
+    if (-not $Notification) { return @('no such notification was delivered') }
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $lines = @("$($Notification.body)" -split "`n")
+    if ($Expected.Contains('Title') -and "$($Notification.title)" -cne $Expected.Title) { $problems.Add("title '$($Notification.title)', expected '$($Expected.Title)'") }
+    if ($Expected.Contains('BodyPrefix') -and -not "$($Notification.body)".StartsWith($Expected.BodyPrefix, [StringComparison]::Ordinal)) { $problems.Add("text '$($Notification.body -replace "`n", ' / ')' does not start with '$($Expected.BodyPrefix)'") }
+    if ($Expected.Contains('BodyLine') -and $lines -cnotcontains $Expected.BodyLine) { $problems.Add("text '$($Notification.body -replace "`n", ' / ')' has no line '$($Expected.BodyLine)'") }
+    if ($Expected.Contains('HasSound') -and [bool] $Notification.hasSound -ne [bool] $Expected.HasSound) { $problems.Add("sound $(if ($Notification.hasSound) { 'on' } else { 'off' }), expected $(if ($Expected.HasSound) { 'on' } else { 'off' })") }
+    $attachments = @($Notification.attachments | Where-Object { $_ })
+    if ($Expected.Contains('Attachments') -and $attachments.Count -ne $Expected.Attachments) { $problems.Add("$($attachments.Count) attachment(s), expected $($Expected.Attachments)") }
+    if ($Expected.Contains('AttachmentType')) {
+        foreach ($attachment in $attachments) { if ("$($attachment.type)" -cne $Expected.AttachmentType) { $problems.Add("attachment of type '$($attachment.type)', expected '$($Expected.AttachmentType)'") } }
+    }
+    if ($Expected.Contains('LaunchArgument') -and "$($Notification.launchArgument)" -cne $Expected.LaunchArgument) { $problems.Add("click argument '$($Notification.launchArgument)', expected '$($Expected.LaunchArgument)'") }
+    if ($Expected.Contains('ActionArgumentPrefix') -and -not "$($Notification.actionArgument)".StartsWith($Expected.ActionArgumentPrefix, [StringComparison]::Ordinal)) { $problems.Add("button argument '$($Notification.actionArgument)' does not start with '$($Expected.ActionArgumentPrefix)'") }
+    if ($Expected.Contains('Category')) {
+        if ("$($Notification.categoryIdentifier)" -cne $Expected.Category) { $problems.Add("category '$($Notification.categoryIdentifier)', expected '$($Expected.Category)'") }
+        $category = @($Categories | Where-Object { $_ -and "$($_.identifier)" -ceq $Expected.Category }) | Select-Object -First 1
+        if (-not $category) { $problems.Add("the category '$($Expected.Category)' is not registered") }
+        elseif ($Expected.Contains('ActionTitle')) {
+            $action = @($category.actions | Where-Object { $_ -and "$($_.title)" -ceq $Expected.ActionTitle }) | Select-Object -First 1
+            if (-not $action) { $problems.Add("the category '$($Expected.Category)' has no button '$($Expected.ActionTitle)' (buttons: $(@($category.actions | ForEach-Object { "'$($_.title)'" }) -join ', '))") }
+            elseif (([long] $action.options -band 4) -ne 0) { $problems.Add("the button '$($Expected.ActionTitle)' brings the app to the front (options $($action.options))") }
+        }
+    }
+    $problems.ToArray()
+}
+
 function Get-VerifyFrontAsn {
     <# .SYNOPSIS The ASN of 'lsappinfo front' (e.g. ASN:0x0-0x1d01d:); $null when none. #>
     param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $Output)
