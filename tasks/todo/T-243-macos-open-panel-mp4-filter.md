@@ -38,7 +38,7 @@ macOS cestu z ⌘⇧G filtrem nekontroluje.
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
-1. Stačí, že aplikace jiný soubor odmítne (`NotATimelapse`, notifikace), nebo musí filtr panelu výběr znemožnit?
+1. ~~Stačí odmítnutí, nebo musí filtr výběr znemožnit?~~ **Rozhodnutí uživatele 2026-11-15: odmítnutí stačí** (`NotATimelapse`, bez pádu). Zjistit příčinu (macOS u ⌘⇧G, nebo Avalonia) a podle ní upravit kontrolu `mac.file-dialogs` (b) – filtr posuzovat podle stavu položky v seznamu. Aplikace se mění, jen pokud filtr nefunguje ani v seznamu souborů.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

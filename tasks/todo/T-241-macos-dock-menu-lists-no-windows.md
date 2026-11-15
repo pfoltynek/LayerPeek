@@ -36,7 +36,7 @@ ostatní“, „Ukončit“, „Vynutit ukončení“). Ikona v Docku, ⌘Tab a 
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
-1. Je výpis oken v menu Docku pro LayerPeek potřeba (T-102 s ním počítal), nebo stačí ikona, ⌘Tab a reopen?
+1. ~~Je výpis oken v menu Docku potřeba?~~ **Rozhodnutí uživatele 2026-11-15: ano, opravit** – menu Docku má vypisovat Nastavení a okno kamery (jak počítá T-102).
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
