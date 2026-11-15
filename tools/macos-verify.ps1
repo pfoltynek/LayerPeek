@@ -4326,9 +4326,20 @@ $checks = @(
                     foreach ($problem in Get-VerifyPanelProblems -Panel $panel -Expected ([ordered]@{ Sheet = $false; Title = $texts['TimelapseExportPickerTitle']; Folder = $files.Folder; Front = $true })) { $problems.Add("(b) panel: $problem") }
                     if ((Get-FrontProcessId) -ne $panel.pid) { $problems.Add("(b) $(Get-FrontAppText) is in front, not the app of the panel") }
                     $notes.Add("(b) the panel ($($panel.role) $($panel.subrole)) is in $(if ($panel.pid -eq $app.Id) { 'the app process' } else { "$($panel.process) ($($panel.bundleIdentifier), pid $($panel.pid))" }), buttons '$($panel.defaultButton.title)' / '$($panel.cancelButton.title)'")
-                    $items = Get-VerifyPanelItemProblems -Items @($panel.items) -Allowed (Split-Path -Leaf $files.Recording), (Split-Path -Leaf $files.Timelapse) -Refused 'notes.txt'
-                    foreach ($problem in $items.Problems) { $problems.Add("(b) panel items: $problem") }
-                    if ($items.Unknown.Count -gt 0) { $notes.Add("(b) AX shows no enabled state of $($items.Unknown -join ', ') (the filter is judged by choosing notes.txt)") }
+                    # Only .mp4: the filter as the list shows it, notes.txt dimmed and the media not (T-243: Go to
+                    # bypasses the filter, also in a plain AppKit app). The browser fills its folder a moment later.
+                    $judge = { param($Found) Get-VerifyPanelItemProblems -Items @($Found.items) -Allowed (Split-Path -Leaf $files.Recording), (Split-Path -Leaf $files.Timelapse) -Refused 'notes.txt' }
+                    $script:panelItems = & $judge $panel
+                    if ($script:panelItems.Unknown.Count -gt 0) {
+                        $null = Wait-VerifyCondition -TimeoutSeconds 5 -IntervalMilliseconds 500 -Condition {
+                            $script:panelItems = & $judge (@(& $panels $app.Id 0) | Select-Object -First 1)
+                            $script:panelItems.Unknown.Count -eq 0
+                        }
+                        $null = Save-VerifyEvidence -Context $c -Name 'panel-b-items.json' -Content (ConvertTo-Json -InputObject @(& $panels $app.Id 0) -Depth 20)
+                    }
+                    foreach ($problem in $script:panelItems.Problems) { $problems.Add("(b) panel items: $problem") }
+                    if ($script:panelItems.Unknown.Count -gt 0) { $skipped.Add("(b) the .mp4 filter: the panel list shows no state of $($script:panelItems.Unknown -join ', ') (evidence/mac.file-dialogs/panel-b-*.json)") }
+                    elseif ($script:panelItems.Problems.Count -eq 0) { $notes.Add('(b) the list dims notes.txt, not the .mp4 files') }
                     # A second click while the panel is open opens nothing new.
                     $again = Invoke-MenuPress $c $app.Id (& $exportTitle $files)
                     Start-Sleep -Seconds 2
@@ -4344,12 +4355,20 @@ $checks = @(
                     elseif (Find-AxElement $tree 'CameraNextAttempt') { $problems.Add('(b) the camera window waits for a reconnect while the panel is open (CameraNextAttempt)') }
                     elseif ($connected -lt 1) { $problems.Add('(b) no RTSP connection of the camera window while the panel is open') }
                     else { $notes.Add('(b) the camera window kept running while the panel was open') }
-                    # Only .mp4: a text file cannot be chosen (the panel is cancelled), the app gets nothing.
+                    # notes.txt through Go to (Cmd-Shift-G), which macOS lets past the filter: the app refuses it as
+                    # NotATimelapse with its notification (user decision 2026-11-15, T-243) and keeps running.
                     $go = & $run @('panelgo', "$($app.Id)", $files.Other) 'panelgo-b-other.txt'
-                    Start-Sleep -Seconds 2
-                    if ($go.ExitCode -eq 0) { $problems.Add('(b) notes.txt could be chosen in the panel') }
-                    elseif (@(& $events $data | Where-Object Name -CEQ 'notes.txt').Count -gt 0) { $problems.Add('(b) the app got notes.txt') }
-                    else { $notes.Add("(b) notes.txt could not be chosen (panelgo $($go.ExitCode))") }
+                    if ($go.ExitCode -eq 4) { $notes.Add('(b) the panel did not take notes.txt through Go to either (panelgo 4)') }
+                    elseif ($go.ExitCode -eq 0) {
+                        $refused = & $waitEvent $data 'NotExported' 'notes.txt' 20
+                        if (-not $refused -or $refused.Problem -cne 'NotATimelapse') { $problems.Add("(b) notes.txt through Go to was not refused as NotATimelapse within 20 s ($(if ($refused) { $refused.Problem } else { 'no result' }))") }
+                        elseif ($app.HasExited) { $problems.Add('(b) the app quit after refusing notes.txt') }
+                        else { $notes.Add('(b) notes.txt through Go to refused as NotATimelapse') }
+                        & $notified '(b) notes.txt:' $files.Name $texts['NotificationTimelapseExportFailed'] $texts['NotificationTimelapseExportNotATimelapse']
+                        # The recording below is refused with the same notification.
+                        & $clear
+                    }
+                    else { $problems.Add("(b) panelgo 'notes.txt' ended with $($go.ExitCode): $($go.Output -join ' ')") }
                 }
 
                 # A recording instead of a timelapse: refused with its notification.

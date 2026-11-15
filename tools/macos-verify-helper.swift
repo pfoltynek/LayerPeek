@@ -35,8 +35,9 @@
 //                                    list with pid and process (where the panel really is), role, subrole, sheet, title,
 //                                    texts (the message), main, focused (the key window of its app), frontmost (its app is
 //                                    active), folder (AXDocument) and folderTitle (the path pop-up), defaultButton and
-//                                    cancelButton (title, enabled: the language of AppKit), items (name, role, enabled
-//                                    where AX has it) and frame (needs Accessibility; T-213)
+//                                    cancelButton (title, enabled: the language of AppKit), items of the folder shown
+//                                    (name, role, enabled and alpha: the opacity of the name's text colour, each where AX
+//                                    has it; T-243) and frame (needs Accessibility; T-213)
 //   panelgo <pid> <path> [<seconds>] chooses <path> in the open panel (waits up to <seconds>, default 5): Cmd-Shift-G, the
 //                                    path typed (as "type"), Return, then the default button (Open / Choose); prints
 //                                    JSON (field: what the Go to field held). Exit code 1: no panel, 2: no Go to field or
@@ -1226,27 +1227,67 @@ func panelTexts(_ element: AXUIElement, _ depth: Int = 0) -> [String] {
     return Array(texts.prefix(20))
 }
 
-/// The items the file browser shows: name and, where AX has it, whether it can be chosen (the first AXEnabled in the row).
+/// The items of the folder the file browser shows: name (AXFilename where AX has it), role, enabled (the first AXEnabled
+/// in the row, where AX has it) and alpha (the opacity of the name's text colour, where AX has it). NSOpenPanel reports
+/// AXEnabled true also for the items its type filter dims (T-243, macOS 27); the dimmed name has a low alpha (0.25
+/// against 0.85 for an item that can be chosen), so the check judges the filter by the alpha. The column view shows the
+/// folder in its rightmost list; a list or outline view in rows; an icon view in the children of its list.
 func panelItems(_ browser: AXUIElement) -> [[String: Any]] {
     var rows: [AXUIElement] = []
-    func collect(_ element: AXUIElement, _ depth: Int) {
-        guard rows.count < 200, depth < 10 else { return }
-        if text(element, kAXRoleAttribute) == (kAXRowRole as String) { rows.append(element); return }
-        for child in children(element) { collect(child, depth + 1) }
+    if text(browser, kAXRoleAttribute) == "AXBrowser" {
+        var lists: [AXUIElement] = []
+        func collect(_ element: AXUIElement, _ depth: Int) {
+            guard depth < 6 else { return }
+            if text(element, kAXRoleAttribute) == (kAXListRole as String) { lists.append(element); return }
+            for child in children(element) { collect(child, depth + 1) }
+        }
+        collect(browser, 0)
+        if let column = lists.max(by: { frame($0)["x", default: 0] < frame($1)["x", default: 0] }) { rows = Array(children(column).prefix(200)) }
+    } else {
+        func collect(_ element: AXUIElement, _ depth: Int) {
+            guard rows.count < 200, depth < 10 else { return }
+            if text(element, kAXRoleAttribute) == (kAXRowRole as String) { rows.append(element); return }
+            for child in children(element) { collect(child, depth + 1) }
+        }
+        collect(browser, 0)
+        if rows.isEmpty { rows = Array(children(browser).prefix(200)) }
     }
-    collect(browser, 0)
-    // An icon view has no rows: its items are the children of the list.
-    if rows.isEmpty { rows = Array(children(browser).prefix(200)) }
     func enabled(_ element: AXUIElement, _ depth: Int) -> Bool? {
         if let value = attribute(element, kAXEnabledAttribute) as? NSNumber { return value.boolValue }
         guard depth < 4 else { return nil }
         for child in children(element) { if let found = enabled(child, depth + 1) { return found } }
         return nil
     }
+    // The element with the file name: the one with AXFilename, else the first text field or static text with a value.
+    func nameElement(_ element: AXUIElement, _ depth: Int) -> AXUIElement? {
+        if !text(element, "AXFilename").isEmpty { return element }
+        guard depth < 4 else { return nil }
+        for child in children(element) { if let found = nameElement(child, depth + 1) { return found } }
+        return nil
+    }
+    func textElement(_ element: AXUIElement, _ depth: Int) -> AXUIElement? {
+        if [kAXTextFieldRole as String, kAXStaticTextRole as String].contains(text(element, kAXRoleAttribute)), !text(element, kAXValueAttribute).isEmpty { return element }
+        guard depth < 4 else { return nil }
+        for child in children(element) { if let found = textElement(child, depth + 1) { return found } }
+        return nil
+    }
+    // The alpha of the foreground colour of the first character (AXAttributedStringForRange), or nil.
+    func alpha(_ element: AXUIElement) -> Double? {
+        var range = CFRange(location: 0, length: 1)
+        guard let parameter = AXValueCreate(.cfRange, &range) else { return nil }
+        var value: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(element, kAXAttributedStringForRangeParameterizedAttribute as CFString, parameter, &value) == .success,
+              let string = value as? NSAttributedString, string.length > 0,
+              let colour = string.attribute(NSAttributedString.Key(kAXForegroundColorTextAttribute.takeUnretainedValue() as String), at: 0, effectiveRange: nil),
+              CFGetTypeID(colour as CFTypeRef) == CGColor.typeID else { return nil }
+        return Double((colour as! CGColor).alpha)
+    }
     return rows.map { row in
-        let name = subtreeTexts(row).first ?? ""
+        let named = nameElement(row, 0) ?? textElement(row, 0)
+        let name = named.map { text($0, "AXFilename") }.flatMap { $0.isEmpty ? nil : $0 } ?? subtreeTexts(row).first ?? ""
         var item: [String: Any] = ["name": name, "role": text(row, kAXRoleAttribute)]
         item["enabled"] = enabled(row, 0) ?? NSNull()
+        item["alpha"] = named.flatMap(alpha) ?? NSNull()
         return item
     }
 }
