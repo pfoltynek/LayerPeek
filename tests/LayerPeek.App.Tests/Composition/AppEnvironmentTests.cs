@@ -235,6 +235,11 @@ public sealed class AppEnvironmentTests
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationCleanup"));
         Assert.Null(typeof(AppEnvironment).GetField("TestBundleIdentifier", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
         Assert.Null(typeof(AppEnvironment).GetField("NotificationStatusArgument", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
+        // T-212: no list mode of the test bundle's notifications.
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationList"));
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationListJsonContext"));
+        Assert.Null(typeof(AppEnvironment).GetField("NotificationListArgument", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.MacUserNotificationCenter")?.GetMethod("ListDeliveredAsync", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
         Assert.Equal(AppEnvironment.ProductionBundleIdentifier, AppEnvironment.Production.NotificationBundleIdentifier);
         Assert.Same(AppEnvironment.Production, AppEnvironment.FromProcess());
     }

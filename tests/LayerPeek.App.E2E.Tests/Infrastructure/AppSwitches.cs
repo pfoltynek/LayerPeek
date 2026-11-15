@@ -101,6 +101,12 @@ internal static class AppSwitches
     /// </summary>
     public const string NotificationStatusArgument = "--layerpeek-e2e-notification-status";
 
+    /// <summary>
+    /// Command line mode of the macOS test bundle (T-212): prints the delivered notifications and categories of the test bundle
+    /// as JSON; Debug only.
+    /// </summary>
+    public const string NotificationListArgument = "--layerpeek-e2e-notification-list";
+
     /// <summary>The bundle identifier of the macOS test bundle <c>LayerPeek E2E.app</c> (T-020); Debug only.</summary>
     public const string TestBundleIdentifier = "io.github.pfoltynek.LayerPeek.E2E";
 

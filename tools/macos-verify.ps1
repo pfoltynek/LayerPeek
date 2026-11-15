@@ -19,7 +19,7 @@
     test data folders (--layerpeek-e2e-clear-autostart), the LaunchServices registration, Preferences and caches of the
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
     tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items,
-    mac.update-check, mac.recording, mac.dashcam, mac.timelapse or mac.timelapse-layers) Terminal in Privacy & Security >
+    mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers or mac.notifications-content) Terminal in Privacy & Security >
     Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
@@ -444,7 +444,8 @@ function New-TestData {
         the camera of the printer, -Window its camera.window section. Removed at the end (after the autostart stand-ins).
     #>
     param($Context, $Simulator, [string] $Camera, [System.Collections.IDictionary] $Window, [System.Collections.IDictionary] $CameraOptions,
-        [string] $RecordingFolder, [System.Collections.IDictionary] $RecordingOptions, [int] $PollingSeconds = 5, [switch] $SharedTemp, [switch] $Notifications)
+        [string] $RecordingFolder, [System.Collections.IDictionary] $RecordingOptions, [int] $PollingSeconds = 5, [switch] $SharedTemp, [switch] $Notifications,
+        [ValidateSet('Off', 'ImportantOnly', 'All')] [string] $Sound = 'Off', [switch] $Detection)
     $base = if ($SharedTemp) { '/tmp' } else { [System.IO.Path]::GetTempPath() }
     $data = Join-Path $base "lpv-$(New-ShortId)"
     $null = New-Item -ItemType Directory -Force -Path $data
@@ -454,7 +455,7 @@ function New-TestData {
         version                = 1
         pollingIntervalSeconds = $PollingSeconds
         language               = 'en'
-        notifications          = [ordered]@{ enabled = [bool] $Notifications; remainingTimeMinutes = 0; sound = 'Off' }
+        notifications          = [ordered]@{ enabled = [bool] $Notifications; remainingTimeMinutes = 0; sound = $Sound }
         printers               = @()
     }
     if ($Simulator) {
@@ -465,11 +466,16 @@ function New-TestData {
             # T-210: e.g. recordPrints, dashcam.
             if ($CameraOptions) { foreach ($name in $CameraOptions.Keys) { $printer.camera[$name] = $CameraOptions[$name] } }
         }
+        # -Detection (T-212): print failure detection on, for the detector of the test mode (LAYERPEEK_TEST_FAKE_DETECTOR).
+        if ($Detection) { $printer.detection = [ordered]@{ enabled = $true } }
         $settings.printers = @($printer)
         [System.IO.File]::WriteAllText((Join-Path $data 'test-secrets.txt'), "printer/$($script:PrinterId)`t$($Simulator.Password)`n")
     }
     # -RecordingFolder: the recordings go into this folder of the test data (T-210), never into ~/Movies/LayerPeek.
-    if ($RecordingFolder) { $settings.recording = [ordered]@{ folder = (Join-Path $data $RecordingFolder) } }
+    # An absolute -RecordingFolder is taken as it is (T-212: a folder on a volume that is not mounted).
+    $recordings = if (-not $RecordingFolder) { $null } elseif ([System.IO.Path]::IsPathRooted($RecordingFolder)) { $RecordingFolder } else { Join-Path $data $RecordingFolder }
+    if ($recordings) { $settings.recording = [ordered]@{ folder = $recordings } }
+    if ($Detection) { $settings.detection = [ordered]@{ enabled = $true } }
     # -RecordingOptions (T-211): e.g. timelapseIntervalSeconds, timelapseTrigger, next to the folder.
     if ($RecordingOptions) {
         if (-not $settings.Contains('recording')) { $settings.recording = [ordered]@{} }
@@ -479,7 +485,7 @@ function New-TestData {
     $testData = [pscustomobject]@{
         Context = $Context
         Data   = $data
-        Recordings = if ($RecordingFolder) { Join-Path $data $RecordingFolder } else { Join-Path $data 'Recordings' }
+        Recordings = if ($recordings) { $recordings } else { Join-Path $data 'Recordings' }
         Suffix = $suffix
         Socket = Get-VerifyInstanceSocketPath -DataDirectory $data -Suffix $suffix -TempDirectory ([System.IO.Path]::GetTempPath()) -UserId ([int] (& /usr/bin/id -u))
         Logs   = Join-Path $data 'logs'
@@ -2447,6 +2453,181 @@ $checks = @(
         }
     }
 
+    New-VerifyCheck -Id 'mac.notifications-content' -Needs Session, Accessibility -Kind Permission `
+        -Permission "Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to press the notifications and their buttons in Notification Centre and read the app windows, an unlocked screen, and the notifications of 'LayerPeek E2E' allowed (mac.notifications) with the alert style Persistent" `
+        -Title 'content of the delivered notifications of the test bundle (--layerpeek-e2e-notification-list): (a) print failure alarm with the snapshot, the False alarm button (a record, the app stays behind) and the click (camera window); (b) Camera recording failed and Timelapse failed for a folder on a missing volume, a click opens Settings > Recording; (c) the test notification with and without sound, replaced by the next one, a click opens Settings > General' `
+        -Closes 'T-154 (notifikace poplachu: titulek, text, příloha, tlačítko „Falešný poplach“ u prvního poplachu, záznam bez přenesení do popředí, klik otevře okno kamery, snímek ve složce nahrávek, prázdná cache; bez vzhledu banneru a editoru výřezu)', 'T-146 / T-161 (notifikace „Nahrávání kamery selhalo“ a „Timelapse selhal“, klik otevře Nastavení › Nahrávání)', 'T-101 (zkušební upozornění se zvukem i bez, nahrazení, klik otevře Nastavení › Obecné; bez stavu „zamítnuto“ a notDetermined)', 'T-212 kritéria 2–4' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        $permission = (Get-TestNotificationStatus $c).Permission
+        if ($permission -ne 'Allowed') { Skip-VerifyCheck "the notifications of 'LayerPeek E2E' are $permission; allow them once with 'pwsh tools/macos-verify.ps1 -Only mac.notifications' (interactive)." }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $bundle = Get-TestBundle $c
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            # Parts macOS does not let the script do (a button or a banner not in AX): a SKIP of the check with the reasons.
+            $skipped = [System.Collections.Generic.List[string]]::new()
+            $list = {
+                $result = Invoke-BundleTool $bundle @('--layerpeek-e2e-notification-list')
+                $parsed = if ($result.ExitCode -eq 0) { ConvertFrom-VerifyNotificationList -Output $result.Output -BundleIdentifier $script:TestBundleId }
+                if (-not $parsed) { throw "The list mode of the test bundle answered ($($result.ExitCode)): $($result.Output -join ' ')" }
+                $parsed
+            }
+            $clear = { $null = Invoke-BundleTool $bundle @('--layerpeek-e2e-clear-toasts') }
+            # The first delivered notification that matches (polled once a second); the list it was found in stays in $script:lastList.
+            $waitFor = {
+                param([scriptblock] $Match, [int] $Seconds, [string] $Evidence)
+                $script:lastList = $null
+                $script:found = $null
+                $null = Wait-VerifyCondition -TimeoutSeconds $Seconds -IntervalMilliseconds 1000 -Condition {
+                    $script:lastList = & $list
+                    $script:found = @($script:lastList.Notifications | Where-Object -FilterScript $Match) | Select-Object -First 1
+                    $null -ne $script:found
+                }
+                if ($Evidence) { $null = Save-VerifyEvidence -Context $c -Name "list-$Evidence.json" -Content ($script:lastList | ConvertTo-Json -Depth 10) }
+                $script:found
+            }
+            # helper ncpress: $true when the action was performed; a banner or button macOS keeps out of AX is a skipped part.
+            $ncpress = {
+                param([string] $Part, [string] $Text, [string] $Action, [string] $Evidence)
+                $output = @(& (Get-Helper $c) 'ncpress' $Text $Action 2>&1 | ForEach-Object { "$_" })
+                $code = $LASTEXITCODE
+                $null = Save-VerifyEvidence -Context $c -Name "ncpress-$Evidence.txt" -Content (@("ncpress '$Text' '$Action': exit code $code") + $output)
+                switch ($code) {
+                    0 { return $true }
+                    1 { $skipped.Add("${Part} ${Action} on '$Text': no such banner or entry in the AX tree of Notification Centre (set the alert style of 'LayerPeek E2E' to Persistent)") }
+                    4 { $skipped.Add("${Part} ${Action} on '$Text': the banner action is not in AX ($((@($output) | Select-Object -Last 1)))") }
+                    default { $problems.Add("${Part} ncpress '$Text' '$Action' ended with ${code}: $($output -join ' ')") }
+                }
+                $false
+            }
+            $selectedTab = { param([int] $AppId) (Get-AxSelectedTab $c $AppId 'SettingsTabs').Selected }
+            $waitTab = { param([int] $AppId, [string] $Tab) Wait-VerifyCondition -TimeoutSeconds 15 -IntervalMilliseconds 500 -Condition { (& $selectedTab $AppId) -ceq $Tab } }
+            $headline = { param($Notification) @("$($Notification.body)" -split "`n")[0] }
+            $simulator = Get-Simulator $c
+
+            # (a) T-154: the alarm of the detector of the test mode, sound as for a printer error (ImportantOnly).
+            & $clear
+            Set-SimulatorScenario $simulator 'idle'
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -RecordingFolder 'Recordings' -Notifications -Sound 'ImportantOnly' -Detection -PollingSeconds 2
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $alarmPrefix = ($texts['NotificationPrintFailure'] -split '\{0\}')[0]
+            $isAlarm = { $_.title -ceq $name -and "$($_.body)".StartsWith($alarmPrefix, [StringComparison]::Ordinal) }
+            $app = Get-Process -Id (Start-TestAppViaOpen -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_TOASTS = '1'; LAYERPEEK_TEST_FAKE_DETECTOR = '1' })
+            try {
+                Start-Sleep -Seconds 4
+                Set-SimulatorScenario $simulator 'printing'
+                $alarm = & $waitFor $isAlarm 90 'alarm'
+                if (-not $alarm) { $problems.Add("(a) no alarm notification of '$name' within 90 s of the print") }
+                else {
+                    $expected = [ordered]@{
+                        Title = $name; BodyPrefix = $alarmPrefix; HasSound = $true; Attachments = 1; AttachmentType = 'public.jpeg'
+                        LaunchArgument = "camera=$($script:PrinterId)"; ActionArgumentPrefix = 'false-alarm='
+                        Category = 'layerpeek.with-action'; ActionTitle = $texts['NotificationFalseAlarm']
+                    }
+                    foreach ($problem in @(Get-VerifyNotificationProblems -Notification $alarm -Expected $expected -Categories $script:lastList.Categories)) { $problems.Add("(a) first alarm: $problem") }
+                    # The button: a local record, the app stays behind, nothing opens.
+                    if (& $ncpress '(a)' (& $headline $alarm) $texts['NotificationFalseAlarm'] 'false-alarm') {
+                        $records = Join-Path $data.Data 'detection' 'false-alarms'
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { @(Get-ChildItem -LiteralPath $records -Filter '*.json' -File -ErrorAction SilentlyContinue).Count -gt 0 })) { $problems.Add("(a) '$($texts['NotificationFalseAlarm'])' saved no detection/false-alarms/*.json within 15 s") }
+                        Start-Sleep -Seconds 1
+                        if ((Get-FrontProcessId) -eq $app.Id) { $problems.Add("(a) '$($texts['NotificationFalseAlarm'])' brought the app to the front") }
+                        if (Get-CameraWindow $c $app.Id) { $problems.Add("(a) '$($texts['NotificationFalseAlarm'])' opened a window") }
+                        $notes.Add("'$($texts['NotificationFalseAlarm'])' recorded the alarm, the app stayed behind ($(Get-FrontAppText) in front)")
+                    }
+                    $snapshots = @(Get-ChildItem -LiteralPath $data.Recordings -Recurse -File -Filter '*_alarm-e2e-alarm.jpg' -ErrorAction SilentlyContinue)
+                    if ($snapshots.Count -eq 0) { $problems.Add('(a) no snapshot *_alarm-e2e-alarm.jpg in the recordings folder') }
+                    $cache = @(Get-ChildItem -LiteralPath (Join-Path $data.Data 'cache' 'notification-images') -Recurse -File -ErrorAction SilentlyContinue)
+                    if ($cache.Count -gt 0) { $problems.Add("(a) $($cache.Count) file(s) left in the cache notification-images: $(@($cache.Name) -join ', ')") }
+
+                    # The click on the alarm of the next print (one alarm per print; the earlier notifications go first).
+                    & $clear
+                    Set-SimulatorScenario $simulator 'idle'
+                    Start-Sleep -Seconds 6
+                    Set-SimulatorScenario $simulator 'printing'
+                    $second = & $waitFor $isAlarm 90 'second-alarm'
+                    if (-not $second) { $problems.Add("(a) no alarm notification of the next print within 90 s") }
+                    elseif (& $ncpress '(a)' (& $headline $second) 'AXPress' 'alarm-click') {
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add('(a) the click on the alarm opened no camera window within 20 s') }
+                        else { $notes.Add('the click on the alarm opened the camera window') }
+                    }
+                    # The same sound as a printer error.
+                    $errorPrefix = $texts['NotificationError']
+                    Set-SimulatorScenario $simulator 'error'
+                    $printerError = & $waitFor { $_.title -ceq $name -and "$($_.body)".StartsWith($errorPrefix, [StringComparison]::Ordinal) } 30 'error'
+                    if (-not $printerError) { $problems.Add("(a) no '$errorPrefix' notification within 30 s") }
+                    elseif ([bool] $printerError.hasSound -ne [bool] $alarm.hasSound) { $problems.Add("(a) the alarm has sound $($alarm.hasSound), a printer error $($printerError.hasSound)") }
+                }
+            }
+            finally { $null = Stop-TestApp $data $app; Set-SimulatorScenario $simulator 'idle'; & $clear }
+
+            # (b) T-146 / T-161: the folder of the recordings is on a volume that is not mounted.
+            $missing = "/Volumes/LPV-missing-$(New-ShortId)"
+            if (Test-Path -LiteralPath $missing) { throw "$missing exists." }
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -CameraOptions ([ordered]@{ recordPrints = $true; timelapsePrints = $true }) -RecordingFolder "$missing/Recordings" -Notifications -PollingSeconds 2
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $app = Get-Process -Id (Start-TestAppViaOpen -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_TOASTS = '1' })
+            try {
+                Start-Sleep -Seconds 4
+                Set-SimulatorScenario $simulator 'printing'
+                foreach ($key in 'NotificationRecordingFailed', 'NotificationTimelapseFailed') {
+                    $text = $texts[$key]
+                    $failure = & $waitFor { $_.title -ceq $name -and (& $headline $_) -ceq $text } 60 $key
+                    if (-not $failure) { $problems.Add("(b) no '$text' notification of '$name' within 60 s"); continue }
+                    foreach ($problem in @(Get-VerifyNotificationProblems -Notification $failure -Expected ([ordered]@{ Title = $name; BodyLine = $text; Attachments = 0; LaunchArgument = 'settings=recording' }))) { $problems.Add("(b) '$text': $problem") }
+                    # A click opens Settings on the Recording tab (from another tab when Settings is open already).
+                    if ($null -ne (Get-AxElement $c $app.Id 'SettingsTabGeneral')) {
+                        $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabGeneral') -AllowFailure
+                        $null = & $waitTab $app.Id 'SettingsTabGeneral'
+                    }
+                    if (& $ncpress '(b)' $text 'AXPress' $key) {
+                        if (& $waitTab $app.Id 'SettingsTabRecording') { $notes.Add("the click on '$text' opened Settings > Recording") }
+                        else { $problems.Add("(b) the click on '$text' did not show Settings > Recording within 15 s (selected: '$(& $selectedTab $app.Id)')") }
+                    }
+                }
+                if (Test-Path -LiteralPath $missing) { $problems.Add("(b) $missing was created") }
+            }
+            finally { $null = Stop-TestApp $data $app; Set-SimulatorScenario $simulator 'idle'; & $clear }
+
+            # (c) T-101: the test notification of Settings > General, with the sound setting All and Off.
+            foreach ($sound in 'All', 'Off') {
+                $data = New-TestData -Context $c -Notifications -Sound $sound
+                $app = Get-Process -Id (Start-TestAppViaOpen -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_TOASTS = '1' })
+                try {
+                    Send-TestCommand $data 'settings'
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsTestNotification') })) { $problems.Add("(c) sound ${sound}: no SettingsTestNotification in Settings within 15 s"); continue }
+                    $isTest = { $_.identifier -ceq 'layerpeek-test-notification' }
+                    $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTestNotification')
+                    $first = & $waitFor $isTest 20 "test-$sound"
+                    $expected = [ordered]@{ Title = $texts['NotificationTestTitle']; BodyPrefix = $texts['NotificationTestBody']; HasSound = ($sound -ne 'Off'); Attachments = 0; LaunchArgument = 'settings=general' }
+                    foreach ($problem in @(Get-VerifyNotificationProblems -Notification $first -Expected $expected)) { $problems.Add("(c) sound ${sound}: $problem") }
+                    if (-not $first -or $sound -ne 'All') { continue }
+                    # A second one replaces the first: still one with that identifier, delivered later.
+                    Start-Sleep -Seconds 2
+                    $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTestNotification')
+                    $replaced = & $waitFor { $_.identifier -ceq 'layerpeek-test-notification' -and $_.deliveredAt -and $_.deliveredAt -ne $first.deliveredAt } 20 'test-replaced'
+                    $count = @($script:lastList.Notifications | Where-Object -FilterScript $isTest).Count
+                    if (-not $replaced) { $problems.Add('(c) the second test notification was not delivered within 20 s') }
+                    elseif ($count -ne 1) { $problems.Add("(c) $count test notifications after the second one, expected 1 (replaced)") }
+                    else { $notes.Add('the second test notification replaced the first') }
+                    # A click brings Settings to the General tab.
+                    $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabRecording') -AllowFailure
+                    if (-not (& $waitTab $app.Id 'SettingsTabRecording')) { $problems.Add('(c) Settings did not switch to the Recording tab before the click'); continue }
+                    if (& $ncpress '(c)' $texts['NotificationTestTitle'] 'AXPress' 'test-click') {
+                        if (& $waitTab $app.Id 'SettingsTabGeneral') { $notes.Add('the click on the test notification opened Settings > General') }
+                        else { $problems.Add("(c) the click on the test notification did not show Settings > General within 15 s (selected: '$(& $selectedTab $app.Id)')") }
+                    }
+                }
+                finally { $null = Stop-TestApp $data $app; & $clear }
+            }
+
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            if ($skipped.Count -gt 0) { Skip-VerifyCheck "content as expected, not done: $($skipped -join '; '). Done: $($notes -join '; ')." }
+            New-VerifyResult PASS "(a) alarm with the snapshot (public.jpeg), category with '$($texts['NotificationFalseAlarm'])', sound as a printer error; (b) '$($texts['NotificationRecordingFailed'])' and '$($texts['NotificationTimelapseFailed'])'; (c) test notification with and without sound; $($notes -join '; ')."
+        }
+    }
+
     New-VerifyCheck -Id 'mac.icons' -Kind Manual -Title 'menu bar icons on light and dark menu bars, app icon next to system app icons (contact sheet)' `
         -Closes 'T-018 kritérium 1 (čitelnost ve světlém i tmavém režimu)', 'T-098 kritérium 2 (velikost vedle systémových aplikací)' -Action {
         param($c)
@@ -2872,7 +3053,7 @@ $presets = [ordered]@{
         'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
         'mac.plist-localnetwork', 'mac.decode', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
         'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.recording-files', 'mac.recording', 'mac.dashcam',
-        'mac.timelapse-files', 'mac.timelapse', 'mac.timelapse-layers', 'mac.keys', 'mac.update-check',
+        'mac.timelapse-files', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.keys', 'mac.update-check',
         'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
     )
 }
@@ -3031,5 +3212,5 @@ $latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
 Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse or mac.timelapse-layers.'
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers or mac.notifications-content.'
 exit (Get-VerifyExitCode -Results $results)

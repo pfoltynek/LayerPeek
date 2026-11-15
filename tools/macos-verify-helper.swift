@@ -32,6 +32,13 @@
 //                                    identifier, title, description, value, focused, frame (points, top left), actions,
 //                                    children; enabled and help (AXHelp) where present (needs Accessibility)
 //   axpress <pid> <identifier>       performs AXPress on the first element with that identifier (needs Accessibility)
+//   ncpress <text> <action> [<seconds>]  a notification banner or Notification Centre entry (the AX tree of
+//                                    com.apple.notificationcenterui) whose texts contain <text>: performs <action> on it,
+//                                    AXPress (= a click) or the name of a button of the notification (an AX custom action
+//                                    "Name:<action>…", e.g. "False alarm"); waits up to <seconds> (default 10) for it.
+//                                    Prints the element (description, actions) as JSON. Exit code 1: no such
+//                                    notification, 2: the action failed, 3: no Accessibility, 4: the notification is
+//                                    there but macOS shows no such action in AX (its actions on stderr) (T-212)
 //   axwindows <pid>                  the windows of a process as JSON: title, document (AXDocument: the file URL of
 //                                    the folder a Finder window shows), frame; no contents (needs Accessibility; T-210)
 //   axclose <pid> <path>             closes the window of a process whose AXDocument is <path> (a Finder window of a
@@ -510,6 +517,59 @@ func icons(_ output: String, _ menuBarFolder: String, _ appIcon: String, _ syste
 
 /// The text an element shows to the Accessibility API: its value, else its title, else its description (Avalonia gives a
 /// TextBlock its text as one of them, depending on the version).
+/// The texts of an element and its descendants (title, description, value), for finding a notification by its title or body.
+func subtreeTexts(_ element: AXUIElement, _ depth: Int = 0) -> [String] {
+    var texts = [kAXTitleAttribute, kAXDescriptionAttribute, kAXValueAttribute].map { text(element, $0) }.filter { !$0.isEmpty }
+    if depth < 12 { for child in children(element) { texts += subtreeTexts(child, depth + 1) } }
+    return texts
+}
+
+func actionNames(_ element: AXUIElement) -> [String] {
+    var names: CFArray?
+    return AXUIElementCopyActionNames(element, &names) == .success ? names as? [String] ?? [] : []
+}
+
+/// The deepest element under `element` that can be pressed and whose texts contain `wanted`: the notification itself,
+/// not the window or the list around it (their texts contain it too).
+func notificationElement(_ element: AXUIElement, _ wanted: String, _ depth: Int = 0) -> AXUIElement? {
+    guard depth < 12, subtreeTexts(element).contains(where: { $0.contains(wanted) }) else { return nil }
+    for child in children(element) { if let found = notificationElement(child, wanted, depth + 1) { return found } }
+    return actionNames(element).contains(kAXPressAction as String) ? element : nil
+}
+
+/// A notification of Notification Centre (the banner while it shows, or its entry in the open Notification Centre),
+/// found by a text of it; performs AXPress or the custom action of one of its buttons (T-212). macOS names a custom
+/// action "Name:<title>\nTarget:…\nSelector:…".
+func notificationPress(_ wanted: String, _ action: String, _ seconds: Double) {
+    requireTrusted()
+    guard let center = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.notificationcenterui").first else {
+        fail("Notification Centre (com.apple.notificationcenterui) does not run")
+    }
+    let app = AXUIElementCreateApplication(center.processIdentifier)
+    let found = waitFor(seconds) { () -> AXUIElement? in
+        for window in attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+            if let element = notificationElement(window, wanted) { return element }
+        }
+        return nil
+    }
+    guard let element = found else { fail("no notification containing '\(wanted)' in the AX tree of Notification Centre within \(seconds) s") }
+    let actions = actionNames(element)
+    let chosen = action == (kAXPressAction as String)
+        ? action
+        : actions.first { $0 == action || $0 == "Name:\(action)" || $0.hasPrefix("Name:\(action)\n") }
+    let described: [String: Any] = [
+        "role": text(element, kAXRoleAttribute), "subrole": text(element, kAXSubroleAttribute),
+        "description": text(element, kAXDescriptionAttribute), "actions": actions, "performed": chosen ?? "",
+    ]
+    guard let name = chosen else {
+        printJSON(described)
+        fail("the notification containing '\(wanted)' has no action '\(action)' in AX: \(actions.joined(separator: " | ").replacingOccurrences(of: "\n", with: " "))", code: 4)
+    }
+    let status = AXUIElementPerformAction(element, name as CFString)
+    if status != .success { fail("\(action) on the notification containing '\(wanted)' failed: \(status.rawValue)", code: 2) }
+    printJSON(described)
+}
+
 func shownText(_ element: AXUIElement) -> String {
     for name in [kAXValueAttribute, kAXTitleAttribute, kAXDescriptionAttribute] {
         let value = text(element, name)
@@ -981,6 +1041,9 @@ case "move" where arguments.count == 3: guard let x = Double(arguments[1]), let 
 case "ax" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axTree(pid)
 case "axwindows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axWindows(pid)
 case "axclose" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axClose(pid, arguments[2])
+case "ncpress" where arguments.count == 3 || arguments.count == 4:
+    guard let seconds = arguments.count == 4 ? Double(arguments[3]) : 10 else { fail("not a number of seconds") }
+    notificationPress(arguments[1], arguments[2], seconds)
 case "axpress" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axPress(pid, arguments[2])
 case "focusedid" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; focusedIdentifier(pid)
 case "axwatch" where arguments.count == 4 || arguments.count == 5:

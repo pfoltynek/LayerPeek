@@ -69,10 +69,13 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release -Skip mac.aot-sm
 i s `-Unattended`; otázky na posouzení nahrazuje Accessibility (záložka Nastavení, tooltip ikony v menu baru). Jednou
 připravit:
 - **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.menu-items`,
-  `mac.camera-pin`, `mac.update-check`, `mac.recording`, `mac.dashcam`, `mac.timelapse`, `mac.timelapse-layers`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
+  `mac.camera-pin`, `mac.update-check`, `mac.recording`, `mac.dashcam`, `mac.timelapse`, `mac.timelapse-layers`,
+  `mac.notifications-content`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
   okna jako důkaz, že je text výsledku opravdu vykreslený).
 - **Oznámení** „LayerPeek E2E“ povolená (Nastavení systému → Oznámení, nebo jednou interaktivně `-Only mac.notifications`)
-  – `mac.notifications` a oznámení během spánku v `mac.display-sleep`.
+  – `mac.notifications` a oznámení během spánku v `mac.display-sleep`. Pro `mac.notifications-content` navíc styl
+  upozornění „LayerPeek E2E“ **Trvalé** (Nastavení systému → Oznámení → LayerPeek E2E): banner pak v Centru oznámení
+  zůstane, dokud ho kontrola nestiskne (helper `ncpress`); u dočasného banneru může zmizet dřív a část skončí `SKIP`.
 - **sudo bez hesla jen pro `nc` jako `nobody`:** `sudo bash tools/macos-verify-sudoers.sh` (soubor
   `/etc/sudoers.d/layerpeek-verify`, odebrání `--remove`, obsah ukáže `--print`) – `mac.socket-other-user`.
 - **Zámek obrazovky:** Nastavení systému → Zamykací obrazovka → „Po spuštění spořiče nebo vypnutí displeje vyžadovat
@@ -99,7 +102,7 @@ připravit:
   dočasné odsunutí profilu LayerPeek (žurnál `scripts/aot-smoke.ps1`, obnova i `pwsh scripts/aot-smoke.ps1 -RestoreOnly`).
 - **Známé pozůstatky:** položka „LayerPeek E2E“ v Nastavení systému → Oznámení; Terminál v Soukromí a zabezpečení →
   Zpřístupnění, pokud jste ho povolili pro `mac.keys`, `mac.menu-items`, `mac.update-check`, `mac.recording`,
-  `mac.dashcam`, `mac.timelapse` nebo `mac.timelapse-layers` (po běhu vypněte).
+  `mac.dashcam`, `mac.timelapse`, `mac.timelapse-layers` nebo `mac.notifications-content` (po běhu vypněte).
 
 | Kontrola | Druh | Uzavírá | Sezení níže |
 |---|---|---|---|
@@ -127,6 +130,7 @@ připravit:
 | `mac.timelapse-files` | automaticky | T-160 (přehrání `…_timelapse.mp4` nahrazené `decode`), T-159 (simulátorová část), T-211 krit. 3 a souborová část krit. 1 a 2. Simulátor `--speed 20 --layers 12` se skutečným klipem Buddy3D, polling 1 s, timelapse tisku (`timelapsePrints`) ve složce testovacích dat. Po čase (interval 5 s): 30 s tisku, 30 s pauzy, 20 s tisku → počet snímků podle intervalu bez snímků pauzy (tolerance 7 s na úsek: dotaz, start, klíčový snímek). Po vrstvě: celý tisk 12 vrstev po 0,2 mm s pauzou 15 s → přesně 13 snímků (začátek, 11 změn vrstvy, hotový díl). Každý soubor `decode` bez chyby, `~/Movies/LayerPeek` beze změny | – |
 | `mac.timelapse` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-161 (bez notifikace T-212 a uříznutí T-214), T-211 krit. 1. Před prvním timelapse je „Přehrát poslední timelapse“ zakázané (tip AXHelp se zapíše). `menupress …>Spustit timelapse (experimentální)` → položka „Zastavit timelapse…“, v okně kamery „TL“ (`CameraTimelapseIndicator`) a tlačítko „Zastavit timelapse (experimentální)“ (`CameraTimelapseButton`) v normálním okně i malém náhledu. Během scénáře `paused` má tlačítko v AX názvu i „Během pauzy tisku se snímky nepořizují.“ (ztlumení, bez snímku obrazovky). Zastavení tlačítkem (AXPress) a z menu, „Přehrát poslední timelapse“ → `opened-files.txt`, `decode` a počet snímků podle intervalu | – |
 | `mac.timelapse-layers` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-159 (volba v UI a uložení; snímky tisku po vrstvách v `mac.timelapse-files`), T-211 krit. 2. Nastavení › Nahrávání: „Pořizovat snímek“ (`SettingsTimelapseTrigger`) přepnout na „Každou N. vrstvu (odhad)“ (klik a položka seznamu, záloha ↓ a Return). Číslo vedle se vymění (`SettingsTimelapseInterval` ↔ `SettingsTimelapseEveryNthLayer` s AX názvem „Vrstev mezi snímky“), tip (AXHelp) vysvětlí odhad z osy Z. Uložit → `recording.timelapseTrigger` = `layer` v `settings.json`, znovu otevřené Nastavení volbu ukáže | – |
+| `mac.notifications-content` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka, povolená oznámení „LayerPeek E2E“ se stylem Trvalé) | T-154 (notifikace poplachu), T-146 / T-161 (notifikace selhání), T-101 (zkušební upozornění), T-212 krit. 2–4. Obsah čte z centra oznámení režim `--layerpeek-e2e-notification-list` testovacího bundlu (JSON: titulek, text, kategorie, přílohy, zvuk, argument kliku a tlačítka; registrované kategorie s tlačítky). Tlačítka a kliky helper `ncpress <text> <akce>` (AX strom `com.apple.notificationcenterui`). (a) `LAYERPEEK_TEST_FAKE_DETECTOR=1`, tisk simulátoru: titulek = tiskárna, text „Možná chyba tisku – …“, 1 příloha `public.jpeg`, kategorie s „Falešný poplach“ (bez přenesení do popředí) už u prvního poplachu, zvuk jako chyba tiskárny (zvuk „Jen důležité“); „Falešný poplach“ → `detection/false-alarms/*.json`, aplikace nepřijde do popředí; klik na poplach dalšího tisku → okno kamery; snímek ve složce nahrávek, prázdná cache `notification-images`. (b) složka nahrávek `/Volumes/<neexistující>`: „Nahrávání kamery selhalo“ a „Timelapse selhal“ s argumentem `settings=recording`, klik → Nastavení › Nahrávání. (c) zkušební upozornění se zvukem „Vše“ a „Vypnuto“, druhé nahradí první (jeden záznam, pozdější čas), klik → Nastavení › Obecné. Akce, kterou macOS do AX nevystaví (`ncpress` exit 4), nebo banner mimo AX = `SKIP` s důvodem | – |
 | `mac.keys` | oprávnění (Zpřístupnění pro Terminál) | T-100 krit. 4 (část: ⌃⌘F, Esc, ⌘., ⌘W, ⌘⇧] jako skutečné události včetně stisku modifikátorů; přepnutí záložky čte z Accessibility) | 6.3 |
 | `mac.update-check` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka; Nahrávání obrazovky volitelně) | T-127 oddíl 1d (hlášení uživatele 2026-11-05: „Zkontrolovat nyní“ bez textu výsledku; skutečný klik do aktivního i neaktivního okna Nastavení a AXPress proti náhradnímu GitHub API na 127.0.0.1, text čtený z Accessibility, snímky okna) | – |
 | `mac.socket-other-user` | oprávnění (`sudo`, bez hesla s `tools/macos-verify-sudoers.sh`) | T-053 krit. 1 (spojení uživatele `nobody` se odmítne) | 10.1 |

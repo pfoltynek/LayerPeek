@@ -314,7 +314,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-209 | macOS ověření – ovládání menu v menu baru přes Accessibility (`menu` / `menupress`), `mac.menu-items` (hotovo) | macos | qa-reviewer | P2 | T-208 |
 | T-210 | macOS ověření – nahrávání a dashcam na testovacím bundlu, dekódování přes AVFoundation (`decode`) (hotovo; běh přes menu v T-127) | macos | qa-reviewer | P2 | T-208, T-209 |
 | T-211 | macOS ověření – timelapse na testovacím bundlu (ruční start / stop, po vrstvách, indikátor) | macos | qa-reviewer | P2 | T-210 |
-| T-212 | macOS ověření – čtení doručených notifikací testovacího bundlu a kontroly jejich obsahu | macos | ui-dev | P2 | T-208, T-209, T-210, T-211 |
+| T-212 | macOS ověření – čtení doručených notifikací testovacího bundlu a kontroly jejich obsahu (rozpracováno; běh kontroly v T-127 1n, plný `dotnet test` čeká na T-233) | macos | ui-dev | P2 | T-208, T-209, T-210, T-211, T-233 |
 | T-213 | macOS ověření – systémové dialogy souborů (`mac.file-dialogs`, NSOpenPanel přes Accessibility) | macos | qa-reviewer | P3 | T-209, T-211, T-212 |
 | T-214 | Headless testy rozložení se systémovým písmem San Francisco (macOS) ve všech jazycích (hotovo; potvrzení v běžící aplikaci v T-127) | macos | qa-reviewer | P3 | T-031 |
 | T-215 | macOS ověření – okna, Dock a ⌘Tab (T-151, T-102, T-038 otázka 2, T-184, T-026, T-188) | macos | qa-reviewer | P3 | T-209, T-210 |

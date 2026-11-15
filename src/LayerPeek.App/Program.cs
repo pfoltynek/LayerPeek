@@ -79,6 +79,19 @@ internal static partial class Program
             return Platform.MacOS.TestNotificationCleanup.StatusFromCommandLine(Console.Out, Console.Error);
         }
 
+        if (args.Contains(AppEnvironment.NotificationListArgument, StringComparer.Ordinal))
+        {
+            // The content checks of tools/macos-verify.ps1 (T-212): the delivered notifications and the categories of the test
+            // bundle as JSON, without changing or asking anything; nothing else starts.
+            if (!OperatingSystem.IsMacOS())
+            {
+                Console.Error.WriteLine("The notification list exists on macOS only.");
+                return 1;
+            }
+
+            return Platform.MacOS.TestNotificationList.ListFromCommandLine(Console.Out, Console.Error);
+        }
+
         if (args.Contains(AppEnvironment.ClearAutostartArgument, StringComparer.Ordinal))
         {
             // After a crashed test run (T-019): only the autostart stand-ins in the test data folder go; never the real Login
