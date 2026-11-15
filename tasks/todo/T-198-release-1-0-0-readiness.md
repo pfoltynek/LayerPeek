@@ -180,6 +180,8 @@ GitHubu ji pak ověří `-DryRun` a samotný upload 1.0.0, kde `release-publish.
 - [x] Na Macu běží build asi 20 min a Mac usíná po 10 min nečinnosti: build spouštět pod `caffeinate -i` (v `tmux`
       při práci přes SSH). V `docs/release.md` to chybí (nález 3.5).
       → doplněno 2026-11-11 (`docs/release.md`, „Vydání jedním příkazem“, „Běh na Macu“, „Vydání od 1.0.0“).
+      → opraveno 2026-11-15 na `caffeinate -d -i -u`: samotné `-i` displej neudrží a smoke test při spícím displeji
+      selže (generálka B4, viz Poznámky).
 
 ## 3. Veřejný repozitář (veřejný od 2026-10-30)
 
@@ -336,7 +338,7 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 4. **Generálka B4 (M, W, U):** na každém OS v samostatném worktree dočasná místní větev z `develop` s
    `<Version>1.0.0</Version>` a datovanou sekcí `CHANGELOG.md` (nikdy nepushnout), čistý strom, LayerPeek ukončený
    (smoke test spouští aplikaci s tvými nastaveními). Spustit `pwsh scripts/release-build.ps1 -FeedSigningKey <médium>`
-   (Mac pod `caffeinate -i`), heslo 2×. Výsledek: `build-info.json` se `Status` `signed` a otiskem `4cb047d1…`.
+   (Mac pod `caffeinate -d -i -u`), heslo 2×. Výsledek: `build-info.json` se `Status` `signed` a otiskem `4cb047d1…`.
    Pak větev i `artifacts/release/1.0.0` smazat (`release.ps1` složku verze stejně přepíše) a médium odpojit.
    (`docs/release.md`, „Podpis feedu aktualizací“, „Podepisování při vydání“)
 5. **GitHub (U):** T-180 účet, oddíl 3.2, **zapnout neměnná vydání** (rozhodnuto, otázka 4). `user.email` s adresou
@@ -349,7 +351,7 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 2. (U) `$env:GH_TOKEN = Read-Host -MaskInput` (T-180), nebo dočasné `gh auth login`.
 3. `pwsh scripts/release.ps1 -Version 1.0.0 -DryRun`: plán, žádné problémy; zapsat do T-127 3 bod 1 (T-055).
 4. (U) Připojit médium, `$env:LAYERPEEK_FEED_SIGNING_KEY = '/Volumes/LP-KEY/layerpeek-feed-key.pem'`, pak
-   `caffeinate -i pwsh scripts/release.ps1 -Version 1.0.0`. Potvrdit push `main` + `v1.0.0` (napsáním verze), push
+   `caffeinate -d -i -u pwsh scripts/release.ps1 -Version 1.0.0`. Potvrdit push `main` + `v1.0.0` (napsáním verze), push
    `develop`, heslo 2× během buildu, potvrdit upload do **konceptu**. Pak `Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY`
    a médium odpojit (`docs/release.md`, kroky 1–8 tabulky a „Podpis feedu (T-181)“). Výpis na konci nabídne
    `-AllowIncomplete` / `-AddToPublished`: **nepoužít** (neměnná vydání, T-200).
@@ -372,7 +374,7 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 4. (U) `shasum -a 256 -c SHA256SUMS-macos.txt` / `Get-FileHash` nad staženými soubory (`docs/release.md`, krok 6).
 5. **(M, W, U) Kontrola aktualizace z GitHubu buildem 0.9.9** (rozhodnuto, otázka 3), až po C2 a C3: na každém OS
    dočasný worktree z `v1.0.0`, `<Version>` 0.9.9 a sekce `## [0.9.9] - unreleased` jen v pracovním stromu,
-   `release-build.ps1 -SkipFeedSignature` (Mac pod `caffeinate -i`), instalace 0.9.9 (Windows po odinstalaci přes
+   `release-build.ps1 -SkipFeedSignature` (Mac pod `caffeinate -d -i -u`), instalace 0.9.9 (Windows po odinstalaci přes
    `Setup.exe`, Mac `ditto` do `/Applications`), **Zkontrolovat teď** nabídne 1.0.0 bez „Aktualizace odmítnuta…“,
    aktualizace proběhne, O aplikaci 1.0.0, v logu žádné odmítnutí feedu; pak worktree smazat
    (`git worktree remove --force`). Build 0.9.9 se **nikdy nenahrává**. Postup `docs/release.md`, „Kontrola aktualizace
@@ -387,6 +389,7 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 - [ ] B4: generálka podepsaného buildu 1.0.0 bez GitHubu prošla na Macu i na Windows (`build-info.json` `signed`,
       otisk `4cb047d1…7b91e26`), výsledek (datum, OS, doba buildu) zapsaný v Poznámkách. Žádná větev ani tag se
       nepushnuly
+      → Mac prošel 2026-11-15 (viz Poznámky); zbývá Windows
 - [x] B6: `CHANGELOG.md` – věta o 0.x nahrazená podle otázky 5, `[Unreleased]` doplněná o T-188, T-194, T-193,
       případný úvod jako `## [1.0.0] - unreleased` (otázka 7)
       → 2026-11-11: položky z changelog catch-up v `develop`; příslib 1.x a úvod přímo pod `## [Unreleased]` (skript ho
@@ -465,6 +468,20 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     provedeno; T-059 řádek po přijetí balíčku přepíše.
 
 ## Poznámky k implementaci
+- 2026-11-15 (Mac, hlavní agent, generálka B4 na Macu): samostatný worktree, místní větev `rehearsal/1.0.0`
+  z `origin/develop` (db1fa919) s commitem `<Version>1.0.0</Version>` a sekcí `## [1.0.0] - 2026-11-15`
+  (`ConvertTo-ReleaseChangelog`), čistý strom, LayerPeek neběžel. `caffeinate -d -i -u pwsh scripts/release-build.ps1
+  -FeedSigningKey /Volumes/LP-KEY-1/layerpeek-feed-key.pem` v `tmux`: **prošlo** (`BUILD-EXIT=0`, asi 25 min).
+  `build-info.json`: verze 1.0.0, commit d45e2d15, `Dirty` false, oba smoke testy (`osx-arm64`, `LayerPeek.app`)
+  `passed`, `FeedSignature` `signed` s otiskem `4cb047d1…7b91e26`; `shasum -a 256 -c SHA256SUMS-macos.txt` 8/8 OK.
+  Celý `dotnet test` v buildu zelený (11 093 prošlo, 0 selhalo, 243 přeskočeno) – podklad pro B5.
+  - První běh pod samotným `caffeinate -i` selhal ve smoke testu (`LaunchServices type '', expected 'UIElement'`):
+    displej spal a aplikace čeká na displej (T-096), stejně jako v T-217. `docs/release.md` a tento úkol proto nově
+    všude `caffeinate -d -i -u`; jinak by ostré vydání spadlo až po pushi tagu.
+  - Heslo klíče se při ručním zadání přes SSH/tmux opakovaně nepřijalo (20 znaků místo 17, nejspíš rozložení
+    klávesnice u `#`/`@`); po kontrole hesla prošlo. Při vydání heslo psát pozorně, případně ověřit předem
+    `Import-FeedSigningKey`.
+  - Nic se nepushnulo, žádný tag; větev `rehearsal/1.0.0`, worktree i `artifacts/release/1.0.0` smazané.
 - 2026-11-15 (Windows, hlavní agent, T-125 2aa): identita v gitu na Windows ověřena – v klonu `user.email` =
   `12541813+pfoltynek@users.noreply.github.com`, globálně `user.name` = Petr Foltýnek a `user.useConfigOnly` = `true`;
   commit c23597c8 má autora i committera s adresou noreply. 46 dříve pushnutých commitů z Windows (2026-11-12 až

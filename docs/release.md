@@ -86,7 +86,7 @@ The Windows files follow on a Windows machine (docs/release.md, release on two m
 - **`-DryRun`:** nic nezmění v gitu ani na GitHubu a nic nestahuje, jen čte (`git ls-remote`, `gh auth status`, `gh release view`) a vypíše plán. Nestažený `origin/main` / `origin/develop` ohlásí s příkazem `git fetch origin`. Změnu `CHANGELOG.md` ověří na kopii v dočasné složce.
 - **`-Repo owner/název`:** jako u uploadu a publish (zkušební vydání); push `main`, tagu a `develop` pak jde na remote tohoto repozitáře a kontroly se dělají proti němu. **Jen v samostatném dočasném klonu bez `origin`** (viz „Zkušební vydání“): klon, jehož `origin` je jiný repozitář, skript odmítne, aby jeho `main` a `develop` nedostaly sloučení cizího vydání.
 - **Podpis feedu (T-181):** krok 7 spouští `release-build.ps1` bez parametrů, klíč proto bere z proměnné prostředí. Před spuštěním připoj médium s klíčem a nastav `$env:LAYERPEEK_FEED_SIGNING_KEY = '<cesta ke klíči>'` ve stejném terminálu; build se zeptá na heslo dvakrát (před buildem a při podpisu na konci) a médium musí zůstat připojené až do konce buildu (viz „Podpis feedu aktualizací“). Že stačí proměnná prostředí a `release.ps1` vlastní parametr `-FeedSigningKey` nemá, rozhodl uživatel 2026-11-11 (otázka 20 v T-181). Bez proměnné krok 7 skončí chybou a další běh `release.ps1` začne znovu buildem. Když selže až podpis na konci buildu (médium odpojené a `abort`, 3× špatné heslo), nespouštěj celý build znovu: v čistém checkoutu tagu `git switch --detach vX.Y.Z`, `pwsh scripts/release-build.ps1 -SignOnly`, pak `git switch develop` a znovu `release.ps1 -Version X.Y.Z`; krok 7 už najde hotový podepsaný build a pokračuje nahráním (viz „Jen podepsat hotový `dist/`“, T-197).
-- **Mac usíná** (po 10 minutách nečinnosti) a build trvá asi 20 minut: na Macu spouštěj `release.ps1` i `release-build.ps1` pod `caffeinate -i` (např. `caffeinate -i pwsh scripts/release.ps1 -Version X.Y.Z`), při práci přes SSH navíc v `tmux`. Proměnné prostředí (`LAYERPEEK_FEED_SIGNING_KEY`, `GH_TOKEN`) i výzvy na heslo a potvrzení projdou, `caffeinate` jen spustí příkaz ve stejném terminálu.
+- **Mac usíná** (po 10 minutách nečinnosti) a build trvá asi 20 minut: na Macu spouštěj `release.ps1` i `release-build.ps1` pod `caffeinate -d -i -u` (např. `caffeinate -d -i -u pwsh scripts/release.ps1 -Version X.Y.Z`), při práci přes SSH navíc v `tmux`. Proměnné prostředí (`LAYERPEEK_FEED_SIGNING_KEY`, `GH_TOKEN`) i výzvy na heslo a potvrzení projdou, `caffeinate` jen spustí příkaz ve stejném terminálu. Samotné `caffeinate -i` nestačí: drží vzhůru systém, ne displej, a při spícím displeji aplikace ve smoke testu čeká na displej (T-096), takže `aot-smoke.ps1` selže s `LaunchServices type '', expected 'UIElement'` (ověřeno generálkou B4 2026-11-15). `-d -u` drží displej vzhůru.
 - **Potvrzení** čte `Read-Host`, takže mohou přijít i z roury, jeden řádek na otázku (tak to dělají Pester testy: `'X.Y.Z', 'y', 'y' | pwsh scripts/release.ps1 -Version X.Y.Z`). Neinteraktivní relace znamená „ne“.
 
 ### Co `release.ps1` zkontroluje předem
@@ -158,7 +158,7 @@ Mac první:
    git pull --ff-only
    pwsh scripts/release.ps1 -Version X.Y.Z -DryRun
    $env:LAYERPEEK_FEED_SIGNING_KEY = '/Volumes/LP-KEY/layerpeek-feed-key.pem'   # médium připojené až do konce buildu
-   caffeinate -i pwsh scripts/release.ps1 -Version X.Y.Z                         # potvrzení pushů, heslo 2×, upload do konceptu
+   caffeinate -d -i -u pwsh scripts/release.ps1 -Version X.Y.Z                   # potvrzení pushů, heslo 2×, upload do konceptu
    Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY
    ```
 
@@ -290,7 +290,7 @@ Smoke test spustí publikovanou aplikaci na 10 s s tvými skutečnými nastaven�
 
 ### 4. Běh na Macu
 
-Stejné příkazy na Macu (Apple Silicon), **až když běh prvního OS úspěšně skončil** (souběžné běhy nejsou ošetřené; jde-li Mac první, je to naopak a krok 3 přijde po něm). Terminál musí být ve fyzické cestě k repozitáři (`echo $PWD` = `pwd -P`, viz [prerequisites.md](prerequisites.md)). Build spouštěj pod `caffeinate -i` (Mac jinak během asi 20 minut buildu usne), přes SSH v `tmux`.
+Stejné příkazy na Macu (Apple Silicon), **až když běh prvního OS úspěšně skončil** (souběžné běhy nejsou ošetřené; jde-li Mac první, je to naopak a krok 3 přijde po něm). Terminál musí být ve fyzické cestě k repozitáři (`echo $PWD` = `pwd -P`, viz [prerequisites.md](prerequisites.md)). Build spouštěj pod `caffeinate -d -i -u` (Mac jinak během asi 20 minut buildu usne), přes SSH v `tmux`.
 
 ```bash
 git switch --detach vX.Y.Z
@@ -373,7 +373,7 @@ nahradí nainstalovanou aplikaci. Na každém OS:
 
    ```powershell
    pwsh scripts/release-build.ps1 -SkipFeedSignature                 # Windows
-   caffeinate -i pwsh scripts/release-build.ps1 -SkipFeedSignature   # Mac
+   caffeinate -d -i -u pwsh scripts/release-build.ps1 -SkipFeedSignature   # Mac
    ```
 
 4. **Instalace 0.9.9:**
