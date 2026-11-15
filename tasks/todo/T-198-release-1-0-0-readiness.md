@@ -398,8 +398,9 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 - [ ] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný
 - [ ] B10: T-202 hotový (vlastní minimální LGPL build FFmpeg na Windows s D3D11VA, zdroj Windows u vydání bez BtbN)
 - [ ] B11: T-201 hotový (přeinstalace respektuje vypnutý autostart)
-- [ ] Uživatel zapnul v GitHubu (Settings → Emails) „Keep my email addresses private“ (otázka 11; „Block command line
-      pushes“ se **nezapíná**, rozhodnutí 2026-11-15)
+- [x] Uživatel zapnul v GitHubu (Settings → Emails) „Keep my email addresses private“ (otázka 11; „Block command line
+      pushes“ se **nezapíná**, rozhodnutí 2026-11-15) – hotovo 2026-11-15 (potvrdil uživatel; `gh api user` vrací
+      `email: null`)
 - [x] Odpovědi na otázky 2–4 a 6–10 zapsané
 - [x] `docs/release.md` po rozhodnutí o otázce 4 popisuje tok 1.0.0 (oba OS do konceptu), doplněný `caffeinate`
       a oprava věty o zkušebním vydání (2.2)
