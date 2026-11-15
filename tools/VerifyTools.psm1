@@ -1773,6 +1773,17 @@ function Test-VerifyUrlsRecorded {
     "$Log" -match 'RecordingUrlLauncher: Test mode: an address on .+ was recorded instead of opening the browser'
 }
 
+function Get-VerifyOpenFakeEnvironment {
+    <#
+    .SYNOPSIS
+        The environment of the test app of mac.open-fake: the PATH with the fake open first, and the Debug switch that opens
+        the links through the real launcher (/usr/bin/open, T-238) instead of recording them in opened-urls.txt. An older
+        build ignores the switch and still records them (Test-VerifyUrlsRecorded, the SKIP of the check).
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    @{ PATH = $Path; LAYERPEEK_TEST_REAL_URL_LAUNCHER = '1' }
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------
@@ -1828,17 +1839,23 @@ function Get-VerifyPanelItemProblems {
     <#
     .SYNOPSIS
         Whether the items of an open panel (the helper's 'panel' JSON, T-213) can be chosen as expected: every name of
-        -Allowed enabled, every name of -Refused disabled. Returns Problems, and Unknown: the names AX shows without an
-        enabled state (or not at all), which the check cannot judge.
+        -Allowed enabled, every name of -Refused disabled. An item is disabled with AXEnabled false or a dimmed name (alpha,
+        the opacity of its text colour, below 0.5), enabled with a name drawn at full strength; AXEnabled true alone does
+        not count: NSOpenPanel reports it also for the items its type filter dims (T-243). Returns Problems, and Unknown:
+        the names without an alpha or AXEnabled false (or not shown at all), which the check cannot judge.
     #>
     param([AllowEmptyCollection()] [object[]] $Items = @(), [string[]] $Allowed = @(), [string[]] $Refused = @())
     $problems = [System.Collections.Generic.List[string]]::new()
     $unknown = [System.Collections.Generic.List[string]]::new()
     foreach ($name in @($Allowed) + @($Refused)) {
         $item = @($Items | Where-Object { $_ -and "$($_.name)" -ceq $name }) | Select-Object -First 1
-        if (-not $item -or $null -eq $item.enabled) { $unknown.Add($name); continue }
+        $axEnabled = if ($item) { $item.PSObject.Properties['enabled'] }
+        $alpha = if ($item) { $item.PSObject.Properties['alpha'] }
+        $enabled = if ($axEnabled -and $axEnabled.Value -eq $false) { $false }
+        elseif ($alpha -and $null -ne $alpha.Value) { [double] $alpha.Value -ge 0.5 }
+        if ($null -eq $enabled) { $unknown.Add($name); continue }
         $expected = $Allowed -ccontains $name
-        if ([bool] $item.enabled -ne $expected) { $problems.Add("'$name' is $(if ($item.enabled) { 'enabled' } else { 'disabled' }), expected $(if ($expected) { 'enabled' } else { 'disabled' })") }
+        if ($enabled -ne $expected) { $problems.Add("'$name' is $(if ($enabled) { 'enabled' } else { 'disabled' }), expected $(if ($expected) { 'enabled' } else { 'disabled' })") }
     }
     [pscustomobject]@{ Problems = $problems.ToArray(); Unknown = $unknown.ToArray() }
 }

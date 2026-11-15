@@ -942,10 +942,11 @@ Describe 'Open panels (mac.file-dialogs; T-213, pure)' {
   "folder": "/private/var/folders/xy/lpv-1/Recordings/LP verify 1/", "folderTitle": "LP verify 1",
   "defaultButton": { "title": "Open", "enabled": false }, "cancelButton": { "title": "Cancel", "enabled": true },
   "items": [
-    { "name": "2026-11-15_10-00-00_Benchy.mp4", "role": "AXRow", "enabled": true },
-    { "name": "2026-11-15_10-00-00_Benchy_timelapse.mp4", "role": "AXRow", "enabled": true },
-    { "name": "notes.txt", "role": "AXRow", "enabled": false },
-    { "name": "other.mp4", "role": "AXRow", "enabled": null }
+    { "name": "2026-11-15_10-00-00_Benchy.mp4", "role": "AXGroup", "enabled": true, "alpha": 0.8470588235294118 },
+    { "name": "2026-11-15_10-00-00_Benchy_timelapse.mp4", "role": "AXGroup", "enabled": true, "alpha": 0.8470588235294118 },
+    { "name": "notes.txt", "role": "AXGroup", "enabled": true, "alpha": 0.24705882352941178 },
+    { "name": "other.mp4", "role": "AXGroup", "enabled": true, "alpha": null },
+    { "name": "old.mov", "role": "AXRow", "enabled": false }
   ],
   "frame": { "x": 100, "y": 100, "width": 800, "height": 500 }
 }
@@ -977,12 +978,21 @@ Describe 'Open panels (mac.file-dialogs; T-213, pure)' {
         Get-VerifyPanelProblems -Panel $other -Expected ([ordered]@{ Folder = '/tmp/LP verify 1' }) | Should -Be @("shows the folder 'Movies', expected '/tmp/LP verify 1'")
     }
 
-    It 'judges which items can be chosen and reports what AX does not tell' {
-        $result = Get-VerifyPanelItemProblems -Items @($script:panel.items) -Allowed '2026-11-15_10-00-00_Benchy.mp4', 'other.mp4', 'missing.mp4' -Refused 'notes.txt'
+    It 'judges which items can be chosen by the dimmed name and reports what AX does not tell' {
+        # T-243: NSOpenPanel reports AXEnabled true also for notes.txt, which its filter dims (alpha 0.25).
+        $result = Get-VerifyPanelItemProblems -Items @($script:panel.items) -Allowed '2026-11-15_10-00-00_Benchy.mp4', 'other.mp4', 'missing.mp4' -Refused 'notes.txt', 'old.mov'
         $result.Problems | Should -BeNullOrEmpty
         $result.Unknown | Should -Be @('other.mp4', 'missing.mp4')
-        (Get-VerifyPanelItemProblems -Items @($script:panel.items) -Allowed 'notes.txt' -Refused '2026-11-15_10-00-00_Benchy.mp4').Problems |
-            Should -Be @("'notes.txt' is disabled, expected enabled", "'2026-11-15_10-00-00_Benchy.mp4' is enabled, expected disabled")
+        (Get-VerifyPanelItemProblems -Items @($script:panel.items) -Allowed 'notes.txt', 'old.mov' -Refused '2026-11-15_10-00-00_Benchy.mp4').Problems |
+            Should -Be @("'notes.txt' is disabled, expected enabled", "'old.mov' is disabled, expected enabled", "'2026-11-15_10-00-00_Benchy.mp4' is enabled, expected disabled")
+    }
+
+    It 'does not take AXEnabled true alone for an item that can be chosen' {
+        $items = @([pscustomobject]@{ name = 'notes.txt'; role = 'AXRow'; enabled = $true }, [pscustomobject]@{ name = 'a.mp4'; role = 'AXRow' })
+        $result = Get-VerifyPanelItemProblems -Items $items -Allowed 'a.mp4' -Refused 'notes.txt'
+        $result.Problems | Should -BeNullOrEmpty
+        $result.Unknown | Should -Be @('a.mp4', 'notes.txt')
+        (Get-VerifyPanelItemProblems -Items @() -Refused 'notes.txt').Unknown | Should -Be @('notes.txt')
     }
 
     It 'reads the results of the file jobs from the log' {
@@ -1326,6 +1336,13 @@ Describe 'First run with an unlocked screen (2026-11-15, pure)' {
         Test-VerifyUrlsRecorded '2026-11-15 16:19:35.701 +01:00 INF [pid 34352] LayerPeek.App.Platform.RecordingUrlLauncher: Test mode: an address on github.com was recorded instead of opening the browser.' | Should -BeTrue
         Test-VerifyUrlsRecorded 'LayerPeek.App.Platform.ProcessUrlLauncher: opened' | Should -BeFalse
         Test-VerifyUrlsRecorded $null | Should -BeFalse
+    }
+
+    It 'starts the test app of mac.open-fake with the fake open first in PATH and the real launcher of T-238' {
+        $environment = Get-VerifyOpenFakeEnvironment -Path '/tmp/fake-open:/usr/bin:/bin'
+        $environment.PATH | Should -BeExactly '/tmp/fake-open:/usr/bin:/bin'
+        $environment.LAYERPEEK_TEST_REAL_URL_LAUNCHER | Should -BeExactly '1'
+        @($environment.Keys) | Should -HaveCount 2
     }
 }
 

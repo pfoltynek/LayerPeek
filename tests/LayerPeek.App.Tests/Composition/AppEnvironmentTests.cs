@@ -231,6 +231,8 @@ public sealed class AppEnvironmentTests
         // T-133: no stand-in for Windows' notification setting.
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Notifications.PretendedToastSetting"));
         Assert.Null(typeof(AppEnvironment).GetProperty("TestToasts", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
+        // T-238: no switch to the real browser in the test mode.
+        Assert.Null(typeof(AppEnvironment).GetProperty("TestRealUrlLauncher", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
         // T-020: no test bundle, no status mode, no cleanup of the test bundle's notifications; production keeps its bundle.
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationCleanup"));
         Assert.Null(typeof(AppEnvironment).GetField("TestBundleIdentifier", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));

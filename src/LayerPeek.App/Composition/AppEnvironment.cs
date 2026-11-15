@@ -264,6 +264,13 @@ internal sealed class AppEnvironment
     public const string TestFileJobDelayVariable = "LAYERPEEK_TEST_FILE_JOB_DELAY_MS";
 
     /// <summary>
+    /// Debug builds only (T-238): <c>1</c> opens links in the real default browser (<c>ProcessUrlLauncher</c>, on macOS via
+    /// <c>/usr/bin/open</c>) instead of recording them in <c>opened-urls.txt</c>, so that the macOS check
+    /// <c>mac.open-fake</c> sees the browser load the web of PrusaLink through the proxy.
+    /// </summary>
+    public const string TestRealUrlLauncherVariable = "LAYERPEEK_TEST_REAL_URL_LAUNCHER";
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
     /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
@@ -381,6 +388,9 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestFileJobDelayVariable"/>: the delay per item of the file jobs; otherwise zero.</summary>
     public TimeSpan TestFileJobDelay { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestRealUrlLauncherVariable"/>: links open in the real browser instead of a file.</summary>
+    public bool TestRealUrlLauncher { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -395,6 +405,7 @@ internal sealed class AppEnvironment
     /// <param name="fakeDetector">The detector of the end-to-end tests (T-154).</param>
     /// <param name="hardwareDecoder">The hardware decoder of the measurements (T-203), as given.</param>
     /// <param name="fileJobDelay">The delay per item of the JPEG export and the timelapse from a recording (T-213).</param>
+    /// <param name="realUrlLauncher">Links open in the real default browser instead of a file of addresses (T-238).</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
     public static AppEnvironment ForTests(
         string dataDirectory,
@@ -407,7 +418,8 @@ internal sealed class AppEnvironment
         TimeSpan? cameraOpenAfter = null,
         bool fakeDetector = false,
         string? hardwareDecoder = null,
-        TimeSpan fileJobDelay = default)
+        TimeSpan fileJobDelay = default,
+        bool realUrlLauncher = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -455,6 +467,7 @@ internal sealed class AppEnvironment
             TestFakeDetector = fakeDetector,
             TestHardwareDecoder = string.IsNullOrWhiteSpace(hardwareDecoder) ? null : hardwareDecoder.Trim(),
             TestFileJobDelay = fileJobDelay,
+            TestRealUrlLauncher = realUrlLauncher,
         };
     }
 
@@ -477,10 +490,11 @@ internal sealed class AppEnvironment
         string? fakeDetector = read(TestFakeDetectorVariable);
         string? hardwareDecoder = read(TestHardwareDecoderVariable);
         string? fileJobDelay = read(TestFileJobDelayVariable);
+        string? realUrlLauncher = read(TestRealUrlLauncherVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter), (TestFakeDetectorVariable, fakeDetector), (TestHardwareDecoderVariable, hardwareDecoder), (TestFileJobDelayVariable, fileJobDelay) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter), (TestFakeDetectorVariable, fakeDetector), (TestHardwareDecoderVariable, hardwareDecoder), (TestFileJobDelayVariable, fileJobDelay), (TestRealUrlLauncherVariable, realUrlLauncher) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -502,7 +516,8 @@ internal sealed class AppEnvironment
             cameraOpenAfter: string.IsNullOrEmpty(cameraOpenAfter) ? null : ParseMilliseconds(cameraOpenAfter, TestCameraOpenAfterVariable, MaxTestCameraAutoDelayMilliseconds),
             fakeDetector: fakeDetector == "1",
             hardwareDecoder: hardwareDecoder,
-            fileJobDelay: ParseMilliseconds(fileJobDelay, TestFileJobDelayVariable, MaxTestFileJobDelayMilliseconds));
+            fileJobDelay: ParseMilliseconds(fileJobDelay, TestFileJobDelayVariable, MaxTestFileJobDelayMilliseconds),
+            realUrlLauncher: realUrlLauncher == "1");
     }
 
     /// <summary>Only the loopback or an existing local folder; anything else refuses the start (never GitHub, never another host).</summary>
