@@ -83,6 +83,11 @@ Vlastní minimální build:
   `CiWorkflowTests`) a v `docs/prerequisites.md`, oddíl „CI (GitHub Actions)“, větu o Windows zipu BtbN.
 - **T-221 (2026-11-14):** s buildem BtbN dává rovina Y na Windows větší rozdíl proti BGRA než meze T-189 (1,72 / +1,44).
   Po přechodu na vlastní build změřit `GrayscaleSampleEquivalenceTests` znovu (zapsat do T-221).
+- **T-221 se řeší v rámci tohoto úkolu (rozhodnutí uživatele 2026-11-15).** T-228 už zavedl meze podle architektury
+  (arm64 1,5 / 1, x64 2,0 / 1,5) a změřil, že detekce změny podložky se nemění. Tady zbývá z T-221: změřit hodnoty
+  s vlastním buildem, dopad na skóre detektorů na Windows, návrh meze x64 pro uživatele a pak odstranit přeskočení
+  testu v CI na Windows (`ContinuousIntegration.IsWindowsRunner`) a ověřit zelený běh v CI. Kritéria T-221 se zaškrtnou
+  v T-221 a T-221 se uzavře spolu s tímto úkolem.
 
 ## Akceptační kritéria
 - [ ] První `dotnet build` na Windows přeloží FFmpeg z připnutého oficiálního tarballu (ověřený SHA-256, stejný jako
@@ -100,7 +105,7 @@ Vlastní minimální build:
 - [ ] `ThirdPartyLicenses`, `docs/prerequisites.md`, `docs/release.md`, README EN + CZ, `CHANGELOG.md` aktualizované
 - [ ] `dotnet publish src/LayerPeek.App -c Release -r win-x64` (Native AOT) projde, aplikace s kamerou běží
 - [ ] Po přechodu na vlastní build znovu změřit `GrayscaleSampleEquivalenceTests` na x64 (průměrná odchylka a posun) a navrhnout
-      limit x64 s rezervou ~15 % (rozhodnutí uživatele 2026-11-12, T-211; nový limit schvaluje uživatel)
+      limit x64 s rezervou ~15 % (rozhodnutí uživatele 2026-11-12, T-228; nový limit schvaluje uživatel); totéž uzavírá T-221
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky

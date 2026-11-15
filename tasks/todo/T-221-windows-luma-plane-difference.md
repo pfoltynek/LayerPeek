@@ -13,6 +13,12 @@ depends_on: []
 > s důvodem odkazujícím na tento úkol (`LAYERPEEK_CI=1`, `tests/Shared/ContinuousIntegration.cs`). Lokálně běží dál.
 > Souvisí s **T-202** (vlastní build FFmpeg pro Windows místo BtbN).
 
+> **Rozhodnutí uživatele 2026-11-15:** řeší se v rámci **T-202** (vlastní build FFmpeg pro Windows). Meze podle
+> architektury (arm64 1,5 / 1, x64 2,0 / 1,5) a měření na Windows vývojáře (1,72 / +1,44; s `SWS_ACCURATE_RND |
+> SWS_BITEXACT` 1,54 / +1,20; detekce změny podložky na `buddy3d.h264` beze změny, max. rozdíl skóre 0,0006) už
+> zavedl **T-228**. Zbytek (měření s vlastním buildem, dopad na detektory, schválení meze x64, odstranění přeskočení
+> v CI) dodělá T-202.
+
 ## Cíl
 T-189 bere vzorky detekce z roviny Y dekodéru místo z BGRA snímku. Meze testu ekvivalence (průměrný |rozdíl| ≤ 1,5,
 průměrný posun ≤ 1) byly změřené jen na macOS (1,31 / +0,87). Na runneru Windows (`windows-2025`, build FFmpeg BtbN)
