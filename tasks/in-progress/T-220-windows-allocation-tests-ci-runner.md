@@ -42,7 +42,10 @@ spolehlivý i na pomalém stroji a pořád zachytil skutečnou alokaci na vzorek
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-- (žádné)
+- ~~**Q1 (2026-11-15, qa-reviewer): jak oddělit alokační testy od provozu výsledků platformy?**~~ **Rozhodnuto
+  uživatelem 2026-11-15: varianta A – samostatný krok CI.** (Zvažované varianty: A samostatný krok CI, B samostatné
+  testovací projekty, C ponechat čekání a opakovat job; zdůvodnění v „Selhání v CI 2026-11-15“.) Implementace viz
+  „Samostatný krok CI (rozhodnutí Q1)“.
 
 ## Poznámky k implementaci
 Stav 2026-11-15 (qa-reviewer, worktree `LP-T-220`): příčiny nalezené a opravené v měření (ne v mezi, ne v kódu aplikace),
@@ -177,3 +180,70 @@ přeskočení v CI odstraněné. **Zbývá kritérium „3 zelené běhy CI po s
 - Kritérium 3: `dotnet build LayerPeek.slnx` je bez varování (ověřeno ve worktree); úplný `dotnet test` celého řešení
   agent nespouštěl (zadání) – spustí hlavní agent. Spuštěno: Core.Tests, Camera.FFmpeg.Tests, `CiWorkflowTests`.
 - Při slučování pozor: `.github/workflows/ci.yml` a `docs/prerequisites.md` mění souběžně i větev T-202.
+
+### Selhání v CI 2026-11-15 (běh 43742173997, commit c23597c8) – qa-reviewer
+- `PrintFailureDetectionAllocationTests.ASampleDoesNotAllocate` selhal po 1 min 48 s: „Allocated 227288 B (expected 0).
+  5 wait(s) for a quiet process timed out“ – čekání na začátku testu (60 s) i před všemi 4 platnými průchody (5 s)
+  vypršela. Další dva běhy (43745897232, 43748044752) na Windows prošly. Podle TRX (artefakt `test-results-win-x64`)
+  běžel test jako první měřící test kolekce `AllocationSensitive` po paralelní fázi (~3 400 výsledků); hned po něm
+  doběhly další alokační testy rychle, tj. šum trval ~108 s od konce paralelní fáze. V CI současně běží 4 sestavy
+  na 4 vCPU (Core, Detection, Camera.FFmpeg, UiTests), hostitel `dotnet test` odpovídá na zprávy výsledků pomalu.
+- **Reprodukce lokálně:** `dotnet test --solution` s výběrem Core, Detection, Camera.FFmpeg, PrusaLink, App,
+  PrusaSimulator (bez E2E/UI), proces omezený afinitou na 4 jádra (`0xF`, děti dědí), `LAYERPEEK_CI=1`, dočasná
+  diagnostika čekání a průchodů (odstraněna). Běh 1: čekání na začátku testu skončilo „klidem“ po 9,0 s, ale hned
+  další čekání (5 s) vypršelo a **průchod 0 naměřil 1 774 272 B**; průchody 1–2 pak 648 B a 0 B (test prošel díky
+  opakování). Běh 2: klid po 0,4 s, první průchod 0 B.
+- **Závěr:** fronta výsledků platformy (IPC do `dotnet test`, `RequestReplyAsync` čeká na odpověď hostitele) se
+  vyprazdňuje po dávkách – mezi dávkami je proces i stovky ms bez alokace, takže „250 ms bez alokace“ neznamená
+  „fronta je prázdná“. Délka fronty závisí na rychlosti hostitele (v CI desítky až stovky sekund). Čekání je proto jen
+  heuristika; delší limity by problém jen posunuly.
+- **Zvážené a zamítnuté varianty:**
+  - Počítat jen vlákna testovaného kódu: vzorek prochází vláknem testu, vláknem streamu hubu
+    (`CameraStreamHub.RunAsync`, `Task.Run`) a pracovní položkou `PrintFailureDetectionService.Run`
+    (`ThreadPool.UnsafeQueueUserWorkItem`, globální fronta poolu) – na stejných vláknech poolu běží i odesílání
+    platformy. `GC.GetAllocatedBytesForCurrentThread` nejde ohraničit kolem cizí pracovní položky bez háčku
+    v produkčním kódu; fake detektor pokrývá jen část `Execute` (ne `TakeLatest`, kontext, jas, potvrzovací okno).
+  - Vyřazení vláken platformy: vlákna poolu nejsou vyhrazená, nelze je odlišit.
+  - Spustit kolekci `AllocationSensitive` jako první (vlastní `ITestCollectionOrderer` na úrovni sestavy):
+    vyzkoušeno – xUnit 4.0.3 pouští kolekce s `DisableParallelization` vždy až po paralelní fázi bez ohledu na pořadí
+    (TRX: alokační testy na pozicích 3390–3409 z 3411). Prototyp odstraněn. Vlastní testovací framework
+    (`[assembly: TestFramework]`, přepsání `RunTestCollections`) by šel, ale závisí na vnitřnostech xUnit – nedoporučuji.
+  - Vzorkování `GCAllocationTick` (~100 KB) k vyřazení průchodů s cizí alokací: nepřesné, posluchač sám alokuje.
+- Zbývá izolace procesu (otázka Q1, rozhodnuto: samostatný krok CI).
+- Vedlejší nález (jiný úkol): při běhu na 4 jádrech jednou selhal
+  `UnixSocketInstanceTransportTests.ConnectionOfAnotherUserIsRefusedUnread(userKnown: False)`
+  (`tests/LayerPeek.App.Tests/SingleInstance/InstanceTransportTests.cs:528`, `Assert.True(refusing.PeerChecks > 0)`):
+  klient vzdá přeposlání po 1 s dřív, než primární instance pod zátěží spojení přijme a zkontroluje – závod v testu.
+
+### Samostatný krok CI (rozhodnutí Q1, 2026-11-15) – qa-reviewer
+- `tests/Shared/AllocationProbe.cs`: definice kolekce `AllocationSensitive` nese `[Trait("Category", "AllocationSensitive")]`
+  (konstanty `TraitName` / `TraitValue`). Trait definice kolekce xUnit přenáší na všechny její testy, takže stačí jedno
+  místo pro všech 5 projektů (Core, Camera.FFmpeg, App, PrusaLink, Detection) a nový test v kolekci ho dostane sám.
+- Hlídací testy `AllocationSensitiveTraitTests` (ve stejném sdíleném souboru, běží v každém projektu, který ho linkuje):
+  kolekce nese trait, podle kterého CI filtruje; každá třída `*AllocationTests` je v kolekci `AllocationSensitive`
+  (jinak by v CI běžela ve společném kroku). Opačný směr se nehlídá: v kolekci jsou i třídy s jiným názvem
+  (`*CostTests` v Detection.Tests, `WebProxyStreamingTests`), a to je v pořádku.
+- `.github/workflows/ci.yml`: hlavní krok `Test (Debug, …)` má `--filter-not-trait "Category=AllocationSensitive"`,
+  nový krok `Test the allocation-sensitive tests (Debug, in their own processes)` hned po něm spustí nad stejným
+  `ci-tests.slnf` jen `--filter-trait "Category=AllocationSensitive"`. TRX do stejné složky `TEST_RESULTS` (názvy souborů s časem se nepřekrývají), artefakt beze změny. Platí pro
+  job Windows i macOS (jeden job s maticí). Hlídá `CiWorkflowTests.TheAllocationTestsRunInTheirOwnStepAfterTheOtherTests`
+  (napsán nejdřív, před změnou workflow selhal). `docs/prerequisites.md`, oddíl „CI (GitHub Actions)“, bod 2 doplněn.
+- Lokální `dotnet test` beze změny (alokační testy běží se všemi ostatními).
+- Ověřeno lokálně (`dotnet test … --list-tests`): Core.Tests 3 371 testů = 3 351 s `--filter-not-trait` + 20
+  s `--filter-trait`; Camera.FFmpeg.Tests 224 = 213 + 11; `--filter-trait` vybere v App.Tests, PrusaLink.Tests
+  a Detection.Tests právě třídy kolekce.
+- Běhy (bez zátěže): Core.Tests s `--filter-not-trait` 3 393 zelených, s `--filter-trait` 20 zelených;
+  Camera.FFmpeg.Tests 211 + 2 přeskočené / 11 zelených; `AllocationSensitiveTraitTests` v App, PrusaLink a Detection
+  zelené; Scripts.Tests 25 zelených + 1 přeskočený. Krok alokačních testů (Core + Camera.FFmpeg) na 4 jádrech se
+  4 zátěžovými procesy zelený (31 testů, 48 s). `dotnet build LayerPeek.slnx` 0 varování.
+- Kritérium „3 zelené běhy CI po sobě“ zůstává otevřené – ověří hlavní agent po sloučení.
+- **Po review (2026-11-15):** (1) krok alokačních testů má `if: ${{ !cancelled() && steps.build-debug.outcome == 'success' }}`
+  (krok `Build (Debug)` dostal `id: build-debug`), takže běží i po selhání hlavního kroku testů; job selže, když selže
+  kterýkoli z nich. (2) `--ignore-exit-code 8` odstraněn – předchozí poznámka byla chybná: kódem 8 skončí jen samostatný
+  běh projektu bez alokačních testů, `dotnet test --solution` nad více projekty, z nichž jeden žádný nemá, vrátí 0
+  (projekt jen hlásí „Zero tests ran“; ověřeno: Core + Camera.FFmpeg + PrusaSimulator s filtrem → exit 0, 31 testů).
+  Přepínač by tedy skryl jen případ, kdy neproběhl **žádný** alokační test (filtr bez shody → exit 8, ověřeno
+  s `Category=NoSuch`). `--minimum-expected-tests` záměrně nepoužit: pevné číslo by se muselo měnit s každým přidaným
+  či odebraným alokačním testem a liší se podle OS (přeskočené testy na macOS); úplnost výběru hlídá jediný trait
+  na definici kolekce a `AllocationSensitiveTraitTests`, prázdný výběr shodí exit 8 (ověřeno, že
+  `--minimum-expected-tests` na úrovni řešení funguje: 32 při 31 testech → exit 9).

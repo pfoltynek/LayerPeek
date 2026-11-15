@@ -5,8 +5,50 @@ namespace LayerPeek.Tests.Allocation;
 /// threads can make <see cref="GC.GetAllocatedBytesForCurrentThread"/> include the unused rest of this thread's
 /// allocation context (~8 KB) although the measured code allocated nothing.
 /// </summary>
+/// <remarks>
+/// T-220: every test of the collection carries the trait <see cref="TraitName"/>=<see cref="TraitValue"/> (a trait of the
+/// collection definition applies to all its tests). The CI runs them in a separate <c>dotnet test</c> step
+/// (<c>--filter-trait</c>, <c>.github/workflows/ci.yml</c>) and leaves them out of the main one: there the test platform
+/// still sends thousands of earlier results while this collection runs, which allocates on other threads.
+/// </remarks>
 [CollectionDefinition(nameof(AllocationSensitive), DisableParallelization = true)]
-public sealed class AllocationSensitive;
+[Trait(TraitName, TraitValue)]
+public sealed class AllocationSensitive
+{
+    /// <summary>Name of the trait the CI filters by.</summary>
+    public const string TraitName = "Category";
+
+    /// <summary>Value of the trait the CI filters by.</summary>
+    public const string TraitValue = "AllocationSensitive";
+}
+
+/// <summary>
+/// T-220: the CI runs the zero-allocation tests only through the trait of <see cref="AllocationSensitive"/>, so a test
+/// outside the collection or a collection without the trait would never run there in isolation (or not at all).
+/// </summary>
+public sealed class AllocationSensitiveTraitTests
+{
+    [Fact]
+    public void TheCollectionCarriesTheTraitTheCiFiltersBy()
+    {
+        TraitAttribute trait = Assert.Single(
+            typeof(AllocationSensitive).GetCustomAttributes(typeof(TraitAttribute), inherit: false).Cast<TraitAttribute>());
+
+        Assert.Equal(AllocationSensitive.TraitName, trait.Name);
+        Assert.Equal(AllocationSensitive.TraitValue, trait.Value);
+    }
+
+    [Fact]
+    public void EveryAllocationTestClassIsInTheCollection()
+    {
+        Type[] classes = [.. typeof(AllocationSensitiveTraitTests).Assembly.GetTypes()
+            .Where(static type => type.Name.EndsWith("AllocationTests", StringComparison.Ordinal))];
+
+        Assert.All(classes, static type => Assert.Equal(
+            nameof(AllocationSensitive),
+            type.GetCustomAttributes(typeof(CollectionAttribute), inherit: false).Cast<CollectionAttribute>().SingleOrDefault()?.Name));
+    }
+}
 
 /// <summary>Measures allocations of a code block robustly (see <see cref="AllocationSensitive"/>).</summary>
 internal static class AllocationProbe

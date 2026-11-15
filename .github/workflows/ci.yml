@@ -208,6 +208,7 @@ jobs:
           key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
 
       - name: Build (Debug)
+        id: build-debug
         run: dotnet build LayerPeek.slnx -c Debug
 
       # Every test project except tests/LayerPeek.E2E.Tests: the Windows image has Edge, so its browser tests would run
@@ -222,7 +223,20 @@ jobs:
           }
           $filter = Join-Path $env:RUNNER_TEMP 'ci-tests.slnf'
           @{ solution = @{ path = (Resolve-Path LayerPeek.slnx).Path; projects = $projects } } | ConvertTo-Json -Depth 3 | Set-Content $filter
-          dotnet test --solution $filter -c Debug --no-build --no-progress --results-directory $env:TEST_RESULTS --results-directory-layout per-module --report-xunit-trx
+          dotnet test --solution $filter -c Debug --no-build --no-progress --filter-not-trait "Category=AllocationSensitive" --results-directory $env:TEST_RESULTS --results-directory-layout per-module --report-xunit-trx
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # T-220 (user decision 2026-11-15): the zero-allocation tests (collection AllocationSensitive, tests/Shared/
+      # AllocationProbe.cs) count the allocations of every thread. In the main step the test platform is still sending
+      # thousands of earlier results to dotnet test while they run, so they run here, in processes that ran nothing else.
+      # Same projects as above (a project without such tests reports "Zero tests ran", the run still passes; a run in
+      # which no test at all matches fails with exit code 8). Runs also when the main test step failed, so both results
+      # are always there; the job fails if either step fails.
+      - name: Test the allocation-sensitive tests (Debug, in their own processes)
+        if: ${{ !cancelled() && steps.build-debug.outcome == 'success' }}
+        run: |
+          $filter = Join-Path $env:RUNNER_TEMP 'ci-tests.slnf'
+          dotnet test --solution $filter -c Debug --no-build --no-progress --filter-trait "Category=AllocationSensitive" --results-directory $env:TEST_RESULTS --results-directory-layout per-module --report-xunit-trx
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # Native AOT, without starting the app (scripts/aot-smoke.ps1 changes the profile and needs a display).
