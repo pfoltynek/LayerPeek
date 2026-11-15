@@ -315,7 +315,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-210 | macOS ověření – nahrávání a dashcam na testovacím bundlu, dekódování přes AVFoundation (`decode`) (hotovo; běh přes menu v T-127) | macos | qa-reviewer | P2 | T-208, T-209 |
 | T-211 | macOS ověření – timelapse na testovacím bundlu (ruční start / stop, po vrstvách, indikátor) | macos | qa-reviewer | P2 | T-210 |
 | T-212 | macOS ověření – čtení doručených notifikací testovacího bundlu a kontroly jejich obsahu (hotovo; běh kontroly v T-127 1n) | macos | ui-dev | P2 | T-208, T-209, T-210, T-211 |
-| T-213 | macOS ověření – systémové dialogy souborů (`mac.file-dialogs`, NSOpenPanel přes Accessibility) | macos | qa-reviewer | P3 | T-209, T-211, T-212 |
+| T-213 | macOS ověření – systémové dialogy souborů (`mac.file-dialogs`, NSOpenPanel přes Accessibility) (hotovo; běh kontroly v T-127 1o) | macos | qa-reviewer | P3 | T-209, T-211, T-212 |
 | T-214 | Headless testy rozložení se systémovým písmem San Francisco (macOS) ve všech jazycích (hotovo; potvrzení v běžící aplikaci v T-127) | macos | qa-reviewer | P3 | T-031 |
 | T-215 | macOS ověření – okna, Dock a ⌘Tab (T-151, T-102, T-038 otázka 2, T-184, T-026, T-188) | macos | qa-reviewer | P3 | T-209, T-210 |
 | T-216 | macOS ověření – drobné kontroly (autoclose, špendlík a editor výřezu přes AX, jazyk AppKitu, falešné `open`, HW dekódování, české rozložení) | macos | qa-reviewer | P3 | T-209, T-213 |

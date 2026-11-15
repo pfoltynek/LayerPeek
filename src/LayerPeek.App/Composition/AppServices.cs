@@ -759,6 +759,24 @@ internal static partial class AppServices
     };
 
     /// <summary>
+    /// The feeds the JPEG export and the timelapse from a recording read their file with; in the Debug test mode with
+    /// <see cref="AppEnvironment.TestFileJobDelayVariable"/> slowed down per item (T-213), never in Release builds.
+    /// </summary>
+    private static ICameraFeedFactory FileJobFeeds(IServiceProvider sp)
+    {
+        ICameraFeedFactory feeds = sp.GetRequiredService<ICameraFeedFactory>();
+#if DEBUG
+        TimeSpan delay = sp.GetRequiredService<AppEnvironment>().TestFileJobDelay;
+        if (delay > TimeSpan.Zero)
+        {
+            return new TestPacedCameraFeedFactory(feeds, delay);
+        }
+#endif
+
+        return feeds;
+    }
+
+    /// <summary>
     /// The test mode (T-044) records into its data folder by default, never into the user's video folder; the E2E tests
     /// of T-146 delete it with the rest of their data.
     /// </summary>
@@ -876,7 +894,7 @@ internal static partial class AppServices
         // (FFmpeg, MP4), Avalonia / Skia encodes (variant A1, nothing native added); idle without an export. The service keeps
         // the timelapse and the folder being written away from its rotation and counts the folder afterwards.
         services.AddSingleton(static sp => new CameraTimelapseJpegExporter(
-            sp.GetRequiredService<ICameraFeedFactory>(),
+            FileJobFeeds(sp),
             AvaloniaJpegSequenceEncoderFactory.Instance,
             sp.GetRequiredService<ILogger<CameraTimelapseJpegExporter>>(),
             sp.GetRequiredService<CameraRecordingService>()));
@@ -888,7 +906,7 @@ internal static partial class AppServices
         // decoder), the recording writer remuxes the chosen key frames (MP4, 30 fps); idle without a job. The service keeps the
         // recording and the file being written away from its rotation and counts the file afterwards.
         services.AddSingleton(static sp => new CameraTimelapseFromRecordingMaker(
-            sp.GetRequiredService<ICameraFeedFactory>(),
+            FileJobFeeds(sp),
             sp.GetRequiredService<ICameraRecordingWriterFactory>(),
             sp.GetRequiredService<ILogger<CameraTimelapseFromRecordingMaker>>(),
             sp.GetRequiredService<CameraRecordingService>()));

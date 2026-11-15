@@ -20,10 +20,29 @@
 //   menupress <pid> <path>           opens the menu, follows a path of exact titles separated by ">" (e.g.
 //                                    "Printer 1>Show camera") and presses the last item; an unknown or disabled item is
 //                                    exit code 1 with the titles of that level on stderr; the menu is always closed (T-209)
+//                                    A title ending with "*" matches every item whose title starts with the rest (an item
+//                                    whose title carries a changing percentage, T-213)
 //   trusted                          "true" / "false": whether this process (i.e. the terminal that started it) has the
 //                                    Accessibility permission; never asks for it
 //   key <combo>                      posts a key press, e.g. ctrl+cmd+f, cmd+w, cmd+period, cmd+shift+], escape
 //                                    (needs Accessibility; exit code 3 without it)
+//   type <text>                      types the text as Unicode key events into the focused element of the front app,
+//                                    whatever the keyboard layout (needs Accessibility; T-213)
+//   panel <pid> [<seconds>]          the open panels (NSOpenPanel / NSSavePanel: a window or sheet with a default and a
+//                                    cancel button and a file browser) of the process, or of the panel service of
+//                                    sandboxed apps when it has none, waiting up to <seconds> (default 0) for one: JSON
+//                                    list with pid and process (where the panel really is), role, subrole, sheet, title,
+//                                    texts (the message), main, focused (the key window of its app), frontmost (its app is
+//                                    active), folder (AXDocument) and folderTitle (the path pop-up), defaultButton and
+//                                    cancelButton (title, enabled: the language of AppKit), items (name, role, enabled
+//                                    where AX has it) and frame (needs Accessibility; T-213)
+//   panelgo <pid> <path> [<seconds>] chooses <path> in the open panel (waits up to <seconds>, default 5): Cmd-Shift-G, the
+//                                    path typed (as "type"), Return, then the default button (Open / Choose); prints
+//                                    JSON (field: what the Go to field held). Exit code 1: no panel, 2: no Go to field or
+//                                    the panel stayed open, 3: no Accessibility, 4: the default button stays disabled
+//                                    (the item cannot be chosen); on every failure the panel is cancelled (T-213)
+//   panelcancel <pid>                closes every open panel of the process with its cancel button, else Esc; "no panel"
+//                                    when none is open; exit code 1 when one stays open (T-213)
 //   click <x> <y>                    a left click at a point (global, top left origin; needs Accessibility)
 //   rightclick <x> <y>               a right click at a point (needs Accessibility)
 //   ctrlclick <x> <y>                a left click with Control held (needs Accessibility)
@@ -832,7 +851,9 @@ func menuPress(_ pid: Int32, _ path: String) {
         for (index, title) in titles.enumerated() {
             let items = children(menu).filter { text($0, kAXRoleAttribute) == kAXMenuItemRole }
             let level = titles[..<index].joined(separator: ">")
-            guard let item = items.first(where: { text($0, kAXTitleAttribute) == title }) else {
+            // A title ending with "*" matches by its start (an item whose title changes, e.g. a percentage; T-213).
+            let matches: (String) -> Bool = title.hasSuffix("*") ? { $0.hasPrefix(title.dropLast()) } : { $0 == title }
+            guard let item = items.first(where: { matches(text($0, kAXTitleAttribute)) }) else {
                 let available = items.map { "'\(text($0, kAXTitleAttribute))'" }.filter { $0 != "''" }
                 problem = "no item '\(title)' in the menu\(level.isEmpty ? "" : " '\(level)'"); its items: \(available.joined(separator: ", "))"
                 return false
@@ -1022,8 +1043,230 @@ func decode(_ path: String) {
     if !problems.isEmpty { exit(1) }
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Open panels (T-213)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// Types `text` as Unicode key events (CGEvent, no key codes: any character, whatever the keyboard layout) into the
+/// focused element of the front app.
+func typeText(_ text: String) {
+    requireTrusted()
+    let source = CGEventSource(stateID: .hidSystemState)
+    // One character per event (a key event carries at most 20 UTF-16 units) keeps every field and completion in step.
+    for character in text {
+        let chunk = Array(String(character).utf16)
+        for down in [true, false] {
+            guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: down) else { fail("no key event") }
+            event.flags = []
+            chunk.withUnsafeBufferPointer { event.keyboardSetUnicodeString(stringLength: $0.count, unicodeString: $0.baseAddress) }
+            event.post(tap: .cghidEventTap)
+        }
+        usleep(8_000)
+    }
+}
+
+/// The process of the open and save panels of sandboxed apps; LayerPeek is not sandboxed, so its panel is in its own
+/// process, but a check reports where the panel really was.
+let panelServicePrefix = "com.apple.appkit.xpc.openAndSavePanelService"
+
+/// A file browser below `element` (the list, outline, table or column browser of a panel), depth first, or nil.
+func fileBrowser(_ element: AXUIElement, _ depth: Int = 0) -> AXUIElement? {
+    if ["AXBrowser", kAXOutlineRole as String, kAXTableRole as String, kAXListRole as String].contains(text(element, kAXRoleAttribute)) { return element }
+    guard depth < 12 else { return nil }
+    for child in children(element) { if let found = fileBrowser(child, depth + 1) { return found } }
+    return nil
+}
+
+/// An open or save panel: a window or sheet with a default and a cancel button and a file browser.
+func isPanel(_ element: AXUIElement) -> Bool {
+    attribute(element, kAXDefaultButtonAttribute) != nil && attribute(element, kAXCancelButtonAttribute) != nil && fileBrowser(element) != nil
+}
+
+/// The panels of a process with the window each belongs to (itself, or the window of a sheet).
+func panels(_ pid: Int32) -> [(panel: AXUIElement, window: AXUIElement)] {
+    var result: [(panel: AXUIElement, window: AXUIElement)] = []
+    for window in attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+        if isPanel(window) { result.append((window, window)) }
+        for child in children(window) where text(child, kAXRoleAttribute) == "AXSheet" && isPanel(child) { result.append((child, window)) }
+    }
+    return result
+}
+
+/// The panels of the process, or else of the panel service (a sandboxed app's panel), waiting up to `seconds` for one.
+func findPanels(_ pid: Int32, _ seconds: Double) -> (pid: Int32, found: [(panel: AXUIElement, window: AXUIElement)]) {
+    let services = { NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier?.hasPrefix(panelServicePrefix) == true }.map(\.processIdentifier) }
+    let found = waitFor(seconds) { () -> (Int32, [(panel: AXUIElement, window: AXUIElement)])? in
+        for candidate in [pid] + services() {
+            let list = panels(candidate)
+            if !list.isEmpty { return (candidate, list) }
+        }
+        return nil
+    }
+    return found.map { (pid: $0.0, found: $0.1) } ?? (pid: pid, found: [])
+}
+
+/// The visible texts of a panel outside its file browser (the message), at most 20.
+func panelTexts(_ element: AXUIElement, _ depth: Int = 0) -> [String] {
+    let role = text(element, kAXRoleAttribute)
+    if depth > 0 && ["AXBrowser", kAXOutlineRole as String, kAXTableRole as String, kAXListRole as String].contains(role) { return [] }
+    var texts = role == (kAXStaticTextRole as String) ? [text(element, kAXValueAttribute)].filter { !$0.isEmpty } : []
+    if depth < 8 { for child in children(element) where texts.count < 20 { texts += panelTexts(child, depth + 1) } }
+    return Array(texts.prefix(20))
+}
+
+/// The items the file browser shows: name and, where AX has it, whether it can be chosen (the first AXEnabled in the row).
+func panelItems(_ browser: AXUIElement) -> [[String: Any]] {
+    var rows: [AXUIElement] = []
+    func collect(_ element: AXUIElement, _ depth: Int) {
+        guard rows.count < 200, depth < 10 else { return }
+        if text(element, kAXRoleAttribute) == (kAXRowRole as String) { rows.append(element); return }
+        for child in children(element) { collect(child, depth + 1) }
+    }
+    collect(browser, 0)
+    // An icon view has no rows: its items are the children of the list.
+    if rows.isEmpty { rows = Array(children(browser).prefix(200)) }
+    func enabled(_ element: AXUIElement, _ depth: Int) -> Bool? {
+        if let value = attribute(element, kAXEnabledAttribute) as? NSNumber { return value.boolValue }
+        guard depth < 4 else { return nil }
+        for child in children(element) { if let found = enabled(child, depth + 1) { return found } }
+        return nil
+    }
+    return rows.map { row in
+        let name = subtreeTexts(row).first ?? ""
+        var item: [String: Any] = ["name": name, "role": text(row, kAXRoleAttribute)]
+        item["enabled"] = enabled(row, 0) ?? NSNull()
+        return item
+    }
+}
+
+func buttonJSON(_ panel: AXUIElement, _ name: String) -> [String: Any] {
+    guard let value = attribute(panel, name) else { return ["title": NSNull(), "enabled": NSNull()] }
+    let button = value as! AXUIElement
+    return ["title": text(button, kAXTitleAttribute), "enabled": isEnabled(button)]
+}
+
+/// The folder a panel shows: the window's AXDocument (a file URL), else empty; and the title of its path pop-up.
+func panelFolder(_ panel: AXUIElement, _ window: AXUIElement) -> (document: String, popup: String) {
+    let document = [text(panel, kAXDocumentAttribute), text(window, kAXDocumentAttribute)].first { !$0.isEmpty } ?? ""
+    func popup(_ element: AXUIElement, _ depth: Int) -> String? {
+        if text(element, kAXRoleAttribute) == (kAXPopUpButtonRole as String) {
+            let value = [text(element, kAXValueAttribute), text(element, kAXTitleAttribute)].first { !$0.isEmpty }
+            if let value { return value }
+        }
+        guard depth < 8 else { return nil }
+        for child in children(element) { if let found = popup(child, depth + 1) { return found } }
+        return nil
+    }
+    let path = document.isEmpty ? "" : (URL(string: document)?.path ?? document)
+    return (path, popup(panel, 0) ?? "")
+}
+
+/// JSON of every open panel of the process (or of the panel service): see the usage at the top.
+func panelJSON(_ pid: Int32, _ seconds: Double) {
+    requireTrusted()
+    AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
+    let (owner, found) = findPanels(pid, seconds)
+    let app = AXUIElementCreateApplication(owner)
+    let running = NSRunningApplication(processIdentifier: owner)
+    let focusedWindow = attribute(app, kAXFocusedWindowAttribute)
+    printJSON(found.map { entry -> [String: Any] in
+        let folder = panelFolder(entry.panel, entry.window)
+        let browser = fileBrowser(entry.panel)
+        return [
+            "pid": Int(owner), "process": running?.localizedName ?? "", "bundleIdentifier": running?.bundleIdentifier ?? "",
+            "role": text(entry.panel, kAXRoleAttribute), "subrole": text(entry.panel, kAXSubroleAttribute),
+            "sheet": text(entry.panel, kAXRoleAttribute) == "AXSheet",
+            "title": text(entry.panel, kAXTitleAttribute), "texts": panelTexts(entry.panel),
+            "main": (attribute(entry.window, kAXMainAttribute) as? NSNumber)?.boolValue ?? false,
+            "focused": focusedWindow.map { CFEqual($0, entry.window) } ?? false,
+            "frontmost": running?.isActive ?? false,
+            "folder": folder.document, "folderTitle": folder.popup,
+            "defaultButton": buttonJSON(entry.panel, kAXDefaultButtonAttribute), "cancelButton": buttonJSON(entry.panel, kAXCancelButtonAttribute),
+            "items": browser.map(panelItems) ?? [],
+            "frame": frame(entry.panel),
+        ]
+    })
+}
+
+/// Brings the panel's app and window to the front, so that key events reach the panel; whether the app is in front.
+func raisePanel(_ owner: Int32, _ window: AXUIElement) -> Bool {
+    let app = AXUIElementCreateApplication(owner)
+    _ = AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+    _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    _ = AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+    return waitFor(2.0) { NSRunningApplication(processIdentifier: owner)?.isActive == true ? true : nil } != nil
+}
+
+/// Whether the panel is gone within `seconds`.
+func panelCloses(_ owner: Int32, _ panel: AXUIElement, _ seconds: Double) -> Bool {
+    waitFor(seconds) { panels(owner).contains { CFEqual($0.panel, panel) } ? nil : true } != nil
+}
+
+/// Closes the panel with its cancel button, else Esc; exit code 1 when it stays open.
+func cancelPanel(_ owner: Int32, _ entry: (panel: AXUIElement, window: AXUIElement)) {
+    if let button = attribute(entry.panel, kAXCancelButtonAttribute) { _ = AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString) }
+    if panelCloses(owner, entry.panel, 3.0) { return }
+    for _ in 0..<3 {
+        _ = raisePanel(owner, entry.window)
+        key("escape")
+        if panelCloses(owner, entry.panel, 1.0) { return }
+    }
+    fail("the panel is still open after Cancel and Esc")
+}
+
+func panelCancel(_ pid: Int32) {
+    requireTrusted()
+    AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
+    let (owner, found) = findPanels(pid, 0)
+    for entry in found { cancelPanel(owner, entry) }
+    print(found.isEmpty ? "no panel" : "cancelled \(found.count)")
+}
+
+/// Chooses `path` in the open panel: Cmd-Shift-G, the path typed, Return, then the default button (Open). Exit code 1: no
+/// panel within `seconds`, 2: the Go to field did not open or the panel stayed open, 4: the default button stays
+/// disabled (the file cannot be chosen). On every failure the panel is cancelled.
+func panelGo(_ pid: Int32, _ path: String, _ seconds: Double) {
+    requireTrusted()
+    AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
+    let (owner, found) = findPanels(pid, seconds)
+    guard let entry = found.first else { fail("no open panel of process \(pid) within \(seconds) s") }
+    let app = AXUIElementCreateApplication(owner)
+    func give(up message: String, code: Int32) -> Never {
+        cancelPanel(owner, entry)
+        fail(message, code: code)
+    }
+    guard raisePanel(owner, entry.window) else { give(up: "the app of the panel (pid \(owner)) did not come to the front", code: 2) }
+    let focusedField = { () -> AXUIElement? in
+        guard let focused = attribute(app, kAXFocusedUIElementAttribute) else { return nil }
+        let element = focused as! AXUIElement
+        return [kAXTextFieldRole as String, kAXComboBoxRole as String].contains(text(element, kAXRoleAttribute)) ? element : nil
+    }
+    // The search field of the panel may have the focus before: the Go to field is another one.
+    let before = focusedField()
+    key("cmd+shift+g")
+    guard let field = waitFor(3.0, { () -> AXUIElement? in
+        guard let field = focusedField(), before.map({ !CFEqual($0, field) }) ?? true else { return nil }
+        return field
+    }) else { give(up: "Cmd-Shift-G opened no Go to field within 3 s", code: 2) }
+    key("cmd+a")
+    typeText(path)
+    usleep(300_000)
+    let typed = text(field, kAXValueAttribute)
+    key("return")
+    guard let button = attribute(entry.panel, kAXDefaultButtonAttribute).map({ $0 as! AXUIElement }) else { give(up: "the panel has no default button", code: 2) }
+    guard waitFor(3.0, { isEnabled(button) ? true : nil }) != nil else {
+        give(up: "the default button '\(text(button, kAXTitleAttribute))' stays disabled after Go to '\(path)' (field: '\(typed)')", code: 4)
+    }
+    let title = text(button, kAXTitleAttribute)
+    AXUIElementSetMessagingTimeout(button, 1.0)
+    let status = AXUIElementPerformAction(button, kAXPressAction as CFString)
+    if status != .success && status != .cannotComplete { give(up: "AXPress on '\(title)' failed: \(status.rawValue)", code: 2) }
+    guard panelCloses(owner, entry.panel, 5.0) else { give(up: "the panel stayed open after '\(title)' (Go to '\(path)', field: '\(typed)')", code: 2) }
+    printJSON(["pid": Int(owner), "path": path, "field": typed, "button": title])
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|click|decode|dlopen|localized|icons ...") }
+guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|type|panel|panelgo|panelcancel|click|decode|dlopen|localized|icons ...") }
 switch command {
 case "screens": screens()
 case "windows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; windows(pid)
@@ -1034,6 +1277,14 @@ case "menu" where arguments.count == 2: guard let pid = Int32(arguments[1]) else
 case "menupress" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; menuPress(pid, arguments[2])
 case "trusted": print(AXIsProcessTrusted() ? "true" : "false")
 case "key" where arguments.count == 2: key(arguments[1])
+case "type" where arguments.count == 2: typeText(arguments[1])
+case "panel" where arguments.count == 2 || arguments.count == 3:
+    guard let pid = Int32(arguments[1]), let seconds = arguments.count == 3 ? Double(arguments[2]) : 0 else { fail("not a pid or a time") }
+    panelJSON(pid, seconds)
+case "panelgo" where arguments.count == 3 || arguments.count == 4:
+    guard let pid = Int32(arguments[1]), let seconds = arguments.count == 4 ? Double(arguments[3]) : 5 else { fail("not a pid or a time") }
+    panelGo(pid, arguments[2], seconds)
+case "panelcancel" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; panelCancel(pid)
 case "click" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; click(x, y)
 case "rightclick" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; mouse(x, y, [.mouseMoved, .rightMouseDown, .rightMouseUp], .right)
 case "ctrlclick" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; controlClick(x, y)

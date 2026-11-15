@@ -256,6 +256,14 @@ internal sealed class AppEnvironment
     public const string TestHardwareDecoderVariable = "LAYERPEEK_TEST_HW_DECODER";
 
     /// <summary>
+    /// Debug builds only (T-213): every item the JPEG export of a timelapse (T-165) and the timelapse from a recording (T-164)
+    /// read from their file comes this many milliseconds (0 to <see cref="MaxTestFileJobDelayMilliseconds"/>) later, so that
+    /// the macOS check <c>mac.file-dialogs</c> sees the progress in the menu and cancels a job in the middle. Camera windows,
+    /// recordings and live timelapses are not slowed down.
+    /// </summary>
+    public const string TestFileJobDelayVariable = "LAYERPEEK_TEST_FILE_JOB_DELAY_MS";
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
     /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
@@ -314,6 +322,9 @@ internal sealed class AppEnvironment
     /// <summary>The longest delay of the automatic close and reopen of the camera windows in the test mode (T-151).</summary>
     public const int MaxTestCameraAutoDelayMilliseconds = 120_000;
 
+    /// <summary>The longest delay per item of the file jobs in the test mode (T-213).</summary>
+    public const int MaxTestFileJobDelayMilliseconds = 1_000;
+
     /// <summary>
     /// Exit code of a test-mode start without an instance name suffix, with a relative data folder or an invalid test switch,
     /// and of a test start (<see cref="IsTestStart"/>) without the test data folder.
@@ -367,6 +378,9 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestHardwareDecoderVariable"/>: its value as given; otherwise <see langword="null"/>.</summary>
     public string? TestHardwareDecoder { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestFileJobDelayVariable"/>: the delay per item of the file jobs; otherwise zero.</summary>
+    public TimeSpan TestFileJobDelay { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -380,6 +394,7 @@ internal sealed class AppEnvironment
     /// <param name="cameraOpenAfter">The online delay of their automatic reopen (T-151).</param>
     /// <param name="fakeDetector">The detector of the end-to-end tests (T-154).</param>
     /// <param name="hardwareDecoder">The hardware decoder of the measurements (T-203), as given.</param>
+    /// <param name="fileJobDelay">The delay per item of the JPEG export and the timelapse from a recording (T-213).</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
     public static AppEnvironment ForTests(
         string dataDirectory,
@@ -391,7 +406,8 @@ internal sealed class AppEnvironment
         TimeSpan? cameraCloseAfter = null,
         TimeSpan? cameraOpenAfter = null,
         bool fakeDetector = false,
-        string? hardwareDecoder = null)
+        string? hardwareDecoder = null,
+        TimeSpan fileJobDelay = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -414,6 +430,11 @@ internal sealed class AppEnvironment
             throw new ArgumentOutOfRangeException(nameof(noDisplay), noDisplay, "The time without a display of the test mode is out of range.");
         }
 
+        if (fileJobDelay < TimeSpan.Zero || fileJobDelay > TimeSpan.FromMilliseconds(MaxTestFileJobDelayMilliseconds))
+        {
+            throw new ArgumentOutOfRangeException(nameof(fileJobDelay), fileJobDelay, "The file job delay of the test mode is out of range.");
+        }
+
         foreach ((TimeSpan? delay, string name) in new[] { (cameraCloseAfter, nameof(cameraCloseAfter)), (cameraOpenAfter, nameof(cameraOpenAfter)) })
         {
             if (delay is { } value && (value < TimeSpan.Zero || value > TimeSpan.FromMilliseconds(MaxTestCameraAutoDelayMilliseconds)))
@@ -433,6 +454,7 @@ internal sealed class AppEnvironment
             TestUpdateSource = updateSource,
             TestFakeDetector = fakeDetector,
             TestHardwareDecoder = string.IsNullOrWhiteSpace(hardwareDecoder) ? null : hardwareDecoder.Trim(),
+            TestFileJobDelay = fileJobDelay,
         };
     }
 
@@ -454,10 +476,11 @@ internal sealed class AppEnvironment
         string? cameraOpenAfter = read(TestCameraOpenAfterVariable);
         string? fakeDetector = read(TestFakeDetectorVariable);
         string? hardwareDecoder = read(TestHardwareDecoderVariable);
+        string? fileJobDelay = read(TestFileJobDelayVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter), (TestFakeDetectorVariable, fakeDetector), (TestHardwareDecoderVariable, hardwareDecoder) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter), (TestFakeDetectorVariable, fakeDetector), (TestHardwareDecoderVariable, hardwareDecoder), (TestFileJobDelayVariable, fileJobDelay) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -478,7 +501,8 @@ internal sealed class AppEnvironment
             cameraCloseAfter: string.IsNullOrEmpty(cameraCloseAfter) ? null : ParseMilliseconds(cameraCloseAfter, TestCameraCloseAfterVariable, MaxTestCameraAutoDelayMilliseconds),
             cameraOpenAfter: string.IsNullOrEmpty(cameraOpenAfter) ? null : ParseMilliseconds(cameraOpenAfter, TestCameraOpenAfterVariable, MaxTestCameraAutoDelayMilliseconds),
             fakeDetector: fakeDetector == "1",
-            hardwareDecoder: hardwareDecoder);
+            hardwareDecoder: hardwareDecoder,
+            fileJobDelay: ParseMilliseconds(fileJobDelay, TestFileJobDelayVariable, MaxTestFileJobDelayMilliseconds));
     }
 
     /// <summary>Only the loopback or an existing local folder; anything else refuses the start (never GitHub, never another host).</summary>
