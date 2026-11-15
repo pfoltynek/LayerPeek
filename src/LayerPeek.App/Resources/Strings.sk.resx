@@ -2005,4 +2005,19 @@
   <data name="SettingsSecurityMoreInfoHint" xml:space="preserve">
     <value>Otvorí v používateľskej príručke kapitolu o zabezpečení prístupu k PrusaLinku.</value>
   </data>
+  <data name="TextBoxCut" xml:space="preserve">
+    <value>Vys_trihnúť</value>
+  </data>
+  <data name="TextBoxCopy" xml:space="preserve">
+    <value>_Kopírovať</value>
+  </data>
+  <data name="TextBoxPaste" xml:space="preserve">
+    <value>_Prilepiť</value>
+  </data>
+  <data name="TextBoxPasteMac" xml:space="preserve">
+    <value>V_ložiť</value>
+  </data>
+  <data name="TextBoxSelectAll" xml:space="preserve">
+    <value>Vybrať _všetko</value>
+  </data>
 </root>

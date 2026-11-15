@@ -1628,15 +1628,32 @@ function Get-VerifyTitleLanguages {
         The languages of LayerPeek (en, cs, de, es, fr, it, pl, sk) whose AppKit titles contain the titles read (T-097
         question 5: in which language AppKit shows its panel and menu), the best first: Language and Matches (how many of
         the titles). An empty list when no title is known. "Annulla" alone is it, "Cancel" en; titles without a trailing
-        ellipsis and access key are compared exactly.
+        ellipsis and access key ("_", the app's own menus of T-242) are compared exactly.
     #>
     param([AllowEmptyCollection()] [AllowNull()] [string[]] $Titles = @())
-    $clean = @($Titles | Where-Object { $_ } | ForEach-Object { ($_ -replace '(…|\.\.\.)$', '').Trim() } | Select-Object -Unique)
+    $clean = @($Titles | Where-Object { $_ } | ForEach-Object { ($_ -replace '(…|\.\.\.)$', '' -replace '_', '').Trim() } | Select-Object -Unique)
     $found = foreach ($language in $script:AppKitTitles.Keys) {
         $count = @($clean | Where-Object { $script:AppKitTitles[$language] -ccontains $_ }).Count
         if ($count -gt 0) { [pscustomobject]@{ Language = $language; Matches = $count } }
     }
     @($found | Sort-Object -Property @{ Expression = 'Matches'; Descending = $true }, @{ Expression = 'Language'; Descending = $false })
+}
+
+function Get-VerifyTextMenuProblem {
+    <#
+    .SYNOPSIS
+        Why the items of the context menu of a text field are not all in LayerPeek's language (T-242: the app's own menu
+        follows the app language, not the system's); $null when they are. Titles as for Get-VerifyTitleLanguages.
+    #>
+    param([AllowEmptyCollection()] [AllowNull()] [string[]] $Titles = @(), [Parameter(Mandatory)] [string] $Language)
+    $read = @($Titles | Where-Object { $_ } | Select-Object -Unique)
+    if ($read.Count -eq 0) { return 'no items' }
+    $best = @(Get-VerifyTitleLanguages -Titles $read) | Select-Object -First 1
+    if (-not $best) { return "items '$($read -join "', '")' are in no LayerPeek language" }
+    $ours = @(Get-VerifyTitleLanguages -Titles $read) | Where-Object Language -EQ $Language | Select-Object -First 1
+    $matched = if ($ours) { $ours.Matches } else { 0 }
+    if ($matched -lt $read.Count) { return "items '$($read -join "', '")' are $($best.Language), expected all $Language ($matched of $($read.Count))" }
+    $null
 }
 
 function Get-VerifyOtherLanguage {

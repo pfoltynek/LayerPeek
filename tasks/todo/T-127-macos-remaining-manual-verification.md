@@ -617,6 +617,14 @@ v masce je přijatá (rozhodnuto uživatelem 2026-11-15). Podle `libAvaloniaNati
       po uložení, zavření a znovuotevření nastavení. Výsledek zapsat do poznámek T-234. Heslo ve stromu AX = nový úkol (únik
       hesla, priorita P1); chybějící podrole `AXSecureTextField` = doplnit do upstream issue (oddíl macOS) a do T-234.
 
+### 1u. Lokalizované kontextové menu textových polí (z T-242, implementováno na Macu 2026-11-15)
+Kontrola `mac.appkit-language` v běhu z 2026-11-15 skončila `SKIP` (zamčená obrazovka,
+`artifacts/verify/20261115-201553/`); headless UI testy menu prošly.
+- [ ] **T-242** (krit. 2): s odemčenou obrazovkou z Terminálu
+      `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Allow mac.appkit-language -Only mac.appkit-language`
+      → `PASS`: místní nabídka pole „Název“ (Nastavení › Tiskárny) má Vyjmout / Kopírovat / Vložit / Vybrat vše v jazyce
+      LayerPeeku (ne v jazyce systému), pole hesla bez Vyjmout a Kopírovat. `FAIL` = nový úkol.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

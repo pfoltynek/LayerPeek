@@ -2005,4 +2005,19 @@
   <data name="SettingsSecurityMoreInfoHint" xml:space="preserve">
     <value>Öffnet im Benutzerhandbuch das Kapitel zur Absicherung des Zugriffs auf PrusaLink.</value>
   </data>
+  <data name="TextBoxCut" xml:space="preserve">
+    <value>_Ausschneiden</value>
+  </data>
+  <data name="TextBoxCopy" xml:space="preserve">
+    <value>_Kopieren</value>
+  </data>
+  <data name="TextBoxPaste" xml:space="preserve">
+    <value>E_infügen</value>
+  </data>
+  <data name="TextBoxPasteMac" xml:space="preserve">
+    <value>_Einsetzen</value>
+  </data>
+  <data name="TextBoxSelectAll" xml:space="preserve">
+    <value>Alles aus_wählen</value>
+  </data>
 </root>
