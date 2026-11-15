@@ -725,6 +725,105 @@ Describe 'macOS helpers (pure)' {
     }
 }
 
+Describe 'Recordings (mac.decode, mac.recording-files, mac.recording, mac.dashcam; T-210, pure)' {
+    It 'reads the names of recordings, outage segments, dashcam saves and timelapses' {
+        $print = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_0.4n_0.2mm_PLA.mp4'
+        $print.Stamp | Should -BeExactly '2026-11-15_10-04-09'
+        $print.Title | Should -BeExactly 'benchy_0.4n_0.2mm_PLA'
+        $print.Kind | Should -BeExactly 'print'
+        $print.Segment | Should -Be 1
+        $outage = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_Phone stand-2.mp4'
+        $outage.Title | Should -BeExactly 'Phone stand'
+        $outage.Segment | Should -Be 2
+        (ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy-12.mp4').Segment | Should -Be 12
+        $untitled = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09.mp4'
+        $untitled.Title | Should -BeExactly ''
+        $untitled.Kind | Should -BeExactly 'print'
+        $dash = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_dashcam-attention.mp4'
+        $dash.Kind | Should -BeExactly 'dashcam'
+        $dash.Trigger | Should -BeExactly 'attention'
+        $dash.Title | Should -BeExactly 'benchy'
+        $dashTwo = ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_dashcam-manual-2.mp4'
+        $dashTwo.Trigger | Should -BeExactly 'manual'
+        $dashTwo.Title | Should -BeExactly ''
+        $dashTwo.Segment | Should -Be 2
+        (ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_timelapse.mp4').Kind | Should -BeExactly 'timelapse'
+        (ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_benchy_recording_timelapse.mp4').Kind | Should -BeExactly 'timelapse'
+        # No segment is numbered 1: "-1" belongs to the title.
+        (ConvertFrom-VerifyRecordingFileName '2026-11-15_10-04-09_x-1.mp4').Title | Should -BeExactly 'x-1'
+        foreach ($name in 'benchy.mp4', '2026-11-15_10-04.mp4', '2026-11-15_10-04-09_benchy.mov', '.layerpeek-recordings') {
+            ConvertFrom-VerifyRecordingFileName $name | Should -BeNullOrEmpty -Because $name
+        }
+    }
+
+    It 'judges the JSON of the helper decode' {
+        $seek = { param($At) [pscustomobject]@{ at = $At; time = 0; actualTime = 0; mean = 100; stdDev = 60 } }
+        $ok = [pscustomobject]@{ codec = 'avc1'; decodedFrames = 5; samples = 5; duration = 0.167; problems = @(); seeks = @('0 %', '25 %', '50 %', '75 %', 'end' | ForEach-Object { & $seek $_ }) }
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 0 -Frames 5) | Should -HaveCount 0
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 0 -Frames 4) | Should -Be @('5 decoded frame(s), expected 4')
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 0 -MinSeconds 1) | Should -Be @('duration 0.167 s, expected at least 1 s')
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 0 -MaxSeconds 0.1) | Should -Be @('duration 0.167 s, expected at most 0.1 s')
+        @(Get-VerifyDecodeProblems -Report $ok -ExitCode 1) | Should -Be @('exit code 1 without a problem')
+        $failed = [pscustomobject]@{ codec = 'hvc1'; decodedFrames = 0; samples = 2; duration = 0.1; problems = @('no frame decoded'); seeks = @() }
+        $problems = @(Get-VerifyDecodeProblems -Report $failed -ExitCode 1)
+        $problems | Should -Contain 'no frame decoded'
+        $problems | Should -Contain "codec 'hvc1', expected avc1"
+        @(Get-VerifyDecodeProblems -Report $failed -ExitCode 0) | Should -Contain 'exit code 0 despite the problems'
+        $fewSeeks = [pscustomobject]@{ codec = 'avc1'; decodedFrames = 5; duration = 1; problems = @(); seeks = @(& $seek '0 %') }
+        @(Get-VerifyDecodeProblems -Report $fewSeeks -ExitCode 0) | Should -Be @('1 seek(s), expected 5 (0, 25, 50, 75 % and the end)')
+        @(Get-VerifyDecodeProblems -Report $null -ExitCode 1) | Should -Be @('the helper printed no JSON (exit code 1)')
+    }
+
+    It 'cuts an MP4 file in the middle of its middle mdat box' {
+        function New-Box([string] $Type, [int] $Size, [switch] $Large) {
+            $bytes = [byte[]]::new($Size)
+            if ($Large) {
+                $bytes[3] = 1
+                $bytes[15] = [byte] $Size
+            }
+            else { $bytes[2] = [byte] ($Size -shr 8); $bytes[3] = [byte] ($Size -band 0xFF) }
+            [System.Text.Encoding]::ASCII.GetBytes($Type).CopyTo($bytes, 4)
+            $bytes
+        }
+        $file = [byte[]] @((New-Box 'ftyp' 24) + (New-Box 'moov' 40) + (New-Box 'moof' 16) + (New-Box 'mdat' 100) + (New-Box 'moof' 16) + (New-Box 'mdat' 200 -Large) + (New-Box 'moof' 16) + (New-Box 'mdat' 60))
+        # The mdat boxes start at 80, 196 and 412; the middle one (200 bytes, a 64-bit size) is cut at 196 + 100.
+        Get-VerifyMdatCut -Bytes $file | Should -Be 296
+        Get-VerifyMdatCut -Bytes ([byte[]] @((New-Box 'ftyp' 24) + (New-Box 'mdat' 50))) | Should -Be 49
+        Get-VerifyMdatCut -Bytes ([byte[]] (New-Box 'ftyp' 24)) | Should -BeNullOrEmpty
+        Get-VerifyMdatCut -Bytes ([byte[]] @(0, 0, 0)) | Should -BeNullOrEmpty
+    }
+
+    It 'reads the recording events of the app log in order' {
+        $log = @(
+            "2026-11-15 10:00:01.000 +01:00 [INF] Recording of printer 'verify' started (Automatic) into '2026-11-15_10-00-01_benchy.mp4'."
+            "2026-11-15 10:00:01.500 +01:00 [INF] Recording of printer 'verify' writes '2026-11-15_10-00-01_benchy.mp4'."
+            "2026-11-15 10:00:30.000 +01:00 [INF] Recording of printer 'verify' writes '2026-11-15_10-00-01_benchy-2.mp4'."
+            "2026-11-15 10:02:00.000 +01:00 [INF] Recording of printer 'verify' ended (2 file(s))."
+            "2026-11-15 10:03:00.000 +01:00 [INF] Dashcam of printer 'verify' saved 45.2 s into 1 file(s)."
+            "2026-11-15 10:04:00.000 +01:00 [WRN] Recording of printer 'verify' could not start (FolderUnavailable): Access denied"
+            "2026-11-15 10:05:00.000 +01:00 [INF] Something else."
+        ) -join "`n"
+        $events = @(Get-VerifyRecordingEvents $log)
+        @($events.Kind) | Should -Be @('Writes', 'Writes', 'Ended', 'DashcamSaved', 'Failed')
+        $events[1].File | Should -BeExactly '2026-11-15_10-00-01_benchy-2.mp4'
+        $events[2].Files | Should -Be 2
+        $events[3].Files | Should -Be 1
+        $events[4].Text | Should -BeLike '*FolderUnavailable*'
+        @($events.PrinterId | Select-Object -Unique) | Should -Be @('verify')
+        @(Get-VerifyRecordingEvents '') | Should -HaveCount 0
+    }
+
+    It 'puts the recording checks into the release preset' {
+        $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run.ExitCode | Should -Be 0 -Because $run.Text
+        foreach ($id in 'mac.decode', 'mac.recording-files') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
+        foreach ($id in 'mac.recording', 'mac.dashcam') {
+            @($run.Output | Where-Object { $_ -like "$id  *``[permission``]*" }) | Should -HaveCount 1 -Because $id
+            $run.Output[0] | Should -BeLike "*allowed in advance:*$id*"
+        }
+    }
+}
+
 Describe 'The stand-in GitHub API (tools/fake-github-releases.ps1)' {
     BeforeAll {
         function Start-ChildPwsh([string[]] $Arguments, [string] $Output) {

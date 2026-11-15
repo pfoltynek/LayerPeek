@@ -18,8 +18,9 @@
     the test apps, the notifications of the test bundle (--layerpeek-e2e-clear-toasts), the stand-in Login Items of the
     test data folders (--layerpeek-e2e-clear-autostart), the LaunchServices registration, Preferences and caches of the
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
-    tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items or
-    mac.update-check) Terminal in Privacy & Security > Accessibility (switch it off there yourself).
+    tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items,
+    mac.update-check, mac.recording or mac.dashcam) Terminal in Privacy & Security > Accessibility (switch it off there
+    yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
     when any check failed, 2 when the script could not run. The checks that need a visible desktop (mac.menubar,
@@ -362,13 +363,14 @@ function Remove-TestBundle($Bundle) {
     if ((Test-Path -LiteralPath $parent) -and -not (Get-ChildItem -LiteralPath $parent -Force)) { Remove-Item -LiteralPath $parent -Force }
 }
 
-function Get-Simulator($Context, [double] $Speed = 1) {
+function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip) {
     <#
     .SYNOPSIS
-        The PrusaSimulator (one printer, camera) on 127.0.0.1 with free ports, started once per run and time speed-up
-        (-Speed, e.g. 20 for a print that moves in seconds, T-209).
+        The PrusaSimulator (one printer, camera) on 127.0.0.1 with free ports, started once per run, time speed-up
+        (-Speed, e.g. 20 for a print that moves in seconds, T-209) and camera clip (-Clip, default the built-in one).
     #>
     $key = if ($Speed -eq 1) { 'Simulator' } else { "Simulator-x$Speed" }
+    if ($Clip) { $key += "-$Clip" }
     if ($Context.Shared.ContainsKey($key)) { return $Context.Shared[$key] }
     $dll = Get-SimulatorDll $Context
     $folder = Join-Path $Context.RunFolder 'tmp' "simulator-$(New-ShortId)"
@@ -376,6 +378,7 @@ function Get-Simulator($Context, [double] $Speed = 1) {
     $out = Join-Path $folder 'stdout.txt'
     $start = [System.Diagnostics.ProcessStartInfo]::new('/bin/sh')
     foreach ($argument in @('-c', 'exec dotnet "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', $dll, '--port', '0', '--camera-port', '0', '--scenario', 'printing', '--speed', "$Speed")) { $start.ArgumentList.Add($argument) }
+    if ($Clip) { foreach ($argument in '--camera-clip', $Clip) { $start.ArgumentList.Add($argument) } }
     $start.Environment['LPV_OUT'] = $out
     $start.UseShellExecute = $false
     $process = [System.Diagnostics.Process]::Start($start)
@@ -400,13 +403,34 @@ function Set-SimulatorScenario($Simulator, [string] $Scenario) {
     $null = Invoke-RestMethod -Method Post -Uri "$($Simulator.BaseUri.TrimEnd('/'))/_simulator/scenario/$Scenario" -TimeoutSec 10
 }
 
+function Set-SimulatorCamera($Simulator, [ValidateSet('offline', 'online')] [string] $State) {
+    <# .SYNOPSIS Switches the simulator's camera off (drops the clients, refuses new ones) or on again (T-210). #>
+    $null = Invoke-RestMethod -Method Post -Uri "$($Simulator.BaseUri.TrimEnd('/'))/_simulator/camera/$State" -TimeoutSec 10
+}
+
+function Get-SamplesFolder {
+    <# .SYNOPSIS The local real camera samples (never in the repository): $env:LAYERPEEK_SAMPLES or ~/LayerPeek-samples. #>
+    if ($env:LAYERPEEK_SAMPLES) { $env:LAYERPEEK_SAMPLES } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) 'LayerPeek-samples' }
+}
+
+function Get-Buddy3DClip {
+    <#
+    .SYNOPSIS
+        The 60 s clip of a real Buddy3D camera from the samples, or $null (user decision 2026-11-13, T-210 question 2: a
+        simulator recording of this clip stands in for a recording of the real camera).
+    #>
+    $clip = Join-Path (Get-SamplesFolder) 'clips' 'coreone-20261103-1905-60s.mp4'
+    if (Test-Path -LiteralPath $clip -PathType Leaf) { $clip } else { $null }
+}
+
 function New-TestData {
     <#
     .SYNOPSIS
         A test data folder (settings.json, test-secrets.txt) of the isolated test mode and its instance suffix. -Camera adds
         the camera of the printer, -Window its camera.window section. Removed at the end (after the autostart stand-ins).
     #>
-    param($Context, $Simulator, [string] $Camera, [System.Collections.IDictionary] $Window, [switch] $SharedTemp, [switch] $Notifications)
+    param($Context, $Simulator, [string] $Camera, [System.Collections.IDictionary] $Window, [System.Collections.IDictionary] $CameraOptions,
+        [string] $RecordingFolder, [switch] $SharedTemp, [switch] $Notifications)
     $base = if ($SharedTemp) { '/tmp' } else { [System.IO.Path]::GetTempPath() }
     $data = Join-Path $base "lpv-$(New-ShortId)"
     $null = New-Item -ItemType Directory -Force -Path $data
@@ -424,14 +448,19 @@ function New-TestData {
         if ($Camera) {
             $printer.camera = [ordered]@{ enabled = $true; streamUrl = $Camera }
             if ($Window) { $printer.camera.window = $Window }
+            # T-210: e.g. recordPrints, dashcam.
+            if ($CameraOptions) { foreach ($name in $CameraOptions.Keys) { $printer.camera[$name] = $CameraOptions[$name] } }
         }
         $settings.printers = @($printer)
         [System.IO.File]::WriteAllText((Join-Path $data 'test-secrets.txt'), "printer/$($script:PrinterId)`t$($Simulator.Password)`n")
     }
+    # -RecordingFolder: the recordings go into this folder of the test data (T-210), never into ~/Movies/LayerPeek.
+    if ($RecordingFolder) { $settings.recording = [ordered]@{ folder = (Join-Path $data $RecordingFolder) } }
     [System.IO.File]::WriteAllText((Join-Path $data 'settings.json'), ($settings | ConvertTo-Json -Depth 8))
     $testData = [pscustomobject]@{
         Context = $Context
         Data   = $data
+        Recordings = if ($RecordingFolder) { Join-Path $data $RecordingFolder } else { Join-Path $data 'Recordings' }
         Suffix = $suffix
         Socket = Get-VerifyInstanceSocketPath -DataDirectory $data -Suffix $suffix -TempDirectory ([System.IO.Path]::GetTempPath()) -UserId ([int] (& /usr/bin/id -u))
         Logs   = Join-Path $data 'logs'
@@ -573,6 +602,76 @@ function Test-FullScreen($Window, $Screens) {
 
 function Get-RtspConnections([int] $ProcessId, [int] $Port) {
     @(& /usr/sbin/lsof -a -n -P -p $ProcessId "-iTCP:$Port" -sTCP:ESTABLISHED 2>$null | Select-Object -Skip 1)
+}
+
+function Invoke-Decode($Context, [string] $File, [string] $Evidence) {
+    <#
+    .SYNOPSIS
+        The helper's 'decode' of a recording (T-210, AVFoundation as QuickTime Player plays it): Report (its JSON, $null when
+        it printed none), ExitCode, Error (stderr) and Problems (Get-VerifyDecodeProblems without expectations). The JSON is
+        kept as evidence -Evidence.
+    #>
+    $errors = Join-Path $Context.RunFolder 'tmp' "decode-$(New-ShortId).txt"
+    $text = @(& (Get-Helper $Context) 'decode' $File 2>$errors) -join "`n"
+    $code = $LASTEXITCODE
+    $stderr = if (Test-Path -LiteralPath $errors) { (Get-Content -LiteralPath $errors -Raw); Remove-Item -LiteralPath $errors -Force } else { '' }
+    $report = $null
+    if ($text) { try { $report = $text | ConvertFrom-Json -Depth 10 } catch { $report = $null } }
+    $null = Save-VerifyEvidence -Context $Context -Name $Evidence -Content @($text, $(if ($stderr) { "stderr: $stderr" }))
+    [pscustomobject]@{ Report = $report; ExitCode = $code; Error = "$stderr".Trim(); Problems = @(Get-VerifyDecodeProblems -Report $report -ExitCode $code) }
+}
+
+function Get-RecordingFiles([string] $Folder) {
+    <# .SYNOPSIS The .mp4 files below a recordings folder in the order they were created (name: "-2" sorts before ".mp4"). #>
+    if (-not (Test-Path -LiteralPath $Folder)) { return @() }
+    @(Get-ChildItem -LiteralPath $Folder -Recurse -File -Filter '*.mp4' | Sort-Object CreationTimeUtc, Name)
+}
+
+function Get-MoviesRecordingsState {
+    <# .SYNOPSIS The files of ~/Movies/LayerPeek (path and size), or 'missing': a run must leave them as they were (T-210). #>
+    $folder = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Movies' 'LayerPeek'
+    if (-not (Test-Path -LiteralPath $folder)) { return 'missing' }
+    (@(Get-ChildItem -LiteralPath $folder -Recurse -Force | ForEach-Object { "$([System.IO.Path]::GetRelativePath($folder, $_.FullName)) $(if ($_.PSIsContainer) { 'dir' } else { $_.Length })" }) | Sort-Object) -join "`n"
+}
+
+function Wait-RecordingEvent($TestData, [string] $Kind, [int] $Skip, [double] $TimeoutSeconds) {
+    <#
+    .SYNOPSIS
+        Waits for the recording event -Kind of the app's log (Get-VerifyRecordingEvents) after the first -Skip of that kind;
+        returns it, or $null after -TimeoutSeconds.
+    #>
+    $script:recordingEvent = $null
+    $null = Wait-VerifyCondition -TimeoutSeconds $TimeoutSeconds -IntervalMilliseconds 1000 -Condition {
+        $script:recordingEvent = @(Get-VerifyRecordingEvents (Read-TestLog $TestData) | Where-Object Kind -CEQ $Kind) | Select-Object -Skip $Skip -First 1
+        $null -ne $script:recordingEvent
+    }
+    $script:recordingEvent
+}
+
+function Get-RecordingEventCount($TestData, [string] $Kind) { @(Get-VerifyRecordingEvents (Read-TestLog $TestData) | Where-Object Kind -CEQ $Kind).Count }
+
+function Test-Recordings($Context, [System.IO.FileInfo[]] $Files, [double] $MinSeconds = -1, [double] $MaxSeconds = -1) {
+    <# .SYNOPSIS Decodes every file (helper 'decode'); returns problems ("name: problem") and notes ("name: frames, duration"). #>
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $notes = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in $Files) {
+        $result = Invoke-Decode $Context $file.FullName "decode-$($file.BaseName).json"
+        foreach ($problem in Get-VerifyDecodeProblems -Report $result.Report -ExitCode $result.ExitCode -MinSeconds $MinSeconds -MaxSeconds $MaxSeconds) { $problems.Add("$($file.Name): $problem") }
+        if ($result.Error -and -not $result.Report) { $problems.Add("$($file.Name): $($result.Error)") }
+        if ($result.Report) { $notes.Add("$($file.Name): $($result.Report.decodedFrames) frames, $([math]::Round([double] $result.Report.duration, 1)) s") }
+    }
+    [pscustomobject]@{ Problems = $problems.ToArray(); Notes = $notes.ToArray() }
+}
+
+function Get-StatusToolTipLines($Context, [int] $ProcessId) {
+    <# .SYNOPSIS The lines of the status item's tooltip (AXHelp from 'statusitems'), or an empty list. #>
+    $tip = @(Get-StatusItems $Context $ProcessId | Where-Object { $_.width -gt 0 }) | Select-Object -First 1 | ForEach-Object help
+    @("$tip" -split "`n" | Where-Object { $_ })
+}
+
+function Find-MenuEntry($Items, [string] $Title) {
+    <# .SYNOPSIS The item of the helper's 'menu' JSON (or a submenu) with that exact title, or $null. #>
+    @(Get-VerifyMenuEntries $Items | Where-Object { $_.title -ceq $Title }) | Select-Object -First 1
 }
 
 function Get-AxTree($Context, [int] $ProcessId) { @((Invoke-Helper $Context @('ax', "$ProcessId")) -join "`n" | ConvertFrom-Json -Depth 100) }
@@ -1350,6 +1449,32 @@ $checks = @(
         New-VerifyResult PASS "$($languages.Count) languages ($($languages -join ', ')) in $source each resolve to their own translated text (localized.json)."
     }
 
+    New-VerifyCheck -Id 'mac.decode' -Kind Auto -Title 'helper decode (AVFoundation, as QuickTime Player plays a file): every frame, monotonic times and five exact seeks of a sample recording; a damaged copy fails' `
+        -Closes 'T-210 kritérium 1 (helper decode na t158-same-idr-pic-id.mp4: 5 snímků bez chyby, seek OK; oříznutý mdat exit 1)' -Action {
+        param($c)
+        $sample = Join-Path (Get-SamplesFolder) 'timelapse' 't158-same-idr-pic-id.mp4'
+        if (-not (Test-Path -LiteralPath $sample -PathType Leaf)) { Skip-VerifyCheck "the sample recording $(Hide-VerifyHomePath $sample) is missing (the real camera samples are in ~/LayerPeek-samples, never in the repository; LAYERPEEK_SAMPLES sets another folder)." }
+        $good = Invoke-Decode $c $sample 'decode-sample.json'
+        $problems = [System.Collections.Generic.List[string]]::new()
+        foreach ($problem in Get-VerifyDecodeProblems -Report $good.Report -ExitCode $good.ExitCode -Frames 5) { $problems.Add("sample: $problem") }
+        # The damaged copy: cut in the middle of an mdat box, so that a sample is incomplete.
+        $bytes = [System.IO.File]::ReadAllBytes($sample)
+        $cut = Get-VerifyMdatCut -Bytes $bytes
+        if ($null -eq $cut) { return New-VerifyResult FAIL "the sample has no mdat box to cut ($($problems -join '; '))." }
+        $folder = Join-Path $c.RunFolder 'tmp' "decode-$(New-ShortId)"
+        $null = New-Item -ItemType Directory -Force -Path $folder
+        $damaged = Join-Path $folder 'damaged.mp4'
+        $stream = [System.IO.File]::Create($damaged)
+        try { $stream.Write($bytes, 0, [int] $cut) } finally { $stream.Dispose() }
+        try { $bad = Invoke-Decode $c $damaged 'decode-damaged.json' }
+        finally { Remove-Item -LiteralPath $folder -Recurse -Force }
+        if ($bad.ExitCode -ne 1) { $problems.Add("the damaged copy (cut at byte $cut of $($bytes.Length)) ended with exit code $($bad.ExitCode), expected 1") }
+        elseif (@($bad.Report.problems).Count -eq 0) { $problems.Add('the damaged copy ended with exit code 1 but without a problem in its JSON') }
+        if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+        $seeks = @($good.Report.seeks | ForEach-Object { "$($_.at) mean $($_.mean) / sd $($_.stdDev)" }) -join ', '
+        New-VerifyResult PASS "t158-same-idr-pic-id.mp4: $($good.Report.codec) $($good.Report.width) x $($good.Report.height), $($good.Report.decodedFrames) of $($good.Report.samples) frames decoded, $($good.Report.duration) s, times monotonic, seeks $seeks (decode-sample.json); the copy cut at byte $cut of $($bytes.Length) (in an mdat) gave exit code 1: $(@($bad.Report.problems)[0]) (decode-damaged.json)."
+    }
+
     New-VerifyCheck -Id 'mac.gatekeeper' -Kind Auto -Title 'Gatekeeper rejects a quarantined copy of the .dmg app (spctl), as docs/release.md describes' `
         -Closes 'T-019 kritérium 12 (část: posouzení Gatekeeperem; dialog viz mac.gatekeeper-dialog)' -Action {
         param($c)
@@ -1603,6 +1728,363 @@ $checks = @(
 
             if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
             New-VerifyResult PASS "outline $($away.Pixels) px at every edge and corner of the mini preview ($(($sides | ForEach-Object { '{0} {1:0}/{2:0}' -f $_, $away.Edge.$_, $hover.Edge.$_ }) -join ', ') away/over; inside about $([math]::Round($away.Inner.top))), none in the normal window; the colours are fixed (white over the black content), so light and dark appearance look the same. Captures: mini-pointer-away.png, mini-pointer-over.png."
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.recording-files' -Kind Auto -Title 'files of the automatic print recording (a camera outage, the next print, the end a minute later) and of the dashcam triggers error, attention and stopped; every file decodes (simulator x20 with a real Buddy3D clip)' `
+        -Closes 'T-145 (simulátorová část: soubor <datum>_<čas>_<název tisku>.mp4, uzavření asi minutu po konci, další tisk = nový soubor)', 'T-147 (kamera simulátoru se skutečným klipem Buddy3D: oba soubory nahrávky s výpadkem, …mp4 a …-2.mp4, decode OK)', 'T-148 (simulátorová část: spouštěče error / attention / stopped → …_dashcam-<spouštěč>.mp4, decode OK)', 'T-210 kritérium 5 a 6 (nahrávka simulátoru decode OK; nic mimo dočasnou složku, ~/Movies/LayerPeek beze změny)' -Action {
+        param($c)
+        $clip = Get-Buddy3DClip
+        $simulator = Get-Simulator $c -Speed 20 -Clip $clip
+        $movies = Get-MoviesRecordingsState
+        $problems = [System.Collections.Generic.List[string]]::new()
+        $notes = [System.Collections.Generic.List[string]]::new()
+        $folderOf = { param($Data) Join-Path $Data.Recordings ((Get-Content -LiteralPath (Join-Path $Data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name) }
+
+        # 1. Automatic recording of a print: a camera outage gives "-2", the next print a new file, the end a minute later.
+        Set-SimulatorScenario $simulator 'idle'
+        $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -CameraOptions ([ordered]@{ recordPrints = $true }) -RecordingFolder 'Recordings'
+        $app = Start-TestApp -Context $c -TestData $data
+        $printFiles = @()
+        try {
+            Start-Sleep -Seconds 6
+            Set-SimulatorScenario $simulator 'printing'
+            $first = Wait-RecordingEvent $data 'Writes' 0 60
+            if (-not $first) { $problems.Add('print 1: no recording started within 60 s of printing') }
+            else {
+                Start-Sleep -Seconds 8
+                Set-SimulatorCamera $simulator 'offline'
+                Start-Sleep -Seconds 10
+                Set-SimulatorCamera $simulator 'online'
+                $second = Wait-RecordingEvent $data 'Writes' 1 60
+                $expected = "$([System.IO.Path]::GetFileNameWithoutExtension($first.File))-2.mp4"
+                if (-not $second) { $problems.Add("print 1: no second file within 60 s after the camera came back (expected $expected)") }
+                elseif ($second.File -cne $expected) { $problems.Add("print 1: the file after the outage is '$($second.File)', expected '$expected'") }
+                Start-Sleep -Seconds 6
+                # The next print within the minute after the end: a new file of its own.
+                Set-SimulatorScenario $simulator 'finished'
+                Start-Sleep -Seconds 10
+                Set-SimulatorScenario $simulator 'printing'
+                $third = Wait-RecordingEvent $data 'Writes' 2 60
+                if (-not $third) { $problems.Add('print 2: no new file within 60 s of the next print') }
+                else {
+                    $parts = ConvertFrom-VerifyRecordingFileName $third.File
+                    if (-not $parts -or $parts.Segment -ne 1 -or $parts.Stamp -ceq (ConvertFrom-VerifyRecordingFileName $first.File).Stamp) { $problems.Add("print 2: the file '$($third.File)' is not a new recording") }
+                    Start-Sleep -Seconds 8
+                    # The change of the job ended the first recording already (its two files).
+                    $endedBefore = Get-RecordingEventCount $data 'Ended'
+                    Set-SimulatorScenario $simulator 'finished'
+                    $finished = [System.Diagnostics.Stopwatch]::StartNew()
+                    $ended = Wait-RecordingEvent $data 'Ended' $endedBefore 150
+                    $seconds = [math]::Round($finished.Elapsed.TotalSeconds)
+                    if (-not $ended) { $problems.Add('print 2: the recording did not end within 150 s of the end of the print') }
+                    elseif ($seconds -lt 50 -or $seconds -gt 90) { $problems.Add("print 2: the recording ended $seconds s after the end of the print, expected about a minute (50 to 90 s)") }
+                    else { $notes.Add("the recording ended $seconds s after the end of the print") }
+                }
+            }
+            foreach ($failure in @(Get-VerifyRecordingEvents (Read-TestLog $data) | Where-Object Kind -CEQ 'Failed')) { $problems.Add("recording: $($failure.Text)") }
+        }
+        finally { $null = Stop-TestApp $data $app }
+        $printFiles = @(Get-RecordingFiles $data.Recordings)
+        $names = @($printFiles.Name)
+        $null = Save-VerifyEvidence -Context $c -Name 'print-files.txt' -Content $names
+        if ($printFiles.Count -ne 3) { $problems.Add("print recordings: $($printFiles.Count) file(s) ($($names -join ', ')), expected 3 (print 1, its -2 after the outage, print 2)") }
+        foreach ($file in $printFiles) {
+            $parts = ConvertFrom-VerifyRecordingFileName $file.Name
+            if (-not $parts -or $parts.Kind -cne 'print' -or -not $parts.Title) { $problems.Add("'$($file.Name)' is not named <date>_<time>_<print title>.mp4") }
+            if ($file.Directory.FullName -cne (& $folderOf $data)) { $problems.Add("'$($file.Name)' is not in the printer's folder") }
+        }
+        $decoded = Test-Recordings $c $printFiles -MinSeconds 2
+        foreach ($problem in $decoded.Problems) { $problems.Add($problem) }
+
+        # 2. The dashcam: each trigger during a print saves the last minutes and 30 s after the event.
+        Set-SimulatorScenario $simulator 'idle'
+        $dash = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -CameraOptions ([ordered]@{ dashcam = $true }) -RecordingFolder 'Recordings'
+        $app = Start-TestApp -Context $c -TestData $dash
+        try {
+            Start-Sleep -Seconds 6
+            foreach ($trigger in 'error', 'attention', 'stopped') {
+                Set-SimulatorScenario $simulator 'printing'
+                Start-Sleep -Seconds 15
+                $before = Get-RecordingEventCount $dash 'DashcamSaved'
+                Set-SimulatorScenario $simulator $trigger
+                $saved = Wait-RecordingEvent $dash 'DashcamSaved' $before 90
+                if (-not $saved) { $problems.Add("dashcam ${trigger}: nothing saved within 90 s"); continue }
+                $file = @(Get-RecordingFiles $dash.Recordings | Where-Object { (ConvertFrom-VerifyRecordingFileName $_.Name).Trigger -ceq $trigger })
+                if ($file.Count -ne 1) { $problems.Add("dashcam ${trigger}: $($file.Count) file(s) named …_dashcam-$trigger.mp4") }
+            }
+            foreach ($failure in @(Get-VerifyRecordingEvents (Read-TestLog $dash) | Where-Object Kind -CEQ 'Failed')) { $problems.Add("dashcam: $($failure.Text)") }
+        }
+        finally { $null = Stop-TestApp $dash $app; Set-SimulatorScenario $simulator 'idle' }
+        $dashFiles = @(Get-RecordingFiles $dash.Recordings)
+        $null = Save-VerifyEvidence -Context $c -Name 'dashcam-files.txt' -Content @($dashFiles.Name)
+        foreach ($file in $dashFiles) {
+            $parts = ConvertFrom-VerifyRecordingFileName $file.Name
+            if (-not $parts -or $parts.Kind -cne 'dashcam') { $problems.Add("'$($file.Name)' is not a dashcam save") }
+        }
+        # 15 s of the print before the event (at most the 2 minutes kept) and 30 s after it.
+        $dashDecoded = Test-Recordings $c $dashFiles -MinSeconds 25 -MaxSeconds 160
+        foreach ($problem in $dashDecoded.Problems) { $problems.Add($problem) }
+
+        # 3. Nothing outside the test data.
+        if ((Get-MoviesRecordingsState) -cne $movies) { $problems.Add('~/Movies/LayerPeek changed during the check') }
+        if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+        $source = if ($clip) { 'the real Buddy3D clip of the samples' } else { 'the built-in Buddy3D clip (the 60 s clip of ~/LayerPeek-samples is missing)' }
+        New-VerifyResult PASS "camera: $source. Automatic recording: $($names -join ', '); $($notes -join '; '); dashcam: $(@($dashFiles.Name) -join ', '). Every file decoded: $(@($decoded.Notes + $dashDecoded.Notes) -join '; '). Only in the test data, ~/Movies/LayerPeek unchanged."
+    }
+
+    New-VerifyCheck -Id 'mac.recording' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to choose the recording items of the menu and read the windows, and an unlocked screen' `
+        -Title 'manual recording from the menu bar menu: items, tooltip "Recording", REC and Stop in all three camera window modes, stop from the menu and the window button, Play last recording (the file handed to the system), Open recordings folder (Finder), an unwritable folder (simulator x20)' `
+        -Closes 'T-146 (menu, tooltip, ● REC ve všech třech režimech, zastavení z menu i tlačítkem, předání souboru systému, Finder v podsložce tiskárny, nezapisovatelná složka; bez notifikace T-212, „Změnit…“ T-213 a uříznutí T-214)', 'T-210 kritérium 3 (mac.recording)' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $label = { param($Key) ConvertFrom-VerifyAccessText $texts[$Key] }
+            $simulator = Get-Simulator $c -Speed 20 -Clip (Get-Buddy3DClip)
+            Set-SimulatorScenario $simulator 'idle'
+            $movies = Get-MoviesRecordingsState
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            $files = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+            # Paths as the system reports them (/private/var/... for /var/...), without a trailing separator.
+            $plain = { param([string] $Path) [System.IO.Path]::TrimEndingDirectorySeparator(($Path -replace '^/private/', '/')) }
+            $waitIdle = {
+                param($App, $Name)
+                Wait-VerifyCondition -TimeoutSeconds 60 -IntervalMilliseconds 1000 -Condition { -not (Get-VerifyToolTipProblem -ToolTip ((Get-StatusToolTipLines $c $App.Id) -join "`n") -Texts $texts -Name $Name -State $texts['StateIdle']) }
+            }
+            $isRecording = { param($App) (Get-StatusToolTipLines $c $App.Id) -ccontains $texts['ToolTipRecording'] }
+
+            # 1. One recording per camera window mode: started from the menu, REC and Stop in the window, stopped from the
+            #    menu (normal window, full screen) or by the window button (mini preview).
+            foreach ($mode in 'Normal', 'Mini', 'FullScreen') {
+                $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = $mode }) -RecordingFolder 'Recordings'
+                $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+                $printer = $texts['MenuPrinter'] -f $name, $texts['StateIdle']
+                $printerFolder = Join-Path $data.Recordings $name
+                $app = Start-TestApp -Context $c -TestData $data
+                try {
+                    if (-not (& $waitIdle $app $name)) { $problems.Add("${mode}: the tooltip did not show '$name' ready within 60 s"); continue }
+                    if ($mode -eq 'Normal') {
+                        $menu = Get-StatusMenu $c $app.Id
+                        $null = Save-VerifyEvidence -Context $c -Name 'menu-before.json' -Content ($menu | ConvertTo-Json -Depth 30)
+                        foreach ($problem in Get-VerifyMenuProblems -Items @($menu.items) -Texts $texts -Name $name -State $texts['StateIdle'] -Camera) { $problems.Add("menu: $problem") }
+                        foreach ($help in Get-VerifyMenuHelps -Items @($menu.items)) { if ($help -clike "*>$(& $label 'MenuPlayLastRecording'):*") { $notes.Add($help) } }
+                    }
+                    $writes = Get-RecordingEventCount $data 'Writes'
+                    $start = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuStartRecording')"
+                    if ($start.ExitCode -ne 0) { $problems.Add("${mode}: menupress '$(& $label 'MenuStartRecording')': $($start.Output -join ' ')"); continue }
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { & $isRecording $app })) { $problems.Add("${mode}: the tooltip did not show '$($texts['ToolTipRecording'])' within 20 s") }
+                    if (-not (Wait-RecordingEvent $data 'Writes' $writes 30)) { $problems.Add("${mode}: no recording file within 30 s") }
+                    Send-TestCommand $data "camera:$($script:PrinterId)"
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add("${mode}: no camera window within 20 s"); continue }
+                    $script:tree = $null
+                    $rec = Wait-VerifyCondition -TimeoutSeconds 10 -Condition {
+                        $script:tree = Get-AxTree $c $app.Id
+                        $indicator = Find-AxElement $script:tree 'CameraRecordingIndicator'
+                        $indicator -and (@($indicator.title, $indicator.value, $indicator.description) -ccontains $texts['CameraRecordingIndicator'])
+                    }
+                    $null = Save-VerifyEvidence -Context $c -Name "$($mode.ToLowerInvariant())-ax.json" -Content ($script:tree | ConvertTo-Json -Depth 100)
+                    if (-not $rec) { $problems.Add("${mode}: no '$($texts['CameraRecordingIndicator'])' (CameraRecordingIndicator) in the camera window") }
+                    $button = Find-AxElement $script:tree 'CameraRecordButton'
+                    if (-not $button -or @($button.title, $button.description, $button.help) -cnotcontains $texts['RecordingStop']) { $problems.Add("${mode}: the record button (CameraRecordButton) is not '$($texts['RecordingStop'])'") }
+                    $ended = Get-RecordingEventCount $data 'Ended'
+                    if ($mode -eq 'Mini') { $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'CameraRecordButton') }
+                    else {
+                        $stop = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuStopRecording')"
+                        if ($stop.ExitCode -ne 0) { $problems.Add("${mode}: menupress '$(& $label 'MenuStopRecording')': $($stop.Output -join ' ')") }
+                    }
+                    if (-not (Wait-RecordingEvent $data 'Ended' $ended 30)) { $problems.Add("${mode}: the recording did not end within 30 s of $(if ($mode -eq 'Mini') { 'the window button' } else { 'the menu item' })") }
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { -not (& $isRecording $app) })) { $problems.Add("${mode}: the tooltip still shows '$($texts['ToolTipRecording'])'") }
+
+                    if ($mode -eq 'Normal') {
+                        # Play last recording: the test mode hands the file to opened-files.txt instead of QuickTime Player.
+                        $last = @(Get-RecordingFiles $data.Recordings) | Select-Object -Last 1
+                        $opened = Join-Path $data.Data 'opened-files.txt'
+                        $play = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuPlayLastRecording')"
+                        if ($play.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuPlayLastRecording')': $($play.Output -join ' ')") }
+                        elseif (-not $last -or -not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Test-Path -LiteralPath $opened) -and (@(Get-Content -LiteralPath $opened) | ForEach-Object { & $plain $_ }) -ccontains (& $plain $last.FullName) })) {
+                            $problems.Add("'$(& $label 'MenuPlayLastRecording')' did not hand $(if ($last) { $last.Name } else { 'the recording' }) to the system (opened-files.txt)")
+                        }
+                        else { $notes.Add("'$(& $label 'MenuPlayLastRecording')' handed $($last.Name) to the system") }
+                        # Open recordings folder: a Finder window of the printer's folder, closed again.
+                        $finder = @(Get-Process -Name 'Finder' -ErrorAction SilentlyContinue | ForEach-Object Id) | Select-Object -First 1
+                        $folderPress = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuOpenRecordingsFolder')"
+                        $script:finderWindow = $null
+                        if ($folderPress.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuOpenRecordingsFolder')': $($folderPress.Output -join ' ')") }
+                        elseif (-not $finder -or -not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition {
+                                    $script:finderWindow = @((Invoke-Helper $c @('axwindows', "$finder")) -join "`n" | ConvertFrom-Json | Where-Object { $_.document -and (& $plain ([uri] $_.document).LocalPath) -ceq (& $plain $printerFolder) }) | Select-Object -First 1
+                                    $null -ne $script:finderWindow })) {
+                            $problems.Add("'$(& $label 'MenuOpenRecordingsFolder')' showed no Finder window of the printer's folder within 15 s")
+                        }
+                        else {
+                            $notes.Add("Finder showed the printer's folder ('$($script:finderWindow.title)')")
+                            $close = @(& (Get-Helper $c) 'axclose' "$finder" $printerFolder 2>&1)
+                            if ($LASTEXITCODE -ne 0) { $problems.Add("the Finder window did not close: $($close -join ' ')") }
+                        }
+                    }
+                }
+                finally {
+                    $null = Stop-TestApp $data $app
+                    foreach ($file in Get-RecordingFiles $data.Recordings) { $files.Add($file) }
+                }
+            }
+
+            # 2. A recordings folder without write permission: the start fails without a crash and without a file.
+            $locked = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -RecordingFolder 'Locked'
+            $null = New-Item -ItemType Directory -Force -Path $locked.Recordings
+            & /bin/chmod 0500 $locked.Recordings
+            Add-VerifyCleanup $c 'write permission of the locked recordings folder' { param($p) if (Test-Path -LiteralPath $p) { & /bin/chmod 0700 $p } } -State $locked.Recordings
+            $name = (Get-Content -LiteralPath (Join-Path $locked.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $app = Start-TestApp -Context $c -TestData $locked
+            try {
+                if (-not (& $waitIdle $app $name)) { $problems.Add("locked folder: the tooltip did not show '$name' ready within 60 s") }
+                else {
+                    $start = Invoke-MenuPress $c $app.Id "$($texts['MenuPrinter'] -f $name, $texts['StateIdle'])>$(& $label 'MenuStartRecording')"
+                    $failure = if ($start.ExitCode -eq 0) { Wait-RecordingEvent $locked 'Failed' 0 20 }
+                    Start-Sleep -Seconds 3
+                    if ($start.ExitCode -ne 0) { $problems.Add("locked folder: menupress '$(& $label 'MenuStartRecording')': $($start.Output -join ' ')") }
+                    elseif (-not $failure) { $problems.Add('locked folder: no failure of the recording in the log within 20 s') }
+                    elseif ($failure.Text -notmatch 'FolderUnavailable') { $problems.Add("locked folder: the recording failed for another reason: $($failure.Text)") }
+                    if ($app.HasExited) { $problems.Add("locked folder: the app ended with $($app.ExitCode)") }
+                    elseif (& $isRecording $app) { $problems.Add("locked folder: the tooltip shows '$($texts['ToolTipRecording'])'") }
+                    if (@(Get-ChildItem -LiteralPath $locked.Data -Recurse -File -Filter '*.mp4').Count -gt 0) { $problems.Add('locked folder: a recording file was written') }
+                    # What Settings > Recording shows (open question 3 of T-210: the message appears after "Change…", T-213).
+                    if (-not $app.HasExited) {
+                        Send-TestCommand $locked 'settings'
+                        $null = Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsTabRecording') }
+                        $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabRecording') -AllowFailure
+                        Start-Sleep -Seconds 1
+                        $tree = Get-AxTree $c $app.Id
+                        $null = Save-VerifyEvidence -Context $c -Name 'locked-settings-ax.json' -Content ($tree | ConvertTo-Json -Depth 100)
+                        $shown = Find-AxElement $tree 'SettingsRecordingFolderError'
+                        $notes.Add("locked folder: the start failed ($(if ($failure) { $failure.Text -replace '^.*could not start ', '' }))$(if ($shown) { ", Settings > Recording shows '$(@($shown.value, $shown.title, $shown.description) | Where-Object { $_ } | Select-Object -First 1)'" } else { ', Settings > Recording shows no message (T-210 question 3)' })")
+                    }
+                }
+            }
+            finally { $null = Stop-TestApp $locked $app }
+
+            # 3. Every recording decodes; nothing outside the test data.
+            $null = Save-VerifyEvidence -Context $c -Name 'files.txt' -Content @($files.Name)
+            if ($files.Count -ne 3) { $problems.Add("$($files.Count) recording(s) ($(@($files.Name) -join ', ')), expected 3 (one per window mode)") }
+            $decoded = Test-Recordings $c $files.ToArray() -MinSeconds 1
+            foreach ($problem in $decoded.Problems) { $problems.Add($problem) }
+            if ((Get-MoviesRecordingsState) -cne $movies) { $problems.Add('~/Movies/LayerPeek changed during the check') }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS "menu items before the first recording (menu-before.json), '$($texts['ToolTipRecording'])' in the tooltip and '$($texts['CameraRecordingIndicator'])' with '$($texts['RecordingStop'])' in the normal window, the mini preview and full screen, stopped from the menu and by the window button; $($notes -join '; '); decoded: $($decoded.Notes -join '; ')."
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.dashcam' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to choose the dashcam item of the menu and read the context menu of the camera window, and an unlocked screen' `
+        -Title '"Save the last 2 min" in the menu bar menu and the context menu of the camera window (disabled out of a print with its tip, enabled during a print), a manual save, and the item during an automatic recording (simulator x20)' `
+        -Closes 'T-148 (simulátorová část: položka v menu a v místní nabídce okna kamery, …_dashcam-manual.mp4 decode OK; spouštěče v mac.recording-files)', 'T-145 (simulátorová část: během automatického nahrávání je „Uložit posledních 2 min“ zakázané s tipem „Nahrává se celý tisk.“)', 'T-210 kritérium 4 (mac.dashcam spolu s mac.recording-files)' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $label = { param($Key) ConvertFrom-VerifyAccessText $texts[$Key] }
+            $save = ConvertFrom-VerifyAccessText ($texts['MenuSaveDashcam'] -f 2)
+            $simulator = Get-Simulator $c -Speed 20 -Clip (Get-Buddy3DClip)
+            Set-SimulatorScenario $simulator 'idle'
+            $movies = Get-MoviesRecordingsState
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            $tipOf = { param($Item) if ($Item.help) { "'$($Item.help)'" } else { 'none' } }
+            # The menu item: present, enabled as expected; its tip (AXHelp) is noted, a wrong one is a problem.
+            $judge = {
+                param($Where, $Item, [bool] $Enabled, [string] $Tip)
+                if (-not $Item) { $problems.Add("${Where}: no '$save'"); return }
+                if ([bool] $Item.enabled -ne $Enabled) { $problems.Add("${Where}: '$save' is $(if ($Item.enabled) { 'enabled' } else { 'disabled' }), expected $(if ($Enabled) { 'enabled' } else { 'disabled' })") }
+                if ($Tip -and $Item.help -and $Item.help -cne $Tip) { $problems.Add("${Where}: the tip of '$save' is '$($Item.help)', expected '$Tip'") }
+                if (-not $Enabled) { $notes.Add("${Where}: disabled, tip $(& $tipOf $Item)") }
+            }
+            $menuItem = {
+                param($App, $Where)
+                $menu = Get-StatusMenu $c $App.Id
+                $null = Save-VerifyEvidence -Context $c -Name "menu-$Where.json" -Content ($menu | ConvertTo-Json -Depth 30)
+                $printer = @(Get-VerifyMenuEntries $menu.items)[0]
+                [pscustomobject]@{ Header = $printer.title; Item = Find-MenuEntry $printer.submenu $save; Submenu = @($printer.submenu) }
+            }
+            $contextItem = {
+                param($Data, $App, $Where)
+                Send-TestCommand $Data 'activate'
+                $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $App.Id }
+                Start-Sleep -Milliseconds 400
+                $point = Get-AxCenter (Get-AxElement $c $App.Id 'Surface')
+                $null = Invoke-Helper $c @('ctrlclick', "$($point[0])", "$($point[1])")
+                $script:tree = $null
+                $null = Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $script:tree = Get-AxTree $c $App.Id; $null -ne (Find-AxElement $script:tree 'CameraSaveDashcamMenuItem') }
+                $null = Save-VerifyEvidence -Context $c -Name "context-menu-$Where.json" -Content ($script:tree | ConvertTo-Json -Depth 100)
+                $item = Find-AxElement $script:tree 'CameraSaveDashcamMenuItem'
+                $null = Invoke-Helper $c @('key', 'escape')
+                Start-Sleep -Milliseconds 500
+                $item
+            }
+            $waitState = {
+                param($App, $Name, $Key, [switch] $Progress)
+                Wait-VerifyCondition -TimeoutSeconds 60 -IntervalMilliseconds 1000 -Condition { -not (Get-VerifyToolTipProblem -ToolTip ((Get-StatusToolTipLines $c $App.Id) -join "`n") -Texts $texts -Name $Name -State $texts[$Key] -Progress:$Progress) }
+            }
+
+            # 1. Dashcam on, no automatic recording: disabled out of a print, enabled during it, a manual save.
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -CameraOptions ([ordered]@{ dashcam = $true }) -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' }) -RecordingFolder 'Recordings'
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $app = Start-TestApp -Context $c -TestData $data
+            $manual = @()
+            try {
+                if (-not (& $waitState $app $name 'StateIdle')) { return New-VerifyResult FAIL "the tooltip did not show '$name' ready within 60 s." }
+                & $judge 'menu, idle' (& $menuItem $app 'idle').Item $false $texts['DashcamNotPrinting']
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add('no camera window within 20 s') }
+                else { & $judge 'context menu, idle' (& $contextItem $data $app 'idle') $false $texts['DashcamNotPrinting'] }
+
+                Set-SimulatorScenario $simulator 'printing'
+                if (-not (& $waitState $app $name 'StatePrinting' -Progress)) { $problems.Add('the tooltip did not show the print within 60 s') }
+                # The dashcam fills during the print.
+                Start-Sleep -Seconds 15
+                $during = & $menuItem $app 'printing'
+                & $judge 'menu, printing' $during.Item $true ''
+                if (Get-CameraWindow $c $app.Id) { & $judge 'context menu, printing' (& $contextItem $data $app 'printing') $true '' }
+                $before = Get-RecordingEventCount $data 'DashcamSaved'
+                $press = Invoke-MenuPress $c $app.Id "$($during.Header)>$save"
+                # The progress in the printer's title may have moved on since the menu was read.
+                if ($press.ExitCode -ne 0) { $press = Invoke-MenuPress $c $app.Id "$((& $menuItem $app 'printing-again').Header)>$save" }
+                if ($press.ExitCode -ne 0) { $problems.Add("menupress '$save': $($press.Output -join ' ')") }
+                elseif (-not (Wait-RecordingEvent $data 'DashcamSaved' $before 90)) { $problems.Add("'$save' saved nothing within 90 s") }
+            }
+            finally {
+                $null = Stop-TestApp $data $app
+                Set-SimulatorScenario $simulator 'idle'
+            }
+            $manual = @(Get-RecordingFiles $data.Recordings)
+            $null = Save-VerifyEvidence -Context $c -Name 'files.txt' -Content @($manual.Name)
+            if ($manual.Count -ne 1 -or (ConvertFrom-VerifyRecordingFileName $manual[0].Name).Trigger -cne 'manual') { $problems.Add("manual save: files $(@($manual.Name) -join ', '), expected one …_dashcam-manual.mp4") }
+            # 15 s of the print before the click and 30 s after it.
+            $decoded = Test-Recordings $c $manual -MinSeconds 25 -MaxSeconds 160
+            foreach ($problem in $decoded.Problems) { $problems.Add($problem) }
+
+            # 2. Automatic recording and dashcam: the whole print is recorded, the item is disabled with its tip.
+            $both = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -CameraOptions ([ordered]@{ recordPrints = $true; dashcam = $true }) -RecordingFolder 'Recordings'
+            $bothName = (Get-Content -LiteralPath (Join-Path $both.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $app = Start-TestApp -Context $c -TestData $both
+            try {
+                if (-not (& $waitState $app $bothName 'StateIdle')) { $problems.Add("automatic recording: the tooltip did not show '$bothName' ready within 60 s") }
+                else {
+                    Set-SimulatorScenario $simulator 'printing'
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 60 -IntervalMilliseconds 1000 -Condition { (Get-StatusToolTipLines $c $app.Id) -ccontains $texts['ToolTipRecording'] })) { $problems.Add("automatic recording: the tooltip did not show '$($texts['ToolTipRecording'])' within 60 s") }
+                    $recorded = & $menuItem $app 'automatic'
+                    & $judge 'menu, automatic recording' $recorded.Item $false $texts['DashcamWholePrintRecorded']
+                    if (-not (Find-MenuEntry $recorded.Submenu (& $label 'MenuStopRecording'))) { $problems.Add("automatic recording: no '$(& $label 'MenuStopRecording')' in the submenu") }
+                }
+            }
+            finally {
+                $null = Stop-TestApp $both $app
+                Set-SimulatorScenario $simulator 'idle'
+            }
+            if ((Get-MoviesRecordingsState) -cne $movies) { $problems.Add('~/Movies/LayerPeek changed during the check') }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS "'$save' $($notes -join '; '); enabled during the print in both menus; the manual save gave $(@($manual.Name) -join ', ') ($($decoded.Notes -join '; '))."
         }
     }
 
@@ -2029,8 +2511,8 @@ $checks = @(
 $presets = [ordered]@{
     release = @(
         'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
-        'mac.plist-localnetwork', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
-        'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.keys', 'mac.update-check',
+        'mac.plist-localnetwork', 'mac.decode', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
+        'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.recording-files', 'mac.recording', 'mac.dashcam', 'mac.keys', 'mac.update-check',
         'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
     )
 }
@@ -2189,5 +2671,5 @@ $latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
 Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items or mac.update-check.'
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording or mac.dashcam.'
 exit (Get-VerifyExitCode -Results $results)
