@@ -1,5 +1,7 @@
 using System.Net;
 
+using LayerPeek.Simulator.Camera;
+
 namespace LayerPeek.Simulator.Printers;
 
 /// <summary>How a printer that is offline treats requests.</summary>
@@ -67,6 +69,12 @@ public sealed record SimulatedPrinterOptions
         ArgumentNullException.ThrowIfNull(address);
         return IPAddress.IsLoopback(address);
     }
+
+    /// <summary>
+    /// The simulator's camera (shared by every printer), switched by <c>POST /_simulator/camera/offline</c> and
+    /// <c>/online</c> (T-210); null: no camera, those endpoints answer 404.
+    /// </summary>
+    public RtspCamera? Camera { get; init; }
 
     /// <summary>Clock of the simulation and of the nonce lifetime.</summary>
     public TimeProvider TimeProvider { get; init; } = TimeProvider.System;

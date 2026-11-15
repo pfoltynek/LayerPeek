@@ -77,6 +77,7 @@ public sealed class SimulatorHost : IAsyncDisposable
                         OfflineMode = options.OfflineMode,
                         Previews = options.Previews,
                         TimeProvider = clock,
+                        Camera = camera,
                     },
                     cancellationToken).ConfigureAwait(false));
             }

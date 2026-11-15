@@ -87,6 +87,8 @@ Napiš do konzole a potvrď Enterem:
 
 Skripty a testy mohou tiskárnu ovládat i přes HTTP (odpovídá i offline): `GET /_simulator/state`, `POST /_simulator/scenario/<scénář>`, `POST /_simulator/offline`, `POST /_simulator/online`, `POST /_simulator/previews/off`, `POST /_simulator/previews/on`. Stav (`/_simulator/state`) obsahuje i `"previews": true/false`.
 
+Kameru simulátoru přepíná `POST /_simulator/camera/offline` a `POST /_simulator/camera/online` (T-210) stejně jako příkaz konzole `camera offline` / `camera online`: offline odpojí připojené klienty a nepřijímá nová spojení, online je znovu přijímá. Kamera je jedna pro všechny tiskárny, takže stačí adresa kterékoli z nich. Simulátor bez kamery (`--no-camera`) na oba endpointy odpoví `404`. Se zapnutou kamerou má stav navíc `"camera_offline": true/false`. Pro přihlášení platí stejná pravidla jako u ostatních ovládacích endpointů.
+
 - Na loopbacku (`127.0.0.1`, `::1`, `localhost`, výchozí) jsou ovládací endpointy bez přihlášení.
 - Při `--host` s jinou adresou (např. `0.0.0.0`) vyžadují stejné přihlášení jako API (Digest nebo `X-Api-Key` s heslem), aby tiskárny nemohl přepínat nikdo jiný v síti.
 - Stránka `/` jen čte, a proto zůstává bez přihlášení (jako web firmwaru). Data pro ni přes API přihlášení vyžadují vždy.

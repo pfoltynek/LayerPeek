@@ -25,7 +25,8 @@ namespace LayerPeek.Simulator.Printers;
 /// tests, answered also while offline, without login on loopback and with the PrusaLink login otherwise
 /// (<see cref="SimulatedPrinterOptions.ControlRequiresLogin"/>): <c>GET /_simulator/state</c>, <c>POST /_simulator/scenario/{name}</c>,
 /// <c>POST /_simulator/offline</c>, <c>POST /_simulator/online</c>, <c>POST /_simulator/previews/on</c>,
-/// <c>POST /_simulator/previews/off</c>.
+/// <c>POST /_simulator/previews/off</c>, and with a camera <c>POST /_simulator/camera/offline</c> /
+/// <c>POST /_simulator/camera/online</c> (T-210: like the console command <c>camera offline</c> / <c>camera online</c>).
 /// </summary>
 public sealed class SimulatedPrinter : IAsyncDisposable
 {
@@ -357,6 +358,11 @@ public sealed class SimulatedPrinter : IAsyncDisposable
         {
             Simulation.SetOffline(false);
         }
+        else if (post && command is ("camera/offline" or "camera/online") && _options.Camera is { } camera)
+        {
+            // Drops the connected clients and refuses new ones while offline, as the console command does.
+            camera.SetOffline(command == "camera/offline");
+        }
         else if (post && command is "previews/on" or "previews/off")
         {
             PreviewsEnabled = command == "previews/on";
@@ -387,7 +393,10 @@ public sealed class SimulatedPrinter : IAsyncDisposable
 
     private string StateJson() => string.Create(
         CultureInfo.InvariantCulture,
-        $"{{\"model\":\"{_options.Model.Code}\",\"scenario\":\"{PrinterScenarios.Format(Simulation.Scenario)}\",\"online\":{(Simulation.IsOnline ? "true" : "false")},\"forced_offline\":{(Simulation.IsForcedOffline ? "true" : "false")},\"previews\":{(PreviewsEnabled ? "true" : "false")}}}");
+        $"{{\"model\":\"{_options.Model.Code}\",\"scenario\":\"{PrinterScenarios.Format(Simulation.Scenario)}\",\"online\":{(Simulation.IsOnline ? "true" : "false")},\"forced_offline\":{(Simulation.IsForcedOffline ? "true" : "false")},\"previews\":{(PreviewsEnabled ? "true" : "false")}{CameraJson()}}}");
+
+    /// <summary>The camera's state in <see cref="StateJson"/>, only for a simulator with a camera (T-210).</summary>
+    private string CameraJson() => _options.Camera is { } camera ? $",\"camera_offline\":{(camera.IsOffline ? "true" : "false")}" : "";
 
     private static Task WriteJsonAsync(HttpContext context, string json)
     {

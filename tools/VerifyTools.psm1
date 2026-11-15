@@ -1170,6 +1170,94 @@ function Get-VerifyToolTipProblem {
     $null
 }
 
+function ConvertFrom-VerifyRecordingFileName {
+    <#
+    .SYNOPSIS
+        The parts of the name of a camera recording (T-145 / T-148, CameraRecordingFolders in Core), or $null for any other
+        name: Stamp (yyyy-MM-dd_HH-mm-ss), Title ('' without one), Kind ('print', 'dashcam' or 'timelapse'), Trigger of a
+        dashcam save (error, attention, stopped, manual, failure; '' otherwise) and Segment (1, or N of a "-N" suffix: the
+        file after the Nth camera outage).
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Name)
+    if ($Name -cnotmatch '^(?<stamp>\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})(?:_(?<rest>.+?))?(?:-(?<segment>[2-9]|[1-9]\d+))?\.mp4$') { return $null }
+    # Optional groups that did not match are missing from $Matches (strict mode): the indexer gives $null.
+    $stamp = $Matches['stamp']
+    $rest = [string] $Matches['rest']
+    $segment = if ($Matches['segment']) { [int] $Matches['segment'] } else { 1 }
+    $kind = 'print'
+    $trigger = ''
+    $title = $rest
+    if ($rest -cmatch '^(?:(?<title>.+)_)?dashcam-(?<trigger>error|attention|stopped|manual|failure)$') { $kind = 'dashcam'; $trigger = $Matches['trigger']; $title = [string] $Matches['title'] }
+    elseif ($rest -cmatch '^(?:(?<title>.+?)_)?(?:recording_)?timelapse$') { $kind = 'timelapse'; $title = [string] $Matches['title'] }
+    [pscustomobject]@{ Stamp = $stamp; Title = $title; Kind = $kind; Trigger = $trigger; Segment = $segment }
+}
+
+function Get-VerifyDecodeProblems {
+    <#
+    .SYNOPSIS
+        What is wrong with a recording by the JSON of the helper's 'decode' (T-210) and its exit code (empty = fine): the
+        helper's own problems, codec avc1, five seeks without an error, and optionally the decoded frames (-Frames) and the
+        duration (-MinSeconds, -MaxSeconds).
+    #>
+    param([AllowNull()] $Report, [int] $ExitCode, [int] $Frames = -1, [double] $MinSeconds = -1, [double] $MaxSeconds = -1)
+    if (-not $Report) { return @("the helper printed no JSON (exit code $ExitCode)") }
+    $problems = [System.Collections.Generic.List[string]]::new()
+    foreach ($problem in @($Report.problems)) { if ($problem) { $problems.Add([string] $problem) } }
+    if ($ExitCode -ne 0 -and $problems.Count -eq 0) { $problems.Add("exit code $ExitCode without a problem") }
+    if ($ExitCode -eq 0 -and $problems.Count -gt 0) { $problems.Add('exit code 0 despite the problems') }
+    if ($Report.PSObject.Properties['codec'] -and $Report.codec -cne 'avc1') { $problems.Add("codec '$($Report.codec)', expected avc1") }
+    $seeks = @($Report.seeks | Where-Object { $_ })
+    if ($problems.Count -eq 0 -and $seeks.Count -ne 5) { $problems.Add("$($seeks.Count) seek(s), expected 5 (0, 25, 50, 75 % and the end)") }
+    if ($Frames -ge 0 -and $Report.decodedFrames -ne $Frames) { $problems.Add("$($Report.decodedFrames) decoded frame(s), expected $Frames") }
+    $duration = [double] $Report.duration
+    if ($MinSeconds -ge 0 -and $duration -lt $MinSeconds) { $problems.Add("duration $duration s, expected at least $MinSeconds s") }
+    if ($MaxSeconds -ge 0 -and $duration -gt $MaxSeconds) { $problems.Add("duration $duration s, expected at most $MaxSeconds s") }
+    $problems.ToArray()
+}
+
+function Get-VerifyMdatCut {
+    <#
+    .SYNOPSIS
+        Where to cut an MP4 file so that a sample is incomplete (T-210: a damaged recording for 'decode'): the middle of the
+        middle 'mdat' box among the top-level boxes; $null when there is none.
+    #>
+    param([Parameter(Mandatory)] [byte[]] $Bytes)
+    $boxes = [System.Collections.Generic.List[object]]::new()
+    $offset = [long] 0
+    while ($offset + 8 -le $Bytes.Length) {
+        $size = ([long] $Bytes[$offset] -shl 24) -bor ([long] $Bytes[$offset + 1] -shl 16) -bor ([long] $Bytes[$offset + 2] -shl 8) -bor [long] $Bytes[$offset + 3]
+        $type = [System.Text.Encoding]::ASCII.GetString($Bytes, [int] $offset + 4, 4)
+        if ($size -eq 1 -and $offset + 16 -le $Bytes.Length) {
+            $size = [long] 0
+            for ($i = 8; $i -lt 16; $i++) { $size = ($size -shl 8) -bor [long] $Bytes[$offset + $i] }
+        }
+        elseif ($size -eq 0) { $size = $Bytes.Length - $offset }
+        if ($size -lt 8) { break }
+        $boxes.Add([pscustomobject]@{ Type = $type; Offset = $offset; Size = $size })
+        $offset += $size
+    }
+    $mdats = @($boxes | Where-Object Type -CEQ 'mdat')
+    if ($mdats.Count -eq 0) { return $null }
+    $middle = $mdats[[int] [math]::Floor($mdats.Count / 2)]
+    [long] ($middle.Offset + [math]::Floor($middle.Size / 2))
+}
+
+function Get-VerifyRecordingEvents {
+    <#
+    .SYNOPSIS
+        The recording events in the app's log, in order (T-210): Writes (a file was started, File = its name), Ended (a
+        recording ended, Files = its file count), DashcamSaved (Files), Failed (a recording or dashcam could not start or
+        failed, Text = the line). PrinterId of each.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Log)
+    foreach ($line in @("$Log" -split "`n")) {
+        if ($line -cmatch "Recording of printer '(?<id>[^']+)' writes '(?<file>[^']+)'") { [pscustomobject]@{ Kind = 'Writes'; PrinterId = $Matches.id; File = $Matches.file; Files = 0; Text = $line.Trim() } }
+        elseif ($line -cmatch "Recording of printer '(?<id>[^']+)' ended \((?<n>\d+) file\(s\)\)") { [pscustomobject]@{ Kind = 'Ended'; PrinterId = $Matches.id; File = ''; Files = [int] $Matches.n; Text = $line.Trim() } }
+        elseif ($line -cmatch "Dashcam of printer '(?<id>[^']+)' saved [\d.,]+ s into (?<n>\d+) file\(s\)") { [pscustomobject]@{ Kind = 'DashcamSaved'; PrinterId = $Matches.id; File = ''; Files = [int] $Matches.n; Text = $line.Trim() } }
+        elseif ($line -cmatch "(?:Recording|Dashcam) of printer '(?<id>[^']+)' (?:could not start|could not save|failed)") { [pscustomobject]@{ Kind = 'Failed'; PrinterId = $Matches.id; File = ''; Files = 0; Text = $line.Trim() } }
+    }
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------

@@ -149,7 +149,14 @@ internal static partial class AppServices
         // The log folder in Explorer / Finder (T-048).
         services.AddSingleton<IFolderLauncher>(static sp => new ProcessFolderLauncher(sp.GetRequiredService<ILogger<ProcessFolderLauncher>>()));
         // T-146: "Play last recording" opens the file in the system's default app (only .mp4 recordings).
+#if DEBUG
+        // The test mode never starts a player: the paths go to a file of its data folder (T-210).
+        services.AddSingleton<IFileLauncher>(sp => env.IsIsolated
+            ? new RecordingFileLauncher(env.DataDirectory(), sp.GetRequiredService<ILogger<RecordingFileLauncher>>())
+            : new ProcessFileLauncher(sp.GetRequiredService<ILogger<ProcessFileLauncher>>()));
+#else
         services.AddSingleton<IFileLauncher>(static sp => new ProcessFileLauncher(sp.GetRequiredService<ILogger<ProcessFileLauncher>>()));
+#endif
         // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.ForCurrentPlatform);
         // Custom printer images (T-039): files next to settings.json (created on first use, may throw without a data folder) and
