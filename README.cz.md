@@ -476,9 +476,11 @@ Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web Prus
 - Git.
 - Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*,
   na macOS Xcode Command Line Tools.
-- První build na Windows stáhne LGPL knihovny FFmpeg pro kameru (~77 MB, ověřené přes SHA-256). Na macOS první build
-  stáhne oficiální zdrojový kód FFmpeg (~12 MB, ověřený přes SHA-256) a přeloží z něj LGPL build přes Xcode Command
-  Line Tools (asi minuta).
+- První build stáhne oficiální zdrojový kód FFmpeg (~12 MB, ověřený přes SHA-256) a jednou z něj přeloží minimální
+  LGPL build knihoven kamery: na Windows přes [MSYS2](https://www.msys2.org/) a MinGW-w64 (`winget install
+  MSYS2.MSYS2`, pak balíčky `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; pár minut), na macOS přes
+  Xcode Command Line Tools (asi minuta). Bez toolchainu build hned skončí s návodem; `dotnet build
+  -p:LayerPeekFFmpegEnabled=false` sestaví aplikaci bez knihoven kamery.
 
 Podrobnosti jsou v [docs/prerequisites.md](docs/prerequisites.md).
 

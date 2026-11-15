@@ -209,7 +209,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             {
                 // Local files: raw H.264 (tests and diagnostics) and the app's own MP4 recordings and timelapses (T-165: the
                 // JPEG export reads a timelapse the user picked). "mov" is FFmpeg's MP4 demuxer (registered as
-                // "mov,mp4,m4a,3gp,3g2,mj2"; in the macOS build through the RTSP demuxer's dependencies, BtbN has it). Only
+                // "mov,mp4,m4a,3gp,3g2,mj2"; in the builds of both platforms through the RTSP demuxer's dependencies). Only
                 // the file protocol: references to other files or URLs inside an MP4 cannot be followed.
                 ffmpeg.av_dict_set(&options, "protocol_whitelist", "file", 0);
                 ffmpeg.av_dict_set(&options, "format_whitelist", "h264,mov", 0);

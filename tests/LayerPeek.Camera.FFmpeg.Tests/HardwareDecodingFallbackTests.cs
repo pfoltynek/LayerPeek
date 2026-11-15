@@ -145,7 +145,7 @@ public sealed class HardwareDecodingFallbackTests
     [FFmpegFact]
     public void TheMacOSBuildHasVideoToolboxForH264AndStaysLgpl()
     {
-        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The macOS build of FFmpeg (build/macos/build-ffmpeg.sh); Windows: T-206.");
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The macOS build of FFmpeg (build/macos/build-ffmpeg.sh); Windows: FFmpegWindowsBuildTests.");
 
         // --enable-videotoolbox --enable-hwaccel=h264_videotoolbox (T-203), still LGPL 3.
         Assert.True(FFmpegRuntime.HasHardwareDecoder(AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX));

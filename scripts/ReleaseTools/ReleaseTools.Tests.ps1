@@ -3009,25 +3009,6 @@ Describe 'FFmpeg source of a release (T-199)' {
             [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
             $Path
         }
-        function New-SourceRepository([string] $Name) {
-            # A local git repository with one commit (no network): its commit, tree and the SHA-256 of its git archive tar.
-            $repo = Join-Path $script:FFmpegRoot $Name
-            $null = New-Item -ItemType Directory -Path $repo
-            $null = G $repo init --quiet
-            $null = New-FileWith (Join-Path $repo 'configure') "#!/bin/sh`necho configure`n"
-            # CRLF in the repository: the archive must keep it as committed on every machine.
-            $null = New-FileWith (Join-Path $repo 'libavutil' 'avutil.h') "/* LGPL */`r`nint x;`r`n"
-            # git directly: G would bind -c and -o as its own parameters.
-            $output = & git -C $repo -c core.autocrlf=false add --all 2>&1
-            if ($LASTEXITCODE -ne 0) { throw "git add failed: $output" }
-            $null = G $repo commit --quiet --message 'source'
-            $commit = @(G $repo rev-parse HEAD)[0]
-            $tree = @(G $repo rev-parse 'HEAD^{tree}')[0]
-            $tar = Join-Path $script:FFmpegRoot "$Name-expected.tar"
-            $output = & git -C $repo -c core.autocrlf=false -c core.eol=lf archive --format=tar "--prefix=$Name/" "--output=$tar" $commit 2>&1
-            if ($LASTEXITCODE -ne 0) { throw "git archive failed: $output" }
-            [pscustomobject]@{ Path = $repo; Commit = $commit; Tree = $tree; Sha256 = Get-FileSha256 $tar }
-        }
     }
 
     It 'names the archive ffmpeg-source-(version)-(os).tar.xz' {
@@ -3057,55 +3038,39 @@ Describe 'FFmpeg source of a release (T-199)' {
         Get-FFmpegSourceCacheDirectory | Should -BeExactly $expected
     }
 
-    It 'reads the pinned macOS source of build/FFmpeg.targets: the official tarball of the macOS build' {
-        $pins = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'macos'
-        $folder = [regex]::Match($script:Targets, '<LayerPeekFFmpegMacSourceFolder>([^<]+)<').Groups[1].Value
+    It 'reads the pinned <Os> source of build/FFmpeg.targets: the official tarball and the build script of the OS' -ForEach @(
+        @{ Os = 'macos'; Rid = 'osx-arm64'; Script = 'build/macos/build-ffmpeg.sh' },
+        @{ Os = 'windows'; Rid = 'win-x64'; Script = 'build/windows/build-ffmpeg.sh' }
+    ) {
+        # T-202: both OS build the same tarball; only the build script differs.
+        $pins = Get-FFmpegSourcePins -TargetsText $script:Targets -Os $Os
+        $folder = [regex]::Match($script:Targets, '<LayerPeekFFmpegSourceFolder>([^<]+)<').Groups[1].Value
+        $pins.Os | Should -BeExactly $Os
+        $pins.Rid | Should -BeExactly $Rid
         $pins.Version | Should -BeExactly ($folder -replace '^ffmpeg-')
         $pins.Inputs.Count | Should -Be 1
         $pins.Inputs[0].Kind | Should -BeExactly 'download'
         $pins.Inputs[0].Name | Should -BeExactly "$folder.tar.xz"
-        $pins.Inputs[0].Url | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekFFmpegMacSourceUrl>([^<]+)<').Groups[1].Value)
-        $pins.Inputs[0].Sha256 | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekFFmpegMacSourceSha256>([^<]+)<').Groups[1].Value)
+        $pins.Inputs[0].Url | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekFFmpegSourceUrl>([^<]+)<').Groups[1].Value)
+        $pins.Inputs[0].Sha256 | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekFFmpegSourceSha256>([^<]+)<').Groups[1].Value)
+        $pins.BuildScript | Should -BeExactly $Script
         Test-Path -LiteralPath (Join-Path $script:RepoRoot $pins.BuildScript) -PathType Leaf | Should -BeTrue
     }
 
-    It 'reads the pinned Windows source of build/FFmpeg.targets: the commit and the build scripts of the pinned BtbN zip' {
-        # A new BtbN build (build/update-ffmpeg.ps1) without new source pins fails here (docs/prerequisites.md).
-        $pins = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'windows'
-        $folder = [regex]::Match($script:Targets, '<LayerPeekFFmpegArchiveFolder>([^<]+)<').Groups[1].Value
-        $url = [regex]::Match($script:Targets, '<LayerPeekFFmpegUrl>([^<]+)<').Groups[1].Value
-        $folder | Should -BeLike "ffmpeg-$($pins.Version)-win64-*"
-        $pins.Inputs.Count | Should -Be 2
-        $pins.Inputs[0].Name | Should -BeExactly "ffmpeg-$($pins.Version).tar"
-        $pins.Inputs[0].Prefix | Should -BeExactly "ffmpeg-$($pins.Version)/"
-        $pins.Inputs[0].Commit | Should -BeLike "$(($pins.Version -split '-g')[-1])*"
-        $pins.Inputs[1].Name | Should -BeExactly "FFmpeg-Builds-$($pins.ScriptsTag).tar"
-        $url | Should -BeLike "*/releases/download/$($pins.ScriptsTag)/*"
-        $pins.BuildUrl | Should -BeExactly $url
-        foreach ($sourceInput in $pins.Inputs) {
-            $sourceInput.Kind | Should -BeExactly 'git'
-            $sourceInput.Repository | Should -Match '^https://github\.com/'
-            $sourceInput.Commit | Should -Match '^[0-9a-f]{40}$'
-            $sourceInput.Tree | Should -Match '^[0-9a-f]{40}$'
-            $sourceInput.Sha256 | Should -Match '^[0-9a-f]{64}$'
-        }
+    It 'refuses a missing pin, a malformed hash and a URL that is not the tarball of the pinned folder' {
+        $missing = $script:Targets -replace '<LayerPeekFFmpegSourceSha256>[^<]*</LayerPeekFFmpegSourceSha256>', ''
+        { Get-FFmpegSourcePins -TargetsText $missing -Os 'windows' } | Should -Throw -ExpectedMessage '*must contain <LayerPeekFFmpegSourceSha256> exactly once (found 0)*'
+        $short = Set-Pin $script:Targets 'LayerPeekFFmpegSourceSha256' 'abc'
+        { Get-FFmpegSourcePins -TargetsText $short -Os 'macos' } | Should -Throw -ExpectedMessage "*<LayerPeekFFmpegSourceSha256> in build/FFmpeg.targets is 'abc'*"
+        $other = Set-Pin $script:Targets 'LayerPeekFFmpegSourceUrl' 'https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz'
+        { Get-FFmpegSourcePins -TargetsText $other -Os 'macos' } | Should -Throw -ExpectedMessage '*is not the tarball of LayerPeekFFmpegSourceFolder*'
     }
 
-    It 'refuses Windows source pins that do not fit the BtbN build (<Name>)' -ForEach @(
-        @{ Name = 'another commit'; Property = 'LayerPeekFFmpegWindowsSourceCommit'; Value = '0123456789abcdef0123456789abcdef01234567'; Pattern = 'is not the commit 7adfbe40dc of the BtbN build' },
-        @{ Name = 'another release tag'; Property = 'LayerPeekFFmpegWindowsScriptsTag'; Value = 'autobuild-2026-09-30-12-00'; Pattern = 'is not the release tag of LayerPeekFFmpegUrl' },
-        @{ Name = 'no SHA-256'; Property = 'LayerPeekFFmpegWindowsSourceSha256'; Value = 'abc'; Pattern = "<LayerPeekFFmpegWindowsSourceSha256> in build/FFmpeg.targets is 'abc'" },
-        @{ Name = 'an abbreviated tree'; Property = 'LayerPeekFFmpegWindowsScriptsTree'; Value = '322b4b725d'; Pattern = '<LayerPeekFFmpegWindowsScriptsTree> in build/FFmpeg.targets is' }
-    ) {
-        $text = Set-Pin $script:Targets $Property $Value
-        { Get-FFmpegSourcePins -TargetsText $text -Os 'windows' } | Should -Throw -ExpectedMessage "*$Pattern*"
-    }
-
-    It 'refuses a missing pin and a macOS URL that is not the tarball of the pinned folder' {
-        $missing = $script:Targets -replace '<LayerPeekFFmpegWindowsScriptsCommit>[^<]*</LayerPeekFFmpegWindowsScriptsCommit>', ''
-        { Get-FFmpegSourcePins -TargetsText $missing -Os 'windows' } | Should -Throw -ExpectedMessage '*must contain <LayerPeekFFmpegWindowsScriptsCommit> exactly once (found 0)*'
-        $other = Set-Pin $script:Targets 'LayerPeekFFmpegMacSourceUrl' 'https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz'
-        { Get-FFmpegSourcePins -TargetsText $other -Os 'macos' } | Should -Throw -ExpectedMessage '*is not the tarball of LayerPeekFFmpegMacSourceFolder*'
+    It 'has no BtbN or git source pins any more (T-202)' {
+        $script:Targets | Should -Not -Match '<LayerPeekFFmpeg(Url|Sha256|ArchiveFolder|WindowsSource\w*|WindowsScripts\w*|MacSource\w*)>'
+        Get-Command New-GitSourceArchive -Module ReleaseTools -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
+        { Save-FFmpegSourceInput -SourceInput ([pscustomobject]@{ Kind = 'git'; Name = 'x.tar'; Sha256 = ('0' * 64) }) -CacheDirectory $script:FFmpegRoot } |
+            Should -Throw -ExpectedMessage "*Unsupported FFmpeg source input kind 'git'*"
     }
 
     It 'reads version and configure line of a library, without the prefix of the build machine' {
@@ -3125,10 +3090,9 @@ Describe 'FFmpeg source of a release (T-199)' {
         $windows = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'windows'
         @(Get-FFmpegLibraryVersionProblems -Pins $mac -LibraryVersion $mac.Version -LibraryName 'libavcodec.63.dylib').Count | Should -Be 0
         @(Get-FFmpegLibraryVersionProblems -Pins $windows -LibraryVersion $windows.Version -LibraryName 'avcodec-63.dll').Count | Should -Be 0
-        # BtbN adds its build date (--extra-version).
-        @(Get-FFmpegLibraryVersionProblems -Pins $windows -LibraryVersion "$($windows.Version)-20261031" -LibraryName 'avcodec-63.dll').Count | Should -Be 0
         Get-FFmpegLibraryVersionProblems -Pins $mac -LibraryVersion "$($mac.Version)-1" -LibraryName 'libavcodec.63.dylib' | Should -Match 'the published libraries and the attached source would differ'
-        Get-FFmpegLibraryVersionProblems -Pins $windows -LibraryVersion 'n9.0.2-28-g669f5ab083-20261017' -LibraryName 'avcodec-63.dll' | Should -Match 'avcodec-63\.dll is FFmpeg n9\.0\.2-28-g669f5ab083-20261017, but the pinned source'
+        # T-202: a library of the former BtbN build (git describe and build date) is not one of ours.
+        Get-FFmpegLibraryVersionProblems -Pins $windows -LibraryVersion 'n9.0.2-39-g7adfbe40dc-20261031' -LibraryName 'avcodec-63.dll' | Should -Match 'avcodec-63\.dll is FFmpeg n9\.0\.2-39-g7adfbe40dc-20261031, but the pinned source'
         Get-FFmpegLibraryVersionProblems -Pins $mac -LibraryVersion $null -LibraryName 'libavcodec.63.dylib' | Should -Match 'names no FFmpeg version'
     }
 
@@ -3181,49 +3145,16 @@ Describe 'FFmpeg source of a release (T-199)' {
 
         It 'reads the pins and fills the cache of every input (Get-FFmpegSourceInputs)' {
             $repo = Join-Path $script:FFmpegRoot "repo-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-            $targets = Set-Pin (Set-Pin (Set-Pin $script:Targets 'LayerPeekFFmpegMacSourceFolder' 'ffmpeg-9.9.9') 'LayerPeekFFmpegMacSourceUrl' 'https://ffmpeg.org/releases/ffmpeg-9.9.9.tar.xz') 'LayerPeekFFmpegMacSourceSha256' $script:TarballSha256
+            $targets = Set-Pin (Set-Pin (Set-Pin $script:Targets 'LayerPeekFFmpegSourceFolder' 'ffmpeg-9.9.9') 'LayerPeekFFmpegSourceUrl' 'https://ffmpeg.org/releases/ffmpeg-9.9.9.tar.xz') 'LayerPeekFFmpegSourceSha256' $script:TarballSha256
             $null = New-FileWith (Join-Path $repo 'build' 'FFmpeg.targets') $targets
             $source = Get-FFmpegSourceInputs -RepoRoot $repo -Os 'macos' -CacheDirectory (Join-Path $script:Cache 'new')
             $source.Pins.Version | Should -BeExactly '9.9.9'
             $source.Files | Should -Be @(Join-Path $script:Cache 'new' 'ffmpeg-9.9.9.tar.xz')
             Should -Invoke Invoke-FFmpegSourceDownload -ModuleName ReleaseTools -Times 1 -Exactly
-        }
-    }
-
-    Context 'git inputs (local repositories, no network)' {
-        BeforeAll { $script:Source = New-SourceRepository 'ffmpeg-n1.0-1-gabc' }
-        BeforeEach {
-            $script:Cache = Join-Path $script:FFmpegRoot "cache-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-            $null = New-Item -ItemType Directory -Path $script:Cache
-            $script:GitInput = [pscustomobject]@{ Kind = 'git'; Name = 'ffmpeg-n1.0-1-gabc.tar'; Prefix = 'ffmpeg-n1.0-1-gabc/'; Repository = $script:Source.Path; Commit = $script:Source.Commit; Tree = $script:Source.Tree; Sha256 = $script:Source.Sha256 }
-        }
-
-        It 'archives exactly the pinned commit with its tree, without line ending conversion, and caches it' {
-            # As Git for Windows installs it: core.autocrlf=true would turn the LF of 'configure' into CRLF in the archive.
-            [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, "[core]`n`tautocrlf = true`n")
-            try { $path = Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache }
-            finally { [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, '') }
-            Get-FileSha256 $path | Should -BeExactly $script:Source.Sha256
-            # Extracted to a file and read as is: native output piped through PowerShell is split into lines and joined
-            # with CRLF again on Windows (Out-String), which would hide the line endings of the archive (T-228).
-            $extracted = Join-Path $script:FFmpegRoot "extract-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-            $null = New-Item -ItemType Directory -Path $extracted
-            & (Get-TarCommand) -xf $path -C $extracted 'ffmpeg-n1.0-1-gabc/configure'
-            $LASTEXITCODE | Should -Be 0
-            [System.IO.File]::ReadAllText((Join-Path $extracted 'ffmpeg-n1.0-1-gabc' 'configure')) | Should -BeExactly "#!/bin/sh`necho configure`n"
-            @(& (Get-TarCommand) -tf $path) | Should -Contain 'ffmpeg-n1.0-1-gabc/libavutil/avutil.h'
-            @(Get-ChildItem -LiteralPath $script:Cache -Force | ForEach-Object Name) | Should -Be @('ffmpeg-n1.0-1-gabc.tar')
-            Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache | Should -BeExactly $path
-        }
-
-        It 'refuses <Name> and caches nothing' -ForEach @(
-            @{ Name = 'another tree'; Property = 'Tree'; Value = '0123456789abcdef0123456789abcdef01234567'; Pattern = 'expected 0123456789abcdef0123456789abcdef01234567 (build/FFmpeg.targets)' },
-            @{ Name = 'a commit the repository does not have'; Property = 'Commit'; Value = '0123456789abcdef0123456789abcdef01234567'; Pattern = 'fetch*failed' },
-            @{ Name = 'another SHA-256 of the tar'; Property = 'Sha256'; Value = ('0' * 64); Pattern = 'another git version may write the tar differently' }
-        ) {
-            $script:GitInput.$Property = $Value
-            { Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache } | Should -Throw -ExpectedMessage "*$Pattern*"
-            @(Get-ChildItem -LiteralPath $script:Cache -Force).Count | Should -Be 0
+            # The same tarball for Windows: taken from the cache, not downloaded again.
+            $windows = Get-FFmpegSourceInputs -RepoRoot $repo -Os 'windows' -CacheDirectory (Join-Path $script:Cache 'new')
+            $windows.Files | Should -Be @(Join-Path $script:Cache 'new' 'ffmpeg-9.9.9.tar.xz')
+            Should -Invoke Invoke-FFmpegSourceDownload -ModuleName ReleaseTools -Times 1 -Exactly
         }
     }
 
@@ -3233,7 +3164,7 @@ Describe 'FFmpeg source of a release (T-199)' {
             $script:WindowsPins = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'windows'
             $tarball = New-FileWith (Join-Path $script:FFmpegRoot 'inputs' $script:MacPins.Inputs[0].Name) 'tarball'
             $script:MacSource = [pscustomobject]@{ Pins = $script:MacPins; Files = @($tarball) }
-            $script:WindowsSource = [pscustomobject]@{ Pins = $script:WindowsPins; Files = @($script:WindowsPins.Inputs | ForEach-Object { New-FileWith (Join-Path $script:FFmpegRoot 'inputs' $_.Name) $_.Name }) }
+            $script:WindowsSource = [pscustomobject]@{ Pins = $script:WindowsPins; Files = @($tarball) }
             function New-Publish([string] $Name, [string] $Library, [string] $Version) {
                 $folder = Join-Path $script:FFmpegRoot $Name
                 $null = New-Item -ItemType Directory -Path $folder
@@ -3267,28 +3198,28 @@ Describe 'FFmpeg source of a release (T-199)' {
             $readme | Should -Not -Match '/build/prefix'
         }
 
-        It 'packs the Windows source: the FFmpeg commit, the BtbN scripts and README.txt' {
-            $publish = New-Publish 'publish-win' 'avcodec-63.dll' "$($script:WindowsPins.Version)-20261031"
+        It 'packs the Windows source: the same official tarball, the Windows build-ffmpeg.sh and README.txt (T-202)' {
+            $publish = New-Publish 'publish-win' 'avcodec-63.dll' $script:WindowsPins.Version
             $archive = Join-Path $script:FFmpegRoot 'dist-win' 'ffmpeg-source-1.0.0-windows.tar.xz'
             $null = New-Item -ItemType Directory -Path (Split-Path -Parent $archive)
             New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectory $publish -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-win') -RepoRoot $script:RepoRoot | Should -BeExactly $archive
-            $names = @($script:WindowsPins.Inputs | ForEach-Object { "ffmpeg-source-1.0.0-windows/$($_.Name)" })
-            Get-Entries $archive | Should -Be (@('ffmpeg-source-1.0.0-windows', 'ffmpeg-source-1.0.0-windows/README.txt') + $names | Sort-Object -CaseSensitive)
+            Get-Entries $archive | Should -Be (@('ffmpeg-source-1.0.0-windows', 'ffmpeg-source-1.0.0-windows/README.txt', 'ffmpeg-source-1.0.0-windows/build-ffmpeg.sh', "ffmpeg-source-1.0.0-windows/$($script:WindowsPins.Inputs[0].Name)") | Sort-Object -CaseSensitive)
+            $buildScript = Get-Member $archive 'ffmpeg-source-1.0.0-windows/build-ffmpeg.sh'
+            $buildScript.TrimEnd() | Should -BeExactly ([System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'build' 'windows' 'build-ffmpeg.sh')).Replace("`r`n", "`n").TrimEnd())
             $readme = Get-Member $archive 'ffmpeg-source-1.0.0-windows/README.txt'
             $readme | Should -Match 'for Windows \(win-x64\)'
-            foreach ($sourceInput in $script:WindowsPins.Inputs) {
-                $readme | Should -Match ([regex]::Escape("at commit $($sourceInput.Commit) (tree $($sourceInput.Tree))"))
-                $readme | Should -Match ([regex]::Escape("SHA-256: $($sourceInput.Sha256)"))
-            }
-            $readme | Should -Match ([regex]::Escape($script:WindowsPins.BuildUrl))
-            $readme | Should -Match 'their source code is not part of this archive'
-            $readme | Should -Match 'git archive --format=tar --prefix=<name>/ <commit>'
-            $readme | Should -Not -Match 'build-ffmpeg\.sh'
+            $readme | Should -Match ([regex]::Escape("The official FFmpeg source release, unchanged: $($script:WindowsPins.Inputs[0].Url)"))
+            $readme | Should -Match ([regex]::Escape("SHA-256: $($script:WindowsPins.Inputs[0].Sha256)"))
+            $readme | Should -Match 'build/windows/build-ffmpeg\.sh of LayerPeek, tag v1\.0\.0'
+            $readme | Should -Match 'MSYS2 and MinGW-w64'
+            $readme | Should -Match ([regex]::Escape("bash build-ffmpeg.sh win-x64 $($script:WindowsPins.Inputs[0].Name) ffmpeg-$($script:WindowsPins.Version)"))
+            $readme | Should -Match ([regex]::Escape('read from avcodec-63.dll; the installation prefix replaced by <prefix>):'))
+            $readme | Should -Not -Match 'BtbN|git archive|swresample'
         }
 
         It 'refuses <Name> and writes no archive' -ForEach @(
-            @{ Name = 'a library of another FFmpeg version'; Library = 'avcodec-63.dll'; Version = 'n9.0.2-28-g669f5ab083-20261017'; Pattern = 'the published libraries and the attached source would differ' },
-            @{ Name = 'a publish folder without avcodec'; Library = 'avutil-61.dll'; Version = 'n9.0.2-39-g7adfbe40dc'; Pattern = 'Expected exactly one FFmpeg avcodec library' }
+            @{ Name = 'a library of another FFmpeg version'; Library = 'avcodec-63.dll'; Version = 'n9.0.2-39-g7adfbe40dc-20261031'; Pattern = 'the published libraries and the attached source would differ' },
+            @{ Name = 'a publish folder without avcodec'; Library = 'avutil-61.dll'; Version = '9.0.2'; Pattern = 'Expected exactly one FFmpeg avcodec library' }
         ) {
             $publish = New-Publish "publish-bad-$([guid]::NewGuid().ToString('N').Substring(0, 8))" $Library $Version
             $archive = Join-Path $script:FFmpegRoot 'dist-bad' 'ffmpeg-source-1.0.0-windows.tar.xz'

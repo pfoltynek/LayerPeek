@@ -57,7 +57,7 @@ public sealed class FFmpegCameraFeedFactoryTests
         string version = FFmpegCameraFeedFactory.LibraryVersion;
 
         Assert.StartsWith("avformat 63.", version, StringComparison.Ordinal);
-        // Both builds (BtbN on Windows, build/macos/build-ffmpeg.sh on macOS) are LGPL 3 (T-014, T-026).
+        // Both builds (build/windows/build-ffmpeg.sh, T-202, and build/macos/build-ffmpeg.sh, T-026) are LGPL 3.
         Assert.EndsWith("(LGPL version 3 or later)", version, StringComparison.Ordinal);
     }
 
