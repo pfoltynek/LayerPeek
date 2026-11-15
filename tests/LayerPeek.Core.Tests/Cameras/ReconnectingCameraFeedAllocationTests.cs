@@ -51,12 +51,14 @@ public sealed class ReconnectingCameraFeedAllocationTests
     [Fact]
     public async Task ForwardingAsynchronouslyCompletingFramesDoesNotAllocate()
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         // Like a real decoder: every MoveNextAsync completes later, on another thread.
         const int PerPass = 256;
         using AsynchronousCameraFeed inner = new();
         ReconnectingCameraFeed camera = new(new SingleStreamFactory(inner), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        // A bug fails the test instead of hanging the run (set once, outside the measured loops).
+        // A bug fails the test instead of hanging the run: armed for the warm-up and again before each pass, never inside a
+        // measured loop (T-220: a loaded machine can take over a minute for all passes).
         cancellation.CancelAfter(TimeSpan.FromSeconds(60));
 
         // On the thread pool: no synchronization context, continuations stay on the producer thread.
@@ -78,6 +80,8 @@ public sealed class ReconnectingCameraFeedAllocationTests
                     // does not repeat on every pass, a per-frame allocation would.
                     for (int pass = 0; pass < 8 && minimum > 0; pass++)
                     {
+                        cancellation.CancelAfter(TimeSpan.FromSeconds(60));
+                        AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
                         long before = GC.GetTotalAllocatedBytes(precise: true);
                         for (int i = 0; i < PerPass; i++)
                         {
@@ -98,7 +102,7 @@ public sealed class ReconnectingCameraFeedAllocationTests
             TestContext.Current.CancellationToken);
 
         Assert.True(inner.CompletedAsynchronously > 0);
-        Assert.Equal(0, allocated);
+        AllocationProbe.AssertNoneAllocated(allocated);
     }
 
     /// <summary>

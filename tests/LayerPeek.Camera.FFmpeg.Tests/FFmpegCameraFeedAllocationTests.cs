@@ -21,21 +21,21 @@ public sealed class FFmpegCameraFeedAllocationTests
         // Decoding runs on the feed's own thread, so all threads are counted (GC.GetTotalAllocatedBytes); a stray
         // allocation elsewhere in the process does not repeat on every pass, a per-frame allocation would.
         // Anything per frame would be at least 50 objects; the 1280x720 buffer alone is 3.6 MB.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasurePassAsync));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(MeasurePassAsync));
     }
 
     [FFmpegFact]
     public async Task SteadyStateFramesThroughReconnectingFeedDoNotAllocate()
     {
         // The real path of the camera window: FFmpeg completes every read asynchronously on its decoder thread.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureReconnectingPassAsync));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(MeasureReconnectingPassAsync));
     }
 
     [FFmpegFact]
     public async Task SteadyStatePacketsAndFramesDoNotAllocate()
     {
         // T-143: a recording (packets) and a window (frames) on one connection.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureItemsPassAsync));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(MeasureItemsPassAsync));
     }
 
     [FFmpegFact]
@@ -44,21 +44,21 @@ public sealed class FFmpegCameraFeedAllocationTests
         // T-143: the camera window's real path, the shared connection with the subscriber's own buffers. The file plays
         // as fast as it decodes, so under load a pass can run out of frames (the stream ends and reconnects); such a pass
         // measures nothing and is repeated.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(options: null)));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(options: null)));
     }
 
     [FFmpegFact]
     public async Task SteadyStateDisplayFramesDoNotAllocate()
     {
         // T-184: the window's frames scaled down in the decoder, nothing in full resolution.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false)));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false)));
     }
 
     [HardwareDecodingFact]
     public async Task SteadyStateHardwareDisplayFramesDoNotAllocate()
     {
         // T-203: the camera window's frames from VideoToolbox, mapped without a copy (into a reused frame) and converted.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false, hardware: true)));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false, hardware: true)));
     }
 
     [FFmpegFact]
@@ -66,40 +66,49 @@ public sealed class FFmpegCameraFeedAllocationTests
     {
         // T-184: a window switched back and forth (mini preview <-> normal) rebuilds its scaler (native) but reuses its
         // buffer, which kept the larger size.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: true)));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: true)));
     }
 
     [FFmpegFact]
     public async Task SteadyStateDisplayFramesThroughTheHubDoNotAllocate()
     {
         // T-184: the camera window's path with a display size.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(new CameraFrameSubscriptionOptions { DisplaySize = new CameraFrameSize(640, 640) })));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(new CameraFrameSubscriptionOptions { DisplaySize = new CameraFrameSize(640, 640) })));
     }
 
     [FFmpegFact]
     public async Task SteadyStateGrayscaleFramesDoNotAllocate()
     {
         // T-189: the samples of print failure detection scaled from the luma plane, nothing in BGRA.
-        Assert.Equal(0, await MinimumOfValidPassesAsync(MeasureGrayscalePassAsync));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(MeasureGrayscalePassAsync));
     }
 
     [FFmpegFact]
     public async Task SteadyStateGrayscaleFramesThroughTheHubDoNotAllocate()
     {
         // T-189: grayscale frames of the decoder copied into the subscriber's own buffers (every frame, the worst case).
-        Assert.Equal(0, await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(new CameraFrameSubscriptionOptions { Grayscale = new CameraGrayscaleSize(320, 180) })));
+        AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureHubPassAsync(new CameraFrameSubscriptionOptions { Grayscale = new CameraGrayscaleSize(320, 180) })));
     }
 
     /// <summary>
     /// The smallest allocation of up to three valid passes. All threads are counted, so a pass during which the thread
     /// pool started or retired workers (allocations of the runtime, not of the feed) measures nothing and is repeated.
+    /// Each pass starts once the process is quiet (T-220, <see cref="AllocationProbe.WaitForQuietProcess"/>); the wait runs
+    /// before the pass creates its feed, so no real-clock timeout of the feed or the hub runs meanwhile. Not again after
+    /// the warm-up: behind the hub the file plays as fast as it decodes, so a running pass is never idle.
     /// </summary>
     private static async Task<long> MinimumOfValidPassesAsync(Func<Task<long?>> measure)
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         long minimum = long.MaxValue;
         int valid = 0;
         for (int pass = 0; pass < 10 && valid < 3 && minimum > 0; pass++)
         {
+            if (pass > 0)
+            {
+                AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
+            }
+
             // On the thread pool: no synchronization context, so continuations stay on the decoder thread like in
             // a consumer that uses ConfigureAwait(false) (a context would allocate for every post).
             if (await Task.Run(measure, TestContext.Current.CancellationToken) is { } allocated)
