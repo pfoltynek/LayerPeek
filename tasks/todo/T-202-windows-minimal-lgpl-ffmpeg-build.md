@@ -18,7 +18,7 @@ depends_on: [T-199]
 > **Blokuje vydání 1.0.0** (T-198, oddíl 1.1, bloker B10).
 >
 > **Rozhodnutí uživatele 2026-11-12 (Windows ARM64):** `win-arm64` se bude vydávat také; ARM64 build FFmpeg přidá
-> **T-224** po tomto úkolu. Tady se ARM64 neimplementuje, jen se skript buildu, cache (`win-x64-<klíč>`) a výběr
+> **T-225** po tomto úkolu. Tady se ARM64 neimplementuje, jen se skript buildu, cache (`win-x64-<klíč>`) a výběr
 > v `build/FFmpeg.targets` navrhnou tak, aby šla cílová architektura později přidat parametrem.
 
 ## Cíl
