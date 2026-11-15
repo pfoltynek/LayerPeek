@@ -505,6 +505,17 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       „Vypnuto“ uložit, v `%APPDATA%\LayerPeek\settings.json` je `"cameraHardwareDecoding": "Off"`, okno kamery dál
       ukazuje obraz; zpět „Automaticky“ hodnotu ze souboru odebere.
 
+### 2ad. Avalonia 12.1.6 (z T-224, ověřeno na Macu 2026-11-15)
+- [ ] **T-224** (automaticky): `dotnet build` a `dotnet test` na Windows bez chyb a varování (snímky sady Windows se
+      nemají změnit – vykreslení textu a Skia jsou mezi 12.1.4 a 12.1.6 beze změny, na Macu snímky prošly bez
+      přegenerování), `pwsh scripts/aot-smoke.ps1` PASS (win-x64).
+- [ ] **T-224** (ruční, krátce): spuštěná aplikace – ikona v oznamovací oblasti, menu tiskárny, okna Nastavení
+      a O aplikaci → Licence třetích stran (Avalonia „Verze 12.1.6“) se otevřou a zavřou bez ukončení aplikace.
+- [ ] **T-224** (informativní): Avalonia 12.1.5 opravuje `Screen.DisplayName` na Windows (#22593); v okně kamery
+      (volba monitoru pro celou obrazovku) zapsat do poznámek T-224, zda `DisplayName` Avalonie už vrací název monitoru
+      (např. „DELL U2719D“) – pak by šlo v novém úkolu zvážit odstranění vlastního čtení názvu (`MonitorNameNative`,
+      T-035). Nic neměnit v tomto bodě.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

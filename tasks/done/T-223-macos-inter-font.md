@@ -46,6 +46,7 @@ UI (T-031).
    stačí přepnout `AppFont` a projekt hned ukáže, zda se vše vejde), cena ~10 s běhu testů na Macu a údržba
    propojených souborů. Odstranit = méně kódu, při návratu k SF obnovit z historie gitu.
    **Doporučení: ponechat** do rozhodnutí o návratu k SF.
+   Rozhodnuto uživatelem 2026-11-15: otázka 1 – projekt LayerPeek.App.UiTests.SystemFont **ponechat**.
 
 ## Poznámky k implementaci
 - **Balíček:** `Avalonia.Fonts.Inter` 12.1.4 (stejná verze jako Avalonia) přesunutý v `Directory.Packages.props`

@@ -227,6 +227,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-207 | Kamera – dekodér si pamatuje poslední SPS/PPS pro nově otevřený kontext kodeku | all | core-dev | P3 | T-205 |
 | T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR | all | qa-reviewer | P2 | – |
 | T-219 | Nestabilní test `CameraStreamHubKeyFrameTests.WithoutDueSubscribersNoKeyFrameIsWanted` při plném `dotnet test` | all | core-dev | P2 | – |
+| T-224 | Aktualizace Avalonia 12.1.4 → 12.1.6 (hotovo) | all | ui-dev | P2 | – |
 
 ### Windows (`windows`)
 
@@ -316,5 +317,5 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-215 | macOS ověření – okna, Dock a ⌘Tab (T-151, T-102, T-038 otázka 2, T-184, T-026, T-188) | macos | qa-reviewer | P3 | T-209, T-210 |
 | T-216 | macOS ověření – drobné kontroly (autoclose, špendlík a editor výřezu přes AX, jazyk AppKitu, falešné `open`, HW dekódování, české rozložení) | macos | qa-reviewer | P3 | T-209, T-213 |
 | T-217 | macOS ověření – kontrola release bundlu z `.dmg` a `.tar.gz` (`mac.release-bundle`) (hotovo; odškrtnutí bodu T-026 v T-127 po běhu `-Preset release`) | macos | qa-reviewer | P3 | T-208 |
-| T-222 | Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (hotovo; rozhodnutí 2026-11-15: Inter na macOS v T-223, chybu nahlásit Avalonii) | macos | ui-designer | P3 | T-214 |
-| T-223 | macOS – písmo Inter jako výchozí písmo aplikace (místo San Francisco, které Avalonia rozvrhuje úzce) (hotovo; šířky v běžící aplikaci v T-127) | macos | ui-dev | P2 | T-222 |
+| T-222 | Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (hotovo; rozhodnutí 2026-11-15: Inter na macOS v T-223, chybu nahlásit Avalonii; 12.1.6 změřena 2026-11-15, chyba trvá) | macos | ui-designer | P3 | T-214 |
+| T-223 | macOS – písmo Inter jako výchozí písmo aplikace (místo San Francisco, které Avalonia rozvrhuje úzce) (hotovo; šířky v běžící aplikaci v T-127; SystemFont ponechán 2026-11-15) | macos | ui-dev | P2 | T-222 |

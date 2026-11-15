@@ -60,6 +60,8 @@ your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this
   minute, instead of every 5 s; a successful stream starts over at 5 s. Opening or restoring the camera window, and
   **Test camera** in the settings, try again at once.
 - **Built with the stable .NET 11** release instead of a release candidate.
+- **UI framework updated** to Avalonia 12.1.6 (from 12.1.4), with its fixes for menus, windows, text layout and
+  accessibility. Nothing changes in how LayerPeek looks or works.
 - **Window font on macOS:** the settings, diagnostics, About and camera windows use the bundled Inter font instead of the
   system font San Francisco, which the UI framework (Avalonia 12.1) laid out too tightly: text was 7–20 % narrower than
   in native apps and semibold and bold letters touched. The menu bar menu, notifications and system dialogs keep the
