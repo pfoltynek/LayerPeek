@@ -95,6 +95,9 @@ skutečným klipem Buddy3D nahrazuje skutečnou kameru.
       (nový úkol pro ui-dev), kontrola by pak hlášku vyžadovala.
    Do rozhodnutí zůstává v T-127 (oddíl 1l) samostatný neodškrtnutý podbod.
 
+Rozhodnuto uživatelem 2026-11-15 (otázka 3): **stačí** – bez pádu, bez nahrávky, bez souboru, selhání v logu
+a notifikace; Nastavení uloženou složku nekontroluje.
+
 ## Poznámky k implementaci
 Implementováno 2026-11-15 na Macu (qa-reviewer, worktree `LayerPeek-t210`). Terminál bez Zpřístupnění, obrazovka během
 posledního běhu zamčená.
