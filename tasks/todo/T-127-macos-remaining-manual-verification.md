@@ -102,7 +102,8 @@ a kritérium.
       (a) tlačítko náhledu: 320 × 213 bodů, roh vpravo dole, bez rámečku (v pořádku); (b) **Esc: 320 × 241 bodů,
       s titulkovým pruhem, spodní okraj −10 bodů** (chyba); (c) „Použít“ v tom běhu neměřeno (chyba kontroly se
       záložkami), v opakování na větvi `feature/macos-verify-first-real-run` (`20261115-170737`) 320 × 213, bez rámečku
-      (v pořádku), (b) znovu 320 × 241 s pruhem. Schválená oprava → **T-237**.
+      (v pořádku), (b) znovu 320 × 241 s pruhem. Schválená oprava → **T-237**. Opraveno v T-237 (2026-11-15,
+      `artifacts/verify/20261115-195207/`): `mac.mini-after-fullscreen` = `PASS`, všechny tři cesty 320 × 213 bez rámečku.
 - [x] **T-038** (otázka 3, rozhodovací bod; u kroku J7): Nastavení na MacBooku 13" se systémovým písmem (San
       Francisco) – když se v některém jazyce něco uřízne nebo se objeví posuvník, rozhodnout: přizpůsobit texty /
       rozložení (ui-designer), nebo dodávat písmo Inter i na macOS (rozhodnutí produktu); výsledek a rozhodnutí zapsat
