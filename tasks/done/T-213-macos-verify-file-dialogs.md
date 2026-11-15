@@ -63,6 +63,8 @@ a dialog nešel zobrazit. Tento úkol je ověří přes Accessibility na testova
 ## Otevřené otázky
 - (žádné)
 
+Rozhodnuto uživatelem 2026-11-15: testovací přepínač `LAYERPEEK_TEST_FILE_JOB_DELAY_MS` (jen Debug) **ponechat**.
+
 ## Poznámky k implementaci
 Implementováno 2026-11-15 na Macu (qa-reviewer, worktree `LayerPeek-t213`), postupem T-210 / T-211 / T-212. Terminál bez
 Zpřístupnění, obrazovka během běhů zamčená, oznámení „LayerPeek E2E“ nepovolená – skutečný běh kontroly je bod 1o v T-127.
