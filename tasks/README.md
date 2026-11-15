@@ -273,6 +273,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-227 | Windows ARM64 – ověření na zařízení ARM64 (sběrný úkol pro ARM64: aplikace, kamera, instalátor, aktualizace) | windows | qa-reviewer | P2 | T-226 |
 | T-228 | Windows – 47 selhávajících testů na develop (snapshoty UI, proxy, porty E2E, FFmpeg, Pester) | windows | qa-reviewer | P1 | – |
 | T-232 | Windows – aktualizace nativních závislostí a nástrojů (FFmpeg, MSVC/Windows SDK, Playwright/Edge, runner CI) | windows | qa-reviewer | P2 | T-202 |
+| T-234 | Pole hesla – UI Automation hlásí IsPassword = False a délku hesla (Avalonia 12.1.6) | windows | ui-dev | P3 | T-054 |
 
 ### macOS (`macos`) – jen na Macu, později
 
