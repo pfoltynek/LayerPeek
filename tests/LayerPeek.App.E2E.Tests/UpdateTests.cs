@@ -48,7 +48,8 @@ public sealed class UpdateTests(E2EFixture fixture)
     /// <summary>The title of the test packages (the name of any shortcut Velopack would create for them).</summary>
     private const string PackTitle = "LayerPeek Update E2E";
 
-    private const string Runtime = "win-x64";
+    /// <summary>The RID of this machine (T-226: win-arm64 on an ARM64 device, T-227); win-x64 where none is released.</summary>
+    private static readonly string Runtime = HostRuntime.Windows ?? "win-x64";
 
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(60);
 
@@ -75,7 +76,7 @@ public sealed class UpdateTests(E2EFixture fixture)
         SystemChanges.Require();
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         Assert.SkipWhen(E2EFixture.IsNativeAot, "The update of a Velopack installation is tested once, in the pass against the Debug exe (it packs the Debug build).");
-        Assert.SkipUnless(RuntimeInformation.OSArchitecture == Architecture.X64, $"The {Runtime} packages run on x64 Windows only.");
+        Assert.SkipWhen(HostRuntime.Windows is null, $"The packages run on x64 or ARM64 Windows only, not on {RuntimeInformation.OSArchitecture}.");
         Assert.SkipWhen(InstallerKind.IsInstalled(), $"LayerPeek is installed on this machine ({InstallerKind.InstallFolder}); the update test runs only without an installation (T-124 postpones it).");
         Assert.SkipWhen(KeyExists(InstallerKind.UninstallSubKey), $@"HKCU\{InstallerKind.UninstallSubKey} exists (a real installation); the update test runs only without one.");
         StringBuilder report = new();
@@ -392,7 +393,7 @@ public sealed class UpdateTests(E2EFixture fixture)
         return output;
     }
 
-    private const string FeedFileName = $"releases.{Runtime}.json";
+    private static readonly string FeedFileName = $"releases.{Runtime}.json";
 
     /// <summary>The version in <c>current\sq.version</c> of the installation, or <see langword="null"/>.</summary>
     private static string? InstalledVersion(string install)

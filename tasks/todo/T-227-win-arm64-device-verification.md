@@ -38,6 +38,22 @@ stroji v síti nebo na zařízení):
 7. Výsledek zapsat do poznámek; nalezené chyby = nové úkoly. Po úspěchu přepnout `win-arm64` na `Uploadable = $true`
    (malá změna v `ReleaseTools.psm1` + test), v README a příručkách nabídnout soubory ARM64 ke stažení; od prvního
    vydání s `win-arm64` přidat uzel `arm64` do winget (T-226 otázka 3).
+   **Předávka z T-226:** po přepnutí `Uploadable` upravit testy, které dnes stav „nenahrává se“ ověřují:
+   `ReleaseTools.Tests.ps1` (`releases win-x64, win-arm64 and osx-arm64; win-arm64 is built but not uploadable until
+   T-227`, `lists the RIDs a release build of an OS may upload …` – `Get-ReleaseBuildRuntimeArguments -Os windows` pak
+   vrátí prázdno, `refuses a build containing win-arm64 …`, `needs no win-arm64 feed and refuses every win-arm64 file …`)
+   a `ReleaseOrchestrator.Tests.ps1` (`-Runtime win-x64` v dalších krocích, v plánu a v `release.ps1`, `refuses the
+   default Windows build with win-arm64 …`). V `docs/release.md` (oddíl „Konfigurace RID“, „3. Běh na Windows“ bez
+   `-Runtime win-x64`), README EN + CZ a všech 8 příručkách (odstavec pod tabulkou balíčků Windows, řádek „Windows on
+   ARM64 🚧“) doplnit soubory `…-win-arm64-…`. winget: první vydání s `win-arm64` nejde přes `wingetcreate update`
+   (předchozí manifest má jeden uzel), jen ručně `release-winget.ps1 -OutputDirectory` + `winget validate` +
+   `wingetcreate submit` (postup v `docs/release.md`, „Windows ARM64 ve winget“); pak `winget install --manifest` na
+   ARM64 (bod 5).
+   **K řešení (review T-226, zatím beze změny kódu):** `src/LayerPeek.App/Updates/GitHubReleaseChecker.cs:17` počítá
+   vydání jako dostupné, jakmile má `SHA256SUMS-windows.txt`, bez ohledu na architekturu. Po povolení `win-arm64` by tak
+   uživatel ARM64 verze ZIP (bez Velopacku, kontrola přes GitHub Releases) mohl dostat upozornění na vydání, které má jen
+   soubory `win-x64`. Před přepnutím `Uploadable` rozhodnout a upravit (např. vyžadovat i `LayerPeek-X.Y.Z-<RID>.zip`
+   RID běžící aplikace) + test.
 8. **Přesunuté body z jiných úkolů** (doplňují se sem podle pravidla v `tasks/README.md`):
    - [ ] **T-225** – „Běh kamery na ARM64 (RTSP, nahrávání, timelapse, D3D11VA)“. Postup: na zařízení
      `dotnet test tests/LayerPeek.Camera.FFmpeg.Tests -r win-arm64` (FFmpeg ARM64 se přeloží křížově přes emulaci x64,

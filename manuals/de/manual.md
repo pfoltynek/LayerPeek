@@ -34,7 +34,7 @@ beschreibt beide Systeme; wo sich Windows und macOS unterscheiden, sagt der Text
   MK3.5/MK3.5S, XL und MINI/MINI+. Der Original Prusa MK3/MK3S hat kein eingebautes PrusaLink und wird nicht
   unterstützt.
 - **Einen Computer im selben lokalen Netzwerk** wie der Drucker:
-  - Windows 10 oder 11, x64 (Windows on ARM wird nicht unterstützt),
+  - Windows 10 oder 11, x64 (eine Version für Windows on ARM ist in Vorbereitung),
   - macOS auf Apple Silicon (M1 oder neuer).
 - **Eine Kamera (optional):** jede Kamera mit einem **RTSP-H.264**-Stream, die Ihr Computer erreichen kann, zum Beispiel
   die Prusa-Kamera Buddy3D. Auch ohne Kamera haben Sie das Symbol, die Benachrichtigungen und die Diagnose.
@@ -61,6 +61,13 @@ Sie haben die Wahl zwischen zwei Paketen:
 |---|---|
 | **Installationsprogramm** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (empfohlen) | Installiert LayerPeek nur für Ihren Benutzer, ohne Administratorrechte, nach `%LOCALAPPDATA%\LayerPeek`, fügt es dem Startmenü hinzu, startet es nach Ihrer Anmeldung und kann sich selbst aktualisieren. |
 | **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Entpacken Sie es an einen beliebigen Ort und starten Sie `LayerPeek.exe`. Es startet nicht nach der Anmeldung und aktualisiert sich nicht selbst (stattdessen öffnet es die Release-Seite). |
+
+Beide Pakete sind für Windows auf **x64** (Prozessoren von Intel und AMD): **Einstellungen → System → Info** zeigt unter
+**Systemtyp** *x64*. Eine Version für Windows on **ARM** (*ARM* unter **Systemtyp**, zum Beispiel Laptops mit
+Snapdragon) ist in Vorbereitung und noch nicht zum Herunterladen verfügbar. Sobald sie es ist, wechseln Sie von Hand:
+Deinstallieren Sie die x64-Version (**Einstellungen → Apps → Installierte Apps → LayerPeek → Deinstallieren**) und
+installieren Sie dann die ARM-Version (`…-win-arm64-…`). Ihre Einstellungen und Passwörter bleiben erhalten; eine
+Installation wechselt ihre Architektur nie von selbst.
 
 Beim ersten Start zeigt Windows SmartScreen **„Der Computer wurde durch Windows geschützt“** (*Windows protected your
 PC*) mit einem *unbekannten Herausgeber*. Klicken Sie auf **Weitere Informationen** und dann auf **Trotzdem ausführen**.

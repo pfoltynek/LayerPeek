@@ -4,7 +4,7 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 
 > **Důležité:**
 > - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. **Výjimka: první `dotnet build` přeloží knihovny FFmpeg ze zdrojů, takže potřebuje toolchain platformy: na Windows MSYS2 s MinGW-w64 (T-202, `winget install MSYS2.MSYS2` a balíčky `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`), na macOS Xcode Command Line Tools (T-026, `xcode-select --install`).** Bez něj build hned na začátku (nic nestahuje) skončí chybou s návodem (`MSYS2 with MinGW-w64 is not installed in C:\msys64 …` / `The Xcode Command Line Tools are not installed (or not selected). …`). Další buildy používají cache a toolchain už nepotřebují. Bez kamery jde vždy `dotnet build -p:LayerPeekFFmpegEnabled=false`.
-> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Vydávané RID: `win-x64` a `osx-arm64` (rozhodnuto 2026-10-21); Windows ARM64 `win-arm64` se bude vydávat také (rozhodnutí uživatele 2026-11-12): publish včetně FFmpeg funguje (T-224, T-225), vydávání přidá T-226.
+> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Vydávané RID: `win-x64`, `win-arm64` a `osx-arm64` (rozhodnuto 2026-10-21, `win-arm64` rozhodnutím uživatele 2026-11-12): `win-arm64` se na Windows x64 křížově překládá a balí (T-224, T-225, T-226), nahrávat se smí až po ověření na zařízení ARM64 (T-227).
 > - CI (GitHub Actions, T-218) jen sestaví, otestuje a AOT publikuje na Windows i macOS (viz „CI (GitHub Actions)“). Nic nevydává: binárky pro vydání se dál sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
 
 ## Společné (obě platformy)
@@ -230,7 +230,7 @@ První příkaz musí vypsat název instalace (jinak publish skončí chybou `vs
 
 - **S kamerou (T-225):** publish obsahuje ARM64 DLL FFmpeg a `FFmpeg-LICENSE.txt`, přeložené křížově s llvm-mingw (viz „Nativní knihovny FFmpeg“, „Windows ARM64 navíc“). `src/LayerPeek.App/LayerPeek.App.csproj` předá `LayerPeek.Camera.FFmpeg` RID jako `LayerPeekAppRuntimeIdentifier` (knihovní projekt se sestavuje bez RID). Bez kamery: `-p:LayerPeekFFmpegEnabled=false`.
 - **Kontrola architektury:** `Get-PublishArchitectureCheck` (`scripts/ReleaseTools/ReleaseTools.psm1`) ověří, že `LayerPeek.exe` a všechny DLL publish složky mají v hlavičce PE pole Machine podle RID (`win-arm64` = ARM64 `0xAA64`, `win-x64` = x64 `0x8664`). Volá ji `scripts/release-build.ps1` po každém publish Windows a `scripts/aot-smoke.ps1` před spuštěním. Ručně: `Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1; (Get-PublishArchitectureCheck -Directory src/LayerPeek.App/bin/Release/net11.0/win-arm64/publish -Runtime win-arm64).Problems` (prázdný výstup = v pořádku).
-- **Spuštění:** Windows na x64 ARM64 binárky spustit neumí, ověření běhu na zařízení ARM64 je T-227. `scripts/release-build.ps1` a `scripts/aot-smoke.ps1` `win-arm64` zatím odmítají (viz „Časté chyby“), vydávání přidá T-226.
+- **Spuštění:** Windows na x64 ARM64 binárky spustit neumí, ověření běhu na zařízení ARM64 je T-227. `scripts/release-build.ps1` (T-226) `win-arm64` sestaví a zabalí ve výchozím buildu, smoke test zapíše jako „not verified by running (this machine is windows-x64)“; `scripts/aot-smoke.ps1 -Runtime win-arm64` na x64 skončí hláškou „cannot run on this machine“ a nic nepublikuje ani nespustí. Build `win-arm64` tedy potřebuje komponentu MSVC ARM64 i llvm-mingw (viz výše), build pro nahrání `-Runtime win-x64` ne.
 
 ### Velopack `vpk` (instalátor T-017, macOS T-058)
 
@@ -244,7 +244,7 @@ dotnet vpk -h              # ověření; spouští se z kořene repozitáře
 - Verze `vpk` musí být stejná jako NuGet balíček `Velopack` v `Directory.Packages.props` (teď `1.2.161`). `release-build.ps1` to ověří před sestavením a Pester test hlídá oba soubory. Při povýšení změň obě verze najednou.
 - `vpk` 1.2.161 je framework-dependent pro .NET 8, 9 a 10 (verze pro .NET 11 neexistuje). Na stroji jen s .NET 11 ho spustí `"rollForward": true` v manifestu. Když je nainstalovaný runtime .NET 8–10, použije se ten.
 - Při prvním `dotnet tool restore` je potřeba internet (NuGet). `vpk` se spouští s `--skip-updates`, takže sám nic dalšího nestahuje.
-- `vpk` na Windows balí RID `win-x64` (zatím jediný RID pro Windows; `win-arm64` přidávají T-224 až T-226). Balíčky pro macOS umí vytvořit jen na Macu: od T-058 je `vpk` součástí kroku `app` na macOS (`release-build.ps1` spustí `dotnet tool restore` i tam; podpis `codesign` z Xcode Command Line Tools). Pester test na macOS spustí skutečné `vpk`, když je obnovené (jinak test přeskočí).
+- `vpk` na Windows balí oba Windows RID (`win-x64` a `win-arm64`, T-226; každý ve vlastním kanálu). Balíčky pro macOS umí vytvořit jen na Macu: od T-058 je `vpk` součástí kroku `app` na macOS (`release-build.ps1` spustí `dotnet tool restore` i tam; podpis `codesign` z Xcode Command Line Tools). Pester test na macOS spustí skutečné `vpk`, když je obnovené (jinak test přeskočí).
 
 ## macOS
 
@@ -421,7 +421,8 @@ Jen `CI result`, ne joby `Build and test (…)`: ty se u změn jen dokumentace p
 | macOS: `The Xcode Command Line Tools are not installed (or not selected)` | první `dotnet build` překládá FFmpeg: `xcode-select --install`, po instalaci build zopakovat (`xcode-select -p` musí vypsat složku). Nebo `-p:LayerPeekFFmpegEnabled=false` (bez kamery) |
 | `Building FFmpeg from source failed` (Windows i macOS) | viz `configure.log` / `make.log` ve složce `tmp-…` z chybové hlášky |
 | Varování `IL2xxx` / `IL3xxx` | kód nebo knihovna není kompatibilní s trimmingem/AOT – viz „Native AOT rules“ v `CLAUDE.md` |
-| `release-build.ps1`: `Unknown runtime 'win-arm64'` / `aot-smoke.ps1`: `runtime 'win-arm64' is not supported` | `win-arm64` zatím není implementovaný (T-224 až T-226), Windows se zatím sestavuje jen jako `win-x64` |
+| `aot-smoke.ps1`: `runtime 'win-arm64' cannot run on this machine (windows-x64)` | očekávané: Windows na x64 ARM64 binárky nespustí; smoke test `win-arm64` na zařízení ARM64 (T-227) |
+| `release-upload.ps1`: `Build output contains win-arm64, which must not be uploaded` | výchozí build Windows obsahuje `win-arm64`, který se do T-227 nenahrává: `pwsh scripts/release-build.ps1 -Runtime win-x64` (viz `docs/release.md`, „Konfigurace RID“) |
 | `release-upload.ps1`: `GitHub CLI (gh) is not installed` / `is not logged in` | viz „Vydání (GitHub CLI)“ |
 | `release-build.ps1`: `Velopack … and vpk … differ` | verze NuGet balíčku `Velopack` a nástroje `vpk` se liší (viz „Velopack `vpk`“) |
 | `dotnet vpk`: `You must install or update .NET to run this application` | chybí runtime .NET 8–10 a manifest nemá `"rollForward": true` (viz „Velopack `vpk`“) |

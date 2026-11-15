@@ -86,7 +86,7 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         Assert.All(Switches, name => Assert.True(E2EFixture.BinaryContains(debug, name), $"The scan finds nothing: '{name}' is missing in the Debug build."));
 
         string release = Path.Combine(AppProject, "bin", "Release", "net11.0", "LayerPeek.dll");
-        string published = Path.Combine(AppProject, "bin", "Release", "net11.0", "win-x64", "publish", "LayerPeek.exe");
+        string published = Path.Combine(AppProject, "bin", "Release", "net11.0", HostRuntime.Windows ?? "win-x64", "publish", "LayerPeek.exe");
         Assert.True(File.Exists(release), $"No Release build at '{release}' (tools/run-e2e.ps1 builds it).");
         // A published exe counts only when it is not older than the Release build (published by this run, -PublishAot); an
         // older one was built from other sources and proves nothing about these.
@@ -109,7 +109,7 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
             FormerNames.Any(name => TestWorktree.Root.Contains(name, StringComparison.OrdinalIgnoreCase)),
             "The worktree folder still carries the former name (its PDB path is embedded in the binaries).");
         string release = Path.Combine(AppProject, "bin", "Release", "net11.0", "LayerPeek.dll");
-        string published = Path.Combine(AppProject, "bin", "Release", "net11.0", "win-x64", "publish", "LayerPeek.exe");
+        string published = Path.Combine(AppProject, "bin", "Release", "net11.0", HostRuntime.Windows ?? "win-x64", "publish", "LayerPeek.exe");
         string[] binaries = [E2EFixture.AppPath, .. new[] { Path.ChangeExtension(E2EFixture.AppPath, ".dll"), release, published }.Where(File.Exists)];
         foreach (string binary in binaries.Distinct(StringComparer.OrdinalIgnoreCase))
         {

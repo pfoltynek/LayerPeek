@@ -12,7 +12,8 @@
       - every Velopack feed (releases.<rid>.json) has its signature releases.<rid>.json.sig (T-181; also with
         -AllowIncomplete),
       - every file listed in the checksum files is uploaded with the listed SHA256 and no other file is,
-      - no file of a runtime that must not be released (Uploadable = $false in the runtime table) is uploaded.
+      - no file of a runtime that must not be released (Uploadable = $false in the runtime table: win-arm64 until T-227)
+        is uploaded; no feed is expected for such a runtime.
     The checksum files are downloaded into a temporary folder that is always deleted. Versions 0.x stay marked as
     pre-releases.
     After publishing it offers the winget submission (T-059): on Windows, for a stable version whose release has the

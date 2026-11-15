@@ -131,7 +131,8 @@ syspolicyd). Variantu A spustily už zkušební běhy před měřením. S varian
   okna kamery proto mohou být při odemčené obrazovce jiná. Srovnání variant to neovlivňuje, protože všechny běžely za
   stejných podmínek.
 - Měřilo se jen na macOS (Apple Silicon). Na Windows (x64, jiný GC backend pro regiony, jiný renderer) může vyjít
-  jinak. Tam měření zopakovat, jen pokud by se o změně buildu uvažovalo.
+  jinak. Tam měření zopakovat, jen pokud by se o změně buildu uvažovalo. Windows ARM64 (`win-arm64`, T-226) se neměřilo
+  vůbec (bez zařízení, T-227); build nemá žádné nastavení GC závislé na RID.
 - Autentizace přes `X-Api-Key` (proxy) místo Digestu, viz Postup. Rozdíl je jedna výzva za 5 minut na tiskárnu.
 - **Pauzy GC se neměřily**: Native AOT build má `EventSource` vypnutý (`System.Diagnostics.Tracing.EventSource.IsSupported=false`),
   takže `dotnet-counters` ani `dotnet-trace` nefungují a měřit by to šlo jen s upraveným buildem. Nepřímý ukazatel je

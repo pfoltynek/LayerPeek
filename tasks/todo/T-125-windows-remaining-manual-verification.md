@@ -588,6 +588,15 @@ D3D11VA tam vyšlo **hůř** než software, takže bez lepšího výsledku na ji
       návrat k softwaru ani chyba. Splněno → uživatel rozhodne o přepnutí (nový úkol: pravidlo
       `HardwareDecoderSelection`, příručky, volba na Windows podle T-204 otázky 1); nesplněno → software zůstává.
 
+### 2ai. Vydání win-arm64 – plný běh na konzoli (z T-226, implementováno na Windows 2026-11-15)
+Rozhodnutí uživatele 2026-11-15: E2E testy s myší nejdou přes RDP (klient vrací ukazatel, T-169), proto se plné běhy
+dělají u konzole Windows.
+- [ ] **T-226** (automaticky): plné `dotnet test` včetně `tests/LayerPeek.E2E.Tests` na konzoli bez chyb (hlavně
+      `UpdateTests`, `VelopackInstallerTests`, `IconAndBuildTests` s `HostRuntime`).
+- [ ] **T-226** (automaticky): celé `pwsh scripts/release-build.ps1 -SkipFeedSignature` na Windows x64 (testy řešení,
+      smoke test `win-x64`, krok `ffmpeg-source`) projde; výstup `win-x64` i `win-arm64`, kontrola architektury PE bez
+      problémů, `SHA256SUMS-windows.txt` odpovídá `Get-FileHash`. Výstup pak smazat.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

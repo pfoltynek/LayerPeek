@@ -33,7 +33,7 @@ describe ambos sistemas; donde Windows y macOS se diferencian, el texto lo indic
 - **Una impresora Prusa con firmware Buddy 6.x y PrusaLink**: CORE One (probada), MK4/MK4S, MK3.9/MK3.9S,
   MK3.5/MK3.5S, XL y MINI/MINI+. La Original Prusa MK3/MK3S no tiene PrusaLink integrado y no es compatible.
 - **Un ordenador en la misma red local** que la impresora:
-  - Windows 10 u 11, x64 (Windows en ARM no es compatible),
+  - Windows 10 u 11, x64 (una versión para Windows en ARM está en preparación),
   - macOS en Apple Silicon (M1 o posterior).
 - **Una cámara (opcional):** cualquier cámara con una transmisión **RTSP H.264** accesible desde su ordenador, por
   ejemplo la cámara Prusa Buddy3D. Sin cámara sigue teniendo el icono, las notificaciones y el diagnóstico.
@@ -60,6 +60,13 @@ Puede elegir entre dos paquetes:
 |---|---|
 | **Instalador** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (recomendado) | Instala LayerPeek solo para su usuario, sin derechos de administrador, en `%LOCALAPPDATA%\LayerPeek`, lo añade al menú Inicio, lo inicia al iniciar sesión y puede actualizarse solo. |
 | **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Descomprímalo en cualquier carpeta y ejecute `LayerPeek.exe`. No se inicia al iniciar sesión ni se actualiza solo (en su lugar abre la página de la versión). |
+
+Ambos paquetes son para Windows en **x64** (procesadores Intel y AMD): **Configuración → Sistema → Información** muestra
+*x64* en **Tipo de sistema**. Una versión para Windows en **ARM** (*ARM* en **Tipo de sistema**, por ejemplo portátiles
+con Snapdragon) está en preparación y todavía no se puede descargar. Cuando lo esté, cambie a ella a mano: desinstale la
+versión x64 (**Configuración → Aplicaciones → Aplicaciones instaladas → LayerPeek → Desinstalar**) y luego instale la
+versión ARM (`…-win-arm64-…`). Su configuración y sus contraseñas se conservan; una instalación nunca cambia de
+arquitectura por sí sola.
 
 En el primer inicio, Windows SmartScreen muestra **«Windows protegió su PC»** con un *Editor desconocido*. Haga clic en
 **Más información** y después en **Ejecutar de todas formas**.

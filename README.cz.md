@@ -335,7 +335,7 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 | Platforma | Stav |
 |---|---|
 | Windows 10/11 x64 | ✅ podporováno |
-| Windows na ARM64 | ❌ nepodporováno |
+| Windows na ARM64 | 🚧 připravuje se: zatím ke stažení není, dokud se neověří na zařízení s ARM64 |
 | macOS (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
 
 ## Rychlý start
@@ -351,6 +351,13 @@ Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/Laye
 - **Instalátor** `LayerPeek-X.Y.Z-win-x64-Setup.exe`: instaluje jen pro tvého uživatele, bez práv správce, do
   `%LOCALAPPDATA%\LayerPeek` a přidá LayerPeek do nabídky Start. Odinstaluješ ho v **Nastavení → Aplikace**.
 - **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: rozbal ho kamkoli a spusť `LayerPeek.exe`.
+
+Oba soubory jsou pro Windows na **x64** (procesory Intel a AMD). Ověříš to v **Nastavení → Systém → O systému** u položky
+**Typ systému**: „procesor typu x64“ znamená tyto soubory. Nativní verze pro Windows na **ARM64** („procesor typu ARM“,
+např. notebooky se Snapdragonem) se připravuje a zatím ke stažení není. Až bude, její soubory ponesou v názvu
+`…-win-arm64-…`. Přechod z verze x64 na ni je ruční: odinstaluj verzi x64 v **Nastavení → Aplikace** a pak nainstaluj
+verzi ARM64. Obě používají stejnou složku, nastavení i hesla a instalace architekturu sama nikdy nezmění (každá se
+aktualizuje v rámci své verze).
 
 > [!IMPORTANT]
 > Aktualizace v rámci verzí 1.x zachovají tvoje nastavení; soubory nastavení starších verzí se vždy načtou.
@@ -474,8 +481,8 @@ Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web Prus
 - [.NET SDK 11](https://dotnet.microsoft.com/download/dotnet/11.0). Přesná verze je v [`global.json`](global.json),
   používají se jen stabilní vydání SDK, žádné preview.
 - Git.
-- Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*,
-  na macOS Xcode Command Line Tools.
+- Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*
+  (pro Windows ARM64 navíc komponenta *MSVC ARM64 build tools*), na macOS Xcode Command Line Tools.
 - První build stáhne oficiální zdrojový kód FFmpeg (~12 MB, ověřený přes SHA-256) a jednou z něj přeloží minimální
   LGPL build knihoven kamery: na Windows přes [MSYS2](https://www.msys2.org/) a MinGW-w64 (`winget install
   MSYS2.MSYS2`, pak balíčky `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; pár minut), na macOS přes
@@ -501,10 +508,13 @@ Nemáš po ruce tiskárnu? V repozitáři je [simulátor](docs/simulator.md) tis
 
 ```bash
 dotnet publish src/LayerPeek.App -c Release -r win-x64     # na Windows
+dotnet publish src/LayerPeek.App -c Release -r win-arm64   # na Windows x64, pro Windows na ARM64
 dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # na macOS
 ```
 
 AOT nejde kompilovat napříč operačními systémy: binárky pro Windows se sestavují na Windows, pro macOS na macOS.
+Verze pro Windows ARM64 se překládá křížově na Windows x64 (knihovny kamery přes
+[llvm-mingw](https://github.com/mstorsjo/llvm-mingw), který se stáhne při prvním takovém buildu); spustit se tam nedá.
 
 ### Vydání
 

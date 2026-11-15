@@ -44,8 +44,8 @@ BeforeAll {
     }
     [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, '')
 
-    # Synthetic runtime tables (-Config) for the generic runtime rules: the real table has one RID per OS (T-130), and
-    # no RID that is built but must not be uploaded.
+    # Synthetic runtime tables (-Config) for the generic runtime rules, independent of the real table (T-226: win-x64 and
+    # win-arm64 on Windows, win-arm64 built but not uploadable until T-227; osx-arm64 on macOS).
     $script:TwoWindowsRuntimes = [ordered]@{
         'test-a' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
         'test-b' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
@@ -186,8 +186,8 @@ Describe 'Version and tag' {
 }
 
 Describe 'Runtimes' {
-    It 'builds win-x64 on Windows and osx-arm64 on macOS by default' {
-        Resolve-ReleaseRuntimes -HostOs windows | Should -BeExactly @('win-x64')
+    It 'builds win-x64 and win-arm64 on Windows and osx-arm64 on macOS by default (T-226)' {
+        Resolve-ReleaseRuntimes -HostOs windows | Should -BeExactly @('win-x64', 'win-arm64')
         Resolve-ReleaseRuntimes -HostOs macos | Should -BeExactly @('osx-arm64')
     }
     It 'validates, normalizes and de-duplicates explicit runtimes' {
@@ -205,23 +205,59 @@ Describe 'Runtimes' {
         Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'osx-x64' -HostOs macos } "Unknown runtime 'osx-x64'"
         Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'linux-x64' -HostOs windows } 'Unknown runtime'
     }
-    It 'refuses win-arm64: Windows is released as win-x64 only (T-130)' {
-        Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'win-arm64' -HostOs windows } "Unknown runtime 'win-arm64'. Released runtimes: win-x64, osx-arm64\."
+    It 'builds win-arm64 on Windows only, alone or with win-x64 (T-226)' {
+        Resolve-ReleaseRuntimes -Requested 'win-arm64' -HostOs windows | Should -BeExactly @('win-arm64')
+        Resolve-ReleaseRuntimes -Requested 'win-arm64,win-x64' -HostOs windows | Should -BeExactly @('win-arm64', 'win-x64')
+        Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'win-arm64' -HostOs macos } "'win-arm64' cannot be built on macos"
+        Assert-ThrowsMatching { Resolve-ReleaseRuntimes -Requested 'win-x86' -HostOs windows } "Unknown runtime 'win-x86'. Released runtimes: win-x64, win-arm64, osx-arm64\."
     }
-    It 'releases exactly win-x64 and osx-arm64, both uploadable' {
+    It 'releases win-x64, win-arm64 and osx-arm64; win-arm64 is built but not uploadable until T-227' {
         $config = Get-ReleaseRuntimeConfig
-        @($config.Keys) | Should -BeExactly @('win-x64', 'osx-arm64')
+        @($config.Keys) | Should -BeExactly @('win-x64', 'win-arm64', 'osx-arm64')
         $config['win-x64'].Uploadable | Should -BeTrue
         $config['osx-arm64'].Uploadable | Should -BeTrue
+        $config['win-arm64'].Os | Should -BeExactly 'windows'
+        $config['win-arm64'].Default | Should -BeTrue
+        $config['win-arm64'].Uploadable | Should -BeFalse
+        $config['win-arm64'].BlockedReason | Should -BeExactly 'not verified on an ARM64 device (T-227)'
+    }
+    It 'lists the RIDs a release build of an OS may upload, and the -Runtime it needs for that (T-226)' {
+        Get-UploadableReleaseRuntimes -HostOs windows | Should -BeExactly @('win-x64')
+        Get-UploadableReleaseRuntimes -HostOs macos | Should -BeExactly @('osx-arm64')
+        # The default build of Windows has win-arm64 too, so a build for the upload names win-x64; macOS builds its default.
+        Get-ReleaseBuildRuntimeArguments -Os windows | Should -BeExactly @('-Runtime', 'win-x64')
+        @(Get-ReleaseBuildRuntimeArguments -Os macos) | Should -BeNullOrEmpty
+        @(Get-ReleaseBuildRuntimeArguments -Os windows -Config $script:BlockedRuntimeConfig) | Should -BeNullOrEmpty
+        Get-UploadableReleaseRuntimes -HostOs windows -Config $script:TwoWindowsRuntimes | Should -BeExactly @('test-a', 'test-b')
+        $partly = [ordered]@{
+            'test-a' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+            'test-c' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'test only' }
+            'test-b' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
+        }
+        # pwsh -File passes the list as one argument.
+        Get-ReleaseBuildRuntimeArguments -Os windows -Config $partly | Should -BeExactly @('-Runtime', 'test-a,test-b')
+        $none = [ordered]@{ 'test-c' = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $false; BlockedReason = 'test only' } }
+        @(Get-UploadableReleaseRuntimes -HostOs windows -Config $none) | Should -BeNullOrEmpty
+        Assert-ThrowsMatching { Get-ReleaseBuildRuntimeArguments -Os windows -Config $none } 'No runtime of windows may be uploaded'
+    }
+    It 'names the RID of this machine (T-226: the tools of an ARM64 device use win-arm64)' {
+        Get-HostRuntime -HostOs windows -HostArchitecture x64 | Should -BeExactly 'win-x64'
+        Get-HostRuntime -HostOs windows -HostArchitecture arm64 | Should -BeExactly 'win-arm64'
+        Get-HostRuntime -HostOs macos -HostArchitecture arm64 | Should -BeExactly 'osx-arm64'
+        Assert-ThrowsMatching { Get-HostRuntime -HostOs windows -HostArchitecture x86 } 'No runtime for windows x86'
+        if ($IsWindows -or $IsMacOS) { Get-HostRuntime | Should -BeExactly (Get-HostRuntime -HostOs (Get-HostOs) -HostArchitecture (Get-HostArchitecture)) }
     }
     It 'smoke-tests only the RID of this OS and architecture' {
         Test-RuntimeRunnable -Runtime win-x64 -HostOs windows -HostArchitecture x64 | Should -BeTrue
         Test-RuntimeRunnable -Runtime win-x64 -HostOs windows -HostArchitecture arm64 | Should -BeFalse
+        Test-RuntimeRunnable -Runtime win-arm64 -HostOs windows -HostArchitecture arm64 | Should -BeTrue
+        Test-RuntimeRunnable -Runtime win-arm64 -HostOs windows -HostArchitecture x64 | Should -BeFalse
         Test-RuntimeRunnable -Runtime osx-arm64 -HostOs macos -HostArchitecture arm64 | Should -BeTrue
         Test-RuntimeRunnable -Runtime win-x64 -HostOs macos -HostArchitecture x64 | Should -BeFalse
     }
     It 'names the archives and checksum files' {
         Get-ArchiveFileName -Version 0.1.0 -Runtime win-x64 | Should -BeExactly 'LayerPeek-0.1.0-win-x64.zip'
+        Get-ArchiveFileName -Version 0.1.0 -Runtime win-arm64 | Should -BeExactly 'LayerPeek-0.1.0-win-arm64.zip'
         Get-ArchiveFileName -Version 0.1.0 -Runtime osx-arm64 | Should -BeExactly 'LayerPeek-0.1.0-osx-arm64.tar.gz'
         Get-ChecksumFileName windows | Should -BeExactly 'SHA256SUMS-windows.txt'
     }
@@ -576,8 +612,12 @@ Describe 'Build marker' {
         $problems = Get-BuildInfoProblems -BuildInfo (Copy-With $script:Info @{ Runtimes = @('win-x64', 'test-blocked') }) -Version '0.1.0' -Head $script:Head -DistFiles $script:DistNames -Config $script:BlockedRuntimeConfig
         Assert-Problems $problems 'contains test-blocked, which must not be uploaded: test only'
     }
-    It 'refuses a build containing an unknown runtime (win-arm64 is not supported, T-130)' {
-        Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-arm64') })) "unknown runtime 'win-arm64'"
+    It 'refuses a build containing an unknown runtime' {
+        Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-x86') })) "unknown runtime 'win-x86'"
+    }
+    It 'refuses a build containing win-arm64 until it is verified on an ARM64 device, and names the build to upload (T-226, T-227)' {
+        Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-arm64') })) `
+            '^Build output contains win-arm64, which must not be uploaded: not verified on an ARM64 device \(T-227\)\. Rebuild without it: pwsh scripts/release-build\.ps1 -Runtime win-x64$'
     }
     It 'reports missing build output instead of failing when there is no dist folder (Get-ReleaseBuildOutput)' {
         $output = Get-ReleaseBuildOutput -RepoRoot (Join-Path $script:TempRoot 'no-build') -Version '0.1.0' -Head $script:Head
@@ -661,7 +701,8 @@ Describe 'Sign only an existing dist (T-197, pure)' {
     }
     It 'refuses a record without runtimes, with an unknown runtime or without the fingerprint of the checked key' {
         Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @() })) 'names no runtime', $script:Rebuild
-        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @('osx-arm64', 'win-arm64') })) "unknown runtime 'win-arm64'", 'no update feed releases\.win-arm64\.json', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @('osx-arm64', 'win-x86') })) "unknown runtime 'win-x86'", 'no update feed releases\.win-x86\.json', $script:Rebuild
+        Assert-Problems (SignProblems (Copy-With $script:Pending @{ Runtimes = @('osx-arm64', 'win-arm64') })) 'contains win-arm64, a runtime of windows', 'no update feed releases\.win-arm64\.json', $script:Rebuild
         Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = $null } })) 'does not name the public key', $script:Rebuild
         Assert-Problems (SignProblems (Copy-With $script:Pending @{ FeedSignature = [pscustomobject]@{ Status = 'pending'; PublicKeySha256 = 'F' * 64 } })) 'does not name the public key', $script:Rebuild
     }
@@ -745,14 +786,26 @@ Describe 'Publish checks' {
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) 'no SHA256SUMS-macos.txt'
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
     }
-    It 'refuses missing, different and unlisted files (also a stray win-arm64 file, T-130)' {
+    It 'refuses missing, different and unlisted files' {
         $assets = @($script:Complete | Where-Object name -NE 'P-0.1.0-osx-arm64.tar.gz') + @(
-            [pscustomobject]@{ name = 'stray.txt'; digest = "sha256:$('3' * 64)" },
-            [pscustomobject]@{ name = 'P-0.1.0-win-arm64.zip'; digest = "sha256:$('4' * 64)" }
+            [pscustomobject]@{ name = 'stray.txt'; digest = "sha256:$('3' * 64)" }
         )
         $assets[0] = [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; digest = "sha256:$('6' * 64)" }
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) `
-            'P-0.1.0-osx-arm64.tar.gz is listed .* but not uploaded', 'Uploaded P-0.1.0-win-x64.zip does not match', 'stray.txt is uploaded but not listed', 'P-0.1.0-win-arm64.zip is uploaded but not listed'
+            'P-0.1.0-osx-arm64.tar.gz is listed .* but not uploaded', 'Uploaded P-0.1.0-win-x64.zip does not match', 'stray.txt is uploaded but not listed'
+    }
+    It 'needs no win-arm64 feed and refuses every win-arm64 file until T-227, also when it is listed (T-226)' {
+        # The complete draft above has no win-arm64 file: win-arm64 is not uploadable, so its feed is not expected.
+        Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums)
+        $arm = [ordered]@{ 'P-0.1.0-win-arm64.zip' = '4' * 64; 'P-0.1.0-win-arm64-Setup.exe' = '5' * 64; 'releases.win-arm64.json' = 'e' * 64; 'releases.win-arm64.json.sig' = 'f' * 64 }
+        $winSums = [ordered]@{}
+        foreach ($name in $script:WinSums.Keys) { $winSums[$name] = $script:WinSums[$name] }
+        foreach ($name in $arm.Keys) { $winSums[$name] = $arm[$name] }
+        $assets = @($script:Complete) + @($arm.Keys | ForEach-Object { [pscustomobject]@{ name = $_; digest = "sha256:$($arm[$_])" } })
+        $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = $winSums; 'SHA256SUMS-macos.txt' = $script:MacSums }
+        $blocked = 'belongs to win-arm64, which must not be released: not verified on an ARM64 device \(T-227\)\.$'
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) `
+            "^P-0\.1\.0-win-arm64\.zip $blocked", "^P-0\.1\.0-win-arm64-Setup\.exe $blocked", "^releases\.win-arm64\.json $blocked", "^releases\.win-arm64\.json\.sig $blocked"
     }
     It 'refuses a draft without the Velopack feed of a released RID (T-058: <Feed>)' -ForEach @(
         @{ Feed = 'releases.win-x64.json' },
@@ -2610,13 +2663,26 @@ Describe 'AOT smoke script with an existing publish folder' {
         @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name) | Should -BeExactly $before
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
     }
-    It 'refuses a Windows runtime other than win-x64 (<_>, T-130) and starts nothing' -ForEach 'win-arm64', 'win-x86' {
+    It 'refuses a Windows runtime that is not released (<_>) and starts nothing' -ForEach 'win-x86', 'WIN-X86' {
         $profileRoot = New-SmokeStandInProfile
         $profileBefore = Get-TreeState $profileRoot
         $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -Runtime $_ -PublishDir $script:SmokeDir -Seconds 1 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
         $LASTEXITCODE | Should -Be 1
-        $output | Should -Match "runtime '$_' is not supported\. Windows is built as win-x64 only"
+        $output | Should -Match "AOT smoke check NOT RUN: runtime '$_' is not a released Windows runtime \(win-x64, win-arm64\)\."
         $output | Should -Not -Match 'Publishing|Starting'
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+    }
+    It 'says that win-arm64 cannot run on this x64 machine, and publishes and starts nothing (T-226)' -Skip:(-not ($IsWindows -and [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'X64')) {
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
+        $before = @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name)
+        foreach ($arguments in @(, @('-PublishDir', $script:SmokeDir)) + @(, @())) {
+            $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -Runtime win-arm64 @arguments -Seconds 1 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+            $LASTEXITCODE | Should -Be 1
+            $output | Should -Match "AOT smoke check NOT RUN: runtime 'win-arm64' cannot run on this machine \(windows-x64\): Windows on x64 cannot run ARM64 binaries\. Run it on a Windows ARM64 device \(T-227\)\."
+            $output | Should -Not -Match 'Publishing|Starting|FAILED'
+        }
+        @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name) | Should -BeExactly $before
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
     }
     It 'refuses a publish folder with a DLL of another architecture before it starts anything (T-224)' -Skip:(-not $IsWindows) {

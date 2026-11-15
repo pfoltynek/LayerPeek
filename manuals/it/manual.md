@@ -34,7 +34,7 @@ entrambe le varianti.
 - **Una stampante Prusa con firmware Buddy 6.x e PrusaLink**: CORE One (testata), MK4/MK4S, MK3.9/MK3.9S, MK3.5/MK3.5S,
   XL e MINI/MINI+. La Original Prusa MK3/MK3S non ha PrusaLink integrato e non è supportata.
 - **Un computer sulla stessa rete locale** della stampante:
-  - Windows 10 o 11, x64 (Windows su ARM non è supportato),
+  - Windows 10 o 11, x64 (una versione per Windows su ARM è in preparazione),
   - macOS su Apple Silicon (M1 o successivo).
 - **Una telecamera (facoltativa):** qualsiasi telecamera con uno stream **RTSP H.264** raggiungibile dal tuo computer,
   per esempio la telecamera Prusa Buddy3D. Anche senza telecamera hai comunque l’icona, le notifiche e la diagnostica.
@@ -61,6 +61,12 @@ Puoi scegliere tra due pacchetti:
 |---|---|
 | **Programma di installazione** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (consigliato) | Installa LayerPeek solo per il tuo utente, senza diritti di amministratore, in `%LOCALAPPDATA%\LayerPeek`, lo aggiunge al menu Start, lo avvia dopo l’accesso e può aggiornarsi da solo. |
 | **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Estrailo dove vuoi ed esegui `LayerPeek.exe`. Non si avvia dopo l’accesso e non si aggiorna da solo (apre invece la pagina della release). |
+
+Entrambi i pacchetti sono per Windows su **x64** (processori Intel e AMD): **Impostazioni → Sistema → Informazioni**
+mostra *x64* in **Tipo di sistema**. Una versione per Windows su **ARM** (*ARM* in **Tipo di sistema**, ad esempio i
+portatili con Snapdragon) è in preparazione e non è ancora scaricabile. Quando lo sarà, passa a quella a mano:
+disinstalla la versione x64 (**Impostazioni → App → App installate → LayerPeek → Disinstalla**), poi installa la
+versione ARM (`…-win-arm64-…`). Impostazioni e password restano; un’installazione non cambia mai architettura da sola.
 
 Al primo avvio Windows SmartScreen mostra **«Windows ha protetto il PC»** con *Autore sconosciuto*. Fai clic su
 **Ulteriori informazioni** e poi su **Esegui comunque**.

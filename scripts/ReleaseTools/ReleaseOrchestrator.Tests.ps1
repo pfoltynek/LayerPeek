@@ -692,15 +692,22 @@ Describe 'Plan and resume detection (pure)' {
         $text | Should -Match 'then back to develop: git switch develop'
     }
     It 'names the OS that went first and how the other one follows (T-113, <HostOs>)' -ForEach @(
-        @{ HostOs = 'macos'; This = 'macOS'; Other = 'Windows' }
-        @{ HostOs = 'windows'; This = 'Windows'; Other = 'macOS' }
+        @{ HostOs = 'macos'; This = 'macOS'; Other = 'Windows'; Build = 'release-build\.ps1 -Runtime win-x64 -FeedSigningKey <key file>' }
+        @{ HostOs = 'windows'; This = 'Windows'; Other = 'macOS'; Build = 'release-build\.ps1 -FeedSigningKey <key file>' }
     ) {
         $text = (Get-ReleaseNextSteps -Version '0.2.0' -HostOs $HostOs) -join "`n"
         $text | Should -Match "release-publish\.ps1 -AllowIncomplete   # only the $This files so far"
         $text | Should -Match "The $Other files follow on a $Other machine"
-        $text | Should -Match 'git fetch origin --tags; git switch --detach v0\.2\.0; pwsh scripts/release-build\.ps1'
+        # T-226: the Windows build for the upload leaves out win-arm64 (built by default, not uploadable until T-227).
+        $text | Should -Match "git fetch origin --tags; git switch --detach v0\.2\.0; pwsh scripts/$Build"
         $text | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
         $text | Should -Not -Match 'Windows only|T-019'
+    }
+    It 'plans the build of the uploadable RIDs only, with the -Runtime that leaves out win-arm64 on Windows (T-226)' {
+        $windows = Plan $script:GitDone
+        ($windows.Steps | Where-Object Id -EQ 'Build').Detail | Should -Match 'pwsh scripts/release-build\.ps1 -Runtime win-x64 \(signing key'
+        $mac = Plan (Copy-With $script:GitDone @{ HostOs = 'macos'; Runtimes = @('osx-arm64'); ChecksumFile = 'SHA256SUMS-macos.txt' })
+        ($mac.Steps | Where-Object Id -EQ 'Build').Detail | Should -Match 'pwsh scripts/release-build\.ps1 \(signing key'
     }
     It 'tells how to add this OS to a release that the other OS published without it (T-113)' {
         $facts = Copy-With $script:GitDone @{ ChecksumFile = 'SHA256SUMS-windows.txt'; Release = (Release $false -Assets @([pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = 'sha256:x' })) }
@@ -709,7 +716,7 @@ Describe 'Plan and resume detection (pure)' {
         $text = (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n"
         $text | Should -Match 'already published'
         $text | Should -Match 'It has no SHA256SUMS-windows\.txt yet'
-        $text | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
+        $text | Should -Match 'pwsh scripts/release-build\.ps1 -Runtime win-x64 -FeedSigningKey <key file>; pwsh scripts/release-upload\.ps1 -AddToPublished'
         $with = Copy-With $facts @{ ChecksumFile = 'SHA256SUMS-macos.txt' }
         (Format-ReleaseFlowPlan -Plan (Plan $with) -Facts $with) -join "`n" | Should -Not -Match 'AddToPublished'
     }
@@ -1212,6 +1219,7 @@ $null = Write-Sha256Sums -Directory $dist -FileName $sums -Files $name
     Files = @([ordered]@{ Name = $name; Runtime = $rid; Step = 'archive'; Sha256 = (Get-FileSha256 (Join-Path $dist $name)) })
     FeedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = ('0' * 64) } } |
     ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
+Write-Host "stand-in build arguments: $($args -join ' ')"
 Write-Host 'stand-in build done'
 exit 0
 '@
@@ -1229,6 +1237,9 @@ exit 0
         $result = Invoke-E @('-Version', '0.2.0') @('0.2.0', 'y', 'y')
         $result.ExitCode | Should -Be 0 -Because $result.Output
         $result.Output | Should -Match 'stand-in build done'
+        # T-226: on Windows the build for the upload names the uploadable RIDs (win-arm64 is built by default, not uploadable).
+        $result.Output | Should -Match "==> pwsh scripts/release-build\.ps1$(if ($IsWindows) { ' -Runtime win-x64' })\r?\n"
+        $result.Output | Should -Match "stand-in build arguments: $(if ($IsWindows) { '-Runtime win-x64' })\r?\n"
         $result.Output | Should -Match 'Draft release v0\.2\.0 is ready: https://example\.invalid/test-owner/ok/releases/tag/v0\.2\.0'
         $result.Output | Should -Match 'release-publish\.ps1 -AllowIncomplete'
         # T-113: the next steps name the OS of this machine (either OS can go first) and how the other one follows.
@@ -1279,25 +1290,29 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $null = G $script:T.Work switch --quiet --detach v0.1.0
         $script:TwoRelease = Join-Path $script:TwoState 'test-owner_two_v0.1.0.json'
 
-        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in', [switch] $SkipFeedSignature) {
+        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in', [switch] $SkipFeedSignature, [switch] $Arm64) {
             # The output release-build.ps1 would write for HEAD on that OS (the other OS too: the marker names its OS),
             # with the archive, the Velopack files, the feed signature (T-181; not with -SkipFeedSignature, like a trial
-            # build) and the checksum file.
+            # build) and the checksum file. -Arm64: a Windows build of win-x64 and win-arm64 (the default build, T-226).
             $root = $script:T.Work
-            $rid = if ($Os -eq 'windows') { 'win-x64' } else { 'osx-arm64' }
+            $rids = if ($Os -ne 'windows') { @('osx-arm64') } elseif ($Arm64) { @('win-x64', 'win-arm64') } else { @('win-x64') }
             $releaseDir = Join-Path $root 'artifacts' 'release' '0.1.0'
             if (Test-Path -LiteralPath $releaseDir) { Remove-Item -LiteralPath $releaseDir -Recurse -Force }
             $dist = Join-Path $releaseDir 'dist'
             $null = New-Item -ItemType Directory -Path $dist
-            $names = @(Get-ArchiveFileName -Version '0.1.0' -Runtime $rid) + @((Get-VelopackOutputMap -Version '0.1.0' -Runtime $rid).Values)
-            if ($Os -eq 'macos') { $names += (Get-MacReleaseFileNames -Version '0.1.0' -Runtime $rid).DiskImage }
-            if (-not $SkipFeedSignature) { $names += Get-UpdateFeedSignatureFileName $rid }
-            $names = @($names | Sort-Object -Unique)
+            $owner = [ordered]@{}
+            foreach ($rid in $rids) {
+                $ridNames = @(Get-ArchiveFileName -Version '0.1.0' -Runtime $rid) + @((Get-VelopackOutputMap -Version '0.1.0' -Runtime $rid).Values)
+                if ($Os -eq 'macos') { $ridNames += (Get-MacReleaseFileNames -Version '0.1.0' -Runtime $rid).DiskImage }
+                if (-not $SkipFeedSignature) { $ridNames += Get-UpdateFeedSignatureFileName $rid }
+                foreach ($name in $ridNames) { $owner[$name] = $rid }
+            }
+            $names = @($owner.Keys | Sort-Object -Unique)
             foreach ($name in $names) { [System.IO.File]::WriteAllText((Join-Path $dist $name), "$Content $name") }
             $sums = Get-ChecksumFileName $Os
             $null = Write-Sha256Sums -Directory $dist -FileName $sums -Files $names
-            [ordered]@{ Version = '0.1.0'; Commit = (Get-GitHead $root); Dirty = $false; Os = $Os; Runtimes = @($rid); ChecksumFile = $sums
-                Files = @($names | ForEach-Object { [ordered]@{ Name = $_; Runtime = $rid; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $dist $_)) } })
+            [ordered]@{ Version = '0.1.0'; Commit = (Get-GitHead $root); Dirty = $false; Os = $Os; Runtimes = $rids; ChecksumFile = $sums
+                Files = @($names | ForEach-Object { [ordered]@{ Name = $_; Runtime = $owner[$_]; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $dist $_)) } })
                 FeedSignature = [ordered]@{ Status = ($SkipFeedSignature ? 'skipped' : 'signed'); PublicKeySha256 = ($SkipFeedSignature ? $null : ('0' * 64)) } } |
                 ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
             $names + $sums
@@ -1334,6 +1349,27 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         }
         Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
         @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload)' }) | Should -BeNullOrEmpty
+    }
+    It 'refuses the default Windows build with win-arm64 until T-227, and accepts the build of win-x64 only (T-226)' {
+        $files = Write-StandInBuild 'windows' -Arm64
+        $files | Should -Contain 'LayerPeek-0.1.0-win-arm64-Setup.exe'
+        $files | Should -Contain 'releases.win-arm64.json.sig'
+        $calls = @(Get-GhCall).Count
+        foreach ($arguments in @('-DryRun'), @()) {
+            $result = Invoke-T 'release-upload.ps1' $arguments
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'Build output contains win-arm64, which must not be uploaded: not verified on an ARM64 device \(T-227\)\. Rebuild without it: pwsh scripts/release-build\.ps1 -Runtime win-x64'
+        }
+        Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit)' }) | Should -BeNullOrEmpty
+
+        $null = Write-StandInBuild 'windows'
+        $dry = Invoke-T 'release-upload.ps1' @('-DryRun')
+        $dry.ExitCode | Should -Be 0 -Because $dry.Output
+        $dry.Output | Should -Match 'LayerPeek-0\.1\.0-win-x64-Setup\.exe'
+        $dry.Output | Should -Not -Match 'win-arm64'
+        Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit)' }) | Should -BeNullOrEmpty
     }
     It 'first machine: uploads its OS into a new draft, refuses -AddToPublished into the draft and publishes with -AllowIncomplete' {
         $macFiles = Write-StandInBuild 'macos'

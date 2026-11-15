@@ -33,7 +33,7 @@ Windows a macOS liší, text to uvádí nebo ukazuje obě varianty.
 - **Tiskárnu Prusa s firmwarem Buddy 6.x a PrusaLinkem**: CORE One (vyzkoušeno), MK4/MK4S, MK3.9/MK3.9S, MK3.5/MK3.5S,
   XL a MINI/MINI+. Original Prusa MK3/MK3S nemá vestavěný PrusaLink a podporována není.
 - **Počítač ve stejné místní síti** jako tiskárna:
-  - Windows 10 nebo 11, x64 (Windows na ARM podporováno není),
+  - Windows 10 nebo 11, x64 (verze pro Windows na ARM se připravuje),
   - macOS na Apple Silicon (M1 nebo novější).
 - **Kameru (volitelně):** jakoukoli kameru se streamem **RTSP H.264**, na kterou váš počítač dosáhne, například kameru
   Prusa Buddy3D. I bez kamery máte k dispozici ikonu, upozornění a diagnostiku.
@@ -60,6 +60,12 @@ Můžete si vybrat ze dvou balíčků:
 |---|---|
 | **Instalátor** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (doporučeno) | Nainstaluje LayerPeek jen pro vašeho uživatele, bez oprávnění správce, do `%LOCALAPPDATA%\LayerPeek`, přidá ho do nabídky Start, spouští ho po přihlášení a umí se sám aktualizovat. |
 | **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Rozbalte ho kamkoli a spusťte `LayerPeek.exe`. Po přihlášení se nespouští a sám se neaktualizuje (místo toho otevře stránku s vydáním). |
+
+Oba balíčky jsou pro Windows na **x64** (procesory Intel a AMD): **Nastavení → Systém → O systému** u položky **Typ
+systému** uvádí *x64*. Verze pro Windows na **ARM** (u položky **Typ systému** *ARM*, například notebooky se
+Snapdragonem) se připravuje a zatím ke stažení není. Až bude, přejděte na ni ručně: odinstalujte verzi x64 (**Nastavení
+→ Aplikace → Nainstalované aplikace → LayerPeek → Odinstalovat**) a pak nainstalujte verzi ARM (`…-win-arm64-…`).
+Nastavení i hesla zůstanou; instalace svou architekturu sama nikdy nezmění.
 
 Při prvním spuštění zobrazí Windows SmartScreen hlášení **„Systém Windows ochránil váš počítač“** s *neznámým
 vydavatelem*. Klikněte na **Další informace** a potom na **Přesto spustit**.
