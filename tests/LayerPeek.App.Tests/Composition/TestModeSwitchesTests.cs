@@ -429,6 +429,29 @@ public sealed class TestModeSwitchesTests
     }
 
     [Fact]
+    public async Task TestModeRecordsFilesToOpenInsteadOfStartingTheirApp()
+    {
+        string folder = TestDirectories.NewDirectoryPath();
+        try
+        {
+            await using (ServiceProvider services = AppServices.Create(environment: AppEnvironment.ForTests(folder)))
+            {
+                RecordingFileLauncher launcher = Assert.IsType<RecordingFileLauncher>(services.GetRequiredService<IFileLauncher>());
+                Assert.Equal(Path.Combine(folder, "opened-files.txt"), launcher.FilePath);
+            }
+
+            await using (ServiceProvider services = AppServices.Create(environment: AppEnvironment.Production))
+            {
+                Assert.IsType<ProcessFileLauncher>(services.GetRequiredService<IFileLauncher>());
+            }
+        }
+        finally
+        {
+            TestDirectories.Delete(folder);
+        }
+    }
+
+    [Fact]
     public async Task ImageDialogStartsInTheTestFolderOnlyInTheTestMode()
     {
         string folder = TestDirectories.NewDirectoryPath();

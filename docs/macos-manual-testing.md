@@ -69,7 +69,7 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release -Skip mac.aot-sm
 i s `-Unattended`; otázky na posouzení nahrazuje Accessibility (záložka Nastavení, tooltip ikony v menu baru). Jednou
 připravit:
 - **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.menu-items`,
-  `mac.camera-pin`, `mac.update-check`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
+  `mac.camera-pin`, `mac.update-check`, `mac.recording`, `mac.dashcam`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
   okna jako důkaz, že je text výsledku opravdu vykreslený).
 - **Oznámení** „LayerPeek E2E“ povolená (Nastavení systému → Oznámení, nebo jednou interaktivně `-Only mac.notifications`)
   – `mac.notifications` a oznámení během spánku v `mac.display-sleep`.
@@ -77,6 +77,10 @@ připravit:
   `/etc/sudoers.d/layerpeek-verify`, odebrání `--remove`, obsah ukáže `--print`) – `mac.socket-other-user`.
 - **Zámek obrazovky:** Nastavení systému → Zamykací obrazovka → „Po spuštění spořiče nebo vypnutí displeje vyžadovat
   heslo“ na víc než minutu (např. 1 hodinu) – jinak `mac.display-sleep` po probuzení skončí `SKIP` (zamčeno).
+- **Vzorky skutečné kamery** v `~/LayerPeek-samples` (mimo repozitář, jiná složka přes `LAYERPEEK_SAMPLES`):
+  `timelapse/t158-same-idr-pic-id.mp4` pro `mac.decode` (bez něj `SKIP`) a 60s klip Buddy3D
+  `clips/coreone-20261103-1905-60s.mp4`, který simulátor přehrává pro `mac.recording-files`, `mac.recording`
+  a `mac.dashcam` (bez něj vestavěný krátký klip Buddy3D, zpráva to uvede).
 - Spouští se z Terminálu v přihlášené relaci (ne přes SSH) s odemčenou obrazovkou.
 - `mac.display-sleep` jen bez Sdílení obrazovky: připojený klient drží displej vzhůru („Remote user active“ v
   `pmset -g assertions`), kontrola pak skončí `SKIP`.
@@ -94,7 +98,8 @@ připravit:
   Klíčenky s prefixem `LayerPeek.Tests`, dočasné složky. Řízené ruční kroky s `/Applications/LayerPeek.app` nabídnou
   dočasné odsunutí profilu LayerPeek (žurnál `scripts/aot-smoke.ps1`, obnova i `pwsh scripts/aot-smoke.ps1 -RestoreOnly`).
 - **Známé pozůstatky:** položka „LayerPeek E2E“ v Nastavení systému → Oznámení; Terminál v Soukromí a zabezpečení →
-  Zpřístupnění, pokud jste ho povolili pro `mac.keys`, `mac.menu-items` nebo `mac.update-check` (po běhu vypněte).
+  Zpřístupnění, pokud jste ho povolili pro `mac.keys`, `mac.menu-items`, `mac.update-check`, `mac.recording` nebo
+  `mac.dashcam` (po běhu vypněte).
 
 | Kontrola | Druh | Uzavírá | Sezení níže |
 |---|---|---|---|
@@ -107,6 +112,7 @@ připravit:
 | `mac.menu-items` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-018 krit. 3 (menu se zobrazí a aktualizuje: skutečné menu stavové položky přes helper `menu` ve stavech idle, printing, paused, finished, error, offline se simulátorem `--speed 20`, tooltip ikony; kamera přes `menupress`; „Ukončit“ z menu), T-209; zapíše AXHelp zakázaných položek (`disabled-items-help.txt`) | 2.3 |
 | `mac.settings-front` | automaticky | T-019 krit. 8 (Nastavení, O aplikaci, Diagnostika a další spuštění nad Finderem, `lsappinfo front`) | 2.4 |
 | `mac.plist-localnetwork` | automaticky | T-097 krit. 3 (podklad: text každého jazyka, jak ho vybere NSBundle) | 4.1 |
+| `mac.decode` | automaticky (vzorek v `~/LayerPeek-samples`) | T-210 krit. 1. Helper `decode <soubor.mp4>` přehraje soubor přes AVFoundation jako QuickTime Player (rozhodnutí 2026-11-13): `isPlayable`, `isReadable`, kodek `avc1`, rozměry, délka, každý vzorek dekódovaný přes `AVAssetReader` s rostoucími časy, seek s nulovou tolerancí na 0, 25, 50, 75 % a poslední snímek (`AVAssetImageGenerator`) s průměrným jasem a odchylkou (černý nebo jednobarevný snímek = chyba); exit 1 při chybě. Vzorek T-158: 5 snímků; kopie oříznutá uprostřed `mdat` v dočasné složce: exit 1 | – |
 | `mac.gatekeeper` | automaticky | T-019 krit. 12 (část: `spctl` odmítne kopii z `.dmg` s karanténou; potřebuje `release-build.ps1`) | 1.4 |
 | `mac.release-bundle` | automaticky (`ReleaseBuild`, `AppNotRunning`) | T-217 krit. 1 a 2; T-026 „čistý Mac“ v T-127 (rozhodnutí 2026-11-13: start s vyčištěným prostředím na tomto Macu stačí, stream v Release se nekontroluje). Kopie aplikace z `.dmg` (`hdiutil attach -readonly -nobrowse`, `ditto` do dočasné složky, vždy `detach`) a z `.tar.gz`: `codesign --verify --deep --strict`, hardened runtime a entitlements, `otool -L` jen cesty bundlu a systému (ne Homebrew, `/usr/local`, `/opt`, `artifacts/`, `LayerPeek.Build`), `LC_RPATH` jen `@executable_path` / `@loader_path`, `Info.plist` (verze, identifikátor, `LSUIElement`), SHA-256 proti `SHA256SUMS-macos.txt`; pak start kopie z `.dmg` přes `aot-smoke.ps1 -CleanEnvironment` (`env -i`: jen `HOME`, systémový `PATH`, `TMPDIR`) ≥ 10 s, typ `UIElement`, v logu žádná chyba načtení nativní knihovny | 1.4 |
 | `mac.notifications` | automaticky* | T-020 krit. 1 a 5 (E2E test bundlu) | 5.1 |
@@ -115,6 +121,9 @@ připravit:
 | `mac.camera-placement` | automaticky | T-038 krit. 1 (část: J2 rohy a střed 16 bodů od pracovní plochy, D1 zvolený monitor; každý připojený monitor) | 6.2 |
 | `mac.camera-pin` | automaticky* (Zpřístupnění pro Terminál) | T-122, T-117 (špendlík „vždy navrchu“ skutečným klikem, mezerníkem, Enterem a AXPress, fokus, typ v Docku, kontextové menu pravým tlačítkem i ⌃-klikem, restart; normální okno i malý náhled) | 6.2 |
 | `mac.camera-outline` | automaticky* (Zpřístupnění a Nahrávání obrazovky pro Terminál) | T-118 (obrys malého náhledu ze snímku okna, při najetí myší světlejší, normální okno bez obrysu) | 6.2 |
+| `mac.recording-files` | automaticky | T-145, T-147 a T-148 (simulátorové části), T-210 krit. 5 a 6. Simulátor `--speed 20` se skutečným klipem Buddy3D, nahrávky ve složce testovacích dat (nikdy `~/Movies/LayerPeek`, jeho obsah se porovná před a po). Automatické nahrávání: výpadek kamery 10 s (`POST /_simulator/camera/offline` / `online`) dá `…-2.mp4`, další tisk nový soubor `<datum>_<čas>_<název tisku>.mp4`, konec nahrávání 50–90 s po konci tisku. Dashcam: `error`, `attention`, `stopped` během tisku → `…_dashcam-<spouštěč>.mp4`. Každý soubor `decode` bez chyby | – |
+| `mac.recording` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-146 (bez notifikace T-212, „Změnit…“ T-213 a uříznutí T-214), T-210 krit. 3. Položky nahrávání v podmenu (`menu`), „Nahrávat“ přes `menupress`, tooltip „Nahrává se“, v okně kamery „REC“ (`CameraRecordingIndicator`) a tlačítko „Zastavit nahrávání“ (`CameraRecordButton`) v normálním okně, malém náhledu i na celé obrazovce; zastavení z menu a tlačítkem v okně (AXPress); „Přehrát poslední nahrávku“ jen předá soubor systému (testovací režim ho zapíše do `opened-files.txt`, QuickTime se nespouští); „Otevřít složku s nahrávkami“ = okno Finderu s podsložkou tiskárny (`axwindows`, AXDocument), pak ho zavře (`axclose`); složka s `chmod 0500`: start selže (`FolderUnavailable`), aplikace běží, žádný soubor, text v Nastavení › Nahrávání se zapíše (otázka 3 v T-210) | – |
+| `mac.dashcam` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-148 a T-145 (simulátorové části, spouštěče v `mac.recording-files`), T-210 krit. 4. „Uložit posledních 2 min“ v podmenu a v místní nabídce okna kamery (⌃-klik): mimo tisk zakázané (tip AXHelp se zapíše), během tisku povolené; uložení z menu → `…_dashcam-manual.mp4`, `decode` 25–160 s; s automatickým nahráváním během tisku zakázané s tipem „Nahrává se celý tisk.“ a v podmenu „Zastavit nahrávání“ | – |
 | `mac.keys` | oprávnění (Zpřístupnění pro Terminál) | T-100 krit. 4 (část: ⌃⌘F, Esc, ⌘., ⌘W, ⌘⇧] jako skutečné události včetně stisku modifikátorů; přepnutí záložky čte z Accessibility) | 6.3 |
 | `mac.update-check` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka; Nahrávání obrazovky volitelně) | T-127 oddíl 1d (hlášení uživatele 2026-11-05: „Zkontrolovat nyní“ bez textu výsledku; skutečný klik do aktivního i neaktivního okna Nastavení a AXPress proti náhradnímu GitHub API na 127.0.0.1, text čtený z Accessibility, snímky okna) | – |
 | `mac.socket-other-user` | oprávnění (`sudo`, bez hesla s `tools/macos-verify-sudoers.sh`) | T-053 krit. 1 (spojení uživatele `nobody` se odmítne) | 10.1 |

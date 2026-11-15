@@ -30,8 +30,12 @@
 //   move <x> <y>                     moves the mouse pointer to a point (needs Accessibility)
 //   ax <pid>                         the Accessibility tree of the windows of a process as JSON: role, subrole,
 //                                    identifier, title, description, value, focused, frame (points, top left), actions,
-//                                    children (needs Accessibility)
+//                                    children; enabled and help (AXHelp) where present (needs Accessibility)
 //   axpress <pid> <identifier>       performs AXPress on the first element with that identifier (needs Accessibility)
+//   axwindows <pid>                  the windows of a process as JSON: title, document (AXDocument: the file URL of
+//                                    the folder a Finder window shows), frame; no contents (needs Accessibility; T-210)
+//   axclose <pid> <path>             closes the window of a process whose AXDocument is <path> (a Finder window of a
+//                                    folder) with its close button (needs Accessibility; T-210)
 //   focusedid <pid>                  the identifier of the focused element of the process, or "" (needs Accessibility)
 //   axwatch <pid> <identifier> <ms> [<stop>]  JSON lines: the text (value, title or description) and frame of the
 //                                    element with that identifier at the start and at every change, polled every 50 ms
@@ -52,12 +56,20 @@
 //   dlopen <library>...              loads each library with dlopen (RTLD_NOW: every dependency resolved at once) and
 //                                    prints "loaded <path>"; the first failure is exit code 1 with the dyld error (T-217:
 //                                    the FFmpeg libraries of a release bundle, which the app loads only for a camera)
+//   decode <file.mp4>                plays a recording through AVFoundation, as QuickTime Player would (T-210): JSON with
+//                                    isPlayable, isReadable, the video track's codec (e.g. avc1), size, duration and
+//                                    sample count; every sample decoded by AVAssetReader (decoded frames, monotonic
+//                                    presentation times, the reader's error); seeks with zero tolerance to 0, 25, 50,
+//                                    75 % and the last frame (AVAssetImageGenerator) with the mean luminance (0-255) and
+//                                    its standard deviation of each image. "problems" lists what failed: exit code 1
+//                                    when a frame does not decode, a seek fails or an image is black or of one colour
 //   icons <out.png> <menu bar icon dir> <app icon or bundle> <system app>...
 //                                    a contact sheet PNG: the menu bar template icons on a light and a dark menu bar at
 //                                    1x and 2x, and the app icon next to the system app icons at 16 to 128 points
 
 import AppKit
 import ApplicationServices
+import AVFoundation
 import CoreGraphics
 import Foundation
 
@@ -295,6 +307,10 @@ func node(_ element: AXUIElement, _ depth: Int) -> [String: Any] {
         "focused": (attribute(element, kAXFocusedAttribute) as? NSNumber)?.boolValue ?? false,
         "frame": frame(element), "actions": actions as? [String] ?? [],
     ]
+    // Only where the element has them (T-210): enabled (AXEnabled) and help (AXHelp, the tooltip).
+    if let enabled = attribute(element, kAXEnabledAttribute) as? NSNumber { result["enabled"] = enabled.boolValue }
+    let help = text(element, kAXHelpAttribute)
+    if !help.isEmpty { result["help"] = help }
     if depth < 40 { result["children"] = children(element).map { node($0, depth + 1) } }
     return result
 }
@@ -310,6 +326,35 @@ func find(_ element: AXUIElement, _ identifier: String, _ depth: Int = 0) -> AXU
     guard depth < 40 else { return nil }
     for child in children(element) { if let found = find(child, identifier, depth + 1) { return found } }
     return nil
+}
+
+/// The windows of a process without their contents: title, document (AXDocument) and frame (T-210: which folder a
+/// Finder window shows, without reading every file it lists).
+func axWindows(_ pid: Int32) {
+    requireTrusted()
+    let app = AXUIElementCreateApplication(pid)
+    printJSON((attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []).map { window in
+        ["title": text(window, kAXTitleAttribute), "document": text(window, kAXDocumentAttribute), "frame": frame(window)] as [String: Any]
+    })
+}
+
+/// Closes the window of a process whose AXDocument is the folder or file at `path` (its close button), e.g. the Finder
+/// window a check opened (T-210); exit code 1 when there is none or it does not close.
+func axClose(_ pid: Int32, _ path: String) {
+    requireTrusted()
+    let app = AXUIElementCreateApplication(pid)
+    let wanted = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+    let matches: (AXUIElement) -> Bool = { window in
+        guard let url = URL(string: text(window, kAXDocumentAttribute)), url.isFileURL else { return false }
+        return url.resolvingSymlinksInPath().standardizedFileURL.path == wanted
+    }
+    guard let window = (attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []).first(where: matches) else { fail("no window of process \(pid) shows \(path)") }
+    guard let button = attribute(window, kAXCloseButtonAttribute) else { fail("the window that shows \(path) has no close button") }
+    let status = AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString)
+    if status != .success { fail("AXPress on the close button failed: \(status.rawValue)") }
+    if waitFor(3.0, { (attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []).contains(where: matches) ? nil : true }) == nil {
+        fail("the window that shows \(path) is still open")
+    }
 }
 
 func axPress(_ pid: Int32, _ identifier: String) {
@@ -750,8 +795,175 @@ func menuPress(_ pid: Int32, _ path: String) {
     if let problem { fail(problem) }
 }
 
+/// The result of async work handed from its task to the waiting thread (written once, before the semaphore is signalled).
+final class AsyncResult<T>: @unchecked Sendable { var value: Result<T, Error>? }
+
+/// Runs async work to its end on a background task and waits for it (the helper is a synchronous command line tool).
+func waitAsync<T>(_ body: @escaping () async throws -> T) -> Result<T, Error> {
+    let box = AsyncResult<T>()
+    let done = DispatchSemaphore(value: 0)
+    Task.detached {
+        do { box.value = .success(try await body()) } catch { box.value = .failure(error) }
+        done.signal()
+    }
+    done.wait()
+    return box.value!
+}
+
+/// The mean luminance (0-255) and its standard deviation of an image, drawn into a small grey bitmap.
+func luminance(_ image: CGImage) -> (mean: Double, deviation: Double) {
+    let width = min(image.width, 160)
+    let height = max(1, image.height * width / max(image.width, 1))
+    var pixels = [UInt8](repeating: 0, count: width * height)
+    let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+        guard let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width,
+                                      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+        context.interpolationQuality = .medium
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return true
+    }
+    if !drawn { return (0, 0) }
+    let mean = pixels.reduce(0.0) { $0 + Double($1) } / Double(pixels.count)
+    let variance = pixels.reduce(0.0) { $0 + (Double($1) - mean) * (Double($1) - mean) } / Double(pixels.count)
+    return (mean, variance.squareRoot())
+}
+
+/// Seconds of a CMTime rounded to milliseconds, for the JSON.
+func seconds(_ time: CMTime) -> Double { time.isNumeric ? (time.seconds * 1000).rounded() / 1000 : -1 }
+
+/// Calls `visit` with every sample buffer of `output` once reading has started; the error ends the reading.
+func readBuffers(_ reader: AVAssetReader, _ output: AVAssetReaderOutput, _ visit: @escaping (CMSampleBuffer) -> Void) -> String? {
+    #if compiler(>=6.2)
+    if #available(macOS 26, *) {
+        // macOS 27 deprecates the synchronous reading; the provider of macOS 26 replaces it.
+        let provider = reader.outputProvider(for: output)
+        do { try reader.start() } catch { return "the reader did not start: \(error.localizedDescription)" }
+        let read = waitAsync { () async throws -> Void in
+            while let ready = try await provider.next() { ready.withUnsafeSampleBuffer { visit($0) } }
+        }
+        if case .failure(let error) = read { return error.localizedDescription }
+        return reader.status == .failed ? (reader.error?.localizedDescription ?? "unknown") : nil
+    } else {
+        return readBuffersBefore26(reader, output, visit)
+    }
+    #else
+    return readBuffersBefore26(reader, output, visit)
+    #endif
+}
+
+/// The synchronous reading for systems and SDKs before macOS 26 (deprecated in macOS 27), where the provider is missing.
+@available(macOS, deprecated: 27.0)
+func readBuffersBefore26(_ reader: AVAssetReader, _ output: AVAssetReaderOutput, _ visit: (CMSampleBuffer) -> Void) -> String? {
+    reader.add(output)
+    guard reader.startReading() else { return "the reader did not start: \(reader.error?.localizedDescription ?? "unknown")" }
+    while let sample = output.copyNextSampleBuffer() { visit(sample) }
+    return reader.status == .failed ? (reader.error?.localizedDescription ?? "unknown") : nil
+}
+
+/// Reads every sample of the track once: without output settings the stored samples, otherwise decoded frames.
+func readSamples(_ asset: AVAsset, _ track: AVAssetTrack, decode: Bool) -> (count: Int, times: [CMTime], error: String?) {
+    let reader: AVAssetReader
+    do { reader = try AVAssetReader(asset: asset) } catch { return (0, [], "AVAssetReader: \(error.localizedDescription)") }
+    let settings: [String: Any]? = decode ? [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA] : nil
+    let output = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
+    guard reader.canAdd(output) else { return (0, [], "the reader cannot read the video track") }
+    final class Tally: @unchecked Sendable { var count = 0; var times: [CMTime] = []; var dropped: String? }
+    let tally = Tally()
+    let failure = readBuffers(reader, output) { sample in
+        if !decode { tally.count += CMSampleBufferGetNumSamples(sample); return }
+        // A decoded frame carries its image; a buffer of samples without one is a frame the decoder dropped.
+        guard CMSampleBufferGetImageBuffer(sample) != nil else {
+            if CMSampleBufferGetNumSamples(sample) > 0 && tally.dropped == nil { tally.dropped = "a sample at \(seconds(CMSampleBufferGetPresentationTimeStamp(sample))) s decoded to no image" }
+            return
+        }
+        tally.count += 1
+        tally.times.append(CMSampleBufferGetPresentationTimeStamp(sample))
+    }
+    let problem = failure.map { "the reader failed after \(tally.count) sample(s): \($0)" } ?? tally.dropped
+    return (tally.count, tally.times, problem)
+}
+
+func decode(_ path: String) {
+    guard FileManager.default.isReadableFile(atPath: path) else { fail("cannot read \(path)") }
+    let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+    var problems: [String] = []
+    var report: [String: Any] = ["file": (path as NSString).lastPathComponent]
+    let loaded = waitAsync { () async throws -> (Bool, Bool, CMTime, [AVAssetTrack]) in
+        let (playable, readable, duration) = try await asset.load(.isPlayable, .isReadable, .duration)
+        return (playable, readable, duration, try await asset.loadTracks(withMediaType: .video))
+    }
+    guard case .success(let (playable, readable, duration, tracks)) = loaded else {
+        if case .failure(let error) = loaded { problems.append("the file does not load: \(error.localizedDescription)") }
+        report["problems"] = problems
+        printJSON(report)
+        exit(1)
+    }
+    report["isPlayable"] = playable
+    report["isReadable"] = readable
+    report["duration"] = seconds(duration)
+    if !playable { problems.append("not playable") }
+    if !readable { problems.append("not readable") }
+    guard let track = tracks.first else {
+        problems.append("no video track")
+        report["problems"] = problems
+        printJSON(report)
+        exit(1)
+    }
+    if case .success(let (formats, size, rate)) = waitAsync({ try await track.load(.formatDescriptions, .naturalSize, .nominalFrameRate) }) {
+        if let format = formats.first {
+            let code = CMFormatDescriptionGetMediaSubType(format)
+            report["codec"] = String(bytes: [24, 16, 8, 0].map { UInt8((code >> $0) & 0xFF) }, encoding: .ascii) ?? "\(code)"
+        }
+        report["width"] = Int(size.width)
+        report["height"] = Int(size.height)
+        report["nominalFrameRate"] = (Double(rate) * 1000).rounded() / 1000
+    } else { problems.append("the video track's format does not load") }
+
+    let stored = readSamples(asset, track, decode: false)
+    let decoded = readSamples(asset, track, decode: true)
+    report["samples"] = stored.count
+    report["decodedFrames"] = decoded.count
+    if let error = stored.error { problems.append("reading the samples: \(error)") }
+    if let error = decoded.error { problems.append("decoding: \(error)") }
+    if decoded.count == 0 { problems.append("no frame decoded") }
+    else if decoded.count != stored.count { problems.append("\(decoded.count) of \(stored.count) sample(s) decoded") }
+    let backwards = zip(decoded.times, decoded.times.dropFirst()).filter { CMTimeCompare($0.1, $0.0) <= 0 }.count
+    report["monotonicPts"] = backwards == 0
+    if backwards > 0 { problems.append("\(backwards) presentation time(s) not after the previous one") }
+
+    // Seeks as a player's scrubbing: 0, 25, 50, 75 % of the duration and the last frame, each to the exact time.
+    var seeks: [[String: Any]] = []
+    if let last = decoded.times.last, duration.isNumeric {
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        generator.appliesPreferredTrackTransform = true
+        let targets: [(String, CMTime)] = [0.0, 0.25, 0.5, 0.75].map { ("\(Int($0 * 100)) %", CMTimeMultiplyByFloat64(duration, multiplier: $0)) } + [("end", last)]
+        for (label, time) in targets {
+            var seek: [String: Any] = ["at": label, "time": seconds(time)]
+            switch waitAsync({ try await generator.image(at: time) }) {
+            case .success(let (image, actual)):
+                let (mean, deviation) = luminance(image)
+                seek["actualTime"] = seconds(actual)
+                seek["mean"] = (mean * 10).rounded() / 10
+                seek["stdDev"] = (deviation * 10).rounded() / 10
+                // A black or single-colour image is a frame the decoder did not really produce.
+                if deviation < 2 { problems.append("the image at \(label) is of one colour (mean \(seek["mean"]!), deviation \(seek["stdDev"]!))") }
+            case .failure(let error):
+                seek["error"] = error.localizedDescription
+                problems.append("the seek to \(label) (\(seconds(time)) s) failed: \(error.localizedDescription)")
+            }
+            seeks.append(seek)
+        }
+    } else if decoded.count > 0 { problems.append("the duration is not a number: no seek") }
+    report["seeks"] = seeks
+    report["problems"] = problems
+    printJSON(report)
+    if !problems.isEmpty { exit(1) }
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|click|dlopen|localized|icons ...") }
+guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|click|decode|dlopen|localized|icons ...") }
 switch command {
 case "screens": screens()
 case "windows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; windows(pid)
@@ -767,6 +979,8 @@ case "rightclick" where arguments.count == 3: guard let x = Double(arguments[1])
 case "ctrlclick" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; controlClick(x, y)
 case "move" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; mouse(x, y, [.mouseMoved], .left)
 case "ax" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axTree(pid)
+case "axwindows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axWindows(pid)
+case "axclose" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axClose(pid, arguments[2])
 case "axpress" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axPress(pid, arguments[2])
 case "focusedid" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; focusedIdentifier(pid)
 case "axwatch" where arguments.count == 4 || arguments.count == 5:
@@ -782,6 +996,7 @@ case "regiondiff" where arguments.count == 8:
     regionDiff(arguments[1], arguments[2], numbers[0], numbers[1], numbers[2], numbers[3], numbers[4])
 case "screenrecording": print(CGPreflightScreenCaptureAccess() ? "true" : "false")
 case "ring" where arguments.count == 4: guard let offset = Int(arguments[2]), let thickness = Int(arguments[3]) else { fail("not a number") }; ring(arguments[1], offset, thickness)
+case "decode" where arguments.count == 2: decode(arguments[1])
 case "dlopen" where arguments.count >= 2: load(Array(arguments[1...]))
 case "localized" where arguments.count >= 4: localized(arguments[1], arguments[2], Array(arguments[3...]))
 case "icons" where arguments.count >= 4: icons(arguments[1], arguments[2], arguments[3], Array(arguments[4...]))
