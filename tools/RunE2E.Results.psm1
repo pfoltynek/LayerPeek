@@ -1,8 +1,8 @@
 #Requires -Version 7.0
 # The summary of tools/run-e2e.ps1 (T-073): passed, skipped and failed tests of each pass (the Debug exe, and with
 # -PublishAot the Native AOT exe of the Debug configuration), read from the xUnit.net v2 XML report of the test runner
-# (-result-xml), and the kept copies of the results folders of failed runs (T-132). Kept apart from the script so that it
-# is unit-tested (tests/LayerPeek.App.E2E.Tests/RunE2EScriptTests.cs, tools/RunE2E.Results.Tests.ps1).
+# (-result-xml), the kept copies of the results folders of failed runs (T-132) and the warning about a remote desktop
+# session (T-169). Kept apart from the script so that it is unit-tested (tests/LayerPeek.App.E2E.Tests/RunE2EScriptTests.cs, tools/RunE2E.Results.Tests.ps1).
 
 Set-StrictMode -Version Latest
 
@@ -302,4 +302,29 @@ function Remove-OldFailedTestResults {
     }
 }
 
-Export-ModuleMember -Function Get-TestPassCounts, Format-TestPassSummary, Get-DefaultFailedResultsToKeep, Get-PassesToKeep, Save-FailedTestResults, Remove-OldFailedTestResults
+<#
+.SYNOPSIS
+    The warning printed at the start of a run in a remote desktop session (T-169, user decision 2026-11-15), or $null.
+
+.DESCRIPTION
+    Measured 2026-11-15: in an RDP session the client moves the pointer back to where the user's own mouse rests (also
+    when that mouse is outside the client window) as soon as the remote cursor changes shape, so the presses and clicks
+    of the tests with the mouse go to another window. Only a warning: the run goes on.
+
+.PARAMETER SessionName
+    The session name (%SESSIONNAME%: 'Console' locally, 'RDP-Tcp#0' over remote desktop).
+
+.PARAMETER IsRemoteSession
+    GetSystemMetrics(SM_REMOTESESSION) is not 0.
+#>
+function Get-RemoteSessionWarning([string] $SessionName, [bool] $IsRemoteSession) {
+    $isRdp = $IsRemoteSession -or ($SessionName -and $SessionName.StartsWith('RDP-', [StringComparison]::OrdinalIgnoreCase))
+    if (-not $isRdp) {
+        return $null
+    }
+
+    $name = if ($SessionName) { " ($SessionName)" } else { '' }
+    "Remote desktop session$($name): the end-to-end tests with the mouse are unreliable here - the remote desktop client moves the pointer back to where your own mouse is, so presses and clicks may reach another window. For reliable results run them on the local console. The run goes on."
+}
+
+Export-ModuleMember -Function Get-TestPassCounts, Format-TestPassSummary, Get-DefaultFailedResultsToKeep, Get-PassesToKeep, Save-FailedTestResults, Remove-OldFailedTestResults, Get-RemoteSessionWarning

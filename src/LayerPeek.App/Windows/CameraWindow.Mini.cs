@@ -7,6 +7,7 @@ using Avalonia.Threading;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Mini;
+using LayerPeek.App.Platform.Windows;
 using LayerPeek.Core.Cameras;
 
 namespace LayerPeek.App.Windows;
@@ -151,7 +152,7 @@ public sealed partial class CameraWindow
         _correctingMini = true;
         try
         {
-            SetBounds(target);
+            SetBoundsAtOnce(target, scaling);
         }
         finally
         {
@@ -159,6 +160,36 @@ public sealed partial class CameraWindow
         }
 
         int Pixels(double dip) => Math.Max((int)Math.Round(dip * scaling, MidpointRounding.AwayFromZero), 1);
+    }
+
+    /// <summary>
+    /// The shown window at <paramref name="window"/> (position in pixels, client size in DIP) on its own monitor, size and
+    /// position at once (T-169): on Windows with one <c>SetWindowPos</c>, so that the height correction shows no state in
+    /// between (the new height at the old top edge, then a jump when the window grows upwards or from its middle). Avalonia
+    /// takes the new client size over from <c>WM_SIZE</c> (<c>Window.HandleResized</c> sets <c>Width</c> and
+    /// <c>Height</c>) and the position from <c>WM_MOVE</c>. Only for a correction on the monitor the window is on
+    /// (<paramref name="scaling"/> is its scaling): a move onto a monitor with another scale keeps the order of
+    /// <see cref="SetBounds"/> (T-093). Elsewhere (macOS, no window handle) <see cref="SetBounds"/>.
+    /// </summary>
+    private void SetBoundsAtOnce(CameraWindowPlacement window, double scaling)
+    {
+        if (OperatingSystem.IsWindows()
+            && IsVisible
+            && TryGetPlatformHandle() is { HandleDescriptor: "HWND" } handle
+            && WindowFrameNative.TryGetClientFrame(handle.Handle) is { } frame)
+        {
+            PixelBounds rect = CameraMiniGeometry.WindowRect(window, scaling, frame.Width, frame.Height);
+            int error = WindowFrameNative.TrySetBounds(handle.Handle, rect.X, rect.Y, rect.Width, rect.Height);
+            if (error == 0)
+            {
+                return;
+            }
+
+            // Set in two steps below instead (size, then position).
+            _viewModel?.LogWindowBoundsFailed(error);
+        }
+
+        SetBounds(window);
     }
 
     /// <summary>The window at <paramref name="window"/> (position in pixels, client size in DIP).</summary>

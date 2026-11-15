@@ -19,6 +19,9 @@ internal static unsafe partial class WindowFrameNative
     private const uint DwmwaVisibleFrameBorderThickness = 37;
     private const int GwlStyle = -16;
     private const int GwlExStyle = -20;
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpNoOwnerZOrder = 0x0200;
 
     /// <summary>The window and its visible part; <see langword="null"/> when Windows cannot tell (no DWM, invalid handle).</summary>
     public static (PixelRect Window, PixelRect Visible)? TryGetBounds(nint hwnd)
@@ -44,6 +47,41 @@ internal static unsafe partial class WindowFrameNative
             // No desktop window manager (e.g. Windows Server Core): placed without the correction.
             return null;
         }
+    }
+
+    /// <summary>
+    /// How much bigger the whole window is than its client area (pixels: width, height), from <c>GetWindowRect</c> and
+    /// <c>GetClientRect</c>; <see langword="null"/> for an invalid handle.
+    /// </summary>
+    public static (int Width, int Height)? TryGetClientFrame(nint hwnd)
+    {
+        Rect window;
+        Rect client;
+        if (hwnd == 0 || !GetWindowRect(hwnd, &window) || !GetClientRect(hwnd, &client))
+        {
+            return null;
+        }
+
+        return (Math.Max(window.Right - window.Left - client.Right, 0), Math.Max(window.Bottom - window.Top - client.Bottom, 0));
+    }
+
+    /// <summary>
+    /// Moves and resizes the whole window to <paramref name="window"/> (pixels) with one <c>SetWindowPos</c> (T-169): no
+    /// state in between with the new size at the old position. Keeps the z-order and does not activate the window; the
+    /// window procedure reports the new size and position to Avalonia (<c>WM_SIZE</c>, <c>WM_MOVE</c>) during the call.
+    /// </summary>
+    /// <returns>0 on success, otherwise the Win32 error code (<c>ERROR_INVALID_WINDOW_HANDLE</c> for no window).</returns>
+    public static int TrySetBounds(nint hwnd, int x, int y, int width, int height)
+    {
+        const int ErrorInvalidWindowHandle = 1400;
+        if (hwnd == 0)
+        {
+            return ErrorInvalidWindowHandle;
+        }
+
+        return SetWindowPos(hwnd, 0, x, y, Math.Max(width, 1), Math.Max(height, 1), SwpNoZOrder | SwpNoActivate | SwpNoOwnerZOrder)
+            ? 0
+            : Math.Max(Marshal.GetLastPInvokeError(), 1);
     }
 
     /// <summary>
@@ -128,6 +166,14 @@ internal static unsafe partial class WindowFrameNative
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetWindowRect(nint hwnd, Rect* rect);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetClientRect(nint hwnd, Rect* rect);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int width, int height, uint flags);
 
     [LibraryImport("dwmapi.dll")]
     private static partial int DwmGetWindowAttribute(nint hwnd, uint attribute, Rect* value, uint size);
