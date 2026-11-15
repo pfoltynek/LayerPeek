@@ -493,10 +493,11 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       Druhý běh nic nestahuje. Doba kroku (xz z ~100 MB) do poznámek T-199.
 
 ### 2ac. Nastavení > Kamera – Hardwarové dekódování (z T-204, implementováno na Macu 2026-11-12)
-- [ ] **T-204** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
+- [x] **T-204** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
       a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) nový snímek `settings-camera-tab.png`
       (záložka Kamera: snímková frekvence malého náhledu, pod ní „Hardware decoding“ s volbou „Automatic“, popisem
       a na Windows druhým řádkem „On Windows, Automatic still decodes in software for now.“); nic se neořezává.
+      Hotovo 2026-11-15 na Windows 11 (26300): snímek vytvořený a zkontrolovaný, odpovídá popisu, nic se neořezává.
 - [ ] **T-204** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně `SettingsWindowCameraTabUiTests`,
       `SettingsWindowLayoutTests.EverythingFitsWithoutScrollingInEveryState` (první stav má na záložce Kamera „Vypnuto“
       s poznámkou Windows) a `HardwareDecodingRuleTests.AutomaticUsesHardwareOnlyWhereTheRuleSelectsADevice`.

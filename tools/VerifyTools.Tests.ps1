@@ -328,7 +328,9 @@ Describe 'Report of a preset run (T-208)' {
         $json.Run.Mode | Should -Be 'unattended'
         $json.Run.Seconds | Should -Be 1830
         $json.Run.Preconditions.Session | Should -Be 'not met: the screen is locked'
-        ([DateTimeOffset]::Parse($json.Run.Started)) | Should -Be $started
+        # ConvertFrom-Json turns the ISO string into a DateTime; [DateTimeOffset]::Parse would get it back as text in the
+        # invariant format and parse it with the current culture (fails on cs-CZ). A cast compares the instant on any culture.
+        ([DateTimeOffset] $json.Run.Started).UtcDateTime | Should -Be $started.UtcDateTime
         if ($IsMacOS) {
             $json.Run.Os | Should -Match '^macOS \d+(\.\d+)* \S+ \('
             $json.Run.Machine | Should -Not -Be 'unknown'
