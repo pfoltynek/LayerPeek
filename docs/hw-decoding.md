@@ -166,6 +166,12 @@ GPU a `codec_whitelist` je dnes stejně vylučuje.
 Doplněno 2026-11-12: build BtbN nahradí T-202 (vlastní minimální LGPL build FFmpeg pro Windows). Ten musí
 D3D11VA (`h264_d3d11va`) obsahovat; ověří to T-206.
 
+Doplněno 2026-11-15 (T-202): vlastní build Windows (`build/windows/build-ffmpeg.sh`) má `--enable-d3d11va
+--enable-hwaccel=h264_d3d11va,h264_d3d11va2`. Pro `av_hwdevice_ctx_create` / `hw_device_ctx` (hwcontext `d3d11va`,
+`AV_PIX_FMT_D3D11`) je potřeba `h264_d3d11va2`; `h264_d3d11va` je starší API s vlastním `ID3D11VideoContext` aplikace
+(`AV_PIX_FMT_D3D11VA_VLD`, bez typu zařízení). `FFmpegRuntime.HasHardwareDecoder(D3D11VA)` vrací `true`, jediný typ
+zařízení v buildu je `d3d11va` (test `FFmpegWindowsBuildTests`). DXVA2, D3D12VA, NVDEC, QSV ani AMF build nemá.
+
 ### AOT a interop
 
 Všechno potřebné je ve stávajících vazbách FFmpeg.AutoGen 9.0.1.1 (`[DllImport]`, už ověřené pro AOT):

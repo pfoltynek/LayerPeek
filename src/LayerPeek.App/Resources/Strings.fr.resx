@@ -880,25 +880,19 @@
     <value>Les bibliothèques FFmpeg sont introuvables à côté de l'application ; la caméra ne fonctionne pas.</value>
   </data>
   <data name="LicensesFFmpegNote" xml:space="preserve">
-    <value>FFmpeg est distribué sous licence GNU LGPL version 3 ou ultérieure. L'application utilise une compilation LGPL non modifiée de BtbN et la lie dynamiquement : les DLL avcodec, avformat, avutil, swscale et swresample situées à côté de l'application peuvent être remplacées par une compilation FFmpeg compatible (mêmes versions des bibliothèques, par exemple avcodec-63).</value>
+    <value>FFmpeg est distribué sous licence GNU LGPL version 3 ou ultérieure. L'application utilise une version de FFmpeg non modifiée, compilée en LGPL à partir du code source officiel, et la lie dynamiquement : les DLL avcodec, avformat, avutil et swscale situées à côté de l'application peuvent être remplacées par une compilation FFmpeg compatible (mêmes versions des bibliothèques, par exemple avcodec-63).</value>
   </data>
   <data name="LicensesFFmpegSource" xml:space="preserve">
     <value>Code source de FFmpeg</value>
   </data>
   <data name="LicensesFFmpegBuild" xml:space="preserve">
-    <value>Compilation FFmpeg utilisée (version BtbN)</value>
+    <value>Version source de FFmpeg utilisée (ffmpeg.org)</value>
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
-    <value>Configuration et scripts de compilation (BtbN)</value>
+    <value>Configuration et script de compilation (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
     <value>FFmpeg est distribué sous licence GNU LGPL version 3 ou ultérieure. L'application utilise une version de FFmpeg non modifiée, compilée en LGPL à partir du code source officiel, et la lie dynamiquement : les bibliothèques libavcodec, libavformat, libavutil et libswscale (.dylib) situées dans LayerPeek.app/Contents/MacOS peuvent être remplacées par une compilation FFmpeg compatible (mêmes versions des bibliothèques, par exemple libavcodec.63.dylib). L'application doit ensuite être signée à nouveau ; une signature ad hoc suffit.</value>
-  </data>
-  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
-    <value>Version source de FFmpeg utilisée (ffmpeg.org)</value>
-  </data>
-  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
-    <value>Configuration et script de compilation (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Le texte de la licence FFmpeg (FFmpeg-LICENSE.txt) est introuvable à côté de l'application. La GNU LGPL 3.0 est publiée sur https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -914,6 +908,9 @@
   </data>
   <data name="LicensesComponentInter" xml:space="preserve">
     <value>Inter (police, macOS uniquement)</value>
+  </data>
+  <data name="LicensesComponentMinGW" xml:space="preserve">
+    <value>MinGW-w64 runtime (dans les DLL de FFmpeg, Windows uniquement)</value>
   </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Fenêtre de la caméra</value>

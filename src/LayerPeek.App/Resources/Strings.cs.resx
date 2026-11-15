@@ -880,25 +880,19 @@
     <value>Knihovny FFmpeg nebyly vedle aplikace nalezeny, kamera proto nefunguje.</value>
   </data>
   <data name="LicensesFFmpegNote" xml:space="preserve">
-    <value>FFmpeg je licencovaný pod GNU LGPL verze 3 nebo novější. Aplikace používá neupravený LGPL build od BtbN a linkuje ho dynamicky: knihovny DLL avcodec, avformat, avutil, swscale a swresample vedle aplikace lze nahradit kompatibilním buildem FFmpeg (stejné verze knihoven, např. avcodec-63).</value>
+    <value>FFmpeg je licencovaný pod GNU LGPL verze 3 nebo novější. Aplikace používá neupravené vydání FFmpeg, sestavené z oficiálních zdrojových kódů jako LGPL build, a linkuje ho dynamicky: knihovny DLL avcodec, avformat, avutil a swscale vedle aplikace lze nahradit kompatibilním buildem FFmpeg (stejné verze knihoven, např. avcodec-63).</value>
   </data>
   <data name="LicensesFFmpegSource" xml:space="preserve">
     <value>Zdrojový kód FFmpeg</value>
   </data>
   <data name="LicensesFFmpegBuild" xml:space="preserve">
-    <value>Použitý build FFmpeg (vydání BtbN)</value>
+    <value>Použité zdrojové vydání FFmpeg (ffmpeg.org)</value>
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
-    <value>Konfigurace a skripty buildu (BtbN)</value>
+    <value>Konfigurace a skript buildu (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
     <value>FFmpeg je licencovaný pod GNU LGPL verze 3 nebo novější. Aplikace používá neupravené vydání FFmpeg, sestavené z oficiálních zdrojových kódů jako LGPL build, a linkuje ho dynamicky: knihovny libavcodec, libavformat, libavutil a libswscale (.dylib) v LayerPeek.app/Contents/MacOS lze nahradit kompatibilním buildem FFmpeg (stejné verze knihoven, např. libavcodec.63.dylib). Aplikaci je pak potřeba znovu podepsat, stačí ad-hoc podpis.</value>
-  </data>
-  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
-    <value>Použité zdrojové vydání FFmpeg (ffmpeg.org)</value>
-  </data>
-  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
-    <value>Konfigurace a skript buildu (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Text licence FFmpeg (FFmpeg-LICENSE.txt) nebyl vedle aplikace nalezen. GNU LGPL 3.0 je zveřejněná na https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -914,6 +908,9 @@
   </data>
   <data name="LicensesComponentInter" xml:space="preserve">
     <value>Inter (písmo, jen macOS)</value>
+  </data>
+  <data name="LicensesComponentMinGW" xml:space="preserve">
+    <value>MinGW-w64 runtime (v knihovnách DLL FFmpeg, jen Windows)</value>
   </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Okno kamery</value>

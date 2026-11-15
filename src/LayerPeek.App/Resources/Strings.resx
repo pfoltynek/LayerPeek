@@ -921,25 +921,19 @@
     <value>The FFmpeg libraries were not found next to the application; the camera does not work.</value>
   </data>
   <data name="LicensesFFmpegNote" xml:space="preserve">
-    <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified LGPL build by BtbN and links it dynamically: the DLLs avcodec, avformat, avutil, swscale and swresample next to the application may be replaced by a compatible FFmpeg build (the same library versions, e.g. avcodec-63).</value>
+    <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified FFmpeg release, compiled from the official source code as an LGPL build, and links it dynamically: the DLLs avcodec, avformat, avutil and swscale next to the application may be replaced by a compatible FFmpeg build (the same library versions, e.g. avcodec-63).</value>
   </data>
   <data name="LicensesFFmpegSource" xml:space="preserve">
     <value>FFmpeg source code</value>
   </data>
   <data name="LicensesFFmpegBuild" xml:space="preserve">
-    <value>The FFmpeg build used (BtbN release)</value>
+    <value>The FFmpeg source release used (ffmpeg.org)</value>
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
-    <value>Build configuration and scripts (BtbN)</value>
+    <value>Build configuration and script (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
     <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified FFmpeg release, compiled from the official source code as an LGPL build, and links it dynamically: the libraries libavcodec, libavformat, libavutil and libswscale (.dylib) in LayerPeek.app/Contents/MacOS may be replaced by a compatible FFmpeg build (the same library versions, e.g. libavcodec.63.dylib). The application then has to be signed again; an ad-hoc signature is enough.</value>
-  </data>
-  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
-    <value>The FFmpeg source release used (ffmpeg.org)</value>
-  </data>
-  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
-    <value>Build configuration and script (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>The FFmpeg licence text (FFmpeg-LICENSE.txt) was not found next to the application. The GNU LGPL 3.0 is published at https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -955,6 +949,9 @@
   </data>
   <data name="LicensesComponentInter" xml:space="preserve">
     <value>Inter (font, macOS only)</value>
+  </data>
+  <data name="LicensesComponentMinGW" xml:space="preserve">
+    <value>MinGW-w64 runtime (in the FFmpeg DLLs, Windows only)</value>
   </data>
   <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
     <value>Camera window</value>

@@ -481,9 +481,11 @@ No. It asks for the state every few seconds (configurable), the same way the Pru
 - Git.
 - For a **Native AOT publish** only: on Windows the Visual Studio Build Tools with the *Desktop development with
   C++* workload, on macOS the Xcode Command Line Tools.
-- The first build on Windows downloads the LGPL FFmpeg libraries for the camera (~77 MB, verified by SHA-256). On
-  macOS the first build downloads the official FFmpeg source (~12 MB, verified by SHA-256) and compiles an LGPL build
-  with the Xcode Command Line Tools (about a minute).
+- The first build downloads the official FFmpeg source (~12 MB, verified by SHA-256) and compiles a minimal LGPL
+  build of the camera libraries from it, once: on Windows with [MSYS2](https://www.msys2.org/) and MinGW-w64
+  (`winget install MSYS2.MSYS2`, then the packages `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`; a few
+  minutes), on macOS with the Xcode Command Line Tools (about a minute). Without the toolchain the build stops at once
+  with instructions; `dotnet build -p:LayerPeekFFmpegEnabled=false` builds without the camera libraries.
 
 See [docs/prerequisites.md](docs/prerequisites.md) for details (in Czech).
 

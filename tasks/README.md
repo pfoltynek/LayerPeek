@@ -263,10 +263,10 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-162 | FFmpeg pro Windows – připnutý build BtbN už neexistuje (404) (hotovo; ověření v T-125) | windows | core-dev | P1 | – |
 | T-186 | Kamera – pozastavení streamu při zamčení počítače a vypnutém displeji (výkon) | windows | ui-dev | P2 | – |
 | T-201 | Přeinstalace (`winget upgrade`) nemá znovu zapnout spouštění po přihlášení (hook instalace) (hotovo; ruční ověření v T-124) | windows | ui-dev | P1 | – |
-| T-202 | Windows – vlastní minimální LGPL build FFmpeg ze zdrojů (místo BtbN), s D3D11VA (blokuje 1.0.0) | windows | core-dev | P1 | T-199 |
+| T-202 | Windows – vlastní minimální LGPL build FFmpeg ze zdrojů (místo BtbN), s D3D11VA (hotovo 2026-11-15; ověření v T-125 2ab, 2ad) | windows | core-dev | P1 | T-199 |
 | T-206 | Windows – hardwarové dekódování D3D11VA (výchozí software do měření v T-125) | windows | core-dev | P2 | T-202, T-203, T-204 |
 | T-220 | Alokační testy `ASampleDoesNotAllocate` a `SteadyStateTimelapseDoesNotAllocate` nestabilní na 4jádrovém runneru Windows (přeskočení v CI odstraněno, čeká na zelené běhy CI) | windows | qa-reviewer | P2 | – |
-| T-221 | Windows – vzorky z roviny Y se liší od BGRA víc, než dovolují meze T-189 (1,72 / +1,44; v CI přeskočené) | windows | core-dev | P2 | – |
+| T-221 | Windows – vzorky z roviny Y se liší od BGRA víc, než dovolují meze T-189 (1,72 / +1,44; přeskočení v CI odstraněno v T-202, čeká na zelený běh CI) | windows | core-dev | P2 | – |
 | T-224 | Windows ARM64 – sestavovací prostředí a Native AOT publish `win-arm64` z x64 (bez FFmpeg) | windows | core-dev | P2 | – |
 | T-225 | Windows ARM64 – vlastní LGPL build FFmpeg pro `win-arm64` (křížový překlad z x64) | windows | core-dev | P2 | T-202, T-224 |
 | T-226 | Windows ARM64 – vydání `win-arm64` (skripty, Velopack, aktualizace, winget, README a příručky) | windows | qa-reviewer | P2 | T-224, T-225 |

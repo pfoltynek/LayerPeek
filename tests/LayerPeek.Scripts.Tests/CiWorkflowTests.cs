@@ -72,12 +72,41 @@ public sealed partial class CiWorkflowTests
     }
 
     [Fact]
+    public void TheWindowsJobInstallsTheFFmpegToolchainBeforeTheFirstBuild()
+    {
+        // T-202: build/FFmpeg.targets compiles FFmpeg on a cache miss with MSYS2 + MinGW-w64 and never installs anything
+        // itself, so the job installs exactly the packages the build names in its error message, before the first build,
+        // and points the build to the installation.
+        string[] lines = Lines();
+        string targets = File.ReadAllText(Path.Combine(TestWorktree.Root, "build", "FFmpeg.targets"));
+        Match packages = Msys2Packages().Match(targets);
+        Assert.True(packages.Success, "build/FFmpeg.targets names no _LayerPeekFFmpegMsys2Packages for win-x64.");
+
+        int install = Array.FindIndex(lines, static line => line.Contains("uses: msys2/setup-msys2@", StringComparison.Ordinal));
+        int build = Array.FindIndex(lines, static line => line.Trim() == "- name: Build (Release)");
+        int restore = Array.FindIndex(lines, static line => line.Trim() == "id: ffmpeg");
+        Assert.True(install > restore && restore >= 0, "MSYS2 must be installed after the FFmpeg cache is restored (only on a miss).");
+        Assert.True(build > install, "MSYS2 must be installed before the first build.");
+
+        string[] step = [.. lines.Skip(install - 3).Take(12).Select(static line => line.Trim())];
+        Assert.Contains("if: matrix.rid == 'win-x64' && steps.ffmpeg.outputs.cache-hit != 'true'", step);
+        Assert.Contains("msystem: MINGW64", step);
+        Assert.Contains("update: false", step);
+        Assert.Contains($"install: {packages.Groups[1].Value}", step);
+        Assert.Contains(lines, static line => line.Contains("\"LayerPeekMsys2Root=$env:MSYS2_LOCATION\" >> $env:GITHUB_ENV", StringComparison.Ordinal));
+        Assert.Contains(lines, static line => line.Trim() == "ffmpeg-script: build/windows/build-ffmpeg.sh");
+    }
+
+    [Fact]
     public void DependabotKeepsThePinnedActionsCurrent()
     {
         string dependabot = File.ReadAllText(Path.Combine(TestWorktree.Root, ".github", "dependabot.yml"));
 
         Assert.Contains("package-ecosystem: github-actions", dependabot, StringComparison.Ordinal);
     }
+
+    [GeneratedRegex(@"<_LayerPeekFFmpegMsys2Packages Condition=""'\$\(_LayerPeekFFmpegRid\)' == 'win-x64'"">([^<]+)</_LayerPeekFFmpegMsys2Packages>")]
+    private static partial Regex Msys2Packages();
 
     [GeneratedRegex(@"^\s*(-\s+)?uses:")]
     private static partial Regex UsesLine();

@@ -101,8 +101,9 @@ public sealed partial class LicenseItemViewModel : ObservableObject, ILanguageAw
 /// The third-party licences window (opened from About, T-014): FFmpeg (LGPL, dynamically linked, replaceable, with links
 /// to its source and the exact build used) and every other shipped component from <see cref="ThirdPartyLicenses"/>.
 /// The FFmpeg version is read off the UI thread (it loads the native libraries); a missing FFmpeg is shown, not thrown.
-/// The note and the build links describe the build of the platform: BtbN on Windows, the official source built by
-/// build/macos/build-ffmpeg.sh on macOS (T-026). UI thread only.
+/// Both platforms build the same official source tarball (macOS: build/macos/build-ffmpeg.sh, T-026; Windows:
+/// build/windows/build-ffmpeg.sh, T-202); the note and the build script link describe the build of the platform. UI thread
+/// only.
 /// </summary>
 public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
 {
@@ -195,8 +196,8 @@ public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
         LicenseTextHeader = Strings.LicensesShowText;
         ProjectText = Strings.LicensesProject;
         FFmpegSourceText = Strings.LicensesFFmpegSource;
-        FFmpegBuildText = _macOS ? Strings.LicensesFFmpegBuildMacOS : Strings.LicensesFFmpegBuild;
-        FFmpegBuildScriptsText = _macOS ? Strings.LicensesFFmpegBuildScriptsMacOS : Strings.LicensesFFmpegBuildScripts;
+        FFmpegBuildText = Strings.LicensesFFmpegBuild;
+        FFmpegBuildScriptsText = Strings.LicensesFFmpegBuildScripts;
         CloseText = Strings.AboutClose;
     }
 
@@ -286,8 +287,7 @@ public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
     private void OpenFFmpegSource() => _ = _launcher.OpenAsync(ThirdPartyLicenses.FFmpeg.SourceUri);
 
     [RelayCommand]
-    private void OpenFFmpegBuild() =>
-        _ = _launcher.OpenAsync(_macOS ? ThirdPartyLicenses.FFmpeg.MacOSBuildUri : ThirdPartyLicenses.FFmpeg.WindowsBuildUri);
+    private void OpenFFmpegBuild() => _ = _launcher.OpenAsync(ThirdPartyLicenses.FFmpeg.SourceTarballUri);
 
     [RelayCommand]
     private void OpenFFmpegBuildScripts() =>

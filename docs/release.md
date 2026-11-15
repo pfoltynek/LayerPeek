@@ -653,33 +653,30 @@ a okno O aplikaci má větu z kontrolního seznamu LGPL na https://ffmpeg.org/le
 doporučuje zdroj hostovat u binárky (body 3–8); dřív aplikace jen odkazovala na cizí servery a build BtbN už jednou
 zmizel (T-162).
 
-**Co vydání obsahuje.** Každé OS má jiný zdroj, proto má každý build svůj soubor `ffmpeg-source-<verze>-<os>.tar.xz`
-(jedna složka nejvyšší úrovně stejného názvu, xz):
+**Co vydání obsahuje.** Obě OS od T-202 překládají stejný oficiální tarball (`LayerPeekFFmpegSource*` v
+`build/FFmpeg.targets`), liší se skriptem buildu. Každý build má svůj soubor `ffmpeg-source-<verze>-<os>.tar.xz` (jedna
+složka nejvyšší úrovně stejného názvu, xz):
 
-| OS | Obsah | Odkud |
-|---|---|---|
-| macOS | `ffmpeg-9.0.2.tar.xz` (oficiální tarball beze změny, ověřitelný podpisem `.asc` z ffmpeg.org), `build-ffmpeg.sh` (skript, který knihovny přeložil) a `README.txt` | `LayerPeekFFmpegMac*` v `build/FFmpeg.targets` |
-| Windows | `ffmpeg-n9.0.2-39-g7adfbe40dc.tar` (FFmpeg v commitu `7adfbe40dc…` větve `release/9.0`, beze změny), `FFmpeg-Builds-autobuild-2026-10-31-12-59.tar` (skripty BtbN v commitu tagu vydání `autobuild-2026-10-31-12-59`, `5031c6f1…`) a `README.txt` | `LayerPeekFFmpegWindows*` v `build/FFmpeg.targets` |
+| OS | Obsah |
+|---|---|
+| macOS | `ffmpeg-9.0.2.tar.xz` (oficiální tarball beze změny, ověřitelný podpisem `.asc` z ffmpeg.org), `build-ffmpeg.sh` (`build/macos/build-ffmpeg.sh`, Xcode Command Line Tools) a `README.txt` |
+| Windows | `ffmpeg-9.0.2.tar.xz` (týž tarball), `build-ffmpeg.sh` (`build/windows/build-ffmpeg.sh`, MSYS2 + MinGW-w64) a `README.txt` |
 
-Oba tary Windows jsou `git archive --format=tar --prefix=<název>/ <commit>`. Oficiální tarball pro commit větve
-neexistuje; zip BtbN se nepřikládá (binárky jsou v aplikaci, `README.txt` uvádí jeho adresu a SHA-256). FFmpeg BtbN
-neupravuje (jen klonuje větev `release/9.0`, záplaty ve `patches/` jsou pro závislosti). `README.txt` popisuje obsah,
-původ (URL, commit, strom, SHA-256), postup buildu a **řádek configure přečtený z vydávané knihovny `avcodec`**
-(prefix instalace nahrazený `<prefix>`, aby v něm nebyla cesta stroje buildu).
+Žádné skripty ani zdroje cizích buildů (do T-202 měl archiv Windows commit FFmpeg a skripty BtbN jako tary
+`git archive`; build BtbN obsahoval ~50 knihoven, jejichž zdroje se nepřikládaly). `README.txt` popisuje obsah, původ
+(URL, SHA-256), postup buildu (Windows: toolchain a staticky linkovaný runtime MinGW-w64) a **řádek configure přečtený
+z vydávané knihovny `avcodec`** (prefix instalace nahrazený `<prefix>`, aby v něm nebyla cesta stroje buildu).
 
 **Jak to dělá `release-build.ps1`.**
 1. **Před dlouhým buildem** (po kontrole klíče feedu) `Get-FFmpegSourceInputs` přečte připnuté hodnoty
-   (`Get-FFmpegSourcePins`, i kontrola souladu: commit Windows musí být ten z názvu složky zipu BtbN
-   `LayerPeekFFmpegArchiveFolder`, tag skriptů tag z `LayerPeekFFmpegUrl`) a připraví vstupy v cache
+   (`Get-FFmpegSourcePins`, i kontrola souladu URL tarballu a jeho složky) a připraví tarball v cache
    **`LayerPeek.Build/ffmpeg-source`** (macOS `~/Library/Caches/LayerPeek.Build/ffmpeg-source`, Windows
    `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source`, vedle cache buildu FFmpeg). Soubor v cache se připnutým SHA-256 se
-   použije bez stahování; jinak se stáhne (macOS, HTTPS) nebo vezme gitem (Windows: mělký `fetch` jediného commitu do
-   dočasného holého repozitáře, kontrola commitu a stromu, `git archive` bez převodu konců řádků) do pracovní složky
-   `tmp-…` v cache, ověří a přesune na místo. Při neshodě SHA-256 skript skončí chybou a stažené zahodí. **Cache se
+   použije bez stahování; jinak se stáhne (HTTPS) do pracovní složky `tmp-…` v cache, ověří a přesune na místo. Při neshodě SHA-256 skript skončí chybou a stažené zahodí. **Cache se
    nikdy nemaže**; soubor se špatným hashem se nahradí.
 2. **Krok balení `ffmpeg-source`** (oba OS, po smoke testu publish složky): z publish složky přečte knihovnu
-   `avcodec-<n>.dll` / `libavcodec.<n>.dylib` a ověří, že je z připnutého zdroje (`FFmpeg version` v knihovně: macOS
-   přesně `9.0.2`, Windows `n9.0.2-39-g7adfbe40dc` s datem buildu BtbN `-RRRRMMDD`). Pak sbalí vstupy, skript a
+   `avcodec-<n>.dll` / `libavcodec.<n>.dylib` a ověří, že je z připnutého zdroje (`FFmpeg version` v knihovně přesně
+   `9.0.2` na obou OS). Pak sbalí tarball, skript buildu OS a
    `README.txt` do `dist/` (pracovní složka `ffmpeg-source-<RID>` vedle `dist/`, po zabalení smazaná) a výsledek
    vypíše a porovná s očekávaným seznamem souborů.
 3. Soubor je jako ostatní kroky v `build-info.json` (krok `ffmpeg-source`, i v záznamu `pending` před podpisem, takže
@@ -687,9 +684,8 @@ původ (URL, commit, strom, SHA-256), postup buildu a **řádek configure přeč
    (není to značka OS) a `release-publish.ps1` ho zkontroluje proti součtům. Seznam povolených názvů nahrání nemá:
    nahrává se přesně to, co je v `build-info.json`.
 
-**Potřeba:** síť jen při prvním běhu dané verze FFmpeg (~12 MB z ffmpeg.org na Macu, ~21 MB přes git z GitHubu na
-Windows), `git` a `tar`, který zapisuje xz (macOS `/usr/bin/tar`; Windows `System32\tar.exe`, ověření v T-125).
-Na Macu trvá krok pár sekund, na Windows asi 20–30 s (xz z ~100 MB).
+**Potřeba:** síť jen při prvním běhu dané verze FFmpeg (~12 MB z ffmpeg.org) a `tar`, který zapisuje xz (macOS
+`/usr/bin/tar`; Windows `System32\tar.exe`, ověření v T-125). Krok trvá pár sekund (tarball už je komprimovaný).
 
 **Okno O aplikaci** má pod licencí a copyrightem drobným písmem větu „This software uses libraries from the FFmpeg
 project under the LGPLv3 or later.“ (přeložená do všech 8 jazyků) a odkaz „FFmpeg source code of this version“ na
@@ -708,13 +704,8 @@ repozitář podle `-Repo`). `-DryRun` celý text vypíše. Do balíčku Velopack
 winget větu nedostává. README (EN i CZ) má stejnou větu v oddílu stažení. Vydání jen s jedním OS (`-AllowIncomplete`,
 do 1.0.0) má odkaz druhého OS do doplnění jeho souborů nefunkční.
 
-**Přechodný stav Windows:** balení zdroje Windows z commitu FFmpeg a skriptů BtbN nahradí **T-202** (vlastní
-minimální LGPL build FFmpeg na Windows jako na macOS, rozhodnutí uživatele 2026-11-12); archiv Windows pak bude
-obsahovat jen oficiální tarball FFmpeg a skript buildu.
-
-**Nová verze FFmpeg:** po `build/update-ffmpeg.ps1 -Update` je potřeba připnout i zdroj (postup v
-`docs/prerequisites.md`, „Nová verze FFmpeg“); dokud se to neudělá, selže test Pester a `release-build.ps1` skončí
-chybou ještě před buildem.
+**Nová verze FFmpeg:** `build/update-ffmpeg.ps1 -Update` připne nový tarball, který je zároveň zdrojem vydání; nic
+dalšího se nepřipíná (postup v `docs/prerequisites.md`, „Nová verze FFmpeg“).
 
 ## Bod rozšíření pro instalátory (T-017, T-019)
 

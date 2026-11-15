@@ -192,6 +192,20 @@ internal static class ThirdPartyLicenses
             [],
             [ResourcePrefix + "ofl-inter.txt"],
             nameof(Strings.LicensesComponentInter)),
+        // Windows only (T-202): build/windows/build-ffmpeg.sh links the MinGW-w64 runtime (crt) and winpthreads
+        // statically into the FFmpeg DLLs (no libgcc / libwinpthread DLLs). Their notices must be reproduced in binary
+        // distributions; the texts are COPYING.MinGW-w64-runtime.txt of mingw-w64-x86_64-crt and COPYING of
+        // mingw-w64-x86_64-winpthreads (MSYS2, version 14.0.0.r598.ge3d18511f-1, /mingw64/share/licenses). The GCC runtime
+        // (libgcc) is under the GCC Runtime Library Exception, which needs no notice. The version is that of the crt
+        // package that built the DLLs ("Packages:" in BUILD.txt of the FFmpeg cache, checked by a test after every rebuild).
+        new(
+            "MinGW-w64 runtime",
+            "14.0.0",
+            "ZPL-2.1 AND MIT AND BSD-3-Clause",
+            new Uri("https://www.mingw-w64.org/"),
+            [],
+            [ResourcePrefix + "mingw-w64-runtime.txt", ResourcePrefix + "mingw-w64-winpthreads.txt"],
+            nameof(Strings.LicensesComponentMinGW)),
     ];
 
     /// <summary>
@@ -235,22 +249,13 @@ internal static class ThirdPartyLicenses
         public static Uri SourceUri { get; } = new("https://ffmpeg.org/download.html");
 
         /// <summary>
-        /// Windows: the pinned BtbN build; must equal <c>LayerPeekFFmpegUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
+        /// The official source tarball the libraries of both platforms are built from (macOS since T-026, Windows since
+        /// T-202); must equal <c>LayerPeekFFmpegSourceUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
         /// </summary>
-        public static Uri WindowsBuildUri { get; } =
-            new("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip");
+        public static Uri SourceTarballUri { get; } = new("https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz");
 
-        /// <summary>Windows: the configuration and build scripts of the BtbN builds (part of the corresponding source).</summary>
-        public static Uri WindowsBuildScriptsUri { get; } = new("https://github.com/BtbN/FFmpeg-Builds");
-
-        /// <summary>
-        /// macOS (T-026): the official source tarball the libraries are built from; must equal
-        /// <c>LayerPeekFFmpegMacSourceUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
-        /// </summary>
-        public static Uri MacOSBuildUri { get; } = new("https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz");
-
-        /// <summary>Path of the macOS build script in the repository.</summary>
-        public const string MacOSBuildScriptPath = "build/macos/build-ffmpeg.sh";
+        /// <summary>Path of the build script of a platform in the repository.</summary>
+        internal static string BuildScriptPath(bool macOS) => macOS ? "build/macos/build-ffmpeg.sh" : "build/windows/build-ffmpeg.sh";
 
         /// <summary>
         /// macOS: the build script with the exact configure line (part of the corresponding source), at the release tag of
@@ -258,18 +263,22 @@ internal static class ThirdPartyLicenses
         /// shipped libraries were really built with).
         /// </summary>
         public static Uri MacOSBuildScriptsUri { get; } =
-            MacOSBuildScriptUri(Windows.AboutViewModel.ProductVersion(typeof(ThirdPartyLicenses).Assembly));
+            BuildScriptUri(Windows.AboutViewModel.ProductVersion(typeof(ThirdPartyLicenses).Assembly), macOS: true);
+
+        /// <summary>Windows (T-202): the build script, like <see cref="MacOSBuildScriptsUri"/>.</summary>
+        public static Uri WindowsBuildScriptsUri { get; } =
+            BuildScriptUri(Windows.AboutViewModel.ProductVersion(typeof(ThirdPartyLicenses).Assembly), macOS: false);
 
         /// <summary>
-        /// The build script at the release tag <c>v&lt;version&gt;</c> (the tag format of <c>scripts/release.ps1</c>,
-        /// <c>ConvertTo-ReleaseTag</c>); <paramref name="productVersion"/> as returned by
+        /// The build script of a platform at the release tag <c>v&lt;version&gt;</c> (the tag format of
+        /// <c>scripts/release.ps1</c>, <c>ConvertTo-ReleaseTag</c>); <paramref name="productVersion"/> as returned by
         /// <see cref="Windows.AboutViewModel.ProductVersion"/> ("1.2.0", without the source revision).
         /// </summary>
-        internal static Uri MacOSBuildScriptUri(string productVersion)
+        internal static Uri BuildScriptUri(string productVersion, bool macOS)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(productVersion);
             string repository = Windows.AboutViewModel.RepositoryUri.AbsoluteUri.TrimEnd('/');
-            return new Uri($"{repository}/blob/v{Uri.EscapeDataString(productVersion)}/{MacOSBuildScriptPath}");
+            return new Uri($"{repository}/blob/v{Uri.EscapeDataString(productVersion)}/{BuildScriptPath(macOS)}");
         }
 
         /// <summary>
@@ -285,7 +294,7 @@ internal static class ThirdPartyLicenses
 
         /// <summary>
         /// Download address of <see cref="SourceArchiveFileName"/> in the GitHub release <c>v&lt;version&gt;</c> (the tag
-        /// format of <c>scripts/release.ps1</c>, like <see cref="MacOSBuildScriptUri"/>).
+        /// format of <c>scripts/release.ps1</c>, like <see cref="BuildScriptUri"/>).
         /// </summary>
         internal static Uri SourceArchiveUri(string productVersion, bool macOS)
         {

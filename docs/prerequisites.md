@@ -3,8 +3,8 @@
 Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spustitelný soubor bez nutnosti instalovat .NET runtime.
 
 > **Důležité:**
-> - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. **Výjimka na macOS (T-026): první `dotnet build` přeloží knihovny FFmpeg ze zdrojů, takže potřebuje Xcode Command Line Tools** (`xcode-select --install`). Bez nich build hned na začátku (nic nestahuje) skončí chybou `The Xcode Command Line Tools are not installed (or not selected). …` s návodem. Další buildy používají cache a toolchain už nepotřebují.
-> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Vydávané RID: `win-x64` a `osx-arm64` (rozhodnuto 2026-10-21; Windows ARM64 `win-arm64` se od 2026-11-01 nepodporuje, T-130).
+> - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. **Výjimka: první `dotnet build` přeloží knihovny FFmpeg ze zdrojů, takže potřebuje toolchain platformy: na Windows MSYS2 s MinGW-w64 (T-202, `winget install MSYS2.MSYS2` a balíčky `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm`), na macOS Xcode Command Line Tools (T-026, `xcode-select --install`).** Bez něj build hned na začátku (nic nestahuje) skončí chybou s návodem (`MSYS2 with MinGW-w64 is not installed in C:\msys64 …` / `The Xcode Command Line Tools are not installed (or not selected). …`). Další buildy používají cache a toolchain už nepotřebují. Bez kamery jde vždy `dotnet build -p:LayerPeekFFmpegEnabled=false`.
+> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Vydávané RID: `win-x64` a `osx-arm64` (rozhodnuto 2026-10-21); Windows ARM64 `win-arm64` se bude vydávat také (rozhodnutí uživatele 2026-11-12, T-224 až T-226, zatím neimplementováno).
 > - CI (GitHub Actions, T-218) jen sestaví, otestuje a AOT publikuje na Windows i macOS (viz „CI (GitHub Actions)“). Nic nevydává: binárky pro vydání se dál sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
 
 ## Společné (obě platformy)
@@ -48,21 +48,66 @@ volí sami (GitHub nabízí vlastní adresu noreply v *Settings → Emails*).
 
 ## Nativní knihovny FFmpeg (kamera)
 
-Projekt `LayerPeek.Camera.FFmpeg` potřebuje nativní knihovny FFmpeg 9.0.2 (LGPL verze 3 nebo novější, sdílené knihovny). Knihovny nejsou v repozitáři. Obstará je build (`build/FFmpeg.targets`), na každé platformě jinak:
+Projekt `LayerPeek.Camera.FFmpeg` potřebuje nativní knihovny FFmpeg 9.0.2 (LGPL verze 3 nebo novější, sdílené knihovny). Knihovny nejsou v repozitáři. Obstará je build (`build/FFmpeg.targets`): na obou platformách stáhne stejný oficiální zdrojový tarball `ffmpeg-9.0.2.tar.xz` z ffmpeg.org (~12 MB), ověří ho podle připnutého SHA256 a přeloží ho skriptem buildu platformy jen s tím, co aplikace používá (žádné externí knihovny). Windows od T-202 (do té doby hotový build BtbN se ~50 přibalenými knihovnami), macOS od T-026.
 
-| | Windows (`win-x64`) | macOS (`osx-arm64`, T-026) |
+| | Windows (`win-x64`, T-202) | macOS (`osx-arm64`, T-026) |
 |---|---|---|
-| Zdroj | hotový LGPL shared build BtbN (`n9.0.2-39-g7adfbe40dc`, měsíční build `autobuild-2026-10-31-12-59`), ~77 MB z GitHubu | oficiální zdrojový tarball `ffmpeg-9.0.2.tar.xz` z ffmpeg.org (~12 MB), sestavený skriptem `build/macos/build-ffmpeg.sh` |
-| Knihovny | `avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll`, `swresample-7.dll` | `libavformat.63.dylib`, `libavcodec.63.dylib`, `libavutil.61.dylib`, `libswscale.10.dylib` (swresample aplikace nenačítá) |
-| Cache | `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg\<sha256 archivu>\` | `~/Library/Caches/LayerPeek.Build/ffmpeg/osx-arm64-<klíč>/` (klíč = SHA256 ze SHA256 tarballu a obsahu skriptu buildu, takže změna příznaků nebo verze sestaví novou cache) |
-| První build | stáhne archiv | stáhne tarball a přeloží ho (na Apple Silicon asi 30–60 s) |
+| Skript buildu | `build/windows/build-ffmpeg.sh` (MSYS2 + MinGW-w64) | `build/macos/build-ffmpeg.sh` (Xcode Command Line Tools) |
+| Knihovny | `avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll` (celkem 6,4 MB) | `libavformat.63.dylib`, `libavcodec.63.dylib`, `libavutil.61.dylib`, `libswscale.10.dylib` |
+| Hardwarové dekódování | D3D11VA (`--enable-d3d11va`, hwaccel `h264_d3d11va` a `h264_d3d11va2`) | VideoToolbox (`h264_videotoolbox`, T-203) |
+| Cache | `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg\win-x64-<klíč>\` | `~/Library/Caches/LayerPeek.Build/ffmpeg/osx-arm64-<klíč>/` |
+| První build | stáhne tarball a přeloží ho (na 16 vláknech asi 3,5 min) | stáhne tarball a přeloží ho (na Apple Silicon asi 30–60 s) |
+
+Klíč cache = SHA256 ze SHA256 tarballu a obsahu skriptu buildu, takže změna příznaků nebo verze sestaví novou cache. Staré složky cache (i `<sha256>` z doby BtbN) build nemaže, smazat je jde ručně.
 
 Společné:
 
-- **První build potřebuje internet.** Archiv / tarball se ověří podle připnutého SHA256. Při neshodě build selže a stažený soubor se zahodí. Další buildy jen zkontrolují cache a fungují offline. Jinou složku cache nastavíš vlastností nebo proměnnou prostředí `LayerPeekFFmpegCacheRoot`. `LayerPeekFFmpegEnabled=false` krok vypne úplně (testy FFmpeg se pak přeskočí).
-- **Vydání (T-199)** přikládá zdroj FFmpeg (`ffmpeg-source-<verze>-<os>.tar.xz`, `docs/release.md`, „Zdrojový kód FFmpeg“). `scripts/release-build.ps1` ho bere z vlastní cache vedle této: `~/Library/Caches/LayerPeek.Build/ffmpeg-source/` (tarball z ffmpeg.org) a `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\` (tary `git archive` commitu FFmpeg a skriptů BtbN; potřebuje `git` a `tar` se zápisem xz). Stahuje jen při prvním vydání dané verze FFmpeg a nic v cache nemaže.
+- **První build potřebuje internet a toolchain platformy.** Tarball se ověří podle připnutého SHA256 (`LayerPeekFFmpegSourceSha256`). Při neshodě build selže a stažený soubor se zahodí. Další buildy jen zkontrolují cache, fungují offline a toolchain už nepotřebují. Jinou složku cache nastavíš vlastností nebo proměnnou prostředí `LayerPeekFFmpegCacheRoot`. `LayerPeekFFmpegEnabled=false` krok vypne úplně (testy FFmpeg se pak přeskočí, kamera nefunguje).
+- **Nic se neinstaluje.** Chybějící toolchain build zjistí hned na začátku (nic nestáhne) a skončí chybou s návodem.
+- **Vydání (T-199)** přikládá zdroj FFmpeg (`ffmpeg-source-<verze>-<os>.tar.xz`, `docs/release.md`, „Zdrojový kód FFmpeg“): na obou OS stejný tarball beze změny, skript buildu dané platformy a `README.txt`. `scripts/release-build.ps1` bere tarball z vlastní cache vedle této (`~/Library/Caches/LayerPeek.Build/ffmpeg-source/`, `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\`; potřebuje `tar` se zápisem xz). Stahuje jen při prvním vydání dané verze FFmpeg a nic v cache nemaže.
 - Knihovny a `FFmpeg-LICENSE.txt` se kopírují do výstupu i do publish složky projektů, které na FFmpeg projekt odkazují. V `LayerPeek.app` jsou knihovny v `Contents/MacOS` (vedle exe, jako ostatní nativní knihovny) a licence v `Contents/Resources`.
-- IDE (design-time build) nic nestahuje ani nepřekládá. Jiné RID (např. `osx-x64`) a Intel Mac krok přeskočí.
+- IDE (design-time build) nic nestahuje ani nepřekládá. Jiné RID (např. `osx-x64`, `win-arm64` do T-225) a Intel Mac krok přeskočí.
+- Sada funkcí je na obou platformách stejná (test `ThirdPartyLicensesTests.FFmpegBuildsOfBothPlatformsHaveTheSameFeatures`), liší se jen řádky platformy (architektura, toolchain, vlákna, hardwarový dekodér). `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP; muxer `mov`, parser `ac3` a bitstream filtry `aac_adtstoasc`, `vp9_superframe` kvůli muxeru `mp4`). Demuxer `mov` čte i vlastní nahrávky MP4 a timelapse (T-165). Aplikace ostatní nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Muxer `mp4` (T-147) slouží nahrávání kamery (T-144): pakety H.264 z RTSP se jen přebalí do fragmentovaného MP4, žádný enkodér se nepřidává. Převod Annex B na délkově prefixované NAL jednotky a SPS/PPS na `avcC` dělá muxer sám, bitstream filtry `h264_mp4toannexb` ani `extract_extradata` potřeba nejsou. Bez `--enable-gpl` a `--enable-nonfree`, licence podle `configure`: „LGPL version 3 or later“ (skript to v `configure.log` kontroluje).
+- **Když build selže:** logy `configure.log` a `make.log` zůstanou ve složce `tmp-…` v cache (smaže je build po dvou hodinách). Když tarball z ffmpeg.org zmizí, změň v `build/FFmpeg.targets` `LayerPeekFFmpegSourceUrl`, `LayerPeekFFmpegSourceSha256` a `LayerPeekFFmpegSourceFolder` na jiný oficiální tarball 9.0.x (stejné verze knihoven). Postup je v „Nová verze FFmpeg“ níže.
+- **Ověření tarballu je automatické:** každý první build ověří připnutý SHA256 a při neshodě skončí chybou. Uživatel ani vývojář nic ručně neověřuje. FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Proto se připnutý hash při změně verze ověřuje skriptem `build/update-ffmpeg.ps1` proti nezávislému zdroji (vzorec Homebrew) a podpisem GPG, když je `gpg` k dispozici. Hash 9.0.2 (`8c38502…e002e`) souhlasí se vzorcem Homebrew (ověřeno 2026-10-29), podpis GPG ověřený nebyl (`gpg` na stroji není).
+
+Windows navíc (T-202):
+
+- **Potřeba je MSYS2 s MinGW-w64** (rozhodnutí uživatele 2026-11-12), už pro první `dotnet build`. Instalace (jednou):
+
+  ```powershell
+  winget install MSYS2.MSYS2
+  C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm"
+  ```
+
+  Na vývojovém stroji ověřeno s gcc 16.2.0, nasm 3.02, make 4.4.1 a mingw-w64-crt 14.0.0 (2026-11-15). Výchozí umístění je `C:\msys64`; jiné nastaví vlastnost nebo proměnná prostředí `LayerPeekMsys2Root`. `pkgconf` potřeba není. Build před stažením zkontroluje soubory, které skript potřebuje (`usr\bin\bash.exe`, `make.exe`, `cmp.exe`, `tar.exe`, `xz.exe`, `mingw64\bin\gcc.exe`, `nasm.exe`, `objdump.exe`, `strip.exe`, `mingw64\lib\libwinpthread.a`). Bez nich skončí chybou:
+
+  ```
+  error : MSYS2 with MinGW-w64 is not installed in C:\msys64 (missing: usr\bin\bash.exe, …). The first build on Windows
+  compiles the FFmpeg camera libraries from source and needs it. To fix it: Install MSYS2 (winget install MSYS2.MSYS2,
+  or https://www.msys2.org/), then in an MSYS2 shell: pacman -S --needed make diffutils mingw-w64-x86_64-gcc
+  mingw-w64-x86_64-nasm, and build again. … To build without the camera libraries instead:
+  dotnet build -p:LayerPeekFFmpegEnabled=false …
+  ```
+
+  Visual Studio (MSVC) první build nepotřebuje, ten je dál jen pro AOT publish.
+- **Cesty:** diakritika v cestě (profil `C:\Users\Novák`) nevadí: `objdump` se spouští s holým názvem souboru, protože cesty vypisuje v kódové stránce ANSI. Mezera ve jménu profilu taky ne: dočasná složka `configure` je podsložka pracovní složky, s mezerou v cestě se použije její krátký tvar 8.3 (`cygpath -d`). Když svazek krátké názvy nemá, build skončí hned (před překladem) chybou `… contains a space and has no short 8.3 name`; pak `LayerPeekFFmpegCacheRoot` na složku bez mezer.
+- **Aktualizace MSYS2** (`pacman -Syu`) cache nezmění (klíč je tarball + skript). Nová verze runtime MinGW-w64 se do DLL dostane až s novým buildem (změna skriptu nebo verze FFmpeg). `BUILD.txt` v cache má řádek `Packages:` (`pacman -Q` crt, winpthreads, binutils, gcc); jeho kopie `FFmpeg-BUILD.txt` jde jen do výstupu buildu (ne do publish) a test `ThirdPartyLicensesTests.MinGWRuntimeVersionIsTheOneThatBuiltTheDlls` selže, když verze crt neodpovídá položce „MinGW-w64 runtime“ v `ThirdPartyLicenses.cs`. Pak tam verzi a texty licencí (`/mingw64/share/licenses/crt`, `libwinpthread`) aktualizovat.
+- MSBuild spustí skript přes `bash.exe` z MSYS2 (`--noprofile --norc`). Skript si nastaví čisté prostředí (`env -i`, `PATH=/mingw64/bin:/usr/bin`, `MSYSTEM=MINGW64`, jen `SYSTEMROOT`, `WINDIR`, `COMSPEC` a dočasná složka), takže se do buildu nedostane nic z `PATH` Windows (jiné překladače, `CFLAGS`, jiná prostředí MSYS2). `COMSPEC` potřebuje `windres` (verzní prostředky DLL).
+- **Runtime MinGW-w64 je staticky:** `-static-libgcc` (libgcc, GPL 3 s GCC Runtime Library Exception, která u přeloženého kódu nic nevyžaduje) a `-l:libwinpthread.a` (winpthreads, MIT a části BSD-3-Clause; FFmpeg používá vlákna Windows `--enable-w32threads --disable-pthreads`, z winpthreads jen `clock_gettime` a `nanosleep`). Spolu s nimi je v DLL i startovací kód a pomocné funkce mingw-w64-crt (ZPL 2.1 a další volné licence). Jejich texty jsou v okně licencí (položka „MinGW-w64 runtime“, `Licenses/Texts/mingw-w64-*.txt`, převzaté z `/mingw64/share/licenses/crt` a `libwinpthread`).
+- Výsledek se kontroluje: formát `pei-x86-64` (`objdump -f`) a importy (`objdump -p`, „DLL Name“) jen sousední knihovny FFmpeg a DLL Windows (`KERNEL32`, `msvcrt`, `bcrypt`, `WS2_32` a pár dalších povolených ve skriptu), nikdy `libgcc_s_seh-1.dll`, `libwinpthread-1.dll` ani jiná DLL z MSYS2. Totéž hlídá test `FFmpegWindowsBuildTests` (čte tabulku importů DLL vedle testů) a k tomu, že knihovny obsahují D3D11VA jako jediný hardwarový dekodér a jen dekodér `h264`. `d3d11.dll` a `dxgi.dll` FFmpeg načítá až za běhu (`LoadLibrary`), jen při hardwarovém dekódování.
+- Přesný řádek `configure` (je i v `BUILD.txt` v cache):
+
+  ```
+  configure --enable-shared --disable-static --enable-version3 --disable-programs --disable-doc --disable-debug
+    --disable-autodetect --disable-everything --disable-avdevice --disable-avfilter --disable-swresample
+    --enable-network --enable-protocol=tcp,file --enable-demuxer=rtsp,h264 --enable-muxer=mp4 --enable-parser=h264
+    --enable-decoder=h264 --enable-d3d11va --enable-hwaccel=h264_d3d11va,h264_d3d11va2 --target-os=mingw32
+    --arch=x86_64 --enable-w32threads --disable-pthreads --extra-ldflags=-static-libgcc --extra-libs=-l:libwinpthread.a
+  ```
+
+- **D3D11VA:** `h264_d3d11va2` je hwaccel hwcontextu `d3d11va` (`AV_PIX_FMT_D3D11`, `av_hwdevice_ctx_create`), který použije T-206; `h264_d3d11va` je starší API (aplikace předá vlastní `ID3D11VideoContext`, bez typu zařízení). Obojí je D3D11VA, DXVA2 ani D3D12VA build neobsahuje (rozhodnutí uživatele 2026-11-12). Jen hlavičky MinGW-w64 a DLL Windows, žádné SDK ani externí knihovna.
+- Architektura se vybírá identifikátorem RID (první argument skriptu, `_LayerPeekFFmpegRid` v `build/FFmpeg.targets`): dnes jen `win-x64`, `win-arm64` (llvm-mingw) přidá T-225 jako další větev.
 
 macOS navíc:
 
@@ -88,51 +133,37 @@ macOS navíc:
     --extra-cflags="-arch arm64 -mmacosx-version-min=14.0" --extra-ldflags="-arch arm64 -mmacosx-version-min=14.0"
   ```
 
-  `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP; muxer `mov`, parser `ac3` a bitstream filtry `aac_adtstoasc`, `vp9_superframe` kvůli muxeru `mp4`). Aplikace je stejně nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Muxer `mp4` (T-147) slouží nahrávání kamery (T-144): pakety H.264 z RTSP se jen přebalí do fragmentovaného MP4, žádný enkodér se nepřidává. Převod Annex B na délkově prefixované NAL jednotky a SPS/PPS na `avcC` dělá muxer sám, bitstream filtry `h264_mp4toannexb` ani `extract_extradata` potřeba nejsou. Knihovny jsou díky tomu větší asi o 262 KiB (`libavformat` o 245 KiB, `libavcodec` o 16 KiB). Bez `--enable-gpl` a `--enable-nonfree`, licence podle `configure`: „LGPL version 3 or later“.
+  Muxer `mp4` dělá knihovny větší asi o 262 KiB (`libavformat` o 245 KiB, `libavcodec` o 16 KiB).
 - **VideoToolbox (T-203):** `--enable-videotoolbox --enable-hwaccel=h264_videotoolbox` zapíná hardwarové dekódování H.264 okna kamery (rozhodnutí uživatele 2026-11-12, T-192; do 2026-11-12 jen software). Kvůli `--disable-autodetect` a `--disable-everything` musí být oba přepínače výslovně. Frameworky VideoToolbox, CoreMedia, CoreVideo, CoreFoundation a CoreServices jsou součástí macOS (`/System/Library/Frameworks`, kontrola závislostí je povoluje), nic dalšího se neinstaluje: Xcode Command Line Tools stačí. VideoToolbox není v seznamu GPL ani nonfree, licence zůstává LGPL 3. Knihovny jsou větší o 27 KB (`libavcodec` 1 624 952 B, `libavutil` 742 648 B). Klíč cache obsahuje obsah skriptu, takže se po změně přestaví sama (ověřeno 2026-11-12: nová složka `osx-arm64-c88d70…`, 39 s). Test `HardwareDecodingFallbackTests.TheMacOSBuildHasVideoToolboxForH264AndStaysLgpl` hlídá, že knihovny `h264_videotoolbox` obsahují (`av_hwdevice_iterate_types` + `avcodec_get_hw_config`).
-- **Když build selže:** logy `configure.log` a `make.log` zůstanou ve složce `tmp-…` v cache (smaže je build po dvou hodinách). Když tarball z ffmpeg.org zmizí, změň v `build/FFmpeg.targets` `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256` a `LayerPeekFFmpegMacSourceFolder` na jiný oficiální tarball 9.0.x (stejné verze knihoven). Postup je v „Nová verze FFmpeg“ níže.
-- **Ověření tarballu je automatické:** každý první build ověří připnutý SHA256 (`LayerPeekFFmpegMacSourceSha256`) a při neshodě skončí chybou. Uživatel ani vývojář nic ručně neověřuje. FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Proto se připnutý hash při změně verze ověřuje skriptem `build/update-ffmpeg.ps1` proti nezávislému zdroji (vzorec Homebrew) a podpisem GPG, když je `gpg` k dispozici. Hash 9.0.2 (`8c38502…e002e`) souhlasí se vzorcem Homebrew (ověřeno 2026-10-29), podpis GPG ověřený nebyl (`gpg` na stroji není).
 
 ### Nová verze FFmpeg
 
-Obě platformy mají mít stejné vydání FFmpeg (stejné verze knihoven `avformat-63`, `avcodec-63`, `avutil-61`, `swscale-10`; jiná hlavní verze znamená změnu názvů knihoven v `build/FFmpeg.targets`, `build/macos/build-ffmpeg.sh` a `FFmpegRuntime`, i kontroly `^9\.0\.` ve skriptu buildu).
+Obě platformy překládají stejný tarball (stejné verze knihoven `avformat-63`, `avcodec-63`, `avutil-61`, `swscale-10`; jiná hlavní verze znamená změnu názvů knihoven v `build/FFmpeg.targets`, v obou skriptech buildu a v `FFmpegRuntime`, i kontroly `^9\.0\.` ve skriptech buildu).
 
-1. **Ověřit a zapsat připnuté hodnoty** skriptem pro správce `build/update-ffmpeg.ps1` (PowerShell 7, běží na macOS i Windows, i s `pwsh` nainstalovaným jako dotnet global tool; nic neinstaluje, jen čte přes HTTPS). Výchozí `-Platform all` ověří obě platformy najednou, `-Platform macos` / `-Platform windows` jen jednu:
+1. **Ověřit a zapsat připnuté hodnoty** skriptem pro správce `build/update-ffmpeg.ps1` (PowerShell 7, běží na macOS i Windows, i s `pwsh` nainstalovaným jako dotnet global tool; nic neinstaluje, jen čte přes HTTPS):
 
    ```bash
    # jen ověří a vypíše hodnoty
-   pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -BtbNTag autobuild-2026-11-30-12-00 -BtbNAsset ffmpeg-n9.0.3-…-win64-lgpl-shared-9.0.zip
+   pwsh build/update-ffmpeg.ps1 -Version 9.0.3
    # ověří a zapíše je
-   pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -BtbNTag autobuild-2026-11-30-12-00 -BtbNAsset ffmpeg-n9.0.3-…-win64-lgpl-shared-9.0.zip -Update
-   # jen jedna platforma
-   pwsh build/update-ffmpeg.ps1 -Platform macos -Version 9.0.3
+   pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -Update
    ```
 
-   Tag a přesný název assetu jsou na stránce vydání https://github.com/BtbN/FFmpeg-Builds/releases (název obsahuje i počet commitů a hash větve, např. `n9.0.2-28-g669f5ab083`, proto se z verze odvodit nedá). **Připínat jen poslední build měsíce** (tag `autobuild-RRRR-MM-<poslední den>-…`): BtbN denní buildy asi po dvou týdnech maže a trvale drží jen poslední build každého měsíce, jinak čistý build na Windows později skončí chybou 404 (T-162). Skript jiný tag odmítne. Před stahováním skript zkontroluje vstupy (jen LGPL shared win64 build vydané větve, `ffmpeg-n<verze>-…-win64-lgpl-shared-<x.y>.zip`), to, že obě platformy zůstanou na stejné větvi FFmpeg (`x.y`; nová hodnota jedné platformy se porovná s novou nebo připnutou hodnotou druhé), a to, že knihovny obou platforem v `build/FFmpeg.targets` mají stejné hlavní verze (`avformat-63.dll` ↔ `libavformat.63.dylib` …).
+   Před stahováním skript zkontroluje verzi a to, že obě platformy v `build/FFmpeg.targets` mají stejné knihovny se stejnými hlavními verzemi (`avformat-63.dll` ↔ `libavformat.63.dylib` …, od T-202 jedna k jedné). Pak stáhne `https://ffmpeg.org/releases/ffmpeg-<verze>.tar.xz` do dočasné složky, spočítá SHA256 a porovná ho se vzorcem Homebrew (`https://formulae.brew.sh/api/formula/ffmpeg.json`, `urls.stable.checksum`, Homebrew potřeba není). Vzorec musí mít přesně stejnou URL tarballu: když je Homebrew na jiné verzi, skript skončí chybou a přepínač, který by to obešel, není (rozhodnuto 2026-10-29; zkusit znovu, až Homebrew verzi převezme). Když je na `PATH` `gpg`, ověří i podpis `<tarball>.asc` klíčem FFmpeg (`https://ffmpeg.org/ffmpeg-devel.asc`, otisk `FCF986EA15E6E293A5644F10B4322F04D67658D8` je ve skriptu) v dočasné domovské složce GnuPG, takže se osobní klíčenka nemění. Bez `gpg` vypíše `GPG signature: SKIPPED`. Hodnoty: `LayerPeekFFmpegSourceUrl`, `LayerPeekFFmpegSourceSha256`, `LayerPeekFFmpegSourceFolder` a `SourceTarballUri` (`ThirdPartyLicenses.cs`).
 
-   - **macOS** (`-Version`): stáhne `https://ffmpeg.org/releases/ffmpeg-<verze>.tar.xz` do dočasné složky, spočítá SHA256 a porovná ho se vzorcem Homebrew (`https://formulae.brew.sh/api/formula/ffmpeg.json`, `urls.stable.checksum`, Homebrew potřeba není). Vzorec musí mít přesně stejnou URL tarballu: když je Homebrew na jiné verzi, skript skončí chybou a přepínač, který by to obešel, není (rozhodnuto 2026-10-29; zkusit znovu, až Homebrew verzi převezme). Když je na `PATH` `gpg`, ověří i podpis `<tarball>.asc` klíčem FFmpeg (`https://ffmpeg.org/ffmpeg-devel.asc`, otisk `FCF986EA15E6E293A5644F10B4322F04D67658D8` je ve skriptu) v dočasné domovské složce GnuPG, takže se osobní klíčenka nemění. Bez `gpg` vypíše `GPG signature: SKIPPED`. Hodnoty: `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256`, `LayerPeekFFmpegMacSourceFolder` a `MacOSBuildUri`.
-   - **Windows** (`-BtbNTag`, `-BtbNAsset`): stáhne `checksums.sha256` vydání BtbN (`https://github.com/BtbN/FFmpeg-Builds/releases/download/<tag>/checksums.sha256`, formát `sha256sum`; BtbN ho přikládá k vydáním autobuild, ověřeno 2026-10-29 a 2026-11-04 na `autobuild-2026-10-31-12-59`). Když soubor chybí nebo asset neobsahuje, skript skončí chybou (nic nepřeskakuje). Pak stáhne zip (~80 MB), porovná jeho SHA256 s řádkem assetu a zkontroluje obsah bez rozbalení: jediná složka nejvyšší úrovně s názvem assetu bez `.zip` (`LayerPeekFFmpegArchiveFolder`), `LICENSE.txt` s textem LGPL 3 a `bin/<dll>` pro všechny knihovny Windows z `build/FFmpeg.targets` (`avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll`, `swresample-7.dll`). Když mají knihovny jinou hlavní verzi, chyba vypíše, které DLL v zipu jsou. Hodnoty: `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256`, `LayerPeekFFmpegArchiveFolder` a `WindowsBuildUri`.
-
-   Při jakékoli neshodě skončí kódem 1 a nezapíše nic (ani hodnoty platformy, která prošla). `-Update` zapíše hodnoty do `build/FFmpeg.targets` a `src/LayerPeek.App/Licenses/ThirdPartyLicenses.cs`. Bez `-Update` je jen vypíše; když se shodují s připnutými, řekne to. Dočasná složka se vždy smaže.
-2. U nové větve FFmpeg upravit kontrolu verze `^9\.0\.` v `build/macos/build-ffmpeg.sh`; u každé nové verze verze, které hlídá `ThirdPartyLicensesTests` (`n9.0.2-`, `ffmpeg-9.0.2.`).
-   **Zdroj pro vydání (T-199, `docs/release.md`, „Zdrojový kód FFmpeg“):** `update-ffmpeg.ps1` je zatím nezapisuje, ručně se v `build/FFmpeg.targets` doplní `LayerPeekFFmpegWindowsSourceCommit` (celý hash commitu z názvu assetu, `-g<zkrácený hash>`: `gh api repos/FFmpeg/FFmpeg/commits/<zkrácený hash> --jq .sha`), `LayerPeekFFmpegWindowsScriptsTag` (nový tag BtbN) a `LayerPeekFFmpegWindowsScriptsCommit` (`git ls-remote https://github.com/BtbN/FFmpeg-Builds.git refs/tags/<tag>`), stromy (`gh api repos/<repo>/commits/<commit> --jq .commit.tree.sha`) a SHA-256 tarů `git archive` (oba vypíše chyba prvního běhu `Get-FFmpegSourceInputs`, ten commit i strom ověří gitem sám; zkontrolovat a teprve pak připnout). macOS nic nového nepotřebuje (bere `LayerPeekFFmpegMac*`). Než se hodnoty doplní, selže test Pester `FFmpeg source of a release (T-199)` a `release-build.ps1` skončí chybou před buildem.
-3. Na Macu `dotnet build` (nová cache, klíč obsahuje SHA256) a `dotnet test`: testy FFmpeg ověří verze knihoven a licenci LGPL 3, testy okna licencí shodu odkazů s `build/FFmpeg.targets`. Na Windows totéž.
+   Při jakékoli neshodě skončí kódem 1 a nezapíše nic. `-Update` zapíše hodnoty do `build/FFmpeg.targets` a `src/LayerPeek.App/Licenses/ThirdPartyLicenses.cs`. Bez `-Update` je jen vypíše; když se shodují s připnutými, řekne to. Dočasná složka se vždy smaže. Zdroj pro vydání (T-199) nic dalšího nepotřebuje: je to tentýž tarball.
+2. U nové větve FFmpeg upravit kontrolu verze `^9\.0\.` v `build/macos/build-ffmpeg.sh` a `build/windows/build-ffmpeg.sh`; u každé nové verze verzi, kterou hlídá `ThirdPartyLicensesTests` (`ffmpeg-9.0.2.`).
+3. Na obou platformách `dotnet build` (nová cache, klíč obsahuje SHA256) a `dotnet test`: testy FFmpeg ověří verze knihoven, licenci LGPL 3 a importy DLL, testy okna licencí shodu odkazů s `build/FFmpeg.targets`.
 4. Aktualizovat verze v dokumentaci (tento soubor, `docs/architecture.md`) a `CHANGELOG.md`.
 
-Testy skriptu (`build/update-ffmpeg.Tests.ps1`, Pester, běží v `dotnet test`) používají náhradní stahování, vzorec Homebrew, soubor `checksums.sha256`, malý zip a `gpg`, síť nepotřebují.
-
-### Když stažení selže (Windows)
-
-Windows, když stažení selže (offline, nebo připnuté vydání z GitHubu zmizelo), build skončí chybou s návodem. Zrcadlo není. Možnosti:
-
-1. V `build/FFmpeg.targets` změnit `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256` a `LayerPeekFFmpegArchiveFolder` na jiný LGPL shared win64 build BtbN se stejnými verzemi knihoven (`avformat-63` …): ověří a zapíše je `pwsh build/update-ffmpeg.ps1 -Platform windows -BtbNTag <tag> -BtbNAsset <asset> -Update` (viz „Nová verze FFmpeg“).
-2. Cache naplnit ručně: do `<cache>\<sha256>\bin\` dát `avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll` a `swresample-7.dll`, do `<cache>\<sha256>\` dát `LICENSE.txt` a soubor `verified.sha256`. Ten má obsahovat jeden řádek s hodnotou `LayerPeekFFmpegSha256` z `build/FFmpeg.targets` (SHA256 archivu, ze kterého DLL pocházejí), stejně jako cache vytvořená buildem. Build zatím kontroluje jen to, že soubor existuje. Za shodu DLL s připnutým buildem odpovídá ten, kdo cache naplnil. Případně nastavit `LayerPeekFFmpegCacheRoot` na složku s takovou cache.
+Testy skriptu (`build/update-ffmpeg.Tests.ps1`, Pester, běží v `dotnet test`) používají náhradní stahování, vzorec Homebrew a `gpg`, síť nepotřebují.
 
 ## Windows
 
 | Co | Poznámka |
 |---|---|
-| **Build Tools for Visual Studio 2026** (nebo Visual Studio 2022/2026) | bezplatné, plné IDE není nutné |
+| **MSYS2 s MinGW-w64** (T-202) | **už pro první `dotnet build`**, který s ním přeloží knihovny FFmpeg (viz „Nativní knihovny FFmpeg“): `winget install MSYS2.MSYS2`, pak `C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm"`. Jiné umístění než `C:\msys64`: `LayerPeekMsys2Root`. Bez něj build skončí chybou `MSYS2 with MinGW-w64 is not installed in …` dřív, než cokoli stáhne |
+| **Build Tools for Visual Studio 2026** (nebo Visual Studio 2022/2026) | bezplatné, plné IDE není nutné; jen pro AOT publish |
 | Workload **Desktop development with C++** | obsahuje MSVC překladač/linker (komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`) a Windows SDK |
 | Velopack **`vpk`** | jen pro `scripts/release-build.ps1` (instalátor Windows, od T-058 i `.app` a aktualizace pro macOS) a pro E2E test aktualizace `UpdateTests` (T-128, balí Debug sestavení; bez obnoveného `vpk` se přeskočí); lokální dotnet tool, `dotnet tool restore` ho stáhne sám (viz „Velopack `vpk`“ níže) |
 
@@ -202,7 +233,7 @@ dotnet vpk -h              # ověření; spouští se z kořene repozitáře
 - Verze `vpk` musí být stejná jako NuGet balíček `Velopack` v `Directory.Packages.props` (teď `1.2.161`). `release-build.ps1` to ověří před sestavením a Pester test hlídá oba soubory. Při povýšení změň obě verze najednou.
 - `vpk` 1.2.161 je framework-dependent pro .NET 8, 9 a 10 (verze pro .NET 11 neexistuje). Na stroji jen s .NET 11 ho spustí `"rollForward": true` v manifestu. Když je nainstalovaný runtime .NET 8–10, použije se ten.
 - Při prvním `dotnet tool restore` je potřeba internet (NuGet). `vpk` se spouští s `--skip-updates`, takže sám nic dalšího nestahuje.
-- `vpk` na Windows balí RID `win-x64` (jediný vydávaný RID pro Windows, Windows ARM64 se od T-130 nepodporuje). Balíčky pro macOS umí vytvořit jen na Macu: od T-058 je `vpk` součástí kroku `app` na macOS (`release-build.ps1` spustí `dotnet tool restore` i tam; podpis `codesign` z Xcode Command Line Tools). Pester test na macOS spustí skutečné `vpk`, když je obnovené (jinak test přeskočí).
+- `vpk` na Windows balí RID `win-x64` (zatím jediný RID pro Windows; `win-arm64` přidávají T-224 až T-226). Balíčky pro macOS umí vytvořit jen na Macu: od T-058 je `vpk` součástí kroku `app` na macOS (`release-build.ps1` spustí `dotnet tool restore` i tam; podpis `codesign` z Xcode Command Line Tools). Pester test na macOS spustí skutečné `vpk`, když je obnovené (jinak test přeskočí).
 
 ## macOS
 
@@ -327,7 +358,8 @@ Workflow `.github/workflows/ci.yml` (T-218) běží při pushi do `develop`, `re
 - **Souběh a časové limity:** nový push do stejné větve / PR zruší rozběhnutý běh (`concurrency`, `cancel-in-progress`). Každý job má `timeout-minutes`.
 - **Cache:**
   - NuGet (`~/.nuget/packages`), klíč = OS + hash `Directory.Packages.props`, všech `*.csproj` a `global.json`. Obnova a uložení jsou oddělené kroky (`actions/cache/restore` + `/save`, uloží se hned po prvním buildu), takže cache vznikne i při červených testech.
-  - FFmpeg: `LayerPeekFFmpegCacheRoot` ukazuje do dočasné složky runneru (`$RUNNER_TEMP/ffmpeg`), uloží se hned po prvním buildu (i když pak selžou testy). Klíč = obraz runneru + RID + hash `build/FFmpeg.targets` a skriptu buildu FFmpeg dané platformy (macOS `build/macos/build-ffmpeg.sh`; Windows dnes jen stažený zip BtbN, vzor `build/windows/build-ffmpeg.*` zatím nic nenajde – T-202 ho přidá a klíč se rozšíří sám). Stejné vstupy jako složka cache v `build/FFmpeg.targets`; obraz je v klíči proto, že macOS knihovny se překládají jeho Xcodem. Bez `restore-keys`: jiný recept vždy staví načisto.
+  - FFmpeg: `LayerPeekFFmpegCacheRoot` ukazuje do dočasné složky runneru (`$RUNNER_TEMP/ffmpeg`), uloží se hned po prvním buildu (i když pak selžou testy). Klíč = obraz runneru + RID + hash `build/FFmpeg.targets` a skriptu buildu FFmpeg dané platformy (`build/macos/build-ffmpeg.sh`, `build/windows/build-ffmpeg.sh`). Stejné vstupy jako složka cache v `build/FFmpeg.targets`; obraz je v klíči proto, že se knihovny překládají jeho toolchainem. Bez `restore-keys`: jiný recept vždy staví načisto.
+  - **Toolchain FFmpeg na Windows (T-202):** jen když se cache FFmpeg neobnoví, nainstaluje krok `Install MSYS2 with MinGW-w64 (FFmpeg build)` akcí `msys2/setup-msys2` (připnutá na SHA, v2.33.0; `msystem: MINGW64`, `update: false`) balíčky `make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm` a další krok nastaví `LayerPeekMsys2Root` na její složku. Build sám nic neinstaluje. Shodu balíčků s `build/FFmpeg.targets` hlídá `CiWorkflowTests`. Verze balíčků MSYS2 nejsou připnuté (berou se aktuální z repozitáře MSYS2), cache je proto klíčovaná obrazem a receptem, ne verzí překladače.
 - **Pester:** krok `Check PowerShell and Pester` selže, když na runneru chybí Pester 5+, aby se `ScriptPesterTestsPass` nepřeskočil potichu.
 - **Při selhání** se nahrají artefakty `test-results-<rid>` (TRX všech testovacích projektů, `--report-xunit-trx`) a `snapshot-failures-<rid>` (`*.actual.png` a `*.diff.png` neshodných snímků UI ze složky `LayerPeek.App.UiTests.<id>` v dočasné složce systému), uchování 3 dny. Při úspěchu žádné artefakty. Krok `Describe the runner` vypíše OS, počet CPU, obraz a na macOS `csrutil status` a `sw_vers` (testy na nich závisí).
 - **Tagy:** checkout stahuje i tagy (`fetch-tags: true`, bez historie). Test skutečného `CHANGELOG.md` se podle tagu `v<verze>` přeskočí u už vydané verze; bez tagů by selhal.
@@ -342,7 +374,7 @@ Workflow `.github/workflows/ci.yml` (T-218) běží při pushi do `develop`, `re
 | `LAYERPEEK_DETECTION_SWEEP=1` | dlouhé sweepy detektorů (`*SeedSweep*`, `BedChangeDarkSweep`) |
 | `LAYERPEEK_README_SCREENSHOTS=1`, `LAYERPEEK_UPDATE_SNAPSHOTS=1` | přegenerování snímků README / referenčních snímků UI testů (zapisují do repozitáře) |
 | `LAYERPEEK_SAMPLES` | složka lokálních vzorků kamery (bez ní a bez `~/LayerPeek-samples` se testy vzorků přeskočí) |
-| `LAYERPEEK_CI=1` | **opak přepínače:** nastavuje ho jen workflow CI. Na runneru Windows přeskočí testy se známou příčinou selhání, každý s důvodem a úkolem: `TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture` (T-221; alokační testy T-220 už nepřeskakuje). Na počítači vývojáře se nenastavuje. |
+| `LAYERPEEK_CI=1` | **opak přepínače:** nastavuje ho jen workflow CI. Na runneru přeskočí testy se známou příčinou selhání, každý s důvodem a úkolem (`tests/Shared/ContinuousIntegration.cs`); teď žádné: alokační testy (T-220) i `TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture` (T-202 / T-221) běží i v CI na Windows. Na počítači vývojáře se nenastavuje. |
 
 **Snímky UI na macOS** (rozhodnutí uživatele 2026-11-14): Skia kreslí glyfy přes Core Graphics systému, takže jiná hlavní verze macOS dá jiné okrajové pixely písmen (rozvržení stejné; ověřeno na obrázcích rozdílů z runneru macOS 26). Sada `Snapshots/macOS/` proto v `rendered-on.txt` zapisuje hlavní verzi macOS, na které vznikla (`LAYERPEEK_UPDATE_SNAPSHOTS=1` ho přepíše). Na jiné hlavní verzi se porovnání pixelů **přeskočí s důvodem** (test skončí v místě snímku). CI proto běží na macOS 27 (`xcode-27`). Sada Windows soubor nemá a porovnává se vždy; dokud ji uživatel nepřegeneruje na Windows (T-125), snímky Nastavení a O aplikaci v CI na Windows selhávají (bez přeskočení, rozhodnutí 2026-11-14).
 
@@ -369,11 +401,13 @@ Jen `CI result`, ne joby `Build and test (…)`: ty se u změn jen dokumentace p
 | macOS: `CS0246` u `ServiceProvider` / `IHttpClientFactory` v `LayerPeek.App` (hlavně `dotnet publish -r osx-arm64`) | repozitář je otevřený přes symbolický odkaz, `$PWD` se liší od `pwd -P`; skripty v `scripts/` to řeší samy, pro ruční příkazy viz macOS (`setopt CHASE_LINKS`) |
 | `xcrun: error: invalid active developer path` | chybí Xcode Command Line Tools: `xcode-select --install` |
 | Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |
-| `FFmpeg archive SHA256 mismatch` / `FFmpeg source SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |
+| `FFmpeg source SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |
+| Windows: `build-ffmpeg.sh: the work folder … contains a space and has no short 8.3 name` | `configure` FFmpeg neumí dočasnou složku s mezerou; pracovní složka je v cache FFmpeg (`%LOCALAPPDATA%\LayerPeek.Build\ffmpeg\`, profil s mezerou ve jménu na svazku bez krátkých názvů 8.3). Nastavit vlastnost nebo proměnnou prostředí `LayerPeekFFmpegCacheRoot` na složku bez mezer (např. `C:\LayerPeek.Build\ffmpeg`) a build zopakovat |
+| Windows: `MSYS2 with MinGW-w64 is not installed in …` | první `dotnet build` překládá FFmpeg: nainstalovat MSYS2 a balíčky (viz Windows), build zopakovat; MSYS2 jinde: `LayerPeekMsys2Root`. Nebo `-p:LayerPeekFFmpegEnabled=false` (bez kamery) |
 | macOS: `The Xcode Command Line Tools are not installed (or not selected)` | první `dotnet build` překládá FFmpeg: `xcode-select --install`, po instalaci build zopakovat (`xcode-select -p` musí vypsat složku). Nebo `-p:LayerPeekFFmpegEnabled=false` (bez kamery) |
-| macOS: `Building FFmpeg from source failed` | viz `configure.log` / `make.log` ve složce `tmp-…` z chybové hlášky |
+| `Building FFmpeg from source failed` (Windows i macOS) | viz `configure.log` / `make.log` ve složce `tmp-…` z chybové hlášky |
 | Varování `IL2xxx` / `IL3xxx` | kód nebo knihovna není kompatibilní s trimmingem/AOT – viz „Native AOT rules“ v `CLAUDE.md` |
-| `release-build.ps1`: `Unknown runtime 'win-arm64'` / `aot-smoke.ps1`: `runtime 'win-arm64' is not supported` | Windows ARM64 se nepodporuje (T-130), Windows se sestavuje jen jako `win-x64` |
+| `release-build.ps1`: `Unknown runtime 'win-arm64'` / `aot-smoke.ps1`: `runtime 'win-arm64' is not supported` | `win-arm64` zatím není implementovaný (T-224 až T-226), Windows se zatím sestavuje jen jako `win-x64` |
 | `release-upload.ps1`: `GitHub CLI (gh) is not installed` / `is not logged in` | viz „Vydání (GitHub CLI)“ |
 | `release-build.ps1`: `Velopack … and vpk … differ` | verze NuGet balíčku `Velopack` a nástroje `vpk` se liší (viz „Velopack `vpk`“) |
 | `dotnet vpk`: `You must install or update .NET to run this application` | chybí runtime .NET 8–10 a manifest nemá `"rollForward": true` (viz „Velopack `vpk`“) |
