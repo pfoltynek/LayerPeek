@@ -88,6 +88,18 @@ BeforeAll {
         [System.IO.File]::WriteAllText($Path, $Content)
     }
 
+    # A minimal PE image (T-224): DOS header ("MZ", e_lfanew at 0x3C), the "PE\0\0" signature and the COFF file header,
+    # whose first field is the machine type. Enough for the architecture check, which reads only these fields.
+    function New-PeStandIn([string] $Path, [int] $Machine, [int] $HeaderOffset = 0x80) {
+        $bytes = [byte[]]::new($HeaderOffset + 24)
+        $bytes[0] = 0x4D; $bytes[1] = 0x5A
+        [BitConverter]::GetBytes([int] $HeaderOffset).CopyTo($bytes, 0x3C)
+        $bytes[$HeaderOffset] = 0x50; $bytes[$HeaderOffset + 1] = 0x45
+        [BitConverter]::GetBytes([uint16] $Machine).CopyTo($bytes, $HeaderOffset + 4)
+        $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path)
+        [System.IO.File]::WriteAllBytes($Path, $bytes)
+    }
+
     # A stand-in user profile for the AOT smoke check: data (settings, an image) and logs of the app, plus a neighbour
     # folder that must never be touched.
     function New-SmokeStandInProfile {
@@ -2304,6 +2316,171 @@ __attribute__((constructor)) static void injected(void)
     }
 }
 
+Describe 'Native AOT toolchain check (T-224)' {
+    BeforeAll {
+        # A stand-in vswhere (a script, no Visual Studio needed): prints an installation path for the components in
+        # $Installed and exits with $ExitCode. Get-NativeToolchainProblems calls it like the real one.
+        function New-StandInVswhere([string[]] $Installed, [int] $ExitCode = 0) {
+            $path = Join-Path $script:TempRoot "vswhere-$([guid]::NewGuid().ToString('N').Substring(0, 8)).ps1"
+            $list = ($Installed | ForEach-Object { "'$_'" }) -join ', '
+            $text = "`$requires = `$args[[array]::IndexOf(`$args, '-requires') + 1]`nif (@($list) -contains `$requires) { 'C:\BuildTools' }`nexit $ExitCode`n"
+            [System.IO.File]::WriteAllText($path, $text)
+            $path
+        }
+        $script:X64Component = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
+        $script:Arm64Component = 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+    }
+    It 'knows the MSVC component of every Windows RID it builds' {
+        Get-MsvcToolchainComponent win-x64 | Should -BeExactly $script:X64Component
+        # The component Microsoft Learn names for cross-compiling to ARM64 ("C++ ARM64/ARM64EC build tools").
+        Get-MsvcToolchainComponent win-arm64 | Should -BeExactly $script:Arm64Component
+        Get-MsvcToolchainComponent win-x86 | Should -BeNullOrEmpty
+    }
+    It 'finds nothing missing when the components of all requested RIDs are installed' {
+        $vswhere = New-StandInVswhere $script:X64Component, $script:Arm64Component
+        Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $vswhere | Should -BeNullOrEmpty
+    }
+    It 'reports the missing ARM64 component for win-arm64 only' {
+        $vswhere = New-StandInVswhere $script:X64Component
+        Get-NativeToolchainProblems -Runtimes win-x64 -HostOs windows -VswherePath $vswhere | Should -BeNullOrEmpty
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $vswhere) `
+            "^The MSVC component Microsoft\.VisualStudio\.Component\.VC\.Tools\.ARM64 needed for the win-arm64 AOT publish is not installed\. See docs/prerequisites\.md\.$"
+    }
+    It 'reports the missing x64 component for win-x64' {
+        $vswhere = New-StandInVswhere $script:Arm64Component
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $vswhere) 'VC\.Tools\.x86\.x64 needed for the win-x64 AOT publish'
+    }
+    It 'counts a failing vswhere as a missing component' {
+        $vswhere = New-StandInVswhere $script:X64Component, $script:Arm64Component -ExitCode 87
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $vswhere) 'needed for the win-x64 AOT', 'needed for the win-arm64 AOT'
+    }
+    It 'reports a missing vswhere once' {
+        $missing = Join-Path $script:TempRoot 'no-such-folder' 'vswhere.exe'
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x64, win-arm64 -HostOs windows -VswherePath $missing) '^Visual Studio Build Tools are missing \(.*vswhere\.exe not found\)\. See docs/prerequisites\.md\.$'
+    }
+    It 'reports a Windows RID without a known MSVC component instead of querying vswhere with nothing' {
+        $vswhere = New-StandInVswhere $script:X64Component
+        Assert-Problems (Get-NativeToolchainProblems -Runtimes win-x86 -HostOs windows -VswherePath $vswhere) "No MSVC component is known for 'win-x86'"
+    }
+}
+
+Describe 'PE architecture of a publish folder (T-224)' {
+    BeforeAll {
+        function New-PublishStandIn([int] $Machine) {
+            $root = Join-Path $script:TempRoot "pe-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            New-PeStandIn (Join-Path $root 'LayerPeek.exe') $Machine
+            New-PeStandIn (Join-Path $root 'libSkiaSharp.dll') $Machine
+            New-PeStandIn (Join-Path $root 'av_libglesv2.DLL') $Machine -HeaderOffset 0x100
+            # Not checked: no PE file types.
+            New-StandInFile (Join-Path $root 'LayerPeek.pdb') 'symbols'
+            New-StandInFile (Join-Path $root 'FFmpeg-LICENSE.txt') 'license'
+            $root
+        }
+    }
+    It 'reads the machine type <Name> of a PE header' -ForEach @(
+        @{ Name = 'x64'; Machine = 0x8664 }
+        @{ Name = 'ARM64'; Machine = 0xAA64 }
+        @{ Name = 'x86'; Machine = 0x014C }
+    ) {
+        $path = Join-Path $script:TempRoot "machine-$Name.dll"
+        New-PeStandIn $path $Machine
+        Get-PeMachine $path | Should -Be $Machine
+    }
+    It 'reads no machine type from a file that is not a PE image (<Name>)' -ForEach @(
+        @{ Name = 'text'; Bytes = [System.Text.Encoding]::ASCII.GetBytes('not a binary at all, just text that is long enough for a DOS header ......') }
+        @{ Name = 'empty'; Bytes = [byte[]]::new(0) }
+        @{ Name = 'MZ only'; Bytes = [byte[]](0x4D, 0x5A, 0, 0) }
+    ) {
+        $path = Join-Path $script:TempRoot "not-pe-$($Name.Replace(' ', '-')).dll"
+        [System.IO.File]::WriteAllBytes($path, $Bytes)
+        Get-PeMachine $path | Should -BeNullOrEmpty
+    }
+    It 'reads no machine type when e_lfanew points outside the file or at no PE signature' {
+        $path = Join-Path $script:TempRoot 'bad-offset.dll'
+        New-PeStandIn $path 0xAA64
+        $bytes = [System.IO.File]::ReadAllBytes($path)
+        [BitConverter]::GetBytes([int] 0x7FFF0000).CopyTo($bytes, 0x3C)
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        Get-PeMachine $path | Should -BeNullOrEmpty
+        [BitConverter]::GetBytes([int] 0x40).CopyTo($bytes, 0x3C)
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        Get-PeMachine $path | Should -BeNullOrEmpty
+    }
+    It 'accepts a <Runtime> publish folder whose exe and DLLs are all <Name>' -ForEach @(
+        @{ Runtime = 'win-arm64'; Name = 'ARM64'; Machine = 0xAA64 }
+        @{ Runtime = 'win-x64'; Name = 'x64'; Machine = 0x8664 }
+    ) {
+        $root = New-PublishStandIn $Machine
+        $check = Get-PublishArchitectureCheck -Directory $root -Runtime $Runtime
+        $check.Problems | Should -BeNullOrEmpty
+        $check.Expected | Should -BeExactly ('{0} (0x{1:X4})' -f $Name, $Machine)
+        $check.Files | Should -BeExactly @('av_libglesv2.DLL', 'LayerPeek.exe', 'libSkiaSharp.dll')
+    }
+    It 'names every x64 or non-PE file in a win-arm64 publish folder, also in a subfolder' {
+        $root = New-PublishStandIn 0xAA64
+        New-PeStandIn (Join-Path $root 'avcodec-63.dll') 0x8664
+        New-PeStandIn (Join-Path $root 'sub' 'native.dll') 0x014C
+        New-StandInFile (Join-Path $root 'broken.dll') 'not a PE file'
+        $check = Get-PublishArchitectureCheck -Directory $root -Runtime win-arm64
+        Assert-Problems $check.Problems `
+            '^avcodec-63\.dll is x64 \(0x8664\), expected ARM64 \(0xAA64\) for win-arm64\.$', `
+            "^sub[\\/]native\.dll is x86 \(0x014C\), expected ARM64", `
+            '^broken\.dll is not a PE image\.$'
+    }
+    It 'names an ARM64 exe in a win-x64 publish folder and an unknown machine type by its number' {
+        $root = New-PublishStandIn 0x8664
+        New-PeStandIn (Join-Path $root 'LayerPeek.exe') 0xAA64
+        New-PeStandIn (Join-Path $root 'odd.dll') 0x1234
+        Assert-Problems (Get-PublishArchitectureCheck -Directory $root -Runtime win-x64).Problems `
+            '^LayerPeek\.exe is ARM64 \(0xAA64\), expected x64 \(0x8664\) for win-x64\.$', '^odd\.dll is 0x1234, expected x64'
+    }
+    It 'reports a missing exe' {
+        $root = New-PublishStandIn 0xAA64
+        Remove-Item -LiteralPath (Join-Path $root 'LayerPeek.exe')
+        Assert-Problems (Get-PublishArchitectureCheck -Directory $root -Runtime win-arm64).Problems '^LayerPeek\.exe is missing in '
+    }
+    It 'refuses a runtime without a known PE machine type (<_>)' -ForEach 'osx-arm64', 'win-x86' {
+        $root = New-PublishStandIn 0xAA64
+        Assert-Problems (Get-PublishArchitectureCheck -Directory $root -Runtime $_).Problems "No PE machine type is known for runtime '$_' \(known: win-x64, win-arm64\)\."
+    }
+    It 'builds the camera library without FFmpeg for win-arm64 only and LayerPeek.Core once (no ARM64 FFmpeg until T-225)' {
+        # The library is RID-agnostic (built without RuntimeIdentifier), so build/FFmpeg.targets would hand x64 DLLs to a
+        # win-arm64 publish; the App passes its RID as LayerPeekAppRuntimeIdentifier, the library switches FFmpeg off for
+        # it and keeps the property from its reference to Core (else Core is a second project instance, T-224 review).
+        # Evaluation only (-getItem / -getProperty): nothing is built or written.
+        function Evaluate([string] $Project, [string[]] $Arguments) {
+            $path = Join-Path $script:RepoRoot 'src' $Project "$Project.csproj"
+            $json = (& dotnet msbuild $path -nologo -nr:false @Arguments 2>&1) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "dotnet msbuild failed: $json" }
+            $json
+        }
+        function Reference([string] $Project, [string] $Target, [string[]] $Arguments = @()) {
+            $references = @((Evaluate $Project (@('-getItem:ProjectReference') + $Arguments) | ConvertFrom-Json).Items.ProjectReference | Where-Object Filename -EQ $Target)
+            $references | Should -HaveCount 1
+            $references[0]
+        }
+        (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg' '-p:RuntimeIdentifier=win-arm64').AdditionalProperties | Should -BeExactly 'LayerPeekAppRuntimeIdentifier=win-arm64'
+        (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg' '-p:RuntimeIdentifier=win-x64').AdditionalProperties | Should -BeNullOrEmpty
+        (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg').AdditionalProperties | Should -BeNullOrEmpty
+        $core = Reference 'LayerPeek.Camera.FFmpeg' 'LayerPeek.Core'
+        $core.UndefineProperties | Should -BeExactly 'LayerPeekAppRuntimeIdentifier'
+        $core.GlobalPropertiesToRemove | Should -BeExactly 'LayerPeekAppRuntimeIdentifier'
+        # -getProperty of one property prints the bare value.
+        (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled', '-p:LayerPeekAppRuntimeIdentifier=win-arm64').Trim() | Should -BeExactly 'false'
+        $default = (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled').Trim()
+        (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled', '-p:LayerPeekAppRuntimeIdentifier=win-x64').Trim() | Should -BeExactly $default
+        if ($IsWindows -and (Get-HostArchitecture) -eq 'x64') { $default | Should -BeExactly 'true' }
+    }
+    It 'is called by release-build.ps1 before the smoke test and by aot-smoke.ps1 before the start' {
+        $build = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-build.ps1') -Raw
+        $build | Should -Match 'Get-PublishArchitectureCheck -Directory \$publishDir -Runtime \$rid'
+        $build.IndexOf('Get-PublishArchitectureCheck') | Should -BeLessThan $build.IndexOf('Invoke-Native "AOT smoke test $rid"')
+        $smoke = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1') -Raw
+        $smoke | Should -Match 'Get-PublishArchitectureCheck -Directory \$publishFolder -Runtime \$Runtime'
+        $smoke.IndexOf('Get-PublishArchitectureCheck') | Should -BeLessThan $smoke.IndexOf('Backup-SmokeProfile -SmokeProfile')
+    }
+}
+
 Describe 'Physical paths (symlinked working copy)' {
     BeforeAll {
         $script:LinkRoot = Join-Path $script:TempRoot 'links'
@@ -2420,6 +2597,20 @@ Describe 'AOT smoke script with an existing publish folder' {
         $LASTEXITCODE | Should -Be 1
         $output | Should -Match "runtime '$_' is not supported\. Windows is built as win-x64 only"
         $output | Should -Not -Match 'Publishing|Starting'
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+    }
+    It 'refuses a publish folder with a DLL of another architecture before it starts anything (T-224)' -Skip:(-not $IsWindows) {
+        # The stand-in exe (hostname.exe of this x64 Windows) passes; the ARM64 DLL next to it does not.
+        $publish = Join-Path $script:TempRoot "smoke-arch-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $null = New-Item -ItemType Directory -Path $publish
+        Copy-Item -LiteralPath (Join-Path $script:SmokeDir 'LayerPeek.exe') -Destination $publish
+        New-PeStandIn (Join-Path $publish 'libSkiaSharp.dll') 0xAA64
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -Runtime win-x64 -PublishDir $publish -Seconds 1 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 1
+        $output | Should -Match 'FAILED: .*libSkiaSharp\.dll is ARM64 \(0xAA64\), expected x64 \(0x8664\) for win-x64\.'
+        $output | Should -Not -Match 'Starting|App exited'
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
     }
     It 'refuses -SkipShellIntegration without a stand-in profile and moves nothing' {

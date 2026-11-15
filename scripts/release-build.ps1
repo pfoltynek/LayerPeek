@@ -484,6 +484,10 @@ try {
             $productVersion = ((Get-Item -LiteralPath $exe).VersionInfo.ProductVersion -split '\+')[0]
             if ($productVersion -ne $version) { throw "$exe has product version '$productVersion', expected $version." }
             Write-Host "Product version of the exe: $productVersion"
+            # T-224: the exe and every DLL are of the RID's architecture, also where the smoke test cannot run them.
+            $architecture = Get-PublishArchitectureCheck -Directory $publishDir -Runtime $rid
+            if ($architecture.Problems.Count -gt 0) { throw "The $rid publish folder has files of another architecture: $($architecture.Problems -join ' ')" }
+            Write-Host "Architecture: $($architecture.Files.Count) PE file(s), all $($architecture.Expected)."
         }
 
         if (Test-RuntimeRunnable -Runtime $rid -HostOs $hostOs -HostArchitecture $hostArchitecture) {

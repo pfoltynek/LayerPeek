@@ -52,6 +52,18 @@ Vývoj a testy na x64 se nemění.
   - chybějící toolchain ARM64 = srozumitelná chyba jen při požadavku na `win-arm64` (s návodem a únikem
     `-p:LayerPeekFFmpegEnabled=false`); ARM64 FFmpeg se překládá jen při požadavku na `win-arm64`, `dotnet build` /
     `dotnet test` na x64 toolchain ARM64 nepotřebují (otázka 2).
+- **Zjištění z T-224 (2026-11-15, platí i po přepsání `build/FFmpeg.targets` v T-202):**
+  - `LayerPeek.Camera.FFmpeg` je knihovna bez RID: SDK ji v buildu/publish aplikace sestaví **bez**
+    `RuntimeIdentifier`, takže `build/FFmpeg.targets` (ať jakkoli vybírá platformu, cache nebo argument RID skriptu
+    `build/windows/build-ffmpeg.*`) RID aplikace sám neuvidí. T-224 ho předává z `LayerPeek.App.csproj` jako
+    `LayerPeekAppRuntimeIdentifier` (zatím jen pro `win-arm64`, kde `LayerPeek.Camera.FFmpeg.csproj` nastaví
+    `LayerPeekFFmpegEnabled=false`). Výběr ARM64 FFmpeg má číst tuto vlastnost (podmínku v App csproj případně rozšířit
+    na každý RID) a vypnutí v `LayerPeek.Camera.FFmpeg.csproj` nahradit. Vlastnost musí zůstat odříznutá od reference
+    na `LayerPeek.Core` (`UndefineProperties` + `GlobalPropertiesToRemove`), jinak se Core sestaví dvakrát; hlídá to
+    Pester test T-224 v `ReleaseTools.Tests.ps1`, upravit spolu s ním.
+  - Na **hostiteli Windows ARM64** dá prostý `dotnet build` bez RID dál x64 FFmpeg (prázdný RID → Windows x64 větev
+    v `build/FFmpeg.targets`); patří k odrážce „prázdný RID na ARM64 hostiteli“ výše (otázka 3), výběr má brát
+    architekturu hostitele, ne jen RID.
 - **Kontrola výsledku:** všechny DLL jsou ARM64 PE (`0xAA64`); závislosti jen sourozenecké DLL FFmpeg a systémové DLL
   Windows (žádné `libc++.dll`, `libunwind.dll`, `libwinpthread-1.dll`); D3D11VA přítomné (kontrola jako v T-202, ale
   bez načtení – na x64 ARM64 DLL načíst nejde, např. řetězce v `avcodec`/`avutil` nebo seznam z `configure`).
