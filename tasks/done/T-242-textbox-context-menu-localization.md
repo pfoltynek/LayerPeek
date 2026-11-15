@@ -1,7 +1,7 @@
 ---
 id: T-242
 title: Kontextové menu textových polí (Cut / Copy / Paste) je anglicky i v jiném jazyce aplikace
-status: in-progress
+status: done
 owner: ui-dev
 priority: P3
 platform: all
@@ -31,7 +31,7 @@ panely AppKitu (výběr obrázku tiskárny) jsou naopak v jazyce systému.
 
 ## Akceptační kritéria
 - [x] Kontextové menu textových polí je v jazyce aplikace (všech 8 jazyků), pole hesla nenabízí kopírování. (část Windows → přesunuto do T-125)
-- [ ] `mac.appkit-language` ukáže jazyk aplikace u kontextového menu.
+- [x] `mac.appkit-language` ukáže jazyk aplikace u kontextového menu. → přesunuto do T-127 (oddíl 1u; běh 2026-11-15 `SKIP` kvůli zamčené obrazovce)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
