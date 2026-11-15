@@ -58,7 +58,7 @@ rozhodnutí uživatele 2026-11-11: opravit hook v samostatném úkolu.
       (nebo `winget install --manifest` podruhé) → autostart zůstane vypnutý (lze přesunout do T-124) → přesunuto do T-124
 - [x] Dokumentace (`docs/velopack.md`, `docs/release.md`) odpovídá novému chování
 - [x] `dotnet build` a `dotnet test` bez chyb a varování (build 0 varování, testy dotčených projektů prochází; zbylých 47
-      selhání celého řešení existuje už na `2ce7be01` bez změn T-201 a sleduje je T-211 – rozhodnutí uživatele 2026-11-12)
+      selhání celého řešení existuje už na `2ce7be01` bez změn T-201 a sleduje je T-227 – rozhodnutí uživatele 2026-11-12)
 
 ## Otevřené otázky
 Rozhodnuto uživatelem 2026-11-12: 1 **varianta A** (uložená volba v nastavení); 2 po odinstalaci a nové instalaci
@@ -69,7 +69,7 @@ Další rozhodnutí uživatele 2026-11-12 (po kontrole qa): **jednorázová migr
 přeinstalaci. Při startu na Windows, jen v instalaci Velopacku s produkční identitou (ne vývojové sestavení, `.zip`,
 testovací režim ani macOS): když volba `StartAtLogin` ještě uložená není a autostart právě **není** zapnutý, jednou uložit
 `StartAtLogin = false`; když zapnutý je, neukládat nic. Levně, mimo kritickou cestu UI, chyby jen do logu, zástupce se
-nemění. Úkol se smí uzavřít i se 47 selháními, která nesouvisí s T-201 (sleduje T-211); T-124 zůstává znovu otevřený.
+nemění. Úkol se smí uzavřít i se 47 selháními, která nesouvisí s T-201 (sleduje T-227); T-124 zůstává znovu otevřený.
 
 1. **Varianta A (uložená volba v nastavení) nebo B (zapnout jen bez existujícího `settings.json`)?** Doporučení: A.
 2. Po **odinstalaci a nové instalaci** (nastavení zůstává): respektovat dřívější vypnutí (A), nebo autostart zapnout
@@ -151,6 +151,6 @@ ui-dev, 2026-11-12, Windows 11 Pro 10.0.26300 (varianta A podle rozhodnutí uži
   - Testy: `StartupShortcutAutostartStateTests` (čtyři stavy, `IsEnabled` beze změny), `AutostartChoiceMigrationTests`
     (`Unknown` nic neuloží, autostart bez tří stavů nemigruje), `JsonSettingsStoreStartAtLoginTests` (duplicity, komentáře
     v prázdném objektu, čtení i načtení po zápisu souhlasí). `LayerPeek.Core.Tests` 3389/3389, `LayerPeek.App.Tests`
-    4750 prošlo / 105 přeskočeno / 0 selhání, `LayerPeek.App.UiTests` jen známých 43 selhání (T-211), `dotnet build`
+    4750 prošlo / 105 přeskočeno / 0 selhání, `LayerPeek.App.UiTests` jen známých 43 selhání (T-227), `dotnet build`
     0 varování.
-- Uzavřeno 2026-11-12: zbývající ruční ověření přesunuto do T-124 (rozhodnutí uživatele); selhání mimo T-201 sleduje T-211.
+- Uzavřeno 2026-11-12: zbývající ruční ověření přesunuto do T-124 (rozhodnutí uživatele); selhání mimo T-201 sleduje T-227.

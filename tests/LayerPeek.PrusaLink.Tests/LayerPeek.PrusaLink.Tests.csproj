@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-    <!-- GetExtendedTcpTable interop of the OS listener table (tests/Shared/Network/TcpListenerTable.cs, T-211). -->
+    <!-- GetExtendedTcpTable interop of the OS listener table (tests/Shared/Network/TcpListenerTable.cs, T-227). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>

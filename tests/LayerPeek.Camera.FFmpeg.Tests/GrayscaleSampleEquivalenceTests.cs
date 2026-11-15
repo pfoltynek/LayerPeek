@@ -19,10 +19,10 @@ public sealed class GrayscaleSampleEquivalenceTests
     private static readonly CameraGrayscaleSize SampleSize = new(320, 180);
 
     /// <summary>
-    /// Limits of the pixel comparison per CPU architecture (user decision 2026-11-12, T-211). swscale computes the YUV ->
+    /// Limits of the pixel comparison per CPU architecture (user decision 2026-11-12, T-227). swscale computes the YUV ->
     /// BGRA conversion of the old sample (and the area scaling) with CPU-specific SIMD code (NEON on arm64, SSE/AVX on
     /// x64), so the same FFmpeg 9.0.2 gives a different difference on each: the fixture measured mean |delta| 1.31 and
-    /// mean shift +0.87 on arm64 (T-189) and 1.72 / +1.44 on x64 (T-211; even with SWS_ACCURATE_RND | SWS_BITEXACT
+    /// mean shift +0.87 on arm64 (T-189) and 1.72 / +1.44 on x64 (T-227; even with SWS_ACCURATE_RND | SWS_BITEXACT
     /// 1.54 / +1.20). The limits keep about 15 % headroom above the measurement, except the x64 mean shift (1.5 over
     /// +1.44, about 4 %). Another architecture has no measured
     /// limits and fails instead of borrowing ones that were never checked there.
@@ -33,7 +33,7 @@ public sealed class GrayscaleSampleEquivalenceTests
             Architecture.Arm64 => (1.5, 1),
             Architecture.X64 => (2.0, 1.5),
             Architecture other => throw new PlatformNotSupportedException(
-                $"No measured grayscale equivalence limits for {other}; measure the fixture there and add them (T-211)."),
+                $"No measured grayscale equivalence limits for {other}; measure the fixture there and add them (T-227)."),
         };
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

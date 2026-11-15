@@ -3014,7 +3014,7 @@ Describe 'FFmpeg source of a release (T-199)' {
             finally { [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, '') }
             Get-FileSha256 $path | Should -BeExactly $script:Source.Sha256
             # Extracted to a file and read as is: native output piped through PowerShell is split into lines and joined
-            # with CRLF again on Windows (Out-String), which would hide the line endings of the archive (T-211).
+            # with CRLF again on Windows (Out-String), which would hide the line endings of the archive (T-227).
             $extracted = Join-Path $script:FFmpegRoot "extract-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
             $null = New-Item -ItemType Directory -Path $extracted
             & (Get-TarCommand) -xf $path -C $extracted 'ffmpeg-n1.0-1-gabc/configure'
