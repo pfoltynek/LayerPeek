@@ -32,7 +32,10 @@ a navrhne řešení; rozhodne uživatel.
   - dodávat Inter i na macOS (jako headless testy; varianta z T-038 otázky 3);
   - nahlásit chybu / požadavek Avalonii (osy proměnných písem, optická velikost) a počkat;
   - ponechat stav (rozložení je otestované, T-214).
-- Výsledek: doporučení s podklady v `## Poznámky k implementaci` a otázky pro uživatele. **Žádná změna UI bez
+- Výsledek: doporučení s podklady v `Rozhodnuto uživatelem 2026-11-15: issue pro Avalonii **zatím neposílat**; text je připravený výše (návrh issue),
+odeslat jen po dalším souhlasu uživatele.
+
+## Poznámky k implementaci` a otázky pro uživatele. **Žádná změna UI bez
   schválení uživatelem**; implementace případně jako nový úkol.
 
 ## Akceptační kritéria
