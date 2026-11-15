@@ -331,5 +331,5 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-237 | macOS – malý náhled po Esc z celé obrazovky má titulkový pruh a je o 28 bodů vyšší (T-038 otázka 2) | macos | ui-dev | P2 | T-038, T-215 |
 | T-239 | macOS – záložky Nastavení nejdou přepnout přes Accessibility (AXPress, VoiceOver) (Avalonia 12.1.6) | macos | ui-dev | P3 | – |
 | T-240 | macOS – ⌘⇧[ s českým rozložením klávesnice nepřepne na předchozí záložku Nastavení (T-100 otázka 1) (hotovo) | macos | ui-dev | P2 | T-100, T-216 |
-| T-241 | macOS – menu ikony v Docku nevypisuje okna aplikace (Nastavení, okno kamery) (T-102) | macos | ui-dev | P3 | T-102, T-215 |
+| T-241 | macOS – menu ikony v Docku nevypisuje okna aplikace (Nastavení, okno kamery) (T-102) (hotovo) | macos | ui-dev | P3 | T-102, T-215 |
 | T-243 | macOS – panel „Exportovat timelapse do JPEG…“ dovolí vybrat i jiný soubor než .mp4 (⌘⇧G) (T-165 / T-213) | macos | ui-dev | P3 | T-165, T-213 |
