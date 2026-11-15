@@ -47,6 +47,21 @@ public sealed record SimulationTiming
         }
     } = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// Layers of the print (T-211): 0 = the Z axis climbs smoothly with the progress to <see cref="SimulatedModel.MaxZ"/>;
+    /// N = it rises in N steps of <see cref="PrinterSimulation.LayerHeight"/> (layer k of the progress is at k × 0.2 mm), as a
+    /// real print reports it, so that the layer estimate of the app (T-159) finds N - 1 layer changes.
+    /// </summary>
+    public int Layers
+    {
+        get;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
+
     /// <summary>FINISHED after the print. Simulated time.</summary>
     public TimeSpan FinishedHold { get; init; } = TimeSpan.FromMinutes(2);
 

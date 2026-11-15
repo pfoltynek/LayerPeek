@@ -33,6 +33,7 @@ Po spuštění simulátor vypíše, co zadat v aplikaci, například:
 | `--scenario <seznam>` | `printing` | scénář každé tiskárny oddělený čárkou; poslední se opakuje |
 | `--speed <x>` | 1 | zrychlení simulovaného času (průběh tisku, ohřev, chladnutí) |
 | `--print-minutes <m>` | 30 | délka simulovaného tisku |
+| `--layers <n>` | – (plynule) | osa Z tisku stoupá po `n` vrstvách 0,2 mm (vrstva k průběhu je ve výšce k × 0,2 mm, 1–1000), jako ji hlásí skutečný tisk; odhad vrstev LayerPeek (T-159) v ní najde `n − 1` změn vrstvy (T-211). Bez volby stoupá Z plynule do výšky modelu |
 | `--user <jméno>` | `maker` | uživatel PrusaLink |
 | `--password <text>` | `simulator` | heslo PrusaLink (přijímá se i jako `X-Api-Key`) |
 | `--host <ip>` | `127.0.0.1` | adresa, na které simulátor poslouchá (i `localhost`); `0.0.0.0` nebo `::` = dostupný i z jiných počítačů v síti, ovládací endpointy pak vyžadují přihlášení (viz níže) |

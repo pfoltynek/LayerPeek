@@ -31,7 +31,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 | T-208 | `-Preset release`, `report.json` | rámec; `mac.display-sleep`, `mac.update-check`, `mac.keys` v presetu |
 | T-209 | `mac.menu-items` (helper `menu` / `menupress`) | T-018 menu; tip zakázaných položek (T-146, T-148, T-161) |
 | T-210 | `mac.decode`, `mac.recording-files`, `mac.recording`, `mac.dashcam`, helper `decode` | T-146, T-148 (simulátor), T-147 (simulátor), T-145 (simulátor); zbývá bod 1l |
-| T-211 | `mac.timelapse`, `mac.timelapse-layers` | T-161, T-159 (UI), T-160 (přehrání) |
+| T-211 | `mac.timelapse-files`, `mac.timelapse`, `mac.timelapse-layers`, simulátor `--layers` | T-161, T-159 (UI), T-160 (přehrání); zbývá bod 1m |
 | T-212 | `mac.notifications-content` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101 |
 | T-213 | `mac.file-dialogs` | T-146 („Změnit…“), T-165, T-164 |
 | T-214 | headless testy se San Francisco (hotovo 2026-11-14; od T-223 aplikace na macOS s Inter) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k (od T-223 šířky s Inter) |
@@ -178,6 +178,9 @@ a kritérium.
       do T-160. Zároveň přehrát vzniklý `…_timelapse.mp4` v QuickTime Playeru (20 snímků, bez rozpadlých snímků).
       **Automatizace:** přehrání `…_timelapse.mp4` přes `helper decode` (T-210 / T-211) (rozhodnuto uživatelem
       2026-11-13). Měření CPU a velikosti se skutečnou kamerou zůstává ruční.
+      - [x] Přehrání `…_timelapse.mp4` (místo QuickTime Playeru): `mac.timelapse-files` = `PASS` 2026-11-15 (T-211,
+        běh `artifacts/verify/20261115-104923/`): timelapse simulátoru se skutečným klipem Buddy3D, `decode` každého
+        snímku a seeky bez chyby, 11 snímků po čase (interval 5 s, pauza bez snímku) a 13 po vrstvě.
 
 - [ ] **T-161** (krit. „Ruční start / stop z tray menu i z okna kamery“, „Okno kamery i malý náhled ukazují indikátor“,
       „Tray menu … otevře poslední timelapse v přehrávači systému“, ruční část macOS; sezení agenta nemělo aktivní displej):
@@ -188,7 +191,8 @@ a kritérium.
       v QuickTime Playeru. Nastavení: štítek „Experimentální“ u sekce Timelapse (záložka Nahrávání) a u „Pořizovat timelapse
       tisku“ (podzáložka Kamera), se systémovým písmem nic neuříznuté; notifikace „Timelapse selhal“ při chybě (např. složka
       na odpojeném disku), klik otevře nastavení na záložce Nahrávání. Zapsat, jak vypadá tip zakázané položky v NSMenu.
-      **Automatizace:** T-211 `mac.timelapse`, notifikace „Timelapse selhal“ T-212 (b), uříznutí T-214. Přehrání v
+      **Automatizace:** T-211 `mac.timelapse` (běh přes menu v oddílu 1m), notifikace „Timelapse selhal“ T-212 (b),
+      uříznutí T-214. Přehrání v
       QuickTime nahrazuje úplné dekódování přes AVFoundation `helper decode` (rozhodnuto uživatelem 2026-11-13).
       Poslech VoiceOveru nahrazuje kontrola popisků a stavů přes Accessibility (rozhodnuto uživatelem 2026-11-13).
       - [x] Část se systémovým písmem (štítky „Experimentální“, sekce Timelapse a „Pořizovat timelapse tisku“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
@@ -198,7 +202,8 @@ a kritérium.
       jazycích to hlídá headless test), přepnutí vymění číslo vedle (interval ↔ počet vrstev), tip vysvětlí odhad z osy Z;
       VoiceOver přečte „Pořizovat snímek“ a u čísla „Vrstev mezi snímky“. Snímek `settings-recording.png` v
       `tests/LayerPeek.App.UiTests/Snapshots/macOS/` prohlédnout spolu s T-161.
-      **Automatizace:** T-211 `mac.timelapse-layers`, uříznutí T-214. Poslech VoiceOveru nahrazuje kontrola popisků a
+      **Automatizace:** T-211 `mac.timelapse-layers` (běh přes Nastavení v oddílu 1m; počet snímků tisku po vrstvách
+      simulátoru ověřil `mac.timelapse-files` 2026-11-15), uříznutí T-214. Poslech VoiceOveru nahrazuje kontrola popisků a
       stavů přes Accessibility (rozhodnuto uživatelem 2026-11-13).
       - [x] Část se systémovým písmem (pole „Každých N sekund“ / „Každou N. vrstvu (odhad)“): ověřeno headless testy T-214 se San Francisco ve všech jazycích
         (2026-11-14), nic neuříznuté.
@@ -446,6 +451,21 @@ a kritérium.
   - [x] Hláška v Nastavení › Nahrávání u složky bez práva zápisu nastavené v `settings.json` → rozhodnuto uživatelem
         2026-11-15 (T-210 otázka 3): **stačí dnešní chování** (bez pádu, bez nahrávky, notifikace a log); hláška jen po
         výběru složky přes „Změnit…“ (T-213).
+
+### 1m. Timelapse přes menu a Nastavení (z T-211, připraveno na Macu 2026-11-15)
+- [ ] **T-211** (krit. 1 a 2: `mac.timelapse` = `PASS`, `mac.timelapse-layers` = `PASS`; Terminál agenta neměl
+      Zpřístupnění a obrazovka byla zamčená, obě kontroly skončily `SKIP` na předběžné podmínce; souborovou část bez menu
+      ověřil `mac.timelapse-files` = `PASS`): po přípravě z `docs/macos-manual-testing.md` (Zpřístupnění pro Terminál,
+      vzorky v `~/LayerPeek-samples`) spustit `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release` (nebo
+      samostatně `pwsh tools/macos-verify.ps1 -Unattended -Only mac.timelapse,mac.timelapse-layers -Allow
+      mac.timelapse,mac.timelapse-layers`). `PASS` obou uzavře v tomto úkolu bod T-161 „Ruční start / stop …“ (bez
+      notifikace T-212 a uříznutí T-214) a bod T-159 „volba je v UI a uloží se“. Do poznámek T-211 a k bodu T-161 výše
+      zapsat tip zakázané položky „Přehrát poslední timelapse“ (řádek zprávy, AXHelp v
+      `evidence/mac.timelapse/menu-idle.json`; „none“ = tip se do NSMenu nepropsal) a tip položky „Zastavit timelapse“
+      během pauzy. Dále složku běhu, commit a řádek zprávy. `FAIL` = nový úkol. Pozn.: výběr položky seznamu „Pořizovat
+      snímek“ (klik na položku, záloha ↓ a Return) a zjištění skrytého čísla (chybí ve stromu AX nebo má nulovou velikost)
+      agent proti skutečnému oknu neověřil – `FAIL` na tomto místě nejdřív posoudit podle `evidence/mac.timelapse-layers/
+      settings-*.json`.
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

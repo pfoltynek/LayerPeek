@@ -19,8 +19,8 @@
     test data folders (--layerpeek-e2e-clear-autostart), the LaunchServices registration, Preferences and caches of the
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
     tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items,
-    mac.update-check, mac.recording or mac.dashcam) Terminal in Privacy & Security > Accessibility (switch it off there
-    yourself).
+    mac.update-check, mac.recording, mac.dashcam, mac.timelapse or mac.timelapse-layers) Terminal in Privacy & Security >
+    Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
     when any check failed, 2 when the script could not run. The checks that need a visible desktop (mac.menubar,
@@ -101,6 +101,11 @@ $script:BundleId = Get-MacBundleIdentifier (Join-Path $script:Repo 'build' 'maco
 $script:TestBundleId = "$($script:BundleId).E2E"
 $script:DotnetEnv = @{ DOTNET_CLI_UI_LANGUAGE = 'en'; DOTNET_NOLOGO = '1'; DOTNET_CLI_TELEMETRY_OPTOUT = '1' }
 $script:PrinterId = 'verify'
+# The timelapse checks (T-211): a simulated print of 12 layers, a frame every 5 s (the minimum), and the seconds per span
+# the script cannot time exactly (the poll that notices a state, the start, the key frame each frame waits for).
+$script:TimelapseLayers = 12
+$script:TimelapseInterval = 5
+$script:TimelapseSlack = 7
 $script:Corners = @('TopLeft', 'TopRight', 'BottomLeft', 'BottomRight', 'Center')
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -363,14 +368,16 @@ function Remove-TestBundle($Bundle) {
     if ((Test-Path -LiteralPath $parent) -and -not (Get-ChildItem -LiteralPath $parent -Force)) { Remove-Item -LiteralPath $parent -Force }
 }
 
-function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip) {
+function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip, [int] $Layers) {
     <#
     .SYNOPSIS
         The PrusaSimulator (one printer, camera) on 127.0.0.1 with free ports, started once per run, time speed-up
-        (-Speed, e.g. 20 for a print that moves in seconds, T-209) and camera clip (-Clip, default the built-in one).
+        (-Speed, e.g. 20 for a print that moves in seconds, T-209), camera clip (-Clip, default the built-in one) and the
+        layers of a print (-Layers: the Z axis rises in that many 0.2 mm steps, T-211; default smoothly).
     #>
     $key = if ($Speed -eq 1) { 'Simulator' } else { "Simulator-x$Speed" }
     if ($Clip) { $key += "-$Clip" }
+    if ($Layers) { $key += "-layers$Layers" }
     if ($Context.Shared.ContainsKey($key)) { return $Context.Shared[$key] }
     $dll = Get-SimulatorDll $Context
     $folder = Join-Path $Context.RunFolder 'tmp' "simulator-$(New-ShortId)"
@@ -379,6 +386,7 @@ function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip) {
     $start = [System.Diagnostics.ProcessStartInfo]::new('/bin/sh')
     foreach ($argument in @('-c', 'exec dotnet "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', $dll, '--port', '0', '--camera-port', '0', '--scenario', 'printing', '--speed', "$Speed")) { $start.ArgumentList.Add($argument) }
     if ($Clip) { foreach ($argument in '--camera-clip', $Clip) { $start.ArgumentList.Add($argument) } }
+    if ($Layers) { foreach ($argument in '--layers', "$Layers") { $start.ArgumentList.Add($argument) } }
     $start.Environment['LPV_OUT'] = $out
     $start.UseShellExecute = $false
     $process = [System.Diagnostics.Process]::Start($start)
@@ -401,6 +409,12 @@ function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip) {
 
 function Set-SimulatorScenario($Simulator, [string] $Scenario) {
     $null = Invoke-RestMethod -Method Post -Uri "$($Simulator.BaseUri.TrimEnd('/'))/_simulator/scenario/$Scenario" -TimeoutSec 10
+}
+
+function Get-SimulatorPrinterState($Simulator) {
+    <# .SYNOPSIS The printer state the simulator reports to the app now (PRINTING, PAUSED, FINISHED, ...; T-211), or $null. #>
+    try { (Invoke-RestMethod -Uri "$($Simulator.BaseUri.TrimEnd('/'))/api/v1/status" -Headers @{ 'X-Api-Key' = $Simulator.Password } -TimeoutSec 10).printer.state }
+    catch { $null }
 }
 
 function Set-SimulatorCamera($Simulator, [ValidateSet('offline', 'online')] [string] $State) {
@@ -430,7 +444,7 @@ function New-TestData {
         the camera of the printer, -Window its camera.window section. Removed at the end (after the autostart stand-ins).
     #>
     param($Context, $Simulator, [string] $Camera, [System.Collections.IDictionary] $Window, [System.Collections.IDictionary] $CameraOptions,
-        [string] $RecordingFolder, [switch] $SharedTemp, [switch] $Notifications)
+        [string] $RecordingFolder, [System.Collections.IDictionary] $RecordingOptions, [int] $PollingSeconds = 5, [switch] $SharedTemp, [switch] $Notifications)
     $base = if ($SharedTemp) { '/tmp' } else { [System.IO.Path]::GetTempPath() }
     $data = Join-Path $base "lpv-$(New-ShortId)"
     $null = New-Item -ItemType Directory -Force -Path $data
@@ -438,7 +452,7 @@ function New-TestData {
     $suffix = "v$(New-ShortId)"
     $settings = [ordered]@{
         version                = 1
-        pollingIntervalSeconds = 5
+        pollingIntervalSeconds = $PollingSeconds
         language               = 'en'
         notifications          = [ordered]@{ enabled = [bool] $Notifications; remainingTimeMinutes = 0; sound = 'Off' }
         printers               = @()
@@ -456,6 +470,11 @@ function New-TestData {
     }
     # -RecordingFolder: the recordings go into this folder of the test data (T-210), never into ~/Movies/LayerPeek.
     if ($RecordingFolder) { $settings.recording = [ordered]@{ folder = (Join-Path $data $RecordingFolder) } }
+    # -RecordingOptions (T-211): e.g. timelapseIntervalSeconds, timelapseTrigger, next to the folder.
+    if ($RecordingOptions) {
+        if (-not $settings.Contains('recording')) { $settings.recording = [ordered]@{} }
+        foreach ($name in $RecordingOptions.Keys) { $settings.recording[$name] = $RecordingOptions[$name] }
+    }
     [System.IO.File]::WriteAllText((Join-Path $data 'settings.json'), ($settings | ConvertTo-Json -Depth 8))
     $testData = [pscustomobject]@{
         Context = $Context
@@ -661,6 +680,31 @@ function Test-Recordings($Context, [System.IO.FileInfo[]] $Files, [double] $MinS
         if ($result.Report) { $notes.Add("$($file.Name): $($result.Report.decodedFrames) frames, $([math]::Round([double] $result.Report.duration, 1)) s") }
     }
     [pscustomobject]@{ Problems = $problems.ToArray(); Notes = $notes.ToArray() }
+}
+
+function Get-TimelapseFiles([string] $Folder) {
+    <# .SYNOPSIS The timelapse files (…_timelapse.mp4, T-211) below a recordings folder, oldest first. #>
+    @(Get-RecordingFiles $Folder | Where-Object { (ConvertFrom-VerifyRecordingFileName $_.Name).Kind -ceq 'timelapse' })
+}
+
+function Test-Timelapse($Context, [System.IO.FileInfo] $File, $Range) {
+    <#
+    .SYNOPSIS
+        Decodes a timelapse (helper 'decode', T-210) and compares its decoded frames with -Range (Min, Max; none: only the
+        decode). Problems and a Note ("name: N frames, D s").
+    #>
+    $result = Invoke-Decode $Context $File.FullName "decode-$($File.BaseName).json"
+    $problems = [System.Collections.Generic.List[string]]::new()
+    foreach ($problem in $result.Problems) { $problems.Add("$($File.Name): $problem") }
+    if ($result.Error -and -not $result.Report) { $problems.Add("$($File.Name): $($result.Error)") }
+    $note = $null
+    if ($result.Report) {
+        $frames = [int] $result.Report.decodedFrames
+        $expected = if (-not $Range) { '' } elseif ($Range.Min -eq $Range.Max) { ", expected $($Range.Min)" } else { ", expected $($Range.Min) to $($Range.Max)" }
+        if ($Range -and ($frames -lt $Range.Min -or $frames -gt $Range.Max)) { $problems.Add("$($File.Name): $frames decoded frame(s)$expected") }
+        $note = "$($File.Name): $frames frames$expected, $([math]::Round([double] $result.Report.duration, 2)) s"
+    }
+    [pscustomobject]@{ Problems = $problems.ToArray(); Note = $note }
 }
 
 function Get-StatusToolTipLines($Context, [int] $ProcessId) {
@@ -2088,6 +2132,321 @@ $checks = @(
         }
     }
 
+    New-VerifyCheck -Id 'mac.timelapse-files' -Kind Auto -Title 'files of the automatic timelapse of a print by time (a pause of 30 s takes no frame) and by layer (a print of 12 layers of 0.2 mm with a pause: the start, 11 layer changes and the finished print); every file decodes (simulator x20 with a real Buddy3D clip)' `
+        -Closes 'T-160 (přehrání …_timelapse.mp4 nahrazené helper decode: každý snímek, seek, počet snímků podle intervalu a doby tisku, pauza bez snímku; kamera simulátoru se skutečným klipem Buddy3D)', 'T-159 (simulátorová část: tisk s osou Z po vrstvách, počet snímků = začátek + změny vrstvy + hotový díl, pauza snímek nepřidá)', 'T-211 kritérium 3 a část kritérií 1 a 2 (soubory a decode bez menu)' -Action {
+        param($c)
+        $clip = Get-Buddy3DClip
+        $simulator = Get-Simulator $c -Speed 20 -Clip $clip -Layers $script:TimelapseLayers
+        $movies = Get-MoviesRecordingsState
+        $problems = [System.Collections.Generic.List[string]]::new()
+        $notes = [System.Collections.Generic.List[string]]::new()
+
+        # 1. By time: the timelapse of a print with a pause of 30 s in it.
+        Set-SimulatorScenario $simulator 'idle'
+        $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -CameraOptions ([ordered]@{ timelapsePrints = $true }) -RecordingFolder 'Recordings' -RecordingOptions ([ordered]@{ timelapseIntervalSeconds = $script:TimelapseInterval }) -PollingSeconds 1
+        $app = Start-TestApp -Context $c -TestData $data
+        $spans = [System.Collections.Generic.List[double]]::new()
+        try {
+            Start-Sleep -Seconds 4
+            Set-SimulatorScenario $simulator 'printing'
+            $started = Wait-RecordingEvent $data 'TimelapseStarted' 0 60
+            if (-not $started) { $problems.Add('by time: no timelapse started within 60 s of the print') }
+            else {
+                $capturing = [System.Diagnostics.Stopwatch]::StartNew()
+                if ($started.Mode -cne 'Automatic') { $problems.Add("by time: the timelapse started as $($started.Mode), expected Automatic") }
+                Start-Sleep -Seconds 30
+                Set-SimulatorScenario $simulator 'paused'
+                $spans.Add($capturing.Elapsed.TotalSeconds)
+                Start-Sleep -Seconds 30
+                Set-SimulatorScenario $simulator 'printing'
+                $capturing.Restart()
+                Start-Sleep -Seconds 20
+                $spans.Add($capturing.Elapsed.TotalSeconds)
+            }
+            foreach ($failure in @(Get-VerifyRecordingEvents (Read-TestLog $data) | Where-Object Kind -CEQ 'TimelapseFailed')) { $problems.Add("by time: $($failure.Text)") }
+        }
+        # Quitting completes the file of the running timelapse.
+        finally { $null = Stop-TestApp $data $app; Set-SimulatorScenario $simulator 'idle' }
+        $byTime = @(Get-TimelapseFiles $data.Recordings)
+        if ($byTime.Count -ne 1) { $problems.Add("by time: $($byTime.Count) timelapse file(s) ($(@($byTime.Name) -join ', ')), expected one …_timelapse.mp4") }
+        $range = if ($spans.Count -eq 2) { Get-VerifyTimelapseFrameRange -Spans $spans.ToArray() -IntervalSeconds $script:TimelapseInterval -SlackSeconds $script:TimelapseSlack }
+        foreach ($file in $byTime) {
+            $decoded = Test-Timelapse $c $file -Range $range
+            foreach ($problem in $decoded.Problems) { $problems.Add("by time: $problem") }
+            if ($decoded.Note) { $notes.Add("by time ($([math]::Round($spans[0])) s, a pause of 30 s, $([math]::Round($spans[1])) s, every $($script:TimelapseInterval) s): $($decoded.Note)") }
+        }
+
+        # 2. By layer: a whole print of 12 layers with a pause of 15 s; the start, every layer change and the end.
+        $layers = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -CameraOptions ([ordered]@{ timelapsePrints = $true }) -RecordingFolder 'Recordings' -RecordingOptions ([ordered]@{ timelapseTrigger = 'layer' }) -PollingSeconds 1
+        $app = Start-TestApp -Context $c -TestData $layers
+        try {
+            Start-Sleep -Seconds 4
+            Set-SimulatorScenario $simulator 'printing'
+            if (-not (Wait-RecordingEvent $layers 'TimelapseStarted' 0 60)) { $problems.Add('by layer: no timelapse started within 60 s of the print') }
+            else {
+                Start-Sleep -Seconds 40
+                Set-SimulatorScenario $simulator 'paused'
+                Start-Sleep -Seconds 15
+                Set-SimulatorScenario $simulator 'printing'
+                # The rest of the print (90 s at x20 in all) and the frame of the finished part (its next key frame).
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 120 -IntervalMilliseconds 1000 -Condition { (Get-SimulatorPrinterState $simulator) -ceq 'FINISHED' })) { $problems.Add('by layer: the simulated print did not finish within 120 s') }
+                Start-Sleep -Seconds 8
+            }
+            foreach ($failure in @(Get-VerifyRecordingEvents (Read-TestLog $layers) | Where-Object Kind -CEQ 'TimelapseFailed')) { $problems.Add("by layer: $($failure.Text)") }
+        }
+        finally { $null = Stop-TestApp $layers $app; Set-SimulatorScenario $simulator 'idle' }
+        $byLayer = @(Get-TimelapseFiles $layers.Recordings)
+        if ($byLayer.Count -ne 1) { $problems.Add("by layer: $($byLayer.Count) timelapse file(s) ($(@($byLayer.Name) -join ', ')), expected one …_timelapse.mp4") }
+        # A staircase of the simulator has no short layer and no z-hop (the tolerance of T-159 is for real prints): exact.
+        $expected = Get-VerifyLayerTimelapseFrames -Layers $script:TimelapseLayers
+        foreach ($file in $byLayer) {
+            $decoded = Test-Timelapse $c $file -Range ([pscustomobject]@{ Min = $expected; Max = $expected })
+            foreach ($problem in $decoded.Problems) { $problems.Add("by layer: $problem") }
+            if ($decoded.Note) { $notes.Add("by layer ($($script:TimelapseLayers) layers, a pause of 15 s): $($decoded.Note)") }
+        }
+
+        if ((Get-MoviesRecordingsState) -cne $movies) { $problems.Add('~/Movies/LayerPeek changed during the check') }
+        if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+        $source = if ($clip) { 'the real Buddy3D clip of the samples' } else { 'the built-in Buddy3D clip (the 60 s clip of ~/LayerPeek-samples is missing)' }
+        New-VerifyResult PASS "camera: $source. $($notes -join '; '). Only in the test data, ~/Movies/LayerPeek unchanged."
+    }
+
+    New-VerifyCheck -Id 'mac.timelapse' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to choose the timelapse items of the menu and read and press the timelapse button of the camera window, and an unlocked screen' `
+        -Title 'manual timelapse from the menu bar menu: Start / Stop items, "TL" in the normal window and the mini preview, dimmed during a pause (accessible name), stopped by the window button (AXPress) and from the menu, Play last timelapse (the file handed to the system), every file decodes with the frames of its interval (simulator x20)' `
+        -Closes 'T-161 (ruční start / stop z menu i z okna kamery, „TL“ v okně i v malém náhledu, ztlumení během pauzy přes AX, „Přehrát poslední timelapse“ = předání souboru systému, tip zakázané položky; bez notifikace T-212 a uříznutí T-214)', 'T-211 kritérium 1 (mac.timelapse)' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $label = { param($Key) ConvertFrom-VerifyAccessText $texts[$Key] }
+            $simulator = Get-Simulator $c -Speed 20 -Clip (Get-Buddy3DClip) -Layers $script:TimelapseLayers
+            $movies = Get-MoviesRecordingsState
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            # Paths as the system reports them (/private/var/... for /var/...), without a trailing separator.
+            $plain = { param([string] $Path) [System.IO.Path]::TrimEndingDirectorySeparator(($Path -replace '^/private/', '/')) }
+            # An accessible name of two lines (the tip during a pause) compared with its whitespace folded.
+            $fold = { param([string] $Text) ($Text -replace '\s+', ' ').Trim() }
+            $named = { param($Node, [string] $Expected) $Node -and @(@($Node.title, $Node.description, $Node.help) | Where-Object { $_ -and (& $fold $_) -ceq (& $fold $Expected) }).Count -gt 0 }
+            $waitState = {
+                param($App, $Name, $Key, [switch] $Progress)
+                Wait-VerifyCondition -TimeoutSeconds 60 -IntervalMilliseconds 1000 -Condition { -not (Get-VerifyToolTipProblem -ToolTip ((Get-StatusToolTipLines $c $App.Id) -join "`n") -Texts $texts -Name $Name -State $texts[$Key] -Progress:$Progress) }
+            }
+            $printerMenu = {
+                param($App, [string] $Evidence)
+                $menu = Get-StatusMenu $c $App.Id
+                if ($Evidence) { $null = Save-VerifyEvidence -Context $c -Name "menu-$Evidence.json" -Content ($menu | ConvertTo-Json -Depth 30) }
+                $printer = @(Get-VerifyMenuEntries $menu.items)[0]
+                [pscustomobject]@{ Header = $printer.title; Submenu = @($printer.submenu) }
+            }
+            $press = {
+                param($App, [string] $Key)
+                $item = & $label $Key
+                $result = Invoke-MenuPress $c $App.Id "$((& $printerMenu $App).Header)>$item"
+                # The progress in the printer's title may have moved on since the menu was read.
+                if ($result.ExitCode -ne 0) { $result = Invoke-MenuPress $c $App.Id "$((& $printerMenu $App).Header)>$item" }
+                if ($result.ExitCode -ne 0) { $problems.Add("menupress '$item': $($result.Output -join ' ')") }
+                $result.ExitCode -eq 0
+            }
+            $showsIndicator = {
+                param($Tree)
+                $indicator = Find-AxElement $Tree 'CameraTimelapseIndicator'
+                $indicator -and (@($indicator.title, $indicator.value, $indicator.description) -ccontains $texts['CameraTimelapseIndicator'])
+            }
+
+            # One manual timelapse per window mode: started from the menu, "TL" in the window; the normal window also pauses,
+            # stops by the window button and plays the file; the mini preview stops from the menu.
+            foreach ($mode in 'Normal', 'Mini') {
+                $where = $mode.ToLowerInvariant()
+                Set-SimulatorScenario $simulator 'idle'
+                $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = $mode }) -RecordingFolder 'Recordings' -RecordingOptions ([ordered]@{ timelapseIntervalSeconds = $script:TimelapseInterval }) -PollingSeconds 1
+                $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+                $spans = [System.Collections.Generic.List[double]]::new()
+                $app = Start-TestApp -Context $c -TestData $data
+                try {
+                    if (-not (& $waitState $app $name 'StateIdle')) { $problems.Add("${mode}: the tooltip did not show '$name' ready within 60 s"); continue }
+                    if ($mode -eq 'Normal') {
+                        # Before the first timelapse: Start, and Play last timelapse disabled with its tip (noted).
+                        $idle = & $printerMenu $app 'idle'
+                        if (-not (Find-MenuEntry $idle.Submenu (& $label 'MenuStartTimelapse'))) { $problems.Add("idle: no '$(& $label 'MenuStartTimelapse')' in the submenu") }
+                        $play = Find-MenuEntry $idle.Submenu (& $label 'MenuPlayLastTimelapse')
+                        if (-not $play) { $problems.Add("idle: no '$(& $label 'MenuPlayLastTimelapse')' in the submenu") }
+                        elseif ($play.enabled) { $problems.Add("idle: '$(& $label 'MenuPlayLastTimelapse')' is enabled without a timelapse") }
+                        else {
+                            $notes.Add("'$(& $label 'MenuPlayLastTimelapse')' disabled before the first timelapse, tip $(if ($play.help) { "'$($play.help)'" } else { 'none (AXHelp empty: the tip does not reach the NSMenu)' })")
+                            if ($play.help -and $play.help -cne $texts['MenuNoTimelapseYet']) { $problems.Add("idle: the tip of '$(& $label 'MenuPlayLastTimelapse')' is '$($play.help)', expected '$($texts['MenuNoTimelapseYet'])'") }
+                        }
+                    }
+                    Set-SimulatorScenario $simulator 'printing'
+                    if (-not (& $waitState $app $name 'StatePrinting' -Progress)) { $problems.Add("${mode}: the tooltip did not show the print within 60 s") }
+                    $before = Get-RecordingEventCount $data 'TimelapseStarted'
+                    if (-not (& $press $app 'MenuStartTimelapse')) { continue }
+                    $started = Wait-RecordingEvent $data 'TimelapseStarted' $before 30
+                    if (-not $started) { $problems.Add("${mode}: no timelapse started within 30 s of '$(& $label 'MenuStartTimelapse')'"); continue }
+                    $capturing = [System.Diagnostics.Stopwatch]::StartNew()
+                    if ($started.Mode -cne 'Manual') { $problems.Add("${mode}: the timelapse started as $($started.Mode), expected Manual") }
+                    if (-not (Find-MenuEntry (& $printerMenu $app "$where-running").Submenu (& $label 'MenuStopTimelapse'))) { $problems.Add("${mode}: no '$(& $label 'MenuStopTimelapse')' in the submenu while the timelapse runs") }
+                    Send-TestCommand $data "camera:$($script:PrinterId)"
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add("${mode}: no camera window within 20 s"); continue }
+                    $script:timelapseTree = $null
+                    $indicator = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:timelapseTree = Get-AxTree $c $app.Id; & $showsIndicator $script:timelapseTree }
+                    $null = Save-VerifyEvidence -Context $c -Name "$where-ax.json" -Content ($script:timelapseTree | ConvertTo-Json -Depth 100)
+                    if (-not $indicator) { $problems.Add("${mode}: no '$($texts['CameraTimelapseIndicator'])' (CameraTimelapseIndicator) in the camera window") }
+                    if (-not (& $named (Find-AxElement $script:timelapseTree 'CameraTimelapseButton') $texts['TimelapseStop'])) { $problems.Add("${mode}: the timelapse button (CameraTimelapseButton) is not '$($texts['TimelapseStop'])'") }
+
+                    if ($mode -eq 'Normal') {
+                        # A pause: no frames; the button is dimmed and its accessible name says why, so does the menu item.
+                        Start-Sleep -Seconds 10
+                        Set-SimulatorScenario $simulator 'paused'
+                        $spans.Add($capturing.Elapsed.TotalSeconds)
+                        $pausedName = "$($texts['TimelapseStop'])`n$($texts['TimelapsePaused'])"
+                        $dimmed = Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $script:timelapseTree = Get-AxTree $c $app.Id; & $named (Find-AxElement $script:timelapseTree 'CameraTimelapseButton') $pausedName }
+                        $null = Save-VerifyEvidence -Context $c -Name 'paused-ax.json' -Content ($script:timelapseTree | ConvertTo-Json -Depth 100)
+                        if (-not $dimmed) { $problems.Add("pause: the timelapse button is not '$(& $fold $pausedName)' within 15 s") }
+                        else {
+                            $stop = Find-MenuEntry (& $printerMenu $app 'paused').Submenu (& $label 'MenuStopTimelapse')
+                            $notes.Add("during the pause the button reads '$(& $fold $pausedName)', the menu item tip $(if ($stop -and $stop.help) { "'$($stop.help)'" } else { 'none' })")
+                            if ($stop -and $stop.help -and $stop.help -cne $texts['TimelapsePaused']) { $problems.Add("pause: the tip of '$(& $label 'MenuStopTimelapse')' is '$($stop.help)', expected '$($texts['TimelapsePaused'])'") }
+                        }
+                        Start-Sleep -Seconds 15
+                        Set-SimulatorScenario $simulator 'printing'
+                        $capturing.Restart()
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { & $named (Find-AxElement (Get-AxTree $c $app.Id) 'CameraTimelapseButton') $texts['TimelapseStop'] })) { $problems.Add('pause: the timelapse button is still dimmed 15 s after the print resumed') }
+                        Start-Sleep -Seconds 10
+                        $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'CameraTimelapseButton')
+                    }
+                    else {
+                        Start-Sleep -Seconds 15
+                        $null = & $press $app 'MenuStopTimelapse'
+                    }
+                    $spans.Add($capturing.Elapsed.TotalSeconds)
+                    $how = if ($mode -eq 'Normal') { 'the window button' } else { 'the menu item' }
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 30 -Condition { -not (& $showsIndicator (Get-AxTree $c $app.Id)) })) { $problems.Add("${mode}: '$($texts['CameraTimelapseIndicator'])' still shows 30 s after the stop by $how") }
+                    $after = & $printerMenu $app "$where-stopped"
+                    if (-not (Find-MenuEntry $after.Submenu (& $label 'MenuStartTimelapse'))) { $problems.Add("${mode}: no '$(& $label 'MenuStartTimelapse')' in the submenu after the stop by $how") }
+
+                    if ($mode -eq 'Normal') {
+                        $button = Find-AxElement (Get-AxTree $c $app.Id) 'CameraTimelapseButton'
+                        if ($button -and -not (& $named $button $texts['TimelapseStart'])) { $problems.Add("the timelapse button is not '$($texts['TimelapseStart'])' after the stop") }
+                        # Play last timelapse: the test mode hands the file to opened-files.txt instead of QuickTime Player.
+                        $last = @(Get-TimelapseFiles $data.Recordings) | Select-Object -Last 1
+                        $play = Find-MenuEntry $after.Submenu (& $label 'MenuPlayLastTimelapse')
+                        $opened = Join-Path $data.Data 'opened-files.txt'
+                        if (-not $play -or -not $play.enabled) { $problems.Add("'$(& $label 'MenuPlayLastTimelapse')' is not enabled after the timelapse") }
+                        elseif (& $press $app 'MenuPlayLastTimelapse') {
+                            if (-not $last -or -not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Test-Path -LiteralPath $opened) -and (@(Get-Content -LiteralPath $opened) | ForEach-Object { & $plain $_ }) -ccontains (& $plain $last.FullName) })) {
+                                $problems.Add("'$(& $label 'MenuPlayLastTimelapse')' did not hand $(if ($last) { $last.Name } else { 'the timelapse' }) to the system (opened-files.txt)")
+                            }
+                            else { $notes.Add("'$(& $label 'MenuPlayLastTimelapse')' handed $($last.Name) to the system") }
+                        }
+                    }
+                    foreach ($failure in @(Get-VerifyRecordingEvents (Read-TestLog $data) | Where-Object Kind -CEQ 'TimelapseFailed')) { $problems.Add("${mode}: $($failure.Text)") }
+                }
+                finally { $null = Stop-TestApp $data $app; Set-SimulatorScenario $simulator 'idle' }
+                $files = @(Get-TimelapseFiles $data.Recordings)
+                if ($files.Count -ne 1) { $problems.Add("${mode}: $($files.Count) timelapse file(s) ($(@($files.Name) -join ', ')), expected one …_timelapse.mp4"); continue }
+                $range = if ($spans.Count -gt 0) { Get-VerifyTimelapseFrameRange -Spans $spans.ToArray() -IntervalSeconds $script:TimelapseInterval -SlackSeconds $script:TimelapseSlack }
+                $decoded = Test-Timelapse $c $files[0] -Range $range
+                foreach ($problem in $decoded.Problems) { $problems.Add("${mode}: $problem") }
+                if ($decoded.Note) { $notes.Add("${mode}: $($decoded.Note)") }
+            }
+            if ((Get-MoviesRecordingsState) -cne $movies) { $problems.Add('~/Movies/LayerPeek changed during the check') }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS "'$(& $label 'MenuStartTimelapse')' -> '$(& $label 'MenuStopTimelapse')', '$($texts['CameraTimelapseIndicator'])' and '$($texts['TimelapseStop'])' in the normal window and the mini preview, stopped by the window button and from the menu; $($notes -join '; ')."
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.timelapse-layers' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to choose the timelapse trigger in Settings and read its fields, and an unlocked screen' `
+        -Title 'Settings > Recording: "Every N-th layer (estimate)" swaps the number next to it (interval <-> "Layers between frames", accessible names), its tip explains the estimate from the Z axis (AXHelp), saved in settings.json and shown again after reopening (the frames of such a print: mac.timelapse-files)' `
+        -Closes 'T-159 (volba je v UI a uloží se: výměna čísla, tip, settings.json, znovu otevřené Nastavení; VoiceOver nahrazený popisky AX; tisk s počtem snímků v mac.timelapse-files)', 'T-211 kritérium 2 (mac.timelapse-layers spolu s mac.timelapse-files)' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $byTime = $texts['SettingsTimelapseTriggerTime']
+            $byLayer = $texts['SettingsTimelapseTriggerLayer']
+            # The fixed frame rate of every timelapse video (T-158), in the hints of both numbers.
+            $fps = 30
+            $simulator = Get-Simulator $c
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -RecordingFolder 'Recordings'
+            $settingsFile = Join-Path $data.Data 'settings.json'
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $named = { param($Node, [string] $Expected) $Node -and (@($Node.title, $Node.description) -ccontains $Expected) }
+            # Whether a node or one of its children shows a text (the combo box shows its item as a child).
+            $shows = { param($Node, [string] $Text) $Node -and (@(Get-AxNodes @($Node) | ForEach-Object { $_.title; $_.value; $_.description }) -ccontains $Text) }
+            # A hidden field is missing from the tree or has no size.
+            $isShown = { param($Node) $Node -and $Node.frame -and $Node.frame.width -gt 0 -and $Node.frame.height -gt 0 }
+            $app = Start-TestApp -Context $c -TestData $data
+            $openRecordingTab = {
+                param([string] $Evidence)
+                Send-TestCommand $data 'settings'
+                $null = Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsTabRecording') }
+                $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabRecording') -AllowFailure
+                $script:layerTree = $null
+                $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:layerTree = Get-AxTree $c $app.Id; $null -ne (Find-AxElement $script:layerTree 'SettingsTimelapseTrigger') }
+                $null = Save-VerifyEvidence -Context $c -Name "settings-$Evidence.json" -Content ($script:layerTree | ConvertTo-Json -Depth 100)
+                $script:layerTree
+            }
+            $judge = {
+                param($Tree, [string] $Where, [bool] $Layer)
+                $combo = Find-AxElement $Tree 'SettingsTimelapseTrigger'
+                if (-not $combo) { $problems.Add("${Where}: no SettingsTimelapseTrigger on the Recording tab"); return }
+                if (-not (& $named $combo $texts['SettingsTimelapseTrigger'])) { $problems.Add("${Where}: the trigger is not named '$($texts['SettingsTimelapseTrigger'])'") }
+                $choice = if ($Layer) { $byLayer } else { $byTime }
+                if (-not (& $shows $combo $choice)) { $problems.Add("${Where}: the trigger does not show '$choice'") }
+                if ($combo.help -cne $texts['SettingsTimelapseTriggerHint']) { $problems.Add("${Where}: the tip (AXHelp) of the trigger is '$($combo.help)', expected the estimate from the Z axis ('$($texts['SettingsTimelapseTriggerHint'])')") }
+                $interval = Find-AxElement $Tree 'SettingsTimelapseInterval'
+                $every = Find-AxElement $Tree 'SettingsTimelapseEveryNthLayer'
+                $shown, $hidden, $key, $hint = if ($Layer) { $every, $interval, 'SettingsTimelapseEveryNthLayer', 'SettingsTimelapseEveryNthLayerHint' } else { $interval, $every, 'SettingsTimelapseInterval', 'SettingsTimelapseIntervalHint' }
+                if (-not (& $isShown $shown)) { $problems.Add("${Where}: no '$($texts[$key])' ($key) next to the trigger") }
+                else {
+                    if (-not (& $named $shown $texts[$key])) { $problems.Add("${Where}: the number is not named '$($texts[$key])'") }
+                    if ($shown.help -cne ($texts[$hint] -f $fps)) { $problems.Add("${Where}: the tip of '$($texts[$key])' is '$($shown.help)'") }
+                }
+                if (& $isShown $hidden) { $problems.Add("${Where}: the other number ($($hidden.identifier)) still shows") }
+            }
+            $recording = { $json = Get-Content -LiteralPath $settingsFile -Raw | ConvertFrom-Json; if ($json.PSObject.Properties['recording']) { $json.recording } }
+            try {
+                # 1. By time (the default): the interval next to the trigger.
+                $tree = & $openRecordingTab 'by-time'
+                & $judge $tree 'by time' $false
+                # 2. Choose "Every N-th layer": the list opens with a click, then its item (or Down and Return).
+                $combo = Find-AxElement $tree 'SettingsTimelapseTrigger'
+                if ($combo) {
+                    $windows = @(Get-ProcessWindows $c $app.Id).Count
+                    $center = Get-AxCenter $combo
+                    $null = Invoke-Helper $c @('click', "$($center[0])", "$($center[1])")
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -gt $windows })) { $problems.Add('a click did not open the list of SettingsTimelapseTrigger') }
+                    else {
+                        Start-Sleep -Milliseconds 400
+                        $inCombo = { param($Node) $f = $Node.frame; $b = $combo.frame; $x = $f.x + $f.width / 2; $y = $f.y + $f.height / 2; $x -ge $b.x -and $x -le $b.x + $b.width -and $y -ge $b.y -and $y -le $b.y + $b.height }
+                        $item = @(Get-AxNodes (Get-AxTree $c $app.Id) | Where-Object { $_.frame -and (@($_.title, $_.value, $_.description) -ccontains $byLayer) -and -not (& $inCombo $_) }) | Select-Object -First 1
+                        if ($item) { $point = Get-AxCenter $item; $null = Invoke-Helper $c @('click', "$($point[0])", "$($point[1])") }
+                        else { $null = Invoke-Helper $c @('key', 'down'); Start-Sleep -Milliseconds 300; $null = Invoke-Helper $c @('key', 'return') }
+                        Start-Sleep -Milliseconds 800
+                    }
+                    $tree = Get-AxTree $c $app.Id
+                    $null = Save-VerifyEvidence -Context $c -Name 'settings-by-layer.json' -Content ($tree | ConvertTo-Json -Depth 100)
+                    & $judge $tree 'by layer' $true
+                    # 3. Saved: settings.json has the trigger; Settings closes.
+                    $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsSave')
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $r = & $recording; $r -and $r.PSObject.Properties['timelapseTrigger'] -and $r.timelapseTrigger -ceq 'layer' })) { $problems.Add("Save did not write recording.timelapseTrigger = 'layer' into settings.json") }
+                    $null = Save-VerifyEvidence -Context $c -Name 'settings.json' -Path $settingsFile
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { -not (Get-AxElement $c $app.Id 'SettingsTimelapseTrigger') })) { $problems.Add('Settings did not close after Save') }
+                    # 4. Opened again: the choice stayed.
+                    & $judge (& $openRecordingTab 'reopened') 'reopened' $true
+                    $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsCancel') -AllowFailure
+                }
+                if ($app.HasExited) { $problems.Add("the app ended with $($app.ExitCode)") }
+            }
+            finally { $null = Stop-TestApp $data $app }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS "'$byLayer' swaps '$($texts['SettingsTimelapseInterval'])' for '$($texts['SettingsTimelapseEveryNthLayer'])', the trigger's tip (AXHelp) is '$($texts['SettingsTimelapseTriggerHint'])'; saved as recording.timelapseTrigger = 'layer' and shown again after reopening Settings. Trees: settings-*.json."
+        }
+    }
+
     New-VerifyCheck -Id 'mac.icons' -Kind Manual -Title 'menu bar icons on light and dark menu bars, app icon next to system app icons (contact sheet)' `
         -Closes 'T-018 kritérium 1 (čitelnost ve světlém i tmavém režimu)', 'T-098 kritérium 2 (velikost vedle systémových aplikací)' -Action {
         param($c)
@@ -2512,7 +2871,8 @@ $presets = [ordered]@{
     release = @(
         'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
         'mac.plist-localnetwork', 'mac.decode', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
-        'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.recording-files', 'mac.recording', 'mac.dashcam', 'mac.keys', 'mac.update-check',
+        'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.recording-files', 'mac.recording', 'mac.dashcam',
+        'mac.timelapse-files', 'mac.timelapse', 'mac.timelapse-layers', 'mac.keys', 'mac.update-check',
         'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
     )
 }
@@ -2671,5 +3031,5 @@ $latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
 Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording or mac.dashcam.'
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse or mac.timelapse-layers.'
 exit (Get-VerifyExitCode -Results $results)

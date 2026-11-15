@@ -69,7 +69,7 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release -Skip mac.aot-sm
 i s `-Unattended`; otázky na posouzení nahrazuje Accessibility (záložka Nastavení, tooltip ikony v menu baru). Jednou
 připravit:
 - **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.menu-items`,
-  `mac.camera-pin`, `mac.update-check`, `mac.recording`, `mac.dashcam`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
+  `mac.camera-pin`, `mac.update-check`, `mac.recording`, `mac.dashcam`, `mac.timelapse`, `mac.timelapse-layers`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
   okna jako důkaz, že je text výsledku opravdu vykreslený).
 - **Oznámení** „LayerPeek E2E“ povolená (Nastavení systému → Oznámení, nebo jednou interaktivně `-Only mac.notifications`)
   – `mac.notifications` a oznámení během spánku v `mac.display-sleep`.
@@ -79,8 +79,8 @@ připravit:
   heslo“ na víc než minutu (např. 1 hodinu) – jinak `mac.display-sleep` po probuzení skončí `SKIP` (zamčeno).
 - **Vzorky skutečné kamery** v `~/LayerPeek-samples` (mimo repozitář, jiná složka přes `LAYERPEEK_SAMPLES`):
   `timelapse/t158-same-idr-pic-id.mp4` pro `mac.decode` (bez něj `SKIP`) a 60s klip Buddy3D
-  `clips/coreone-20261103-1905-60s.mp4`, který simulátor přehrává pro `mac.recording-files`, `mac.recording`
-  a `mac.dashcam` (bez něj vestavěný krátký klip Buddy3D, zpráva to uvede).
+  `clips/coreone-20261103-1905-60s.mp4`, který simulátor přehrává pro `mac.recording-files`, `mac.recording`,
+  `mac.dashcam`, `mac.timelapse-files` a `mac.timelapse` (bez něj vestavěný krátký klip Buddy3D, zpráva to uvede).
 - Spouští se z Terminálu v přihlášené relaci (ne přes SSH) s odemčenou obrazovkou.
 - `mac.display-sleep` jen bez Sdílení obrazovky: připojený klient drží displej vzhůru („Remote user active“ v
   `pmset -g assertions`), kontrola pak skončí `SKIP`.
@@ -98,8 +98,8 @@ připravit:
   Klíčenky s prefixem `LayerPeek.Tests`, dočasné složky. Řízené ruční kroky s `/Applications/LayerPeek.app` nabídnou
   dočasné odsunutí profilu LayerPeek (žurnál `scripts/aot-smoke.ps1`, obnova i `pwsh scripts/aot-smoke.ps1 -RestoreOnly`).
 - **Známé pozůstatky:** položka „LayerPeek E2E“ v Nastavení systému → Oznámení; Terminál v Soukromí a zabezpečení →
-  Zpřístupnění, pokud jste ho povolili pro `mac.keys`, `mac.menu-items`, `mac.update-check`, `mac.recording` nebo
-  `mac.dashcam` (po běhu vypněte).
+  Zpřístupnění, pokud jste ho povolili pro `mac.keys`, `mac.menu-items`, `mac.update-check`, `mac.recording`,
+  `mac.dashcam`, `mac.timelapse` nebo `mac.timelapse-layers` (po běhu vypněte).
 
 | Kontrola | Druh | Uzavírá | Sezení níže |
 |---|---|---|---|
@@ -124,6 +124,9 @@ připravit:
 | `mac.recording-files` | automaticky | T-145, T-147 a T-148 (simulátorové části), T-210 krit. 5 a 6. Simulátor `--speed 20` se skutečným klipem Buddy3D, nahrávky ve složce testovacích dat (nikdy `~/Movies/LayerPeek`, jeho obsah se porovná před a po). Automatické nahrávání: výpadek kamery 10 s (`POST /_simulator/camera/offline` / `online`) dá `…-2.mp4`, další tisk nový soubor `<datum>_<čas>_<název tisku>.mp4`, konec nahrávání 50–90 s po konci tisku. Dashcam: `error`, `attention`, `stopped` během tisku → `…_dashcam-<spouštěč>.mp4`. Každý soubor `decode` bez chyby | – |
 | `mac.recording` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-146 (bez notifikace T-212, „Změnit…“ T-213 a uříznutí T-214), T-210 krit. 3. Položky nahrávání v podmenu (`menu`), „Nahrávat“ přes `menupress`, tooltip „Nahrává se“, v okně kamery „REC“ (`CameraRecordingIndicator`) a tlačítko „Zastavit nahrávání“ (`CameraRecordButton`) v normálním okně, malém náhledu i na celé obrazovce; zastavení z menu a tlačítkem v okně (AXPress); „Přehrát poslední nahrávku“ jen předá soubor systému (testovací režim ho zapíše do `opened-files.txt`, QuickTime se nespouští); „Otevřít složku s nahrávkami“ = okno Finderu s podsložkou tiskárny (`axwindows`, AXDocument), pak ho zavře (`axclose`); složka s `chmod 0500`: start selže (`FolderUnavailable`), aplikace běží, žádný soubor, text v Nastavení › Nahrávání se zapíše (otázka 3 v T-210) | – |
 | `mac.dashcam` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-148 a T-145 (simulátorové části, spouštěče v `mac.recording-files`), T-210 krit. 4. „Uložit posledních 2 min“ v podmenu a v místní nabídce okna kamery (⌃-klik): mimo tisk zakázané (tip AXHelp se zapíše), během tisku povolené; uložení z menu → `…_dashcam-manual.mp4`, `decode` 25–160 s; s automatickým nahráváním během tisku zakázané s tipem „Nahrává se celý tisk.“ a v podmenu „Zastavit nahrávání“ | – |
+| `mac.timelapse-files` | automaticky | T-160 (přehrání `…_timelapse.mp4` nahrazené `decode`), T-159 (simulátorová část), T-211 krit. 3 a souborová část krit. 1 a 2. Simulátor `--speed 20 --layers 12` se skutečným klipem Buddy3D, polling 1 s, timelapse tisku (`timelapsePrints`) ve složce testovacích dat. Po čase (interval 5 s): 30 s tisku, 30 s pauzy, 20 s tisku → počet snímků podle intervalu bez snímků pauzy (tolerance 7 s na úsek: dotaz, start, klíčový snímek). Po vrstvě: celý tisk 12 vrstev po 0,2 mm s pauzou 15 s → přesně 13 snímků (začátek, 11 změn vrstvy, hotový díl). Každý soubor `decode` bez chyby, `~/Movies/LayerPeek` beze změny | – |
+| `mac.timelapse` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-161 (bez notifikace T-212 a uříznutí T-214), T-211 krit. 1. Před prvním timelapse je „Přehrát poslední timelapse“ zakázané (tip AXHelp se zapíše). `menupress …>Spustit timelapse (experimentální)` → položka „Zastavit timelapse…“, v okně kamery „TL“ (`CameraTimelapseIndicator`) a tlačítko „Zastavit timelapse (experimentální)“ (`CameraTimelapseButton`) v normálním okně i malém náhledu. Během scénáře `paused` má tlačítko v AX názvu i „Během pauzy tisku se snímky nepořizují.“ (ztlumení, bez snímku obrazovky). Zastavení tlačítkem (AXPress) a z menu, „Přehrát poslední timelapse“ → `opened-files.txt`, `decode` a počet snímků podle intervalu | – |
+| `mac.timelapse-layers` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-159 (volba v UI a uložení; snímky tisku po vrstvách v `mac.timelapse-files`), T-211 krit. 2. Nastavení › Nahrávání: „Pořizovat snímek“ (`SettingsTimelapseTrigger`) přepnout na „Každou N. vrstvu (odhad)“ (klik a položka seznamu, záloha ↓ a Return). Číslo vedle se vymění (`SettingsTimelapseInterval` ↔ `SettingsTimelapseEveryNthLayer` s AX názvem „Vrstev mezi snímky“), tip (AXHelp) vysvětlí odhad z osy Z. Uložit → `recording.timelapseTrigger` = `layer` v `settings.json`, znovu otevřené Nastavení volbu ukáže | – |
 | `mac.keys` | oprávnění (Zpřístupnění pro Terminál) | T-100 krit. 4 (část: ⌃⌘F, Esc, ⌘., ⌘W, ⌘⇧] jako skutečné události včetně stisku modifikátorů; přepnutí záložky čte z Accessibility) | 6.3 |
 | `mac.update-check` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka; Nahrávání obrazovky volitelně) | T-127 oddíl 1d (hlášení uživatele 2026-11-05: „Zkontrolovat nyní“ bez textu výsledku; skutečný klik do aktivního i neaktivního okna Nastavení a AXPress proti náhradnímu GitHub API na 127.0.0.1, text čtený z Accessibility, snímky okna) | – |
 | `mac.socket-other-user` | oprávnění (`sudo`, bez hesla s `tools/macos-verify-sudoers.sh`) | T-053 krit. 1 (spojení uživatele `nobody` se odmítne) | 10.1 |

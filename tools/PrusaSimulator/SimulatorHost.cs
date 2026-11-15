@@ -58,7 +58,7 @@ public sealed class SimulatorHost : IAsyncDisposable
                 }
             }
 
-            SimulationTiming timing = SimulationTiming.Default with { Print = options.PrintDuration };
+            SimulationTiming timing = SimulationTiming.Default with { Print = options.PrintDuration, Layers = options.Layers };
             for (int i = 0; i < options.Printers; i++)
             {
                 (PrinterScenario scenario, bool offline) = options.ScenarioOf(i);
