@@ -1,5 +1,6 @@
 # CI (T-218): build (Debug + Release), tests without the end-to-end tests and the Native AOT publish on Windows and
-# macOS for every push to develop / release/* / hotfix/* and every pull request into develop / main.
+# macOS for every push to develop / release/* / hotfix/* and every pull request into develop / main, plus the Native AOT
+# publish of win-arm64 cross-compiled on Windows x64 with a check of its PE architecture, never started (T-236).
 #
 # The required status check of the ruleset is the job "CI result" (docs/prerequisites.md, section CI). It always
 # reports: a pull request that touches only files no build or test reads (task notes, most docs) passes it at once
@@ -247,10 +248,152 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
 
+  # T-236: the Windows ARM64 app (T-224..T-226) is cross-compiled on the x64 runner and never started there; the PE
+  # header check (Get-PublishArchitectureCheck, T-224) proves every native file is ARM64. A job of its own, not steps of
+  # the Windows build: it runs in parallel (the wall time of CI does not grow), a failing test does not hide an ARM64
+  # break (and the other way round), and its FFmpeg cache root holds only the ARM64 files, never the x64 cache.
+  # The MSVC ARM64 build tools (Microsoft.VisualStudio.Component.VC.Tools.ARM64) are part of the windows-2025 image.
+  cross-arm64:
+    name: Cross-publish (win-arm64)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      # As in the build job: native separators (FFmpeg.targets runs cmd's move with this path).
+      - name: Point the FFmpeg cache and the publish folder to the runner's temp folder
+        run: |
+          "LayerPeekFFmpegCacheRoot=$(Join-Path $env:RUNNER_TEMP ffmpeg)" >> $env:GITHUB_ENV
+          "ARM64_PUBLISH_DIR=$(Join-Path $env:RUNNER_TEMP publish-win-arm64)" >> $env:GITHUB_ENV
+
+      # Fails in seconds, not after the FFmpeg build, when an image update drops the component (vswhere, the same
+      # check as scripts/release-build.ps1).
+      - name: Check the MSVC ARM64 build tools
+        run: |
+          Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
+          $problems = @(Get-NativeToolchainProblems -Runtimes win-arm64 -HostOs windows)
+          if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+          "MSVC ARM64 build tools: installed."
+
+      # The cache folder of llvm-mingw is named by the pin in build/FFmpeg.targets; its SHA-256 is the cache key.
+      - name: Read the llvm-mingw pin
+        id: llvm-mingw-pin
+        run: |
+          $targets = Get-Content -Raw build/FFmpeg.targets
+          $sha256 = [regex]::Match($targets, '<LayerPeekLlvmMingwSha256>([0-9a-f]{64})</LayerPeekLlvmMingwSha256>').Groups[1].Value
+          $folder = [regex]::Match($targets, '<LayerPeekLlvmMingwFolder>([A-Za-z0-9._-]+)</LayerPeekLlvmMingwFolder>').Groups[1].Value
+          if (-not $sha256 -or -not $folder) { throw 'build/FFmpeg.targets has no LayerPeekLlvmMingwSha256 / LayerPeekLlvmMingwFolder.' }
+          "llvm-mingw $folder, SHA-256 $sha256"
+          "sha256=$sha256" >> $env:GITHUB_OUTPUT
+          "folder=$folder" >> $env:GITHUB_OUTPUT
+
+      # Own prefix: the build job's fallback key (nuget-<os>-) must not pick up this smaller set; this job may start
+      # from the build job's packages and download only the ARM64 runtime and ILCompiler packs.
+      - name: Restore NuGet packages
+        id: nuget
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-win-arm64-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj', 'global.json') }}
+          restore-keys: |
+            nuget-win-arm64-${{ runner.os }}-
+            nuget-${{ runner.os }}-
+
+      # Only the ARM64 folder of the cache root (never llvm-mingw, ~570 MB). Exact key: FFmpeg.targets holds the source
+      # and llvm-mingw pins, the script the recipe; the same inputs as the folder name.
+      - name: Restore FFmpeg (win-arm64)
+        id: ffmpeg
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg/win-arm64-*
+          key: ffmpeg-v1-windows-2025-win-arm64-${{ hashFiles('build/FFmpeg.targets', 'build/windows/build-ffmpeg.sh') }}
+
+      # llvm-mingw is needed only to compile FFmpeg, so only on an FFmpeg miss (then the build does not download it
+      # when this hits, e.g. after a change of the build script).
+      - name: Restore llvm-mingw
+        id: llvm-mingw
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg/${{ steps.llvm-mingw-pin.outputs.folder }}
+          key: llvm-mingw-v1-${{ runner.os }}-${{ steps.llvm-mingw-pin.outputs.sha256 }}
+
+      # T-225: the ARM64 cross build needs only the shell and tools of MSYS2 (the compiler is llvm-mingw).
+      - name: Install MSYS2 (FFmpeg build)
+        id: msys2
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MSYS
+          update: false
+          install: make diffutils
+
+      - name: Point the FFmpeg build to MSYS2
+        if: steps.msys2.outcome == 'success'
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          "LayerPeekMsys2Root=$env:MSYS2_LOCATION" >> $env:GITHUB_ENV
+
+      # Restores the packages and, on a miss, downloads llvm-mingw and cross-compiles FFmpeg (build/FFmpeg.targets).
+      - name: Build (Release, win-arm64)
+        id: build
+        run: dotnet build src/LayerPeek.App -c Release -r win-arm64
+
+      # Right after the build, so a failing AOT link does not throw the compiled FFmpeg away.
+      - name: Save FFmpeg (win-arm64)
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg/win-arm64-*
+          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
+
+      - name: Save llvm-mingw
+        if: steps.llvm-mingw.outcome == 'success' && steps.llvm-mingw.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ffmpeg/${{ steps.llvm-mingw-pin.outputs.folder }}
+          key: ${{ steps.llvm-mingw.outputs.cache-primary-key }}
+
+      # Native AOT for ARM64 with the host's (x64) ILCompiler; not started (an x64 runner cannot run it).
+      - name: Publish Native AOT (win-arm64)
+        run: dotnet publish src/LayerPeek.App -c Release -r win-arm64 -o $env:ARM64_PUBLISH_DIR
+
+      # After the publish (it may restore packs the build did not need), also when the publish failed, so a retry does
+      # not download the packages again; only after a successful build (its restore completed the package folder).
+      - name: Save NuGet packages
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.nuget.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget.outputs.cache-primary-key }}
+
+      # T-224: the exe and every DLL are ARM64 (0xAA64); a file of another architecture would fail only on the device.
+      # The camera libraries must be there too (a build without them would pass the PE check).
+      - name: Check the architecture of the publish folder
+        run: |
+          Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1
+          $check = Get-PublishArchitectureCheck -Directory $env:ARM64_PUBLISH_DIR -Runtime win-arm64
+          if ($check.Problems.Count -gt 0) { throw "The win-arm64 publish folder does not match: $($check.Problems -join ' ')" }
+          $missing = @('avformat-*.dll', 'avcodec-*.dll', 'avutil-*.dll', 'swscale-*.dll', 'FFmpeg-LICENSE.txt' | Where-Object { -not (Test-Path (Join-Path $env:ARM64_PUBLISH_DIR $_)) })
+          if ($missing.Count -gt 0) { throw "The camera libraries are missing in the win-arm64 publish folder: $($missing -join ', ')" }
+          "Architecture: $($check.Files.Count) PE file(s), all $($check.Expected): $($check.Files -join ', ')"
+
   # The single required status check: green when the build jobs passed, or when they were not needed (docs only).
   result:
     name: CI result
-    needs: [changes, build]
+    needs: [changes, build, cross-arm64]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -261,8 +404,12 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           CODE: ${{ needs.changes.outputs.code }}
           BUILD: ${{ needs.build.result }}
+          ARM64: ${{ needs.cross-arm64.result }}
         run: |
-          echo "changes=$CHANGES code=$CODE build=$BUILD"
+          echo "changes=$CHANGES code=$CODE build=$BUILD arm64=$ARM64"
           if [ "$CHANGES" != success ]; then echo "::error::Classifying the changes failed ($CHANGES)."; exit 1; fi
-          if [ "$CODE" = true ] && [ "$BUILD" != success ]; then echo "::error::Build and test: $BUILD."; exit 1; fi
+          failed=0
+          if [ "$CODE" = true ] && [ "$BUILD" != success ]; then echo "::error::Build and test: $BUILD."; failed=1; fi
+          if [ "$CODE" = true ] && [ "$ARM64" != success ]; then echo "::error::Cross-publish (win-arm64): $ARM64."; failed=1; fi
+          if [ "$failed" = 1 ]; then exit 1; fi
           if [ "$CODE" != true ]; then echo "Only files no build or test reads changed: build and test skipped."; fi
