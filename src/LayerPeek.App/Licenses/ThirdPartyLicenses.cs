@@ -122,6 +122,7 @@ internal static class ThirdPartyLicenses
             new Uri("https://github.com/dotnet/aspnetcore"),
             [
                 new("Microsoft.AspNetCore.App.Runtime.win-x64", null),
+                new("Microsoft.AspNetCore.App.Runtime.win-arm64", null),
                 new("Microsoft.AspNetCore.App.Runtime.osx-arm64", null),
             ],
             [ResourcePrefix + "aspnetcore-license.txt", ResourcePrefix + "aspnetcore-third-party-notices.txt"],
@@ -134,6 +135,8 @@ internal static class ThirdPartyLicenses
             [
                 new("Microsoft.DotNet.ILCompiler", null),
                 new("runtime.win-x64.Microsoft.DotNet.ILCompiler", null),
+                // The compiler of the win-arm64 target; the host compiler of a cross-compile on x64 stays win-x64 (T-224).
+                new("runtime.win-arm64.Microsoft.DotNet.ILCompiler", null),
                 new("runtime.osx-arm64.Microsoft.DotNet.ILCompiler", null),
             ],
             [ResourcePrefix + "mit-microsoft.txt", ResourcePrefix + "dotnet-third-party-notices.txt"],

@@ -11,8 +11,20 @@
     <InternalsVisibleTo Include="LayerPeek.Camera.FFmpeg.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\LayerPeek.Core\LayerPeek.Core.csproj" />
+    <!--
+      LayerPeekAppRuntimeIdentifier (below) is a global property of this project only: Core must not get it, or it would
+      be built a second time as another project instance into the same obj/bin (T-224).
+    -->
+    <ProjectReference Include="..\LayerPeek.Core\LayerPeek.Core.csproj" UndefineProperties="LayerPeekAppRuntimeIdentifier" GlobalPropertiesToRemove="LayerPeekAppRuntimeIdentifier" />
   </ItemGroup>
+  <!--
+    The RID of the app that references this RID-agnostic library (LayerPeek.App.csproj sets it for win-arm64 only, T-224):
+    no ARM64 FFmpeg build yet (T-225), so no native libraries instead of x64 ones. A global LayerPeekFFmpegEnabled
+    (command line) still wins.
+  -->
+  <PropertyGroup Condition="'$(LayerPeekAppRuntimeIdentifier)' == 'win-arm64'">
+    <LayerPeekFFmpegEnabled>false</LayerPeekFFmpegEnabled>
+  </PropertyGroup>
   <!-- Native FFmpeg DLLs; they flow to the output and publish directory of every referencing project. -->
   <Import Project="..\..\build\FFmpeg.targets" />
 </Project>

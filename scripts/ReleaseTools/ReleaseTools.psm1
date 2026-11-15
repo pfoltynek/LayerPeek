@@ -2871,13 +2871,30 @@ function Write-Problems {
     foreach ($problem in $Problems) { Write-Host "  - $problem" -ForegroundColor Red }
 }
 
+# MSVC component of the Visual Studio (Build Tools) installation that the Native AOT publish of a Windows RID needs: the
+# ILCompiler targets look it up with vswhere -requires (Microsoft.NETCore.Native.Windows.targets). Cross-compiling from
+# x64 to ARM64 needs "C++ ARM64/ARM64EC build tools" (Microsoft Learn, Native AOT "Cross-compilation", T-224).
+$script:MsvcToolchainComponents = [ordered]@{
+    'win-x64'   = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
+    'win-arm64' = 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+}
+
+function Get-MsvcToolchainComponent {
+    <# .SYNOPSIS The MSVC component id the AOT publish of a Windows RID needs; $null for a RID without one. #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    if ($script:MsvcToolchainComponents.Contains($Runtime)) { $script:MsvcToolchainComponents[$Runtime] } else { $null }
+}
+
 function Get-NativeToolchainProblems {
     <#
     .SYNOPSIS
         Checks the Native AOT toolchain of the requested RIDs before a long build (docs/prerequisites.md): Xcode Command
-        Line Tools on macOS, the MSVC component of every Windows RID. Returns problem messages. Reads only (xcrun, vswhere).
+        Line Tools on macOS, the MSVC component of every Windows RID (Get-MsvcToolchainComponent). Returns problem
+        messages. Reads only (xcrun, vswhere).
+    .PARAMETER VswherePath
+        vswhere to ask; default the one of the Visual Studio Installer. The tests pass a stand-in script.
     #>
-    param([Parameter(Mandatory)] [string[]] $Runtimes, [Parameter(Mandatory)] [string] $HostOs)
+    param([Parameter(Mandatory)] [string[]] $Runtimes, [Parameter(Mandatory)] [string] $HostOs, [string] $VswherePath)
     $problems = [System.Collections.Generic.List[string]]::new()
     if ($HostOs -eq 'macos') {
         $found = $false
@@ -2888,22 +2905,96 @@ function Get-NativeToolchainProblems {
         if (-not $found) { $problems.Add('Xcode Command Line Tools are missing (xcode-select --install). See docs/prerequisites.md.') }
         return $problems.ToArray()
     }
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio' 'Installer' 'vswhere.exe'
+    $vswhere = if ($VswherePath) { $VswherePath } else { Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio' 'Installer' 'vswhere.exe' }
     if (-not (Test-Path -LiteralPath $vswhere)) {
         $problems.Add("Visual Studio Build Tools are missing ($vswhere not found). See docs/prerequisites.md.")
         return $problems.ToArray()
     }
-    $components = @{
-        'win-x64' = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
-    }
     foreach ($rid in $Runtimes) {
-        $component = $components[$rid]
+        $component = Get-MsvcToolchainComponent $rid
+        if (-not $component) {
+            $problems.Add("No MSVC component is known for '$rid' (known: $($script:MsvcToolchainComponents.Keys -join ', ')).")
+            continue
+        }
         $found = @(& $vswhere -products * -requires $component -property installationPath)
         if ($LASTEXITCODE -ne 0 -or -not ($found | Where-Object { $_ })) {
             $problems.Add("The MSVC component $component needed for the $rid AOT publish is not installed. See docs/prerequisites.md.")
         }
     }
     $problems.ToArray()
+}
+
+# Machine type (IMAGE_FILE_HEADER.Machine) of the exe and the native DLLs of a Windows publish folder (T-224). Every
+# NuGet package and FFmpeg build must deliver its native files for the RID; a file of another architecture fails only
+# when it is loaded (on the device), so the build checks the headers.
+$script:WindowsRuntimeMachines = [ordered]@{
+    'win-x64'   = 0x8664
+    'win-arm64' = 0xAA64
+}
+$script:PeMachineNames = @{ 0x014C = 'x86'; 0x01C4 = 'ARM'; 0x8664 = 'x64'; 0xAA64 = 'ARM64' }
+
+function Get-PeMachine {
+    <#
+    .SYNOPSIS The machine type of the COFF header of a PE image (exe, dll); $null when the file is not a PE image.
+    .DESCRIPTION Reads only the DOS header ("MZ", e_lfanew at 0x3C), the "PE\0\0" signature and the following 16-bit field.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $reader = [System.IO.BinaryReader]::new($stream)
+        if ($stream.Length -lt 0x40 -or $reader.ReadUInt16() -ne 0x5A4D) { return $null }
+        $stream.Position = 0x3C
+        $offset = $reader.ReadUInt32()
+        if ($offset -gt $stream.Length - 6) { return $null }
+        $stream.Position = $offset
+        if ($reader.ReadUInt32() -ne 0x00004550) { return $null }
+        [int] $reader.ReadUInt16()
+    }
+    finally { $stream.Dispose() }
+}
+
+function Format-PeMachine {
+    <# .SYNOPSIS 'ARM64 (0xAA64)' for a known machine type, '0x1234' for another. #>
+    param([Parameter(Mandatory)] [int] $Machine)
+    $number = '0x{0:X4}' -f $Machine
+    if ($script:PeMachineNames.ContainsKey($Machine)) { "$($script:PeMachineNames[$Machine]) ($number)" } else { $number }
+}
+
+function Get-PublishArchitectureCheck {
+    <#
+    .SYNOPSIS
+        Checks that the exe and every DLL of a Windows publish folder (also in subfolders) are PE images of the RID's
+        architecture (win-x64: x64 0x8664, win-arm64: ARM64 0xAA64). Reads only.
+        Meant for Native AOT publish folders, which hold only native files: an IL-only (AnyCPU) managed DLL has the machine
+        type x86 0x014C and would be reported.
+    .OUTPUTS
+        Expected (the expected machine type as text), Files (checked files, relative, sorted) and Problems (empty = all fit).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Directory,
+        [Parameter(Mandatory)] [string] $Runtime,
+        [string] $ExecutableName = 'LayerPeek.exe'
+    )
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if (-not $script:WindowsRuntimeMachines.Contains($Runtime)) {
+        $problems.Add("No PE machine type is known for runtime '$Runtime' (known: $($script:WindowsRuntimeMachines.Keys -join ', ')).")
+        return [pscustomobject]@{ Expected = $null; Files = @(); Problems = $problems.ToArray() }
+    }
+    $expected = $script:WindowsRuntimeMachines[$Runtime]
+    $expectedText = Format-PeMachine $expected
+    $root = (Resolve-Path -LiteralPath $Directory).ProviderPath.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    if (-not (Test-Path -LiteralPath (Join-Path $root $ExecutableName) -PathType Leaf)) { $problems.Add("$ExecutableName is missing in $root.") }
+    $files = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in @(Get-ChildItem -LiteralPath $root -Recurse -File -Force | Where-Object { $_.Extension -in '.exe', '.dll' })) {
+        $files.Add($file.FullName.Substring($root.Length + 1))
+    }
+    $files.Sort([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($name in $files) {
+        $machine = Get-PeMachine (Join-Path $root $name)
+        if ($null -eq $machine) { $problems.Add("$name is not a PE image.") }
+        elseif ($machine -ne $expected) { $problems.Add("$name is $(Format-PeMachine $machine), expected $expectedText for $Runtime.") }
+    }
+    [pscustomobject]@{ Expected = $expectedText; Files = $files.ToArray(); Problems = $problems.ToArray() }
 }
 
 function Get-ReleaseBuildOutput {
