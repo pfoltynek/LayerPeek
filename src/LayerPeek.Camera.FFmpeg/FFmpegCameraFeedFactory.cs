@@ -21,7 +21,8 @@ namespace LayerPeek.Camera.FFmpeg;
 /// 20 s at the latest; callers such as <see cref="ReconnectingCameraFeed"/> normally cancel earlier.
 /// <para>
 /// T-203: the camera window's video is decoded by the graphics hardware as <see cref="HardwareDecoding"/> says (on macOS
-/// VideoToolbox, on Windows software for now); key frames of detection, snapshots and the camera test always in software.
+/// VideoToolbox, on Windows software for now; D3D11VA only through the Debug test switch, T-206); key frames of detection,
+/// snapshots and the camera test always in software.
 /// </para>
 /// </remarks>
 public sealed class FFmpegCameraFeedFactory : ICameraFeedFactory
@@ -73,7 +74,8 @@ public sealed class FFmpegCameraFeedFactory : ICameraFeedFactory
 
     /// <summary>
     /// Whether <see cref="CameraHardwareDecoding.Automatic"/> asks for a hardware decoder on the running OS (the rule of
-    /// <see cref="HardwareDecoderSelection"/>): on macOS, not on Windows until T-206. The settings window notes it when
+    /// <see cref="HardwareDecoderSelection"/>): on macOS, not on Windows until T-125 measured D3D11VA (T-206) and the user
+    /// decided. The settings window notes it when
     /// "Automatic" still means software (T-204, user decision 2026-11-12).
     /// </summary>
     public static bool AutomaticUsesHardware =>

@@ -18,12 +18,12 @@ namespace LayerPeek.Camera.FFmpeg;
 /// </summary>
 internal sealed class HardwareDecodingPolicy
 {
-    private readonly bool _isMacOS;
     private readonly ConcurrentDictionary<string, HardwareDecodingHistory> _histories = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
 
     // Guarded by _gate; Current is replaced as a whole (readers never see a half-updated choice).
     private CameraHardwareDecoding _mode;
+    private AVHWDeviceType _automaticDevice;
     private bool _hasOverride;
     private AVHWDeviceType _override;
     private volatile HardwareDecodingChoice _current;
@@ -38,7 +38,7 @@ internal sealed class HardwareDecodingPolicy
     /// <param name="isMacOS">The OS of the rule (tests check both).</param>
     internal HardwareDecodingPolicy(CameraHardwareDecoding mode, bool isMacOS, ILogger? logger = null)
     {
-        _isMacOS = isMacOS;
+        _automaticDevice = HardwareDecoderSelection.Select(CameraHardwareDecoding.Automatic, isMacOS);
         _mode = mode;
         Logger = logger ?? NullLogger.Instance;
         _current = Choose(generation: 0);
@@ -91,6 +91,32 @@ internal sealed class HardwareDecodingPolicy
     internal HardwareDecodingFaults? Faults { get; set; }
 
     /// <summary>
+    /// The device <see cref="CameraHardwareDecoding.Automatic"/> means (by default the rule of the OS,
+    /// <see cref="HardwareDecoderSelection"/>). Tests set the device of this computer, so that the same tests of the
+    /// setting (Automatic, Off, a change at a key frame) run with VideoToolbox on macOS and D3D11VA on Windows (T-206),
+    /// as if the rule chose it. A change starts a new generation like a change of the setting.
+    /// </summary>
+    internal AVHWDeviceType AutomaticDevice
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _automaticDevice;
+            }
+        }
+
+        set
+        {
+            lock (_gate)
+            {
+                _automaticDevice = value;
+                _current = Choose(_current.Generation + 1);
+            }
+        }
+    }
+
+    /// <summary>
     /// The device the decoders use whatever the setting says (<c>AV_HWDEVICE_TYPE_NONE</c>: software), or
     /// <see langword="null"/> for the rule. The Debug test switch (<c>LAYERPEEK_TEST_HW_DECODER</c>)
     /// and tests set it; a change starts a new generation like a change of the setting.
@@ -118,7 +144,7 @@ internal sealed class HardwareDecodingPolicy
             return new HardwareDecodingChoice(_override, _override == AVHWDeviceType.AV_HWDEVICE_TYPE_NONE ? "test switch" : null, generation);
         }
 
-        AVHWDeviceType device = HardwareDecoderSelection.Select(_mode, _isMacOS);
+        AVHWDeviceType device = _mode == CameraHardwareDecoding.Off ? AVHWDeviceType.AV_HWDEVICE_TYPE_NONE : _automaticDevice;
         string? reason = device != AVHWDeviceType.AV_HWDEVICE_TYPE_NONE ? null
             : _mode == CameraHardwareDecoding.Off ? "turned off in the settings"
             : "not used on this OS yet";
@@ -206,4 +232,10 @@ internal sealed class HardwareDecodingFaults
 
     /// <summary>Decoding fails after this many hardware frames of a hardware session (like a lost device).</summary>
     public int? FailDecodingAfterFrames { get; init; }
+
+    /// <summary>
+    /// <c>av_hwframe_transfer_data</c> fails after this many copied frames of a hardware session (T-206: how a lost D3D11
+    /// device shows: FFmpeg's decoder goes on, mapping its staging texture fails with DXGI_ERROR_DEVICE_REMOVED).
+    /// </summary>
+    public int? FailCopyAfterFrames { get; init; }
 }

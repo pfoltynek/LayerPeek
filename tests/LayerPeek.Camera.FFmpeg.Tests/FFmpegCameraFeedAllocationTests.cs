@@ -57,7 +57,8 @@ public sealed class FFmpegCameraFeedAllocationTests
     [HardwareDecodingFact]
     public async Task SteadyStateHardwareDisplayFramesDoNotAllocate()
     {
-        // T-203: the camera window's frames from VideoToolbox, mapped without a copy (into a reused frame) and converted.
+        // T-203 / T-206: the camera window's frames from the hardware decoder of this OS, mapped without a copy (VideoToolbox)
+        // or copied (D3D11VA), each into a reused frame, and converted.
         AllocationProbe.AssertNoneAllocated(await MinimumOfValidPassesAsync(() => MeasureDisplayPassAsync(switchSizes: false, hardware: true)));
     }
 
@@ -206,7 +207,7 @@ public sealed class FFmpegCameraFeedAllocationTests
         CameraStreamDemand demand = new(frames: true, packets: false) { DisplaySize = large };
         demand.CancelFullResolution();
         await using FFmpegCameraFeed feed = hardware
-            ? (FFmpegCameraFeed)new FFmpegCameraFeedFactory { HardwareDecoding = CameraHardwareDecoding.Automatic }.Create(TestFixtures.Buddy3D)
+            ? (FFmpegCameraFeed)new FFmpegCameraFeedFactory { HardwareDecoding = CameraHardwareDecoding.Automatic, Hardware = { AutomaticDevice = HardwareDecodingTestEnvironment.Device } }.Create(TestFixtures.Buddy3D)
             : TestFixtures.CreateFeed(TestFixtures.Buddy3D);
         IAsyncEnumerator<CameraStreamItem> items = feed.ReadAsync(demand, ct).GetAsyncEnumerator(ct);
         try
@@ -233,7 +234,7 @@ public sealed class FFmpegCameraFeedAllocationTests
             }
 
             long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
-            Assert.True(!hardware || feed.MappedFrames >= WarmUpFrames + MeasuredFrames, "The frames came from the hardware decoder.");
+            Assert.True(!hardware || HardwareDecodingDeviceTests.ConvertedInHardware(feed) >= WarmUpFrames + MeasuredFrames, "The frames came from the hardware decoder.");
             return ThreadPool.ThreadCount == threads ? allocated : null;
         }
         finally

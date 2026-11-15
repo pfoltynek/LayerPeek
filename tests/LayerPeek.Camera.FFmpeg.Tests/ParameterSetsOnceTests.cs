@@ -96,7 +96,7 @@ public sealed class ParameterSetsOnceTests
 
         Assert.Equal(TestFixtures.Buddy3DFrameCount, frames);
         Assert.Equal(
-            ["Camera video decoding: videotoolbox.", "Camera video decoding: software (turned off in the settings)."],
+            [$"Camera video decoding: {HardwareDecodingTestEnvironment.DeviceName}.", "Camera video decoding: software (turned off in the settings)."],
             log.At(LogLevel.Information));
     }
 
@@ -110,9 +110,9 @@ public sealed class ParameterSetsOnceTests
         int frames = await ReadSwitchingAsync(feed, () => factory.HardwareDecoding = CameraHardwareDecoding.Automatic);
 
         Assert.Equal(TestFixtures.Buddy3DFrameCount, frames);
-        Assert.Equal(TestFixtures.Buddy3DFrameCount - SecondKeyFrame, feed.MappedFrames);
+        Assert.Equal(TestFixtures.Buddy3DFrameCount - SecondKeyFrame, HardwareDecodingDeviceTests.ConvertedInHardware(feed));
         Assert.Equal(
-            ["Camera video decoding: software (turned off in the settings).", "Camera video decoding: videotoolbox."],
+            ["Camera video decoding: software (turned off in the settings).", $"Camera video decoding: {HardwareDecodingTestEnvironment.DeviceName}."],
             log.At(LogLevel.Information));
         Assert.Empty(log.At(LogLevel.Warning));
     }

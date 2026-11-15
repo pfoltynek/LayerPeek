@@ -8,7 +8,8 @@ namespace LayerPeek.Camera.FFmpeg;
 /// The one place that decides which hardware decoder "hardware decoding" means (T-203, user decisions 2026-11-12, T-192
 /// questions 2–4): <see cref="CameraHardwareDecoding.Off"/> is always software; <see cref="CameraHardwareDecoding.Automatic"/>
 /// is VideoToolbox on macOS and software on Windows until the measurement of T-125 and a decision of the user change it
-/// (then only this rule changes, the saved setting stays). Other device types (NVDEC, QSV, AMF, Vulkan) are never used.
+/// (then only this rule changes, the saved setting stays; T-206 made D3D11VA ready behind the Debug test switch). Other
+/// device types (DXVA2, D3D12VA, NVDEC, QSV, AMF, Vulkan) are never used.
 /// </summary>
 internal static class HardwareDecoderSelection
 {
@@ -23,6 +24,16 @@ internal static class HardwareDecoderSelection
         CameraHardwareDecoding.Automatic => isMacOS ? AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX : AVHWDeviceType.AV_HWDEVICE_TYPE_NONE,
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown hardware decoding setting."),
     };
+
+    /// <summary>
+    /// Whether the frames of <paramref name="device"/> are mapped into memory (<c>av_hwframe_map</c>, no copy) or copied
+    /// (<c>av_hwframe_transfer_data</c>) for a conversion (T-203, T-206). VideoToolbox maps (memory shared with the
+    /// hardware decoder). D3D11VA copies: FFmpeg's hwcontext d3d11va cannot map the decoder's textures (they are bound
+    /// for decoding only, the CPU cannot read them; it has no <c>map_from</c>), so <c>av_hwframe_map</c> always fails
+    /// with ENOSYS. Every way to the pixels goes through FFmpeg's staging texture, and the copy into a reused frame is the
+    /// shortest one. A test (<c>HardwareDecodingD3D11VATests</c>) fails once a newer FFmpeg can map them.
+    /// </summary>
+    public static bool MapsFrames(AVHWDeviceType device) => device != AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA;
 
     /// <summary>
     /// The device of a value of the Debug test switch <c>LAYERPEEK_TEST_HW_DECODER</c> (T-205, T-125: <c>off</c>,

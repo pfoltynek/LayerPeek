@@ -366,7 +366,8 @@ T-195 50–58 % instrukcí aplikace s otevřeným oknem kamery a 67–69 % u mal
 NV12 dál přes `BgraConverter` / `GrayscaleConverter`) ušetří 45–63 % instrukcí včetně systémového procesu
 `VTDecoderXPCService`. Čísla, rizika a doporučení jsou v [hw-decoding.md](hw-decoding.md).
 
-**Stav (T-203, 2026-11-12): macOS dekóduje okno kamery přes VideoToolbox, Windows zatím softwarově.**
+**Stav (T-203, 2026-11-12; T-206, 2026-11-15): macOS dekóduje okno kamery přes VideoToolbox, Windows zatím softwarově
+(D3D11VA hotové za vývojovým přepínačem, výchozí stav rozhodne uživatel po měření v T-125).**
 
 - **Core** zná jen neutrální volbu `AppSettings.CameraHardwareDecoding` (`Core/Cameras/CameraHardwareDecoding`:
   `Automatic` výchozí / `Off`, jedna pro všechny kamery). V `settings.json` je `"cameraHardwareDecoding": "Off"`, výchozí
@@ -403,7 +404,8 @@ NV12 dál přes `BgraConverter` / `GrayscaleConverter`) ušetří 45–63 % inst
 - **Log:** při startu (a přepnutí) plného dekódování jeden řádek `Information` „Camera video decoding: videotoolbox“ nebo
   „… software (důvod)“, při návratu k softwaru `Warning`; nikdy na snímek, nikdy s adresou kamery.
 - **Build:** macOS `build/macos/build-ffmpeg.sh` + `--enable-videotoolbox --enable-hwaccel=h264_videotoolbox` (LGPL 3
-  zůstává, systémové frameworky z `/System/Library`). Windows: vlastní build T-202 s `h264_d3d11va` (T-206).
+  zůstává, systémové frameworky z `/System/Library`). Windows: vlastní build T-202 s `h264_d3d11va` a `h264_d3d11va2`
+  (`--enable-d3d11va`, jen hlavičky MinGW-w64 a DLL Windows, LGPL 3 zůstává).
 - **Bezpečnost (doplněk T-050):** data řezů z nedůvěryhodné kamery zpracuje při hardwarovém dekódování i systémový
   dekodér a ovladač GPU (macOS `VTDecoderXPCService` a AppleAVD, Windows ovladač D3D11VA). Uživatel to 2026-11-12
   přijal, pojistkou je volba „Vypnuto“. Whitelisty T-050 platí beze změny. Paměť +10–25 MB na stream.
@@ -418,7 +420,22 @@ NV12 dál přes `BgraConverter` / `GrayscaleConverter`) ušetří 45–63 % inst
   která je pošle jen na začátku spojení, tak po přepnutí, po návratu k softwaru i u klíčových snímků detekce po hardwarové
   relaci obraz neztratí. U Buddy3D (`sprop-parameter-sets`) se nic nemění. Tabulky v
   [hw-decoding.md](hw-decoding.md), oddíl „Výsledky implementace (T-205)“; uspání a probuzení a pohled na okno → T-127.
-- Dál: D3D11VA na Windows (T-206).
+- **Windows – D3D11VA (T-206, 2026-11-15):** připravené za vývojovým přepínačem `LAYERPEEK_TEST_HW_DECODER=d3d11va`
+  (Debug, testovací režim); `Automatic` i `Off` na Windows dál dekódují softwarově, dokud T-125 nezměří a uživatel
+  nerozhodne (pak se změní jen `HardwareDecoderSelection`). Zařízení na výchozím adaptéru (`av_hwdevice_ctx_create` bez
+  názvu), formát `AV_PIX_FMT_D3D11` (hwaccel `h264_d3d11va2`). FFmpeg textury dekodéru D3D11 neumí namapovat
+  (`hwcontext_d3d11va` nemá `map_from`, `av_hwframe_map` vždy vrátí ENOSYS), proto `HardwareDecoderSelection.MapsFrames`
+  říká, že se snímky D3D11VA rovnou kopírují (`av_hwframe_transfer_data` přes staging texturu FFmpeg), bez zbytečného
+  pokusu o mapování a řádku v logu. Kopie jde do jednoho opakovaně použitého `AVFrame` (NV12) na relaci, alokovaného při
+  první kopii a uvolněného s relací – bez nativní alokace obrazu na snímek (platí i pro kopii VideoToolboxu po selhání
+  mapování; ta si ve FFmpeg na snímek dál alokuje jen malý pomocný snímek mapování). Ztráta zařízení (restart ovladače, `Win+Ctrl+Shift+B`, přepnutí GPU) se v FFmpeg projeví hlavně selháním
+  mapování staging textury při kopii (DXGI_ERROR_DEVICE_REMOVED → `AVERROR_UNKNOWN`), chyby `end_frame` hwaccel dekodér
+  H.264 bez `AV_EF_EXPLODE` jen zapíše; obojí vede na obecný návrat k softwaru výše. VM bez GPU (Microsoft Basic Render
+  Driver), **očekávané podle zdrojů FFmpeg, neověřené** (→ T-125, 2ah): zařízení vznikne, hwaccel se neinicializuje,
+  FFmpeg zvolí softwarový formát → selhání „starting“ a software. Testy s `[HardwareDecodingFact]` běží na Windows
+  s D3D11VA (sonda dekóduje první klíčový snímek fixture do textury D3D11), jinak se mají přeskočit (bez GPU neověřeno).
+  Měření a rozhodnutí o výchozím stavu: [hw-decoding.md](hw-decoding.md), oddíl
+  „Windows – měření pro přepnutí výchozího stavu“, a T-125 (2ah).
 
 ## Logování
 

@@ -8,17 +8,27 @@ using static LayerPeek.Camera.FFmpeg.Tests.HardwareDecodingFallbackTests;
 namespace LayerPeek.Camera.FFmpeg.Tests;
 
 /// <summary>
-/// T-203 with VideoToolbox (macOS): the camera window's frames come from the hardware decoder, mapped without a copy and
-/// only when converted; failures fall back to software for the rest of the connection; the rule against switching back
-/// and forth; a changed setting applies at the next key frame; the device lives only during full decoding. Fixture:
-/// <see cref="TestFixtures.Buddy3D"/> (<see cref="TestFixtures.Buddy3DKeyFrameCount"/> key frames, the first one first).
+/// T-203 / T-206 with the hardware decoder of this OS (<see cref="HardwareDecodingTestEnvironment.Device"/>: VideoToolbox on
+/// macOS, D3D11VA on Windows, where "Automatic" means it here as if the rule chose it): the camera window's frames come
+/// from the hardware decoder and are mapped (VideoToolbox) or copied (D3D11VA) only when converted; failures fall back to
+/// software for the rest of the connection; the rule against switching back and forth; a changed setting applies at the
+/// next key frame; the device lives only during full decoding. Fixture: <see cref="TestFixtures.Buddy3D"/>
+/// (<see cref="TestFixtures.Buddy3DKeyFrameCount"/> key frames, the first one first). D3D11VA only:
+/// <see cref="HardwareDecodingD3D11VATests"/>.
 /// </summary>
-public sealed class HardwareDecodingVideoToolboxTests
+public sealed class HardwareDecodingDeviceTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    private static string DeviceName => HardwareDecodingTestEnvironment.DeviceName;
+
+    private static bool MapsFrames => HardwareDecodingTestEnvironment.MapsFrames;
+
+    /// <summary>Hardware frames brought into memory for a conversion: mapped (VideoToolbox) or copied (D3D11VA).</summary>
+    internal static long ConvertedInHardware(FFmpegCameraFeed feed) => feed.MappedFrames + feed.TransferredFrames;
+
     [HardwareDecodingFact]
-    public async Task TheCameraWindowDecodesInHardwareAndMapsEveryConvertedFrame()
+    public async Task TheCameraWindowDecodesInHardwareAndMapsOrCopiesEveryConvertedFrame()
     {
         (FFmpegCameraFeedFactory factory, ListLogger log) = CreateFactory(CameraHardwareDecoding.Automatic);
         await using FFmpegCameraFeed feed = (FFmpegCameraFeed)factory.Create(TestFixtures.Buddy3D);
@@ -33,15 +43,16 @@ public sealed class HardwareDecodingVideoToolboxTests
                 heldDevice &= feed.HoldsHardwareDevice;
                 Assert.Equal((640, 360), (item.DisplayFrame.Width, item.DisplayFrame.Height));
                 Assert.InRange(MeanGreen(item.DisplayFrame), 20, 235);
-                Assert.Equal(frames, feed.MappedFrames);
+                Assert.Equal(frames, ConvertedInHardware(feed));
             }
         }
 
         Assert.Equal(TestFixtures.Buddy3DFrameCount, frames);
         Assert.True(heldDevice);
-        Assert.Equal(0, feed.TransferredFrames);
+        Assert.Equal(MapsFrames ? TestFixtures.Buddy3DFrameCount : 0, feed.MappedFrames);
+        Assert.Equal(MapsFrames ? 0 : TestFixtures.Buddy3DFrameCount, feed.TransferredFrames);
         Assert.Equal(1, factory.Hardware.DevicesCreated);
-        Assert.Equal(["Camera video decoding: videotoolbox."], log.At(LogLevel.Information));
+        Assert.Equal([$"Camera video decoding: {DeviceName}."], log.At(LogLevel.Information));
         Assert.Empty(log.At(LogLevel.Warning));
         // Released with the end of the stream.
         Assert.False(feed.HoldsHardwareDevice);
@@ -50,7 +61,7 @@ public sealed class HardwareDecodingVideoToolboxTests
     [HardwareDecodingFact]
     public async Task HardwareFramesLookLikeSoftwareFrames()
     {
-        // The same frames of both paths in full resolution: NV12 from VideoToolbox through the same swscale conversion.
+        // The same frames of both paths in full resolution: NV12 from the hardware through the same swscale conversion.
         (FFmpegCameraFeedFactory hardware, _) = CreateFactory(CameraHardwareDecoding.Automatic);
         (FFmpegCameraFeedFactory software, _) = CreateFactory(CameraHardwareDecoding.Off);
         await using FFmpegCameraFeed hardwareFeed = (FFmpegCameraFeed)hardware.Create(TestFixtures.Buddy3D);
@@ -68,7 +79,7 @@ public sealed class HardwareDecodingVideoToolboxTests
                 Assert.InRange(MeanAbsoluteDifference(a, b), 0, 2.0);
             }
 
-            Assert.True(hardwareFeed.MappedFrames > 0);
+            Assert.True(ConvertedInHardware(hardwareFeed) > 0);
         }
         finally
         {
@@ -78,9 +89,9 @@ public sealed class HardwareDecodingVideoToolboxTests
     }
 
     [HardwareDecodingFact]
-    public async Task OnlyFramesThatAreDueAreMapped()
+    public async Task OnlyFramesThatAreDueAreMappedOrCopied()
     {
-        // T-185: the mini preview takes a few frames per second; the others are decoded in hardware but never mapped.
+        // T-185: the mini preview takes a few frames per second; the others are decoded in hardware but never mapped or copied.
         ManualClock clock = new();
         CameraStreamDemand demand = new(frames: true, packets: false, clock) { DisplaySize = new CameraFrameSize(640, 360) };
         demand.CancelFullResolution();
@@ -106,7 +117,7 @@ public sealed class HardwareDecodingVideoToolboxTests
         Assert.Equal(TestFixtures.Buddy3DFrameCount, feed.DecodedFrames);
         // The first frame and every tenth after it.
         Assert.Equal(1 + ((TestFixtures.Buddy3DFrameCount - 1) / 10), converted);
-        Assert.Equal(converted, feed.MappedFrames);
+        Assert.Equal(converted, ConvertedInHardware(feed));
     }
 
     [HardwareDecodingFact]
@@ -120,8 +131,77 @@ public sealed class HardwareDecodingVideoToolboxTests
 
         Assert.Equal(0, feed.MappedFrames);
         Assert.Equal(TestFixtures.Buddy3DFrameCount, feed.TransferredFrames);
-        Assert.Single(log.At(LogLevel.Information), static line => line.StartsWith("Mapping hardware video frames (videotoolbox) failed", StringComparison.Ordinal));
+        // VideoToolbox tried once and says so; D3D11VA never maps (T-206), so there is nothing to fail.
+        Assert.Equal(
+            MapsFrames ? 1 : 0,
+            log.At(LogLevel.Information).Count(static line => line.StartsWith($"Mapping hardware video frames ({DeviceName}) failed", StringComparison.Ordinal)));
         Assert.Empty(log.At(LogLevel.Warning));
+        // All copies of the session go into one buffer (T-206).
+        Assert.Equal(1, feed.CopyBuffersAllocated);
+    }
+
+    [HardwareDecodingFact]
+    public async Task ACopyBufferIsAllocatedAgainOnlyWhenThePictureSizeChanges()
+    {
+        // T-206: the stream changes its resolution mid-session (the Buddy3D fixture at 1280 × 720, then I_PCM key frames
+        // at 320 × 180 with their own SPS): the session's copy buffer is replaced once and reused again afterwards.
+        const int SmallWidth = 320;
+        const int SmallHeight = 180;
+        const int SmallFrames = 6;
+        string directory = TestDirectories.CreateDirectory();
+        try
+        {
+            string path = Path.Combine(directory, "two-sizes.h264");
+            byte[][] small = [.. Enumerable.Range(0, SmallFrames).Select(static i => Gradient(SmallWidth, SmallHeight, i))];
+            await File.WriteAllBytesAsync(path, [.. await File.ReadAllBytesAsync(TestFixtures.Buddy3D.LocalPath, Ct), .. PcmH264Writer.Encode(small, SmallWidth, SmallHeight)], Ct);
+            (FFmpegCameraFeedFactory factory, ListLogger log) = CreateFactory(CameraHardwareDecoding.Automatic);
+            // Copy mode on both devices (VideoToolbox would map otherwise).
+            factory.Hardware.Faults = new HardwareDecodingFaults { FailMapping = true };
+            await using FFmpegCameraFeed feed = (FFmpegCameraFeed)factory.Create(new Uri(path));
+            List<(int Width, int Height)> sizes = [];
+
+            await foreach (CameraStreamItem item in feed.ReadAsync(Window(), Ct))
+            {
+                if (item.Kind == CameraStreamItemKind.Frame)
+                {
+                    // The small picture fits the window and is converted in full resolution (T-195).
+                    CameraFrame frame = item.DisplayFrame.Width > 0 ? item.DisplayFrame : item.Frame;
+                    sizes.Add((frame.Width, frame.Height));
+                }
+            }
+
+            Assert.Equal(TestFixtures.Buddy3DFrameCount + SmallFrames, sizes.Count);
+            Assert.Equal((SmallWidth, SmallHeight), sizes[^1]);
+            Assert.Equal(sizes.Count, feed.TransferredFrames);
+            Assert.Equal(2, feed.CopyBuffersAllocated);
+            Assert.Equal(1, factory.Hardware.DevicesCreated);
+            Assert.Empty(log.At(LogLevel.Warning));
+        }
+        finally
+        {
+            TestDirectories.Delete(directory);
+        }
+    }
+
+    [HardwareDecodingFact]
+    public async Task ADeviceLostWhileCopyingContinuesInSoftwareFromTheNextKeyFrame()
+    {
+        // T-206: a lost D3D11 device (driver restart, Win+Ctrl+Shift+B, a GPU switch) shows when its staging texture is
+        // mapped for a copy; the camera window goes on in software without an error of the feed.
+        (FFmpegCameraFeedFactory factory, ListLogger log) = CreateFactory(CameraHardwareDecoding.Automatic);
+        factory.Hardware.Faults = new HardwareDecodingFaults { FailMapping = true, FailCopyAfterFrames = 3 };
+        await using FFmpegCameraFeed feed = (FFmpegCameraFeed)factory.Create(TestFixtures.Buddy3D);
+
+        int frames = await ReadDisplayFramesAsync(feed, Window());
+
+        // Three copies from the hardware, the frame of the failed copy and those until the next key frame are lost.
+        Assert.InRange(frames, 4, TestFixtures.Buddy3DFrameCount - 2);
+        Assert.Equal(3, feed.TransferredFrames);
+        Assert.False(feed.HoldsHardwareDevice);
+        Assert.Equal(1, factory.Hardware.DevicesCreated);
+        string warning = Assert.Single(log.At(LogLevel.Warning));
+        Assert.Contains($"Hardware video decoding ({DeviceName}) failed while copying a frame", warning, StringComparison.Ordinal);
+        Assert.Contains("Camera video decoding: software (hardware decoding failed on this connection).", log.At(LogLevel.Information));
     }
 
     [HardwareDecodingFact]
@@ -145,13 +225,13 @@ public sealed class HardwareDecodingVideoToolboxTests
 
         Assert.True(releasedAfterTheFailure);
         Assert.InRange(frames, 4, TestFixtures.Buddy3DFrameCount - 2);
-        Assert.Equal(3, feed.MappedFrames);
+        Assert.Equal(3, ConvertedInHardware(feed));
         // The connection never tried the hardware again.
         Assert.Equal(1, factory.Hardware.DevicesCreated);
         string warning = Assert.Single(log.At(LogLevel.Warning));
-        Assert.Contains("Hardware video decoding (videotoolbox) failed while decoding", warning, StringComparison.Ordinal);
+        Assert.Contains($"Hardware video decoding ({DeviceName}) failed while decoding", warning, StringComparison.Ordinal);
         Assert.Equal(
-            ["Camera video decoding: videotoolbox.", "Camera video decoding: software (hardware decoding failed on this connection)."],
+            [$"Camera video decoding: {DeviceName}.", "Camera video decoding: software (hardware decoding failed on this connection)."],
             log.At(LogLevel.Information));
         Assert.Equal(1, feed.HardwareHistory.FailuresIn(factory.Hardware.Current.Generation));
     }
@@ -250,7 +330,7 @@ public sealed class HardwareDecodingVideoToolboxTests
                 {
                     // "Off" saved in the settings while the window shows the camera.
                     factory.HardwareDecoding = CameraHardwareDecoding.Off;
-                    mappedWhenChanged = feed.MappedFrames;
+                    mappedWhenChanged = ConvertedInHardware(feed);
                     Assert.True(feed.HoldsHardwareDevice);
                 }
             }
@@ -258,9 +338,9 @@ public sealed class HardwareDecodingVideoToolboxTests
 
         // The switch waits for the next key frame and loses nothing.
         Assert.Equal(TestFixtures.Buddy3DFrameCount, frames);
-        Assert.InRange(feed.MappedFrames, mappedWhenChanged + 1, TestFixtures.Buddy3DFrameCount - 1);
+        Assert.InRange(ConvertedInHardware(feed), mappedWhenChanged + 1, TestFixtures.Buddy3DFrameCount - 1);
         Assert.Equal(
-            ["Camera video decoding: videotoolbox.", "Camera video decoding: software (turned off in the settings)."],
+            [$"Camera video decoding: {DeviceName}.", "Camera video decoding: software (turned off in the settings)."],
             log.At(LogLevel.Information));
         Assert.Empty(log.At(LogLevel.Warning));
     }
@@ -299,7 +379,7 @@ public sealed class HardwareDecodingVideoToolboxTests
 
         Assert.Equal(TestFixtures.Buddy3DFrameCount, frames);
         Assert.Equal(
-            ["Camera video decoding: videotoolbox.", "Camera video decoding: software (turned off in the settings)."],
+            [$"Camera video decoding: {DeviceName}.", "Camera video decoding: software (turned off in the settings)."],
             log.At(LogLevel.Information));
     }
 
@@ -346,9 +426,9 @@ public sealed class HardwareDecodingVideoToolboxTests
         }
 
         Assert.Equal(TestFixtures.Buddy3DFrameCount, frames);
-        Assert.InRange(feed.MappedFrames, 1, TestFixtures.Buddy3DFrameCount - 5);
+        Assert.InRange(ConvertedInHardware(feed), 1, TestFixtures.Buddy3DFrameCount - 5);
         Assert.Equal(
-            ["Camera video decoding: software (no camera window).", "Camera video decoding: videotoolbox."],
+            ["Camera video decoding: software (no camera window).", $"Camera video decoding: {DeviceName}."],
             log.At(LogLevel.Information));
     }
 
@@ -369,6 +449,18 @@ public sealed class HardwareDecodingVideoToolboxTests
         }
 
         throw new InvalidOperationException("The stream ended.");
+    }
+
+    /// <summary>A horizontal luma gradient shifted by <paramref name="shift"/>.</summary>
+    private static byte[] Gradient(int width, int height, int shift)
+    {
+        byte[] luma = new byte[width * height];
+        for (int i = 0; i < luma.Length; i++)
+        {
+            luma[i] = (byte)(16 + (((i % width) + (shift * 8)) % 220));
+        }
+
+        return luma;
     }
 
     private static double MeanGreen(CameraFrame frame)
