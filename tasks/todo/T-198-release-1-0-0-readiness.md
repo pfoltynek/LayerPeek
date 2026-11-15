@@ -173,6 +173,7 @@ GitHubu ji pak ověří `-DryRun` a samotný upload 1.0.0, kde `release-publish.
 - [x] Produkční klíč vytvořený, záloha ověřená, veřejný klíč v `UpdateFeedKeys.Production` (2026-11-11, T-181).
 - [ ] Generálka B4 na **obou** počítačích: médium s klíčem se musí dostat i k počítači s Windows. Na Windows ověřit
       písmeno jednotky (`-FeedSigningKey E:\layerpeek-feed-key.pem`) a to, že čtečka/USB funguje.
+      Windows hotovo 2026-11-15: médium LP-KEY-2 (záloha) připojené jako `I:` (`-FeedSigningKey I:\layerpeek-feed-key.pem`), USB funguje; zbývá Mac.
 - [ ] Heslo klíče je dostupné ve správci hesel, ne u média. Při vydání se zadává **4×** (2× na každém OS).
 - [x] Rozhodnout tok obou OS (otázka 4). S neměnnými vydáními nejde `-AllowIncomplete` + `-AddToPublished`.
       → rozhodnuto 2026-11-11: neměnná vydání před 1.0.0, oba OS do konceptu, pak zveřejnit (`docs/release.md`,
@@ -465,6 +466,15 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     provedeno; T-059 řádek po přijetí balíčku přepíše.
 
 ## Poznámky k implementaci
+- 2026-11-15 (Windows, hlavní agent): **generálka B4 na Windows prošla.** Worktree `D:\00-Source\LP-B4`, místní
+  větev z `develop` 6b440115 s `<Version>1.0.0</Version>` a sekcí `## [1.0.0] - 2026-11-15` (commit 70352878, nikdy
+  nepushnuto), LayerPeek ukončený, `release-build.ps1 -FeedSigningKey I:\layerpeek-feed-key.pem` (médium LP-KEY-2):
+  6 min, klíč přijat (otisk `4cb047d1…7b91e26`, `UpdateFeedKeys.Production`), celé `dotnet test` (Release) zelené,
+  AOT smoke test win-x64 PASS (win-arm64 nespustitelný na x64), `releases.win-x64.json.sig` a
+  `releases.win-arm64.json.sig` ověřené, `build-info.json` `FeedSignature.Status` = `signed`. Heslo není v logu ani v
+  `artifacts/`. Pozor: build s `-SkipFeedSignature` nejde dodatečně podepsat (`-SignOnly` vyžaduje tag a nepodepsaný
+  build odmítne) – v den vydání vždy rovnou s klíčem. Zbývá B4 na Macu. Heslo ke klíči bylo 2026-11-15 napsané do
+  konverzace s agentem → doporučena změna hesla na obou médiích (otisk se nemění).
 - 2026-11-15 (Windows, hlavní agent, T-125 2aa): identita v gitu na Windows ověřena – v klonu `user.email` =
   `12541813+pfoltynek@users.noreply.github.com`, globálně `user.name` = Petr Foltýnek a `user.useConfigOnly` = `true`;
   commit c23597c8 má autora i committera s adresou noreply. 46 dříve pushnutých commitů z Windows (2026-11-12 až
