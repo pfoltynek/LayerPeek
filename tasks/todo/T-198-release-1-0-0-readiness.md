@@ -462,6 +462,10 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     provedeno; T-059 řádek po přijetí balíčku přepíše.
 
 ## Poznámky k implementaci
+- 2026-11-15 (Windows, hlavní agent, T-125 2aa): identita v gitu na Windows ověřena – v klonu `user.email` =
+  `12541813+pfoltynek@users.noreply.github.com`, globálně `user.name` = Petr Foltýnek a `user.useConfigOnly` = `true`;
+  commit c23597c8 má autora i committera s adresou noreply. 46 dříve pushnutých commitů z Windows (2026-11-12 až
+  2026-11-15 15:03) má ještě `pfoltynek@outlook.cz`; historie `develop` se nepřepisuje.
 Analýza 2026-11-11 (architekt, Mac, větev `feature/T-198-release-1-0-0-readiness`):
 - Sken historie: `git log --all -p --text` (931 commitů) přes vlastní skript v Pythonu ve scratchpadu (vzory:
   hlavičky PEM, tokeny GitHub/AWS/Slack/Google/Anthropic/OpenAI, JWT, přiřazení `password/token/api key/secret`,
