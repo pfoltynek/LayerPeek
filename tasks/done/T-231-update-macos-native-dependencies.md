@@ -1,11 +1,11 @@
 ---
 id: T-231
 title: macOS – aktualizace nativních závislostí a nástrojů (FFmpeg ze zdrojů, Xcode, runner CI)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: macos
-depends_on: [T-233]
+depends_on: []
 ---
 
 ## Cíl
@@ -26,18 +26,16 @@ a nástroje, které používá jen macOS; spravované balíčky řeší T-230, W
 
 ## Akceptační kritéria
 - [x] FFmpeg na nejnovějším vydání zvolené řady (nebo zdůvodněno, proč beze změny); cache, licence, zdroj k vydání OK
-- [ ] Testy kamery a `dotnet test` bez chyb; AOT publish osx-arm64 bez varování; `mac.release-bundle` (T-217) PASS
-  (testy kamery, AOT publish OK; `dotnet test` a tím i `release-build.ps1` blokuje T-233, viz poznámky)
+- [x] Testy kamery a `dotnet test` bez chyb; AOT publish osx-arm64 bez varování; `mac.release-bundle` (T-217) PASS
 - [x] Swift nástroje se přeloží bez varování na aktuálním Xcode
 - [x] `docs/prerequisites.md` odpovídá
 
 ## Otevřené otázky
 1. Přechod na novou **hlavní** verzi FFmpeg (pokud vyjde) – jen po rozhodnutí uživatele (dopad na API, Windows build
-   T-202 musí jít stejnou verzí).
+   T-202 musí jít stejnou verzí). – K 2026-11-15 nová hlavní verze nevyšla, rozhodnutí zatím netřeba.
 
 ## Poznámky k implementaci
-Stav 2026-11-15 (macOS 27.2.1, Command Line Tools 27.2, Swift 6.4.2): **úkol zůstává v `in-progress`**, protože
-`mac.release-bundle` nejde spustit, dokud neprojde T-233 (viz níže). Ostatní je hotové.
+Ověřeno 2026-11-15 na macOS 27.2.1, Command Line Tools 27.2, Swift 6.4.2.
 
 - **FFmpeg beze změny:** https://ffmpeg.org/releases/ i tagy oficiálního gitu (`git ls-remote --tags
   https://git.ffmpeg.org/ffmpeg.git`) končí na `9.0.2` / `n9.0.2`; novější oprava řady 9.0 ani nová hlavní verze
@@ -59,13 +57,14 @@ Stav 2026-11-15 (macOS 27.2.1, Command Line Tools 27.2, Swift 6.4.2): **úkol z�
   (Release)“.
 - **Ověření:** `dotnet build` 0 varování; `dotnet test` (Debug, před sloučením `develop`) 0 chyb (testy kamery 208
   OK, i hardwarové dekódování); `dotnet publish src/LayerPeek.App -c Release -r osx-arm64` bez varování IL / trim / AOT
-  (jen známé hlášky `dsymutil` / `xcodebuild` jako v T-229). Po sloučení `develop` (T-211, T-230) padá v
-  `release-build.ps1` (krok `dotnet test (Release)`) jediný test `ProxyOriginGuardTests.ClassicFormPostOfTheProxied
-  PageReachesThePrinter` – stále i samostatně, v Debug i Release, s Edge 157.0.4341.60 (při prvním běhu prošel, Edge
-  se mezitím zřejmě aktualizoval). To je **T-233**; `release-build.ps1` nemá přepínač bez testů a test oslabovat
-  nesmím, proto `mac.release-bundle` čeká na T-233. Profil LayerPeek: `tools/profile-snapshot.ps1 -Compare` „No
-  change“ (Login Items nečitelné – `sfltool dumpbtm` čekal na heslo správce, proces jsem ukončil).
-- Dokončení: po T-233 spustit `caffeinate -d -u -i pwsh scripts/release-build.ps1 -SkipFeedSignature` a
-  `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Only mac.release-bundle,mac.profile-unchanged`,
-  odškrtnout krit. 2 a přesunout do `done/`.
+  (jen známé hlášky `dsymutil` / `xcodebuild` jako v T-229).
+- **Vydání (po T-233, `develop` 3bdc359a):** `caffeinate -d -u -i pwsh scripts/release-build.ps1 -SkipFeedSignature`
+  (0.5.0): `dotnet test (Release)` 10 412 OK / 0 chyb, smoke obou testů PASS. Pak `caffeinate -d -u -i pwsh
+  tools/macos-verify.ps1 -Unattended -Only mac.release-bundle,mac.profile-unchanged`: oba `PASS`
+  (`artifacts/verify/20261115-113744/`). První pokus selhal jen v
+  `FFmpegCameraFeedAllocationTests.SteadyStateFramesThroughTheHubDoNotAllocate` (19 872 B místo 0) při souběžném
+  `dotnet test` agenta T-212; samostatně 3× třída a 1× celý projekt v Release OK, opakované vydání po skončení
+  souběžného běhu prošlo celé. Dočasně padal i E2E test z T-233 (Edge 157) – opraveno v T-233.
+- **Profil LayerPeek:** `tools/profile-snapshot.ps1 -Save` před a `-Compare` po vydání a kontrole: „No change“
+  (Login Items nečitelné – `sfltool dumpbtm` čeká na heslo správce, proces jsem po chvíli ukončil).
 - Žádná nová závislost.
