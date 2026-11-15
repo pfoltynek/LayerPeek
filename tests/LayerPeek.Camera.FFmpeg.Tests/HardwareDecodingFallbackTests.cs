@@ -16,7 +16,8 @@ public sealed class HardwareDecodingFallbackTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     /// <summary>The device the build of this OS has for H.264 (macOS: VideoToolbox, Windows: D3D11VA, T-206).</summary>
-    private static AVHWDeviceType DeviceOfThisOs => OperatingSystem.IsWindows() ? AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA : AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX;
+    private static AVHWDeviceType DeviceOfThisOs =>
+        HardwareDecodingTestEnvironment.Device is AVHWDeviceType.AV_HWDEVICE_TYPE_NONE ? AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX : HardwareDecodingTestEnvironment.Device;
 
     internal static CameraStreamDemand Window(int width = 640, int height = 360)
     {
@@ -25,10 +26,16 @@ public sealed class HardwareDecodingFallbackTests
         return demand;
     }
 
+    /// <summary>
+    /// A factory with the setting <paramref name="mode"/> where <see cref="CameraHardwareDecoding.Automatic"/> means the
+    /// hardware decoder of this OS (<see cref="HardwareDecodingTestEnvironment.Device"/>: on macOS the rule anyway, on
+    /// Windows D3D11VA as if T-125 had switched the rule, T-206), or with the forced <paramref name="device"/>.
+    /// </summary>
     internal static (FFmpegCameraFeedFactory Factory, ListLogger Log) CreateFactory(CameraHardwareDecoding mode, AVHWDeviceType? device = null)
     {
         ListLogger log = new();
         FFmpegCameraFeedFactory factory = new(FFmpegCameraFeedFactory.DefaultIOTimeout, log) { HardwareDecoding = mode };
+        factory.Hardware.AutomaticDevice = HardwareDecodingTestEnvironment.Device;
         if (device is { } forced)
         {
             factory.Hardware.SetOverride(forced);

@@ -18,6 +18,12 @@
 > bez nového entitlementu. Instrukce aplikace + `VTDecoderXPCService` klesnou o 50–67 %, doba CPU nevzroste, paměť
 > +13 / +22 MB na stream (720p / 1080p), obraz bit po bitu stejný jako ze softwaru, zpoždění paket → snímek nejvýš
 > +1,4 ms. Podrobně oddíl „Výsledky implementace (T-205)“ na konci.
+>
+> **Windows – D3D11VA (T-206, 2026-11-15):** hotové za vývojovým přepínačem `LAYERPEEK_TEST_HW_DECODER=d3d11va` (Debug),
+> `Automatic` na Windows dál software. Snímky D3D11 FFmpeg 9.0 namapovat neumí, kopírují se do jednoho opakovaně
+> použitého snímku. Orientační měření na vývojovém PC (Ryzen 7 3800X, RTX 4060, jen dekodér bez okna aplikace): v okně
+> kamery 720p **2,6× víc cyklů** než software, v malém náhledu +8 až +18 %, paměť procesu +~100 MB – na tomto počítači
+> se D3D11VA nevyplatí. Podrobně oddíl „Výsledky implementace (T-206)“ na konci, plné měření T-125 (2ah).
 
 Stav 2026-11-11 (architekt, Mac mini M2 Pro, 10 jader, macOS 27.2, .NET SDK 11.0.100, Debug JIT). Rozhodnutí uživatele
 2026-11-11: **„ano, zkoumat – nejdřív měřit“**. Prototypy běžely jen mimo repozitář: benchmark v C a dočasná sonda
@@ -275,7 +281,7 @@ Priorita P2, není to bloker vydání 1.0.0 (výchozí software je dnešní stav
 
 ### Windows – měření pro přepnutí výchozího stavu
 
-Body přidá do T-125 úkol T-206 po svém dokončení. Měří se D3D11VA (`LAYERPEEK_TEST_HW_DECODER=d3d11va`, Debug) proti
+Body jsou v T-125, oddíl 2ah (z T-206). Měří se D3D11VA (`LAYERPEEK_TEST_HW_DECODER=d3d11va`, Debug) proti
 „Vypnuto“:
 
 - **Metriky:** cykly procesu (`QueryProcessCycleTime`; Windows nemá snadno dostupné instrukce procesu, uživatelská část
@@ -284,7 +290,15 @@ Body přidá do T-125 úkol T-206 po svém dokončení. Měří se D3D11VA (`LAY
   `\GPU Process Memory(*)\Dedicated Usage` a `Shared Usage`), dekódované a převedené snímky/s.
 - **Scénáře:** bez okna kamery, normální okno 720p a 1080p (100 % DPI, plné rozlišení), malý náhled 720p a 1080p
   (10 fps); simulátor s klipy z T-192, 15 s zahřátí, 30 s měření, 2 kola se střídaným pořadím; integrovaná
-  i dedikovaná GPU, pokud jsou k dispozici; `av_hwframe_map` proti `av_hwframe_transfer_data`.
+  i dedikovaná GPU, pokud jsou k dispozici; `av_hwframe_map` proti `av_hwframe_transfer_data` jen tehdy, až FFmpeg
+  textury D3D11 namapovat umí (9.0 neumí, viz „Výsledky implementace (T-206)“; hlídá to test
+  `HardwareDecodingD3D11VATests.FFmpegCannotMapD3D11Frames`).
+- **Postup na Windows:** aplikace Debug v izolovaném testovacím režimu (T-044: dočasná složka, přípona instance),
+  v `settings.json` buď `"cameraHardwareDecoding": "Off"`, nebo bez hodnoty + `LAYERPEEK_TEST_HW_DECODER=d3d11va`;
+  v logu musí být „Camera video decoding: d3d11va.“, resp. „… software (turned off in the settings).“. Čítače GPU podle
+  PID procesu: `Get-Counter "\GPU Engine(pid_<pid>_*engtype_VideoDecode)\Utilization Percentage"`, `"\GPU Process
+  Memory(pid_<pid>_*)\Dedicated Usage"` a `Shared Usage` (součet přes instance, vzorek 1 s). Cykly a dobu CPU nejlépe
+  z procesu samotného nebo přes `QueryProcessCycleTime` na jeho handle; private bytes a working set z `Get-Process`.
 - **Robustnost:** spánek / probuzení, `Win+Ctrl+Shift+B` (restart ovladače grafiky), vzdálená plocha, VM bez GPU –
   vždy obraz, případně návrat k softwaru.
 - **Návrh meze pro přepnutí (rozhoduje uživatel):** cykly procesu −30 % a víc v normálním okně i malém náhledu na každé
@@ -435,7 +449,7 @@ je daleko.
   přepnutí otevře na dalším klíčovém snímku, pak neměl parametry a okno stálo až do konce smyčky klipu (14 s a 24 s
   bez snímku). `H264Clip` teď dává SPS a PPS před každý IDR snímek (poslední předchozí v pořadí dekódování); testy
   `RtspCameraTests.EveryIdrFrameGetsTheParameterSetsWhenTheClipHasThemOnlyOnce`, `…AnIdrFrameGetsTheLatestParameterSetsBeforeIt`
-  a `HardwareDecodingVideoToolboxTests.AChangedSettingKeepsTheSimulatedCameraRunningWhenItsClipHasTheParameterSetsOnlyOnce`
+  a `HardwareDecodingDeviceTests.AChangedSettingKeepsTheSimulatedCameraRunningWhenItsClipHasTheParameterSetsOnlyOnce`
   (bez opravy 50 ze 71 snímků). Skutečná Buddy3D posílá SPS a PPS před každým IDR (fixture `buddy3d.h264`,
   `docs/timelapse-spike.md`) a navíc `sprop-parameter-sets` v SDP (T-014), takže produkt se jí to netýká.
   Pojistka pro jiné kamery (T-207): dekodér si u proudu bez SPS / PPS v SDP pamatuje poslední SPS a PPS z paketů
@@ -447,3 +461,82 @@ je daleko.
 - **Uspání a probuzení Macu** (`kVTInvalidSessionErr`) a pohled na okno kamery okem agent udělat nemůže (vzdálené
   sezení, Mac by se sám neprobudil) → T-127. Automaticky je návrat k softwaru po chybě dekódování pokryt testy T-203
   (`AFailureWhileDecodingContinuesInSoftwareFromTheNextKeyFrame` a další).
+
+## Výsledky implementace (T-206)
+
+Stav 2026-11-15 (core-dev, Windows 11 Pro 10.0.26300, AMD Ryzen 7 3800X 8 jader / 16 vláken, NVIDIA GeForce RTX 4060
+s ovladačem 32.0.16.1742 jako jediná GPU pro vykreslování, .NET SDK 11.0.100). Rychlé orientační měření podle zadání
+T-206 (jedna GPU, normální okno 720p, cykly a CPU proti `Off`); plné měření podle oddílu „Windows – měření pro přepnutí
+výchozího stavu“ je v T-125 (2ah).
+
+### Co FFmpeg na Windows dělá
+
+- **Build (T-202):** hwaccel `h264_d3d11va` (staré API) a `h264_d3d11va2` (hwcontext `d3d11va`, `AV_PIX_FMT_D3D11`,
+  ten používá `FFmpegDecoder`), žádný jiný hwaccel, LGPL 3 (test `FFmpegWindowsBuildTests`). DLL `d3d11.dll` /
+  `dxgi.dll` načítá FFmpeg až za běhu.
+- **Zařízení:** `av_hwdevice_ctx_create` bez názvu = výchozí adaptér (`D3D_DRIVER_TYPE_HARDWARE`). Na tomto PC je vedle
+  RTX 4060 i „Microsoft Remote Display Adapter“ (vzdálená plocha); dekóduje RTX 4060 (čítač „Video Decode“ 3 %).
+- **Mapování:** `hwcontext_d3d11va.c` (FFmpeg 9.0) nemá `map_from`, takže `av_hwframe_map` snímku D3D11 vždy vrátí
+  ENOSYS. Textury dekodéru mají jen `D3D11_BIND_DECODER` a procesor je číst nemůže; každá cesta k pixelům jde přes
+  staging texturu FFmpeg (`CopySubresourceRegion` + `Map(D3D11_MAP_READ)`, čeká na GPU). **„map proti transfer“ se tak
+  měřit nedá**; `HardwareDecoderSelection.MapsFrames(D3D11VA)` = `false` a kopie jde rovnou, bez pokusu o mapování.
+  Test `HardwareDecodingD3D11VATests.FFmpegCannotMapD3D11Frames` selže, až to nová verze FFmpeg umět bude.
+- **Kopie bez alokace na snímek:** `av_hwframe_transfer_data` do prázdného snímku alokuje pro každý snímek nový nativní
+  obraz (`transfer_data_alloc`). Dekodér proto kopíruje do jednoho `AVFrame` (NV12, formát `sw_format` kontextu snímků)
+  alokovaného při první kopii relace a uvolněného s ní; barevný rozsah a matici přenese ručně (`av_frame_copy_props` by
+  na opakovaně použitý snímek přidávalo vedlejší data). Platí i pro záložní kopii VideoToolboxu na Macu
+  (`vt_transfer_data_from` si na snímek alokuje jen malý pomocný snímek mapování, ne obraz).
+- **Ztráta zařízení:** chyby `end_frame` hwaccel (`DecoderBeginFrame` / `SubmitDecoderBuffers` po odebrání zařízení)
+  dekodér H.264 bez `AV_EF_EXPLODE` jen zapíše a snímek vydá dál; spolehlivě se ztráta projeví až při kopii: `Map` staging
+  textury vrátí `DXGI_ERROR_DEVICE_REMOVED` → `AVERROR_UNKNOWN` → obecný návrat k softwaru T-203 (jeden `Warning`
+  „… failed while copying a frame“, software od dalšího klíčového snímku). Protože se kopíruje každý převedený snímek,
+  pozná se to hned u dalšího snímku okna (malý náhled do ~120 ms). Simulováno testem
+  `HardwareDecodingDeviceTests.ADeviceLostWhileCopyingContinuesInSoftwareFromTheNextKeyFrame`; skutečný
+  `Win+Ctrl+Shift+B` → T-125.
+- **VM bez GPU (Microsoft Basic Render Driver) – očekávané, neověřené (→ T-125, 2ah):** podle zdrojů FFmpeg zařízení
+  D3D11 vznikne, ale nemá dekodér H.264; hwaccel se neinicializuje a FFmpeg zvolí softwarový formát → „failed while
+  starting“ a software (cesta T-203). Testy `[HardwareDecodingFact]` by se tam měly přeskočit: sonda testů dekóduje první klíčový snímek fixture a vyžaduje snímek
+  `AV_PIX_FMT_D3D11`.
+
+### Postup orientačního měření
+
+- Měřicí program mimo repozitář (dočasný, ve scratchpadu, smazaný): veřejné API `FFmpegCameraFeedFactory` (Debug,
+  `UseTestHardwareDecoder("d3d11va")` = cesta `LAYERPEEK_TEST_HW_DECODER`, resp. `HardwareDecoding = Off`) a
+  `CameraStreamDemand` jako okno kamery, **bez Avalonie** (vykreslení je v obou variantách stejné a ostatní agenti
+  používali plochu, okno aplikace se proto neotevíralo). Knihovna v Debug (JIT); práci dělá nativní FFmpeg.
+- Simulátor (`tools/PrusaSimulator`, `idle`, `--fps 25`, port 18566) s vestavěným klipem Buddy3D 1280 × 720
+  (Constrained Baseline, skutečná nahrávka kamery), RTSP přes loopback.
+- Scénáře: **normální okno 720p** při 100 % DPI = `DisplaySize` 1280 × 720 (obraz v plném rozlišení, převod BGRA každého
+  snímku), **malý náhled** = `DisplaySize` 320 × 180, další převod 100 ms po předchozím (vyšlo 8,3 převodu/s), **bez
+  okna** = jen pakety (pro srovnání). 15 s zahřátí, 30 s měření, 2 kola se střídaným pořadím.
+- Metriky: `QueryProcessCycleTime` (cykly procesu včetně uživatelské části ovladače GPU), `TotalProcessorTime`
+  (v % jednoho jádra), private bytes a working set na konci měření, čítače `\GPU Engine(pid_<pid>_*engtype_VideoDecode)`,
+  `…engtype_3D`, `\GPU Process Memory(pid_<pid>_*)\Dedicated Usage` a `Shared Usage` (průměr vzorků po 1 s).
+- Počítač nebyl v klidu: souběžně běžely další agenti (buildy, testy), proto 2 kola; rozptyl kol je malý.
+
+### Výsledky (kolo 1 / kolo 2)
+
+| Scénář | Volba | Gcyklů/s | CPU (% jádra) | private MB | working set MB | GPU Video Decode | GPU dedik. / sdíl. MB |
+|---|---|---|---|---|---|---|---|
+| okno 720p | Off | **0,205 / 0,205** | 5,2 / 5,4 | 29,7 / 29,6 | 52,8 / 52,7 | – | – |
+| okno 720p | D3D11VA | **0,545 / 0,531** | 12,0 / 13,7 | 131,1 / 130,5 | 93,2 / 93,3 | 3,1 / 2,7 % | 39 / 11 |
+| malý náhled | Off | **0,198 / 0,183** | 4,1 / 4,0 | 26,7 / 27,5 | 49,8 / 50,8 | – | – |
+| malý náhled | D3D11VA | **0,214 / 0,216** | 4,4 / 4,9 | 134,2 / 133,1 | 96,9 / 96,0 | 3,2 / 3,0 % | 39 / 17 |
+| bez okna | (jen pakety) | 0,071 / 0,060 | 1,5 / 1,6 | 21,0 / 21,9 | 43,3 / 43,3 | – | – |
+
+Doba dekódování (lokální soubor 30× klip Buddy3D přehrávaný co nejrychleji, po 100 snímcích zahřátí, 2 030 snímků,
+kolo 1 / kolo 2):
+
+| Převod | Off: ms/snímek (zeď / CPU) | D3D11VA: ms/snímek (zeď / CPU) |
+|---|---|---|
+| 1280 × 720 (okno) | 1,15 / 1,16 · 1,25 / 1,26 | 2,50 / 2,80 · 2,49 / 2,70 |
+| 320 × 180 (náhled) | 1,09 / 1,12 · 1,11 / 1,12 | 1,40 / 1,58 · 1,35 / 1,54 |
+
+**Závěr pro tento počítač:** D3D11VA mez návrhu nesplňuje. V okně kamery 720p **+160 % cyklů** a 2,4× doba CPU,
+v malém náhledu +8 až +18 % cyklů; paměť procesu **+~100 MB** private bytes (+40 MB working set; uživatelská část
+ovladače NVIDIA a pool povrchů dekodéru), mez je ≤ 50 MB. Samotné dekódování ve hardwaru je levné (malý náhled, který
+kopíruje 8 snímků/s, je skoro stejný jako software), drahá je **kopie z GPU** přes staging texturu (~1,3 ms CPU na snímek
+720p, čekání na GPU a čtení přes PCIe). Software na Ryzenu dekóduje 720p Baseline za ~1 ms. Na integrované GPU (sdílená
+paměť) a na slabším procesoru může vyjít jinak → T-125; bez lepšího výsledku jinde zůstává software (rozhoduje uživatel).
+Zlepšit kopii by šlo jen vlastním D3D11 interop (sdílená textura do rendereru bez kopie do procesoru), což T-206
+vylučuje (žádný Direct3D interop v C#).

@@ -555,6 +555,39 @@ dashcam, timelapse ani detekce; spojení se pak po 10 s zavře).
       (Buddy3D) ukazuje živý obraz, nahrává a O aplikaci > Licence třetích stran ukazuje u FFmpeg odkazy na tarball
       ffmpeg.org a `build/windows/build-ffmpeg.sh` a položku „MinGW-w64 runtime“.
 
+### 2ah. Hardwarové dekódování D3D11VA – měření pro výchozí stav a robustnost (z T-206, implementováno na Windows 2026-11-15)
+Postup: [docs/hw-decoding.md](../../docs/hw-decoding.md), oddíl „Windows – měření pro přepnutí výchozího stavu“.
+Aplikace Debug v izolovaném testovacím režimu (T-044), simulátor (`docs/simulator.md`, `idle`, `--fps 25`), D3D11VA =
+`LAYERPEEK_TEST_HW_DECODER=d3d11va` (log „Camera video decoding: d3d11va.“), proti tomu `"cameraHardwareDecoding": "Off"`.
+Rychlé orientační měření na vývojovém PC (jen dekodér bez okna aplikace, RTX 4060) je v T-206, „Poznámky k implementaci“:
+D3D11VA tam vyšlo **hůř** než software, takže bez lepšího výsledku na jiném počítači zůstává software.
+- [ ] **T-206** (měření, normální okno): 720p a 1080p (klipy z T-192), 100 % DPI, obraz v plném rozlišení; 15 s zahřátí,
+      30 s měření, 2 kola se střídaným pořadím, D3D11VA proti `Off`. Metriky: cykly procesu (`QueryProcessCycleTime`),
+      CPU % procesu, `\GPU Engine(pid_<pid>_*engtype_VideoDecode)\Utilization Percentage`, private bytes a working set,
+      `\GPU Process Memory(pid_<pid>_*)\Dedicated Usage` a `Shared Usage`, dekódované a převedené snímky/s. Na **integrované
+      GPU (Intel / AMD) i dedikované GPU** (NVIDIA / AMD), pokud jsou k dispozici; zapsat model GPU a verzi ovladače.
+- [ ] **T-206** (měření, malý náhled): totéž s malým náhledem 720p a 1080p (10 fps).
+- [ ] **T-206** (měření, bez okna): tiskárna s kamerou, okno zavřené – žádné zařízení D3D11VA (log bez „d3d11va“),
+      stejné hodnoty jako `Off`.
+- [ ] **T-206** (`map` proti `transfer`): FFmpeg 9.0 textury D3D11 namapovat neumí (`av_hwframe_map` vrací ENOSYS, test
+      `HardwareDecodingD3D11VATests.FFmpegCannotMapD3D11Frames`), měří se jen kopie. Kdyby test po aktualizaci FFmpeg
+      selhal (mapování funguje), změřit `map` proti `transfer` na obou GPU a podle výsledku upravit
+      `HardwareDecoderSelection.MapsFrames`.
+- [ ] **T-206** (krit. „Ztráta zařízení … + ruční `Win+Ctrl+Shift+B`“): s otevřeným oknem kamery (D3D11VA) stisknout
+      `Win+Ctrl+Shift+B` (restart ovladače grafiky) → obraz pokračuje nejvýš po krátkém výpadku do dalšího klíčového
+      snímku, v logu jeden `Warning` „Hardware video decoding (d3d11va) failed while …“ a „Camera video decoding: software
+      (hardware decoding failed on this connection).“, okno nehlásí chybu. Totéž s malým náhledem.
+- [ ] **T-206** (robustnost): spánek / probuzení, odpojení a připojení přes vzdálenou plochu, přepnutí GPU (notebook
+      s hybridní grafikou, pokud je), aktualizace ovladače za běhu – vždy obraz (případně software), okno kamery nezůstane
+      černé ani v chybě.
+- [ ] **T-206** (VM bez GPU): ve virtuálním počítači jen s Microsoft Basic Render Driver – obraz ze softwaru, v logu
+      „… software (hardware decoding failed …)“ nebo „(the hardware decoder is not available)“; testy
+      `[HardwareDecodingFact]` se tam přeskočí (`dotnet test --project tests/LayerPeek.Camera.FFmpeg.Tests`).
+- [ ] **T-206** (návrh pro přepnutí, rozhoduje uživatel): cykly procesu klesnou aspoň o 30 % v normálním okně i malém
+      náhledu na každé změřené GPU, doba CPU nevzroste, paměť navíc ≤ 50 MB na stream, v robustních scénářích žádný trvalý
+      návrat k softwaru ani chyba. Splněno → uživatel rozhodne o přepnutí (nový úkol: pravidlo
+      `HardwareDecoderSelection`, příručky, volba na Windows podle T-204 otázky 1); nesplněno → software zůstává.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

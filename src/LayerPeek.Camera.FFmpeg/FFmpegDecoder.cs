@@ -44,8 +44,10 @@ internal sealed class InterruptFlag
 /// the device's format when the decoder offers it, otherwise the first software format; FFmpeg calls it again without the
 /// hardware format when the hardware initialization fails). Only frames that are converted are mapped into memory
 /// (<c>av_hwframe_map</c>, no copy, T-185); when mapping fails they are copied (<c>av_hwframe_transfer_data</c>) for the rest
-/// of the session. Any hardware failure (no device, no hardware format, a decoding or transfer error) logs one warning and
-/// leaves the connection in software from the next key frame on, without an error of the feed; see
+/// of the session. D3D11VA frames (T-206) cannot be mapped and are always copied, into one reused frame per session
+/// (<see cref="HardwareDecoderSelection.MapsFrames"/>). Any hardware failure (no device, no hardware format, a decoding or
+/// transfer error, a lost D3D11 device) logs one warning and leaves the connection in software from the next key frame on,
+/// without an error of the feed; see
 /// <see cref="HardwareDecodingHistory"/> for the rule against switching back and forth.
 /// </para>
 /// </remarks>
@@ -117,6 +119,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     private AVPixelFormat _hardwareFormat = AVPixelFormat.AV_PIX_FMT_NONE;
     private int _sessionGeneration;
     private long _sessionHardwareFrames;
+    private long _sessionCopiedFrames;
     private bool _transferFrames;
 
     // Hardware failed on this connection in this generation of the choice: software to the end of the connection.
@@ -126,6 +129,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     private AVFrame* _hardwarePicture;
     private long _mappedFrames;
     private long _transferredFrames;
+    private long _copyBuffersAllocated;
     private volatile bool _holdsHardwareDevice;
 
     public FFmpegDecoder(string url, bool isNetwork, TimeSpan ioTimeout, InterruptFlag interrupt, HardwareDecodingPolicy policy, HardwareDecodingHistory history)
@@ -156,8 +160,14 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// <summary>Hardware frames mapped into memory for a conversion (T-203, for tests). Safe to read from any thread.</summary>
     public long MappedFrames => Interlocked.Read(ref _mappedFrames);
 
-    /// <summary>Hardware frames copied into memory because mapping failed (T-203, for tests). Safe to read from any thread.</summary>
+    /// <summary>
+    /// Hardware frames copied into memory because mapping failed (T-203) or the device cannot map them (D3D11VA, T-206); for
+    /// tests. Safe to read from any thread.
+    /// </summary>
     public long TransferredFrames => Interlocked.Read(ref _transferredFrames);
+
+    /// <summary>Native buffers allocated for copies of hardware frames (T-206, for tests). Safe to read from any thread.</summary>
+    public long CopyBuffersAllocated => Interlocked.Read(ref _copyBuffersAllocated);
 
     private string OpenStage => _isNetwork ? "Connecting to the camera failed" : "Opening the video failed";
 
@@ -406,7 +416,9 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         _hardwareFormat = format;
         _sessionGeneration = _policy.Current.Generation;
         _sessionHardwareFrames = 0;
-        _transferFrames = false;
+        _sessionCopiedFrames = 0;
+        // T-206: D3D11VA frames cannot be mapped, they are copied from the start (no failing attempt, no log line).
+        _transferFrames = !HardwareDecoderSelection.MapsFrames(device);
         _holdsHardwareDevice = true;
         return 0;
     }
@@ -872,9 +884,10 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     }
 
     /// <summary>
-    /// The picture of the hardware frame in <c>_frame</c> in memory (T-203): mapped without a copy, or copied when mapping
-    /// failed before in this session; <see langword="null"/> when that failed too (the hardware is then abandoned). The
-    /// caller releases it after the conversion.
+    /// The picture of the hardware frame in <c>_frame</c> in memory (T-203): mapped without a copy, or copied into a reused
+    /// frame when the device's frames cannot be mapped (D3D11VA, T-206) or mapping failed before in this session;
+    /// <see langword="null"/> when that failed too (the hardware is then abandoned; a lost D3D11 device shows here). The
+    /// caller releases a mapped picture after the conversion.
     /// </summary>
     private AVFrame* MapHardwareFrame()
     {
@@ -903,11 +916,13 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             HardwareDecodingLog.MappingFailed(_policy.Logger, _codecDevice, mapped);
         }
 
-        int transferred = ffmpeg.av_hwframe_transfer_data(_hardwarePicture, _frame, 0);
+        int transferred = EnsureCopyBuffer();
         if (transferred >= 0)
         {
-            // The copy carries only the pixels; the colour properties come from the decoded frame.
-            transferred = ffmpeg.av_frame_copy_props(_hardwarePicture, _frame);
+            _sessionCopiedFrames++;
+            transferred = _policy.Faults is { FailCopyAfterFrames: { } failAfter } && _sessionCopiedFrames > failAfter
+                ? ffmpeg.AVERROR_UNKNOWN
+                : ffmpeg.av_hwframe_transfer_data(_hardwarePicture, _frame, 0);
         }
 
         if (transferred < 0)
@@ -918,8 +933,49 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             return null;
         }
 
+        // The copy carries only the pixels; the conversions also read the colour range and matrix of the decoded frame.
+        _hardwarePicture->color_range = _frame->color_range;
+        _hardwarePicture->colorspace = _frame->colorspace;
+        _hardwarePicture->color_primaries = _frame->color_primaries;
+        _hardwarePicture->color_trc = _frame->color_trc;
+        _hardwarePicture->chroma_location = _frame->chroma_location;
         Interlocked.Increment(ref _transferredFrames);
         return _hardwarePicture;
+    }
+
+    /// <summary>
+    /// T-206: the copies of a session go into one reused frame in the software format of the decoder's frames (NV12),
+    /// allocated at the first copy and again only when the picture size changes; without it every copy would allocate a
+    /// new native picture (<c>av_hwframe_transfer_data</c> into an empty frame). Released with the session
+    /// (<see cref="CloseDecoder"/>). Returns 0, or the FFmpeg error.
+    /// </summary>
+    private int EnsureCopyBuffer()
+    {
+        AVHWFramesContext* frames = _frame->hw_frames_ctx is not null ? (AVHWFramesContext*)_frame->hw_frames_ctx->data : null;
+        if (frames is null)
+        {
+            return ffmpeg.AVERROR(ffmpeg.EINVAL);
+        }
+
+        if (_hardwarePicture->buf[0] is not null
+            && _hardwarePicture->format == (int)frames->sw_format
+            && _hardwarePicture->width == _frame->width
+            && _hardwarePicture->height == _frame->height)
+        {
+            return 0;
+        }
+
+        ffmpeg.av_frame_unref(_hardwarePicture);
+        _hardwarePicture->format = (int)frames->sw_format;
+        _hardwarePicture->width = _frame->width;
+        _hardwarePicture->height = _frame->height;
+        int allocated = ffmpeg.av_frame_get_buffer(_hardwarePicture, 0);
+        if (allocated >= 0)
+        {
+            Interlocked.Increment(ref _copyBuffersAllocated);
+        }
+
+        return allocated;
     }
 
     /// <summary>The current packet as a borrowed <see cref="CameraPacket"/> over a reused managed buffer.</summary>
@@ -1108,7 +1164,8 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         AVFrame* source = _frame;
         if (_hardwareFormat != AVPixelFormat.AV_PIX_FMT_NONE && _frame->format == (int)_hardwareFormat)
         {
-            // T-203: NV12 in memory shared with the hardware decoder; it goes through the same conversions as software frames.
+            // T-203: NV12 in memory shared with the hardware decoder (VideoToolbox) or copied from the GPU (D3D11VA, T-206);
+            // it goes through the same conversions as software frames.
             source = MapHardwareFrame();
             if (source is null)
             {
@@ -1122,9 +1179,10 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         }
         finally
         {
-            if (source != _frame)
+            if (source != _frame && !_transferFrames)
             {
-                // Unlocks the mapped picture (or drops the copy) right away; the conversions copied what they need.
+                // Unlocks the mapped picture right away; the conversions copied what they need. A copy keeps its buffer
+                // for the next frame (T-206).
                 ffmpeg.av_frame_unref(source);
             }
         }

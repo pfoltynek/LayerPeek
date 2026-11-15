@@ -68,8 +68,14 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
     /// <summary>Hardware frames mapped into memory so far (for tests, T-203).</summary>
     internal long MappedFrames => Volatile.Read(ref _reader)?.Decoder.MappedFrames ?? 0;
 
-    /// <summary>Hardware frames copied into memory so far because mapping failed (for tests, T-203).</summary>
+    /// <summary>
+    /// Hardware frames copied into memory so far: because mapping failed (T-203) or because the device's frames cannot be
+    /// mapped (D3D11VA, T-206). For tests.
+    /// </summary>
     internal long TransferredFrames => Volatile.Read(ref _reader)?.Decoder.TransferredFrames ?? 0;
+
+    /// <summary>Native buffers allocated for the copies of hardware frames so far (for tests, T-206: one per session and size).</summary>
+    internal long CopyBuffersAllocated => Volatile.Read(ref _reader)?.Decoder.CopyBuffersAllocated ?? 0;
 
     public IAsyncEnumerable<CameraFrame> ReadFramesAsync(CancellationToken cancellationToken)
     {

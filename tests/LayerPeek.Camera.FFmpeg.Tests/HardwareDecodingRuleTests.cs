@@ -101,6 +101,40 @@ public sealed class HardwareDecodingRuleTests
     }
 
     [Fact]
+    public void OnlyVideoToolboxFramesAreMappedD3D11VAFramesAreCopied()
+    {
+        // T-206: FFmpeg cannot map D3D11 textures; the copy is the only way, without a failing attempt per session.
+        Assert.True(HardwareDecoderSelection.MapsFrames(VideoToolbox));
+        Assert.False(HardwareDecoderSelection.MapsFrames(AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA));
+    }
+
+    [Fact]
+    public void TheDeviceOfAutomaticCanBeChangedWithANewGeneration()
+    {
+        // The seam of the tests (T-206): "Automatic" means D3D11VA on Windows as if the rule chose it; "Off" stays software.
+        HardwareDecodingPolicy policy = new(CameraHardwareDecoding.Automatic, isMacOS: false);
+        int generation = policy.Current.Generation;
+
+        policy.AutomaticDevice = AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA;
+        Assert.Equal(AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA, policy.Current.Device);
+        Assert.Null(policy.Current.SoftwareReason);
+        Assert.True(policy.Current.Generation > generation);
+
+        policy.Mode = CameraHardwareDecoding.Off;
+        Assert.Equal(Software, policy.Current.Device);
+        Assert.Equal("turned off in the settings", policy.Current.SoftwareReason);
+        policy.Mode = CameraHardwareDecoding.Automatic;
+        Assert.Equal(AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA, policy.Current.Device);
+    }
+
+    [Fact]
+    public void TheDefaultDeviceOfAutomaticIsTheRuleOfTheOs()
+    {
+        Assert.Equal(VideoToolbox, new HardwareDecodingPolicy(CameraHardwareDecoding.Off, isMacOS: true).AutomaticDevice);
+        Assert.Equal(Software, new HardwareDecodingPolicy(CameraHardwareDecoding.Off, isMacOS: false).AutomaticDevice);
+    }
+
+    [Fact]
     public void TwoFailuresInARowKeepTheCameraInSoftware()
     {
         HardwareDecodingHistory history = new();
