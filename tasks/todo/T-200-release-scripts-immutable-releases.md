@@ -69,6 +69,12 @@ by T-180 byl hotový dřív.
    z primárního zdroje (https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/immutable-releases).
    Návrh: nezjišťovat, odmítat vždy. Rozhodne uživatel.
 
+Rozhodnuto uživatelem 2026-11-12:
+1. **Ponechat a odmítnout:** přepínače zůstanou, skript skončí s kódem 1 a zprávou s postupem „oba OS do konceptu, pak
+   zveřejnit“; mrtvý kód doplňování do zveřejněného vydání se odstraní.
+2. **Odmítnutí platí všude**, i pro zkušební vydání do testovacího repozitáře (`-Repo`) – jeden tok pro všechny.
+3. **Stav neměnných vydání se z GitHubu nezjišťuje**, odmítá se vždy (žádný síťový dotaz ani závislost na API).
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
 

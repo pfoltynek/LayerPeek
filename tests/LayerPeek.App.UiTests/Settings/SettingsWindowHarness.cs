@@ -85,7 +85,8 @@ internal sealed class SettingsWindowHarness
         ILastCameraFrames? lastFrames = null,
         LayerPeek.App.Updates.IUpdateFeedRejections? feedRejections = null,
         LayerPeek.App.Tests.Tray.Menu.FakeUrlLauncher? urlLauncher = null,
-        Uri? securityHelp = null)
+        Uri? securityHelp = null,
+        bool hardwareDecodingSoftwareNote = false)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
@@ -95,6 +96,8 @@ internal sealed class SettingsWindowHarness
             // T-019: the texts of macOS ("Open at Login"). T-058: the pre-release option on every OS (Q3 a), "Check now" (Q4 a,
             // by default "up to date") and the macOS hint to move the app first (Q8 a).
             UsesMacTerms = macTerms,
+            // T-204: the note that "Automatic" hardware decoding is still software (Windows), off unless a test shows it.
+            ShowsHardwareDecodingSoftwareNote = hardwareDecodingSoftwareNote,
             ShowsPrereleaseOption = true,
             CheckForUpdatesNow = checkForUpdatesNow ?? UpToDate,
             ShowsMoveToApplications = showsMoveToApplications,

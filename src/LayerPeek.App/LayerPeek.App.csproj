@@ -26,6 +26,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="LayerPeek.App.Tests" />
     <InternalsVisibleTo Include="LayerPeek.App.UiTests" />
+    <InternalsVisibleTo Include="LayerPeek.App.UiTests.SystemFont" />
   </ItemGroup>
   <PropertyGroup>
     <!-- English strings live in the main assembly; other languages in satellite assemblies (compiled into the AOT binary). -->

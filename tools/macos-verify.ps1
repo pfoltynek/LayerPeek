@@ -18,8 +18,8 @@
     the test apps, the notifications of the test bundle (--layerpeek-e2e-clear-toasts), the stand-in Login Items of the
     test data folders (--layerpeek-e2e-clear-autostart), the LaunchServices registration, Preferences and caches of the
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
-    tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys or mac.update-check)
-    Terminal in Privacy & Security > Accessibility (switch it off there yourself).
+    tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items or
+    mac.update-check) Terminal in Privacy & Security > Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
     when any check failed, 2 when the script could not run. The checks that need a visible desktop (mac.menubar,
@@ -34,10 +34,22 @@
 .PARAMETER Allow
     Ids or wildcards of Permission checks you allow in advance (T-140): they run without the question, also with
     -Unattended, e.g. -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user. What they need once:
-    mac.keys - Accessibility for the terminal; mac.update-check - Accessibility for the terminal and an unlocked screen
+    mac.keys - Accessibility for the terminal; mac.menu-items - Accessibility for the terminal and an unlocked screen;
+    mac.update-check - Accessibility for the terminal and an unlocked screen
     (Screen Recording optional, for window captures); mac.socket-other-user - the sudoers rule of
     tools/macos-verify-sudoers.ps1; mac.display-sleep - a password delay after the display sleeps longer than a minute
     (System Settings > Lock Screen), otherwise the locked screen ends it with SKIP.
+
+.PARAMETER Preset
+    A fixed list of checks (T-208), e.g. release: every Auto and Permission check that runs without a human, before each
+    release. Implies -Unattended and -Allow for the Permission checks of the preset; -Skip still applies, -Only does not.
+    The preconditions (unlocked screen on the console, Accessibility, Screen Recording, no Screen Sharing, the output of
+    scripts/release-build.ps1 for this version, no running LayerPeek) are checked
+    once at the start: each one that is missing is printed once with the checks it ends with SKIP. Without a caffeinate
+    parent the script keeps the Mac and the display awake itself (caffeinate -d -i -u -w). With -ListChecks it lists the checks of the
+    preset. What it needs once: Accessibility for the terminal, optionally Screen Recording, the sudoers rule of
+    tools/macos-verify-sudoers.sh, the allowed notifications of "LayerPeek E2E" and a password delay after the display
+    sleeps (docs/macos-manual-testing.md, "Regresní běh před vydáním").
 
 .PARAMETER Only
     Check ids or wildcards to run (comma-separated or an array), e.g. -Only mac.keychain,mac.camera*.
@@ -62,6 +74,8 @@
     pwsh tools/macos-verify.ps1 -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user
     pwsh tools/macos-verify.ps1 -Unattended -Only mac.update-check -Allow mac.update-check
     pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notifications
+    pwsh tools/macos-verify.ps1 -ListChecks -Preset release
+    caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release   # the regression run before a release (T-208)
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
@@ -70,6 +84,7 @@ param(
     [string[]] $Allow,
     [string[]] $Only,
     [string[]] $Skip,
+    [string] $Preset,
     [switch] $ListChecks,
     [switch] $SelfTest,
     [string] $OutputRoot
@@ -99,6 +114,52 @@ function Get-ReleaseApp {
     <# .SYNOPSIS The release bundle of scripts/release-build.ps1 for this version, or $null. #>
     $app = Join-Path $script:Repo 'artifacts' 'release' (Get-AppVersion) 'app' 'osx-arm64' 'LayerPeek.app'
     if (Test-Path -LiteralPath $app) { $app } else { $null }
+}
+
+function Get-ReleaseBuildFiles {
+    <#
+    .SYNOPSIS
+        The macOS downloads of scripts/release-build.ps1 for this version (T-217): the .dmg, the .tar.gz and
+        SHA256SUMS-macos.txt in artifacts/release/<version>/dist, the commit of build-info.json, and Missing (the names of
+        the absent files).
+    #>
+    $version = Get-AppVersion
+    $names = Get-MacReleaseFileNames -Version $version -Runtime 'osx-arm64'
+    $folder = Join-Path $script:Repo 'artifacts' 'release' $version
+    $dist = Join-Path $folder 'dist'
+    $files = [pscustomobject]@{
+        Version   = $version
+        DiskImage = Join-Path $dist $names.DiskImage
+        Archive   = Join-Path $dist $names.Archive
+        Sums      = Join-Path $dist (Get-ChecksumFileName 'macos')
+        Commit    = 'unknown commit'
+        Missing   = @()
+    }
+    $files.Missing = @($files.DiskImage, $files.Archive, $files.Sums | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) } | ForEach-Object { Split-Path -Leaf $_ })
+    try {
+        $info = Get-Content -LiteralPath (Join-Path $folder 'build-info.json') -Raw | ConvertFrom-Json
+        $files.Commit = "commit $("$($info.Commit)".Substring(0, [Math]::Min(12, "$($info.Commit)".Length)))$(if ($info.Dirty) { ', dirty tree' })"
+    }
+    catch { }
+    $files
+}
+
+function Get-ReleaseBuildProblem {
+    <# .SYNOPSIS Why the release downloads cannot be checked (with how to build them), or $null. #>
+    $files = Get-ReleaseBuildFiles
+    if ($files.Missing.Count -gt 0) { "no $($files.Missing -join ', ') in artifacts/release/$($files.Version)/dist; build it first: caffeinate -d -u -i pwsh scripts/release-build.ps1 -SkipFeedSignature (about 20 min)" }
+}
+
+function Get-RunningAppProblem {
+    <# .SYNOPSIS Why the release app cannot be started now (scripts/aot-smoke.ps1 refuses beside a running LayerPeek), or $null. #>
+    if (Get-Process -Name 'LayerPeek' -ErrorAction SilentlyContinue) { 'LayerPeek is running; quit it first (the release app is never started beside another instance)' }
+}
+
+function Dismount-VerifyImage([string] $MountPoint) {
+    <# .SYNOPSIS Detaches the disk image attached at the mount point, if any (forced when the normal detach fails). #>
+    if (-not (@(& /usr/bin/hdiutil info 2>$null) -match [regex]::Escape($MountPoint))) { return }
+    $null = & /usr/bin/hdiutil detach $MountPoint -quiet 2>&1
+    if ($LASTEXITCODE -ne 0) { $null = & /usr/bin/hdiutil detach $MountPoint -force -quiet 2>&1 }
 }
 
 function Get-Helper($Context) {
@@ -137,6 +198,22 @@ function Test-StatusItem($Context, [int] $ProcessId) {
     #>
     if (Test-VerifyMenuBarItem @(Get-ProcessWindows $Context $ProcessId)) { return $true }
     [bool] (@(Get-StatusItems $Context $ProcessId) | Where-Object { $_ -and $_.width -gt 0 -and $_.height -gt 0 })
+}
+
+function Get-StatusMenu($Context, [int] $ProcessId) {
+    <# .SYNOPSIS The menu of the process's status item (helper 'menu': opened, read with its submenus, closed again; T-209). #>
+    (Invoke-Helper $Context @('menu', "$ProcessId")) -join "`n" | ConvertFrom-Json -Depth 30
+}
+
+function Invoke-MenuPress($Context, [int] $ProcessId, [string] $Path) {
+    <# .SYNOPSIS Chooses a menu item by its path of titles (helper 'menupress'); ExitCode and Output (the titles of the level on a miss). #>
+    $output = @(& (Get-Helper $Context) 'menupress' "$ProcessId" $Path 2>&1 | ForEach-Object { "$_" })
+    [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+}
+
+function Get-OpenMenuWindows($Context, [int] $ProcessId) {
+    <# .SYNOPSIS The process's on-screen windows on the pop-up menu level (101): an open menu. #>
+    @(Get-ProcessWindows $Context $ProcessId | Where-Object { $_.onscreen -and $_.layer -eq 101 })
 }
 
 function Get-SessionLimitation($Context) {
@@ -285,15 +362,20 @@ function Remove-TestBundle($Bundle) {
     if ((Test-Path -LiteralPath $parent) -and -not (Get-ChildItem -LiteralPath $parent -Force)) { Remove-Item -LiteralPath $parent -Force }
 }
 
-function Get-Simulator($Context) {
-    <# .SYNOPSIS The PrusaSimulator (one printer, camera) on 127.0.0.1 with free ports, started once per run. #>
-    if ($Context.Shared.ContainsKey('Simulator')) { return $Context.Shared.Simulator }
+function Get-Simulator($Context, [double] $Speed = 1) {
+    <#
+    .SYNOPSIS
+        The PrusaSimulator (one printer, camera) on 127.0.0.1 with free ports, started once per run and time speed-up
+        (-Speed, e.g. 20 for a print that moves in seconds, T-209).
+    #>
+    $key = if ($Speed -eq 1) { 'Simulator' } else { "Simulator-x$Speed" }
+    if ($Context.Shared.ContainsKey($key)) { return $Context.Shared[$key] }
     $dll = Get-SimulatorDll $Context
     $folder = Join-Path $Context.RunFolder 'tmp' "simulator-$(New-ShortId)"
     $null = New-Item -ItemType Directory -Force -Path $folder
     $out = Join-Path $folder 'stdout.txt'
     $start = [System.Diagnostics.ProcessStartInfo]::new('/bin/sh')
-    foreach ($argument in @('-c', 'exec dotnet "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', $dll, '--port', '0', '--camera-port', '0', '--scenario', 'printing')) { $start.ArgumentList.Add($argument) }
+    foreach ($argument in @('-c', 'exec dotnet "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', $dll, '--port', '0', '--camera-port', '0', '--scenario', 'printing', '--speed', "$Speed")) { $start.ArgumentList.Add($argument) }
     $start.Environment['LPV_OUT'] = $out
     $start.UseShellExecute = $false
     $process = [System.Diagnostics.Process]::Start($start)
@@ -310,7 +392,7 @@ function Get-Simulator($Context) {
     }
     $simulator | Add-Member -NotePropertyName Address -NotePropertyValue (([uri] $simulator.BaseUri).Authority)
     $simulator | Add-Member -NotePropertyName CameraPort -NotePropertyValue (([uri] $simulator.Camera).Port)
-    $Context.Shared.Simulator = $simulator
+    $Context.Shared[$key] = $simulator
     $simulator
 }
 
@@ -1100,7 +1182,7 @@ $checks = @(
         finally { $null = Stop-TestApp $data $app }
     }
 
-    New-VerifyCheck -Id 'mac.menubar' -Kind Auto -Title 'status item in the menu bar; Quit ends the app and removes it' `
+    New-VerifyCheck -Id 'mac.menubar' -Needs Session -Kind Auto -Title 'status item in the menu bar; Quit ends the app and removes it' `
         -Closes 'T-019 kritérium 7 (ikona jen v menu baru)', 'T-018 kritérium 3 (část: „Ukončit“ ukončí aplikaci)' -Action {
         param($c)
         Invoke-SessionCheck $c {
@@ -1127,7 +1209,85 @@ $checks = @(
         }
     }
 
-    New-VerifyCheck -Id 'mac.settings-front' -Kind Auto -Title 'Settings, About, Diagnostics and a later start come to the front with focus over another app' `
+    New-VerifyCheck -Id 'mac.menu-items' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to open the menu of the status item and choose its items, and an unlocked screen' `
+        -Title 'the real menu of the status item through the Accessibility API: items and tooltip in six printer states, camera items, an unknown item, Quit from the menu (simulator x20)' `
+        -Closes 'T-018 kritérium 3 (menu se zobrazí, aktualizuje, „Ukončit“ z menu; ruční část mac.menu mimo vzhled ikon)', 'T-209 kritérium 3 (mac.menu-items)' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            # The texts of the language the test data sets (en: the neutral resources), never written into the check.
+            $texts = Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx')
+            $label = { param($Key) ConvertFrom-VerifyAccessText $texts[$Key] }
+            $simulator = Get-Simulator $c -Speed 20
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            Set-SimulatorScenario $simulator 'idle'
+            $app = Start-TestApp -Context $c -TestData $data
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $helps = [System.Collections.Generic.List[string]]::new()
+            $readTip = { @(Get-StatusItems $c $app.Id | Where-Object { $_.width -gt 0 }) | Select-Object -First 1 | ForEach-Object help }
+            # Waits until the tooltip shows the state (the app polls every 5 s; offline needs a failed request first).
+            $waitState = {
+                param($Key, [switch] $Progress)
+                $state = $texts[$Key]
+                $ok = Wait-VerifyCondition -TimeoutSeconds 60 -IntervalMilliseconds 1000 -Condition { -not (Get-VerifyToolTipProblem -ToolTip (& $readTip) -Texts $texts -Name $name -State $state -Progress:$Progress) }
+                if ($ok) { $null } else { Get-VerifyToolTipProblem -ToolTip (& $readTip) -Texts $texts -Name $name -State $state -Progress:$Progress }
+            }
+            try {
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -IntervalMilliseconds 1000 -Condition { $null -ne (& $readTip) })) {
+                    return New-VerifyResult FAIL "no status item of the app (pid $($app.Id)) in AXExtrasMenuBar within 20 s."
+                }
+                $states = [ordered]@{ idle = 'StateIdle'; printing = 'StatePrinting'; paused = 'StatePaused'; finished = 'StateFinished'; error = 'StateError'; offline = 'StateOffline' }
+                foreach ($scenario in $states.Keys) {
+                    $progress = $scenario -in 'printing', 'paused'
+                    if ($scenario -ne 'idle') { Set-SimulatorScenario $simulator $scenario }
+                    $tipProblem = & $waitState $states[$scenario] -Progress:$progress
+                    if ($tipProblem) { $problems.Add("${scenario}: $tipProblem"); continue }
+                    $menu = Get-StatusMenu $c $app.Id
+                    $null = Save-VerifyEvidence -Context $c -Name "menu-$scenario.json" -Content ($menu | ConvertTo-Json -Depth 30)
+                    foreach ($problem in Get-VerifyMenuProblems -Items @($menu.items) -Texts $texts -Name $name -State $texts[$states[$scenario]] -Progress:$progress -Camera) { $problems.Add("${scenario}: $problem") }
+                    foreach ($help in Get-VerifyMenuHelps -Items @($menu.items)) { if (-not $helps.Contains($help)) { $helps.Add($help) } }
+                    if (@(Get-OpenMenuWindows $c $app.Id).Count -gt 0) { $problems.Add("${scenario}: a menu window is still open after the helper closed the menu") }
+                }
+                $null = Save-VerifyEvidence -Context $c -Name 'disabled-items-help.txt' -Content $helps
+
+                # The camera items through menupress, from a printer state whose item title does not change (no progress).
+                Set-SimulatorScenario $simulator 'idle'
+                $tipProblem = & $waitState 'StateIdle'
+                if ($tipProblem) { $problems.Add("idle again: $tipProblem") }
+                $printer = $texts['MenuPrinter'] -f $name, $texts['StateIdle']
+                $miss = Invoke-MenuPress $c $app.Id "$printer>No such item"
+                $null = Save-VerifyEvidence -Context $c -Name 'menupress-unknown.txt' -Content $miss.Output
+                if ($miss.ExitCode -ne 1 -or -not ($miss.Output -join ' ').Contains("'$(& $label 'MenuOpenPrusaLink')'")) { $problems.Add("menupress of an unknown item: exit code $($miss.ExitCode), expected 1 with the titles of the submenu ($($miss.Output -join ' '))") }
+                if (@(Get-OpenMenuWindows $c $app.Id).Count -gt 0) { $problems.Add('the menu stayed open after menupress of an unknown item') }
+                $show = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuShowCamera')"
+                if ($show.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuShowCamera')': $($show.Output -join ' ')") }
+                elseif (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add("'$(& $label 'MenuShowCamera')' from the menu opened no camera window within 15 s") }
+                else {
+                    $finder = Invoke-FinderToFront
+                    $front = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuCameraToFront')"
+                    if ($front.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuCameraToFront')': $($front.Output -join ' ')") }
+                    elseif (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $app.Id -and $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add("'$(& $label 'MenuCameraToFront')' did not bring the camera window to the front (Finder was in front: $finder; front app $(Get-FrontAppText))") }
+                    $hide = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuHideCamera')"
+                    if ($hide.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuHideCamera')': $($hide.Output -join ' ')") }
+                    elseif (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $null -eq (Get-CameraWindow $c $app.Id) })) { $problems.Add("'$(& $label 'MenuHideCamera')' left the camera window open") }
+                }
+
+                $quit = Invoke-MenuPress $c $app.Id (& $label 'MenuQuit')
+                if ($quit.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuQuit')': $($quit.Output -join ' ')") }
+                elseif (-not $app.WaitForExit(20000)) { $problems.Add("'$(& $label 'MenuQuit')' from the menu did not end the app within 20 s") }
+                elseif ($app.ExitCode -ne 0) { $problems.Add("'$(& $label 'MenuQuit')' from the menu ended the app with exit code $($app.ExitCode)") }
+                elseif (Test-StatusItem $c $app.Id) { $problems.Add('the status item is still in the menu bar after Quit') }
+            }
+            finally { $null = Stop-TestApp $data $app }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            $withHelp = @($helps | Where-Object { $_ -notlike '*help none' }).Count
+            New-VerifyResult PASS "menu items and tooltip followed idle, printing, paused, finished, error and offline (menu-*.json); Show camera, Bring camera to front and Hide camera through menupress, an unknown item gave exit code 1 with the titles and a closed menu; Quit from the menu ended the app with 0 and removed the status item. Disabled items: $withHelp of $($helps.Count) with AXHelp (disabled-items-help.txt)."
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.settings-front' -Needs Session -Kind Auto -Title 'Settings, About, Diagnostics and a later start come to the front with focus over another app' `
         -Closes 'T-019 kritérium 8 (okno Nastavení v popředí s fokusem)' -Action {
         param($c)
         Invoke-SessionCheck $c {
@@ -1224,6 +1384,68 @@ $checks = @(
         finally { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
     }
 
+    New-VerifyCheck -Id 'mac.release-bundle' -Needs ReleaseBuild, AppNotRunning -Kind Auto -Title 'the apps of the .dmg and the .tar.gz: signature, hardened runtime, load paths, Info.plist, SHA-256, and a start without the developer environment' `
+        -Closes 'T-217 kritérium 1 (kontrola .dmg a .tar.gz)', 'T-217 kritérium 2 (start bez prostředí vývojáře)', 'T-026 kritérium „Podepsaný bundle se spustí na čistém Macu“ (start s vyčištěným prostředím, rozhodnutí 2026-11-13; stream se nekontroluje)' -Action {
+        param($c)
+        foreach ($reason in (Get-ReleaseBuildProblem), (Get-RunningAppProblem)) { if ($reason) { Skip-VerifyCheck $reason } }
+        $files = Get-ReleaseBuildFiles
+        $problems = [System.Collections.Generic.List[string]]::new()
+        # SHA-256 of every file of dist against SHA256SUMS-macos.txt, which must list both downloads.
+        $sums = Read-Sha256Sums $files.Sums
+        foreach ($problem in @(Get-Sha256SumsProblems $files.Sums)) { $problems.Add($problem) }
+        foreach ($path in $files.DiskImage, $files.Archive) {
+            if (-not $sums.Contains((Split-Path -Leaf $path))) { $problems.Add("$(Split-Path -Leaf $path) is not listed in $(Split-Path -Leaf $files.Sums).") }
+        }
+        # .noindex: Spotlight does not index (and register) the copies.
+        $temp = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-verify-bundle-$(New-ShortId).noindex"
+        $mount = Join-Path $temp 'mnt'
+        $copies = [ordered]@{ '.dmg' = Join-Path $temp 'dmg' 'LayerPeek.app'; '.tar.gz' = Join-Path $temp 'tar' 'LayerPeek.app' }
+        $null = New-Item -ItemType Directory -Force -Path $mount, (Split-Path -Parent $copies['.dmg']), (Split-Path -Parent $copies['.tar.gz'])
+        try {
+            $attach = Invoke-VerifyTool -Context $c -Label 'hdiutil-attach' -FilePath '/usr/bin/hdiutil' -ArgumentList @('attach', '-nobrowse', '-readonly', '-noautoopen', '-mountpoint', $mount, $files.DiskImage)
+            if ($attach.ExitCode -ne 0) { $problems.Add('hdiutil attach of the .dmg failed (hdiutil-attach.txt).') }
+            else {
+                try { & /usr/bin/ditto (Join-Path $mount 'LayerPeek.app') $copies['.dmg'] }
+                finally { Dismount-VerifyImage $mount }
+            }
+            $untar = Invoke-VerifyTool -Context $c -Label 'tar' -FilePath '/usr/bin/tar' -ArgumentList @('-xzf', $files.Archive, '-C', (Split-Path -Parent $copies['.tar.gz']))
+            if ($untar.ExitCode -ne 0) { $problems.Add('tar -xzf of the .tar.gz failed (tar.txt).') }
+            $rules = Get-MacLoadPathRules -RepoRoot $script:Repo -HomePath ([Environment]::GetFolderPath('UserProfile'))
+            foreach ($label in $copies.Keys) {
+                $app = $copies[$label]
+                if (-not (Test-Path -LiteralPath (Join-Path $app 'Contents' 'Info.plist') -PathType Leaf)) { $problems.Add("${label}: no LayerPeek.app at the top level."); continue }
+                $plist = @(& /usr/bin/plutil -convert xml1 -o - (Join-Path $app 'Contents' 'Info.plist') 2>&1) -join "`n"
+                # The same checks as release-build.ps1 (ReleaseTools.psm1), and the stricter load paths of a clean Mac.
+                $found = @(Get-MacSignatureProblems $app) + @(Get-MacHardenedRuntimeProblems $app) + @(Get-MacBundleLibraryProblems $app) +
+                    @(Get-MacBundleLoadPathProblems -AppPath $app -Rules $rules) + @(Get-MacReleasePlistProblems -PlistText $plist -Version $files.Version -BundleIdentifier $script:BundleId)
+                foreach ($problem in $found) { $problems.Add("${label}: $problem") }
+            }
+            $null = Save-VerifyEvidence -Context $c -Name 'bundle-problems.txt' -Content @($problems)
+            # The app of the .dmg, started like on a Mac without the developer tools (aot-smoke.ps1: profile moved aside and back).
+            if (Test-Path -LiteralPath $copies['.dmg']) {
+                # The app loads FFmpeg only for a camera (and HarfBuzz later too), so its start proves only Avalonia and
+                # Skia: every library of the bundle is loaded here with all its dependencies, in the same clean environment.
+                $libraries = @(Get-ChildItem -LiteralPath (Join-Path $copies['.dmg'] 'Contents' 'MacOS') -File -Filter '*.dylib' | ForEach-Object FullName | Sort-Object)
+                $loadArguments = Get-SmokeCleanEnvironmentArguments -Executable (Get-Helper $c) -Arguments (@('dlopen') + $libraries) -HomePath ([Environment]::GetFolderPath('UserProfile')) -TempPath ([System.IO.Path]::GetTempPath())
+                $load = Invoke-VerifyTool -Context $c -Label 'dlopen-clean' -FilePath '/usr/bin/env' -ArgumentList $loadArguments
+                if ($load.ExitCode -ne 0) { $problems.Add(".dmg: a library does not load without the developer environment: $(@($load.Output) -join ' ')") }
+                $pwsh = @(Get-PwshCommand)
+                $arguments = @($pwsh | Select-Object -Skip 1) + @('-NoProfile', '-File', (Join-Path $script:Repo 'scripts' 'aot-smoke.ps1'), '-Runtime', 'osx-arm64', '-PublishDir', (Join-Path $copies['.dmg'] 'Contents' 'MacOS'), '-CleanEnvironment')
+                $started = Invoke-VerifyTool -Context $c -Label 'aot-smoke-clean' -FilePath $pwsh[0] -ArgumentList $arguments -Show
+                if ($started.ExitCode -ne 0) { $problems.Add("the start of the .dmg app without the developer environment failed (aot-smoke-clean.txt): $(@($started.Output | Where-Object { $_ -match 'FAILED|NOT ' }) | Select-Object -First 1)") }
+            }
+        }
+        finally {
+            Dismount-VerifyImage $mount
+            Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        # Nothing may be left: no attached image, no copy of the app.
+        if (@(& /usr/bin/hdiutil info 2>$null) -match [regex]::Escape($mount)) { $problems.Add("the .dmg is still attached at $mount.") }
+        if (Test-Path -LiteralPath $temp) { $problems.Add("the copies in $temp could not be deleted.") }
+        if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems[0])" }
+        New-VerifyResult PASS "$($files.Version) (build-info.json: $($files.Commit)): .dmg and .tar.gz apps signed (--deep --strict), hardened runtime and entitlements, libraries only from the bundle and the system, Info.plist, SHA-256; in env -i (no DOTNET_ROOT, no Homebrew) all $($libraries.Count) libraries of the .dmg app loaded (dlopen, FFmpeg included) and the app ran as UIElement without a native library error; nothing attached or left."
+    }
+
     New-VerifyCheck -Id 'mac.notifications' -Kind Auto -Title 'notification E2E of the test bundle (delivery, removal on quit and by the cleanup mode)' `
         -Closes 'T-020 kritérium 1 (doručení ze sestavené .app, test bundle)', 'T-020 kritérium 5 (odstranění při ukončení i úklidem po pádu)' -Action {
         param($c)
@@ -1256,7 +1478,7 @@ $checks = @(
         New-VerifyResult PASS (Format-Totals $run.Totals)
     }
 
-    New-VerifyCheck -Id 'mac.camera' -Kind Auto -Title 'camera window in normal, mini and full-screen mode with a lasting RTSP stream (simulator)' `
+    New-VerifyCheck -Id 'mac.camera' -Needs Session -Kind Auto -Title 'camera window in normal, mini and full-screen mode with a lasting RTSP stream (simulator)' `
         -Closes 'T-026 kritérium 1 (automatická část: všechny režimy se simulátorem)' -Action {
         param($c)
         Invoke-SessionCheck $c {
@@ -1266,7 +1488,7 @@ $checks = @(
         }
     }
 
-    New-VerifyCheck -Id 'mac.camera-placement' -Kind Auto -Title 'camera window corners and centre on every connected monitor (normal and mini, 16 pt from the usable area)' `
+    New-VerifyCheck -Id 'mac.camera-placement' -Needs Session -Kind Auto -Title 'camera window corners and centre on every connected monitor (normal and mini, 16 pt from the usable area)' `
         -Closes 'T-038 kritérium 1 (automatická část: J2 rohy a střed, D1 zvolený monitor)' -Action {
         param($c)
         $simulator = Get-Simulator $c
@@ -1304,7 +1526,7 @@ $checks = @(
         New-VerifyResult PASS "$($rows.Count) placements on $($screens.Count) monitor(s) ($(($screens.name) -join ', ')) are 16 pt from the usable area, never under the menu bar or the Dock."
     }
 
-    New-VerifyCheck -Id 'mac.camera-pin' -Kind Auto -Title 'camera window pin (always on top) with real mouse and key events and the Accessibility API, normal window and mini preview' `
+    New-VerifyCheck -Id 'mac.camera-pin' -Needs Session, Accessibility -Kind Auto -Title 'camera window pin (always on top) with real mouse and key events and the Accessibility API, normal window and mini preview' `
         -Closes 'T-122 (klik na špendlík a odjetí myši, přepnutí aplikace, Tab / mezerník / Enter, Tab po kliku na obraz, aktivace přes Accessibility jako VoiceOver)', 'T-117 kritéria „Tlačítko na hlavním panelu / ikona v Docku“, „Přístupnost“ a ruční část (klik přepne hned, Dock a ⌘Tab, kontextové menu pravým tlačítkem i ⌃-klikem, volba přežije restart)' -Action {
         param($c)
         if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (real mouse and key events, the Accessibility tree of the camera window).' }
@@ -1321,7 +1543,7 @@ $checks = @(
         }
     }
 
-    New-VerifyCheck -Id 'mac.camera-outline' -Kind Auto -Title 'outline of the mini preview in a capture of the real window: at every edge and corner, brighter while the pointer is over it, none in the normal window' `
+    New-VerifyCheck -Id 'mac.camera-outline' -Needs Session, Accessibility, ScreenRecording -Kind Auto -Title 'outline of the mini preview in a capture of the real window: at every edge and corner, brighter while the pointer is over it, none in the normal window' `
         -Closes 'T-118 kritéria „Obrys kolem malého náhledu v obou OS“ a „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS (obrys vidět, ostré rohy, zesvětlí při najetí, v normálním okně není)' -Action {
         param($c)
         if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (moving the pointer, the Accessibility tree).' }
@@ -1444,7 +1666,7 @@ $checks = @(
         New-VerifyResult MANUAL "Buddy3D stream confirmed in every mode: $($result.Notes -join '; ')"
     }
 
-    New-VerifyCheck -Id 'mac.keys' -Kind Permission -Permission 'Accessibility for Terminal (System Settings > Privacy & Security > Accessibility), to post real key events' `
+    New-VerifyCheck -Id 'mac.keys' -Needs Session, Accessibility -Kind Permission -Permission 'Accessibility for Terminal (System Settings > Privacy & Security > Accessibility), to post real key events' `
         -Title 'keyboard shortcuts as real key events: Ctrl-Cmd-F, Esc, Cmd-., Cmd-W, Cmd-Shift-]' `
         -Closes 'T-100 kritérium 4 (část: zkratky jako skutečné události klávesnice)' -Action {
         param($c)
@@ -1541,7 +1763,7 @@ $checks = @(
         New-VerifyResult PASS "Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-] twice ($tabMove), Cmd-W and Cmd-. in Settings (no change saved; Cmd-. $listCheck); Cmd-W in About and Diagnostics."
     }
 
-    New-VerifyCheck -Id 'mac.update-check' -Kind Permission -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) for real mouse clicks and the Accessibility tree, and an unlocked screen; Screen Recording optional (window captures)' `
+    New-VerifyCheck -Id 'mac.update-check' -Needs Session, Accessibility -Kind Permission -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) for real mouse clicks and the Accessibility tree, and an unlocked screen; Screen Recording optional (window captures)' `
         -Title '"Check now" in Settings > Startup and updates shows its result after a real click into the active and into an inactive window and after AXPress (stand-in GitHub API on 127.0.0.1)' `
         -Closes 'T-127 položka „Kontrola aktualizací: text výsledku po skutečném kliknutí (macOS, hlášeno uživatelem 2026-11-05)“' -Action {
         param($c)
@@ -1613,7 +1835,7 @@ $checks = @(
         finally { $null = Stop-TestApp $data $app }
     }
 
-    New-VerifyCheck -Id 'mac.display-sleep' -Kind Permission -Permission 'putting the display to sleep (pmset displaysleepnow) and waking it (caffeinate -u); you may have to unlock the screen' `
+    New-VerifyCheck -Id 'mac.display-sleep' -Needs Session, NoScreenSharing -Kind Permission -Permission 'putting the display to sleep (pmset displaysleepnow) and waking it (caffeinate -u); you may have to unlock the screen' `
         -Title 'real start while every display sleeps: monitoring runs and notifies, the menu bar item appears after wake-up' `
         -Closes 'T-096 kritérium 1 (skutečný start s uspaným displejem)', 'T-099 kritérium 1 (ikona po probuzení se stavem)', 'T-099 kritérium 3 (skutečný start se zhasnutým displejem)', 'T-099 kritéria 2 a 4 (sezení 8.2: oznámení události tisku ještě se zhasnutým displejem; potřebuje povolená oznámení z mac.notifications)' -Action {
         param($c)
@@ -1799,10 +2021,75 @@ $checks = @(
 )
 
 # ---------------------------------------------------------------------------------------------------------------------
+# Presets and preconditions (T-208)
+# ---------------------------------------------------------------------------------------------------------------------
+
+# The checks of each preset; they run in definition order (builds and tests first, the shared test bundle and simulator
+# are made once). release: everything that runs without a human; later tasks (T-209 to T-217) add their checks here.
+$presets = [ordered]@{
+    release = @(
+        'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
+        'mac.plist-localnetwork', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
+        'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.keys', 'mac.update-check',
+        'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
+    )
+}
+
+# What each precondition name of -Needs means: { param($Context) } returns $null when it is met, otherwise the reason.
+$preconditions = [ordered]@{
+    Session         = { param($c) Get-SessionLimitation $c }
+    Accessibility   = { param($c) if (-not (Test-Accessibility $c)) { 'the terminal has no Accessibility permission (System Settings > Privacy & Security > Accessibility; then restart the terminal)' } }
+    ScreenRecording = { param($c) if ((Invoke-Helper $c @('screenrecording')) -notcontains 'true') { 'the terminal has no Screen Recording permission (System Settings > Privacy & Security > Screen & System Audio Recording; then restart the terminal)' } }
+    NoScreenSharing = { param($c) if (@(& /usr/bin/pmset -g assertions 2>$null) -match 'Remote user active') { 'Screen Sharing is connected and keeps the display awake (pmset -g assertions: "Remote user active")' } }
+    ReleaseBuild    = { param($c) Get-ReleaseBuildProblem }
+    AppNotRunning   = { param($c) Get-RunningAppProblem }
+}
+
+# The preconditions that are checked without the Swift helper.
+$script:HelperFreeNeeds = @('NoScreenSharing', 'ReleaseBuild', 'AppNotRunning')
+
+function Get-MacPreconditionState($Context, [string[]] $Needs) {
+    <# .SYNOPSIS Checks the preconditions once: name -> $null (met) or the reason; all unmet when the helper does not compile. #>
+    $state = [ordered]@{}
+    $helperProblem = $null
+    try { $null = Get-Helper $Context } catch { $helperProblem = "the helper could not be built: $($_.Exception.Message)" }
+    foreach ($need in $Needs) {
+        if ($helperProblem -and $need -notin $script:HelperFreeNeeds) { $state[$need] = $helperProblem; continue }
+        try { $state[$need] = & $preconditions[$need] $Context }
+        catch { $state[$need] = "could not be checked: $($_.Exception.Message)" }
+    }
+    $state
+}
+
+function Test-CaffeinateParent {
+    <# .SYNOPSIS Whether this script runs under caffeinate (a parent process of any level). #>
+    $process = Get-Process -Id $PID
+    while ($process) {
+        if ($process.ProcessName -eq 'caffeinate') { return $true }
+        $process = $process.Parent
+    }
+    $false
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------------------------------------------------
 
+$presetIds = $null
+if ($Preset) {
+    if (-not $presets.Contains($Preset)) { Write-Host "Unknown preset '$Preset' (presets: $($presets.Keys -join ', '))." -ForegroundColor Red; exit 2 }
+    if ($Only) { Write-Host '-Preset and -Only do not go together (use -Skip to leave out checks of the preset).' -ForegroundColor Red; exit 2 }
+    $presetIds = [string[]] $presets[$Preset]
+}
+
 if ($ListChecks) {
+    if ($presetIds) {
+        try { $listed = @(Select-VerifyPreset -Checks $checks -Name $Preset -Ids $presetIds) }
+        catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 2 }
+        Write-Output "Preset ${Preset}: $($listed.Count) checks, unattended; allowed in advance: $((@($listed | Where-Object Kind -EQ 'Permission').Id) -join ', ')"
+        Format-VerifyCheckList -Checks $listed | Write-Output
+        exit 0
+    }
     Format-VerifyCheckList -Checks $checks | Write-Output
     exit 0
 }
@@ -1810,12 +2097,14 @@ if ($ListChecks) {
 if ($SelfTest) {
     $problems = @(Invoke-VerifySelfTest -TempRoot ([System.IO.Path]::GetTempPath())) + @(Test-VerifyCheckDefinitions -Checks $checks -TasksRoot (Join-Path $script:Repo 'tasks'))
     foreach ($check in $checks) { if ($check.Id -notlike 'mac.*') { $problems += "The check $($check.Id) is not a mac.* check." } }
+    foreach ($name in $presets.Keys) { $problems += @(Test-VerifyPreset -Checks $checks -Name $name -Ids $presets[$name]) }
+    foreach ($need in Get-VerifyNeeds $checks) { if (-not $preconditions.Contains($need)) { $problems += "A check needs the precondition $need, which the script does not know." } }
     if ($problems.Count -gt 0) {
         Write-Output 'SELF-TEST FAILED:'
         $problems | ForEach-Object { Write-Output "  $_" }
         exit 1
     }
-    Write-Output "SELF-TEST PASSED: engine, both modes and $($checks.Count) check definitions."
+    Write-Output "SELF-TEST PASSED: engine, both modes, $($checks.Count) check definitions and the presets $($presets.Keys -join ', ')."
     exit 0
 }
 
@@ -1824,9 +2113,14 @@ if (-not $IsMacOS) {
     exit 2
 }
 
-try { $selected = @(Select-VerifyChecks -Checks $checks -Only $Only -Skip $Skip) }
+try { $selected = if ($presetIds) { @(Select-VerifyPreset -Checks $checks -Name $Preset -Ids $presetIds -Skip $Skip) } else { @(Select-VerifyChecks -Checks $checks -Only $Only -Skip $Skip) } }
 catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 2 }
 $Allow = @($Allow | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+if ($presetIds) {
+    # A preset never asks: unattended, with its Permission checks allowed in advance.
+    $Unattended = [switch] $true
+    $Allow = @(@($Allow) + @($selected | Where-Object Kind -EQ 'Permission' | ForEach-Object Id) | Select-Object -Unique)
+}
 foreach ($pattern in $Allow) {
     if (-not ($checks | Where-Object { $_.Kind -eq 'Permission' -and $_.Id -like $pattern })) {
         Write-Host "-Allow '$pattern' matches no Permission check (see -ListChecks)." -ForegroundColor Red
@@ -1842,7 +2136,30 @@ $root = if ($OutputRoot) { $OutputRoot } else { Join-Path $script:Repo 'artifact
 $runFolder = New-VerifyRunFolder -Root $root
 $context = New-VerifyContext -RunFolder $runFolder -Unattended:$Unattended -Allow $Allow
 $context.Shared.ProductionProfileUsed = @()
-Write-Host "LayerPeek macOS verification ($($context.Unattended ? 'unattended' : 'interactive')), $($selected.Count) check(s); report in $runFolder"
+$started = [DateTimeOffset]::Now
+Write-Host "LayerPeek macOS verification ($($context.Unattended ? 'unattended' : 'interactive')$(if ($Preset) { ", preset $Preset" })), $($selected.Count) check(s); report in $runFolder"
+
+# T-208: in an unattended run nobody can fix a missing precondition, so it is checked once here and the checks that need
+# it end with SKIP and the reason, unrun (an interactive run lets each check ask for its permission itself).
+$preconditionState = [ordered]@{}
+if ($presetIds) {
+    $preconditionState.Awake = if (Test-CaffeinateParent) { 'met (runs under caffeinate)' }
+    else {
+        $null = Start-Process -FilePath '/usr/bin/caffeinate' -ArgumentList @('-d', '-i', '-u', '-w', "$PID")
+        'met (caffeinate -d -i -u started by the script)'
+    }
+}
+$needs = @(Get-VerifyNeeds $selected)
+if ($context.Unattended -and $needs.Count -gt 0) {
+    $state = Get-MacPreconditionState $context $needs
+    foreach ($need in $needs) {
+        if ($state[$need]) { $context.Unmet[$need] = $state[$need]; $preconditionState[$need] = "not met: $($state[$need])" }
+        else { $preconditionState[$need] = 'met' }
+    }
+    $unmetLines = @(Format-VerifyUnmetNeeds -Checks $selected -Unmet $context.Unmet)
+    if ($unmetLines.Count -gt 0) { $unmetLines | ForEach-Object { Write-Host $_ -ForegroundColor Yellow } }
+    else { Write-Host "Preconditions met: $($needs -join ', ')." }
+}
 
 # Leftovers of an interrupted run: test bundles of earlier runs (and their LaunchServices registrations).
 $bundleRoot = Join-Path $script:Repo 'artifacts' 'verify-bundle'
@@ -1865,10 +2182,12 @@ if ($selected | Where-Object Id -EQ 'mac.profile-unchanged') {
 }
 
 $results = Invoke-VerifyRun -Checks $selected -Context $context
-$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/macos-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id) -Allow $Allow
+$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/macos-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id) -Allow $Allow -Preset $Preset -Preconditions $preconditionState -Started $started
+$info.Seconds = [math]::Round(([DateTimeOffset]::Now - $started).TotalSeconds)
 $report = Write-VerifyReport -Folder $runFolder -Info $info -Results $results
+$latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
-Write-Host "Report: $($report.Markdown)"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys or mac.update-check.'
+Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items or mac.update-check.'
 exit (Get-VerifyExitCode -Results $results)

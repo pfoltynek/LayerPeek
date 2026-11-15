@@ -1001,6 +1001,24 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Your own limit: fewer frames per second mean less CPU load and less image data copied.</value>
   </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Hardware decoding</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automatic</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>The graphics hardware decodes the camera video when it can, otherwise the processor does: less CPU load.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Always decoded by the processor: less memory, no system decoder. Try it if the camera picture is damaged or black.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>On Windows, Automatic still decodes in software for now.</value>
+  </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} fps</value>
   </data>

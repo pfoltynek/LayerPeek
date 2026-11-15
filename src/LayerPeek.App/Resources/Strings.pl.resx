@@ -960,6 +960,24 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Własna wartość: mniej klatek na sekundę to mniejsze obciążenie procesora i mniej kopiowanych danych.</value>
   </data>
+  <data name="SettingsHardwareDecoding" xml:space="preserve">
+    <value>Dekodowanie sprzętowe</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomatic" xml:space="preserve">
+    <value>Automatycznie</value>
+  </data>
+  <data name="SettingsHardwareDecodingOff" xml:space="preserve">
+    <value>Wyłączone</value>
+  </data>
+  <data name="SettingsHardwareDecodingAutomaticHint" xml:space="preserve">
+    <value>Wideo z kamery dekoduje sprzęt graficzny, gdy to możliwe, w przeciwnym razie procesor: mniejsze obciążenie procesora.</value>
+  </data>
+  <data name="SettingsHardwareDecodingOffHint" xml:space="preserve">
+    <value>Zawsze procesor: mniej pamięci, bez dekodera systemowego. Spróbuj, gdy obraz kamery jest uszkodzony lub czarny.</value>
+  </data>
+  <data name="SettingsHardwareDecodingSoftwareNote" xml:space="preserve">
+    <value>W systemie Windows opcja Automatycznie na razie dekoduje programowo.</value>
+  </data>
   <data name="SettingsMiniFrameRateValue" xml:space="preserve">
     <value>{0} kl./s</value>
   </data>

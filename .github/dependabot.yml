@@ -1,0 +1,19 @@
+# Version updates of the actions in .github/workflows (T-218): Dependabot moves the commit pins together with their
+# version comments. NuGet stays with the security updates of the repository settings (T-180), no version updates.
+# The runner images (runs-on) are not covered: they are raised by hand (docs/prerequisites.md, section CI).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    # A new release must be a week old before it is proposed (a compromised release is usually pulled by then).
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
+    open-pull-requests-limit: 3

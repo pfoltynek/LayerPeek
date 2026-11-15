@@ -22,6 +22,7 @@
 
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Latest release"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml?query=branch%3Adevelop"><img src="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml/badge.svg?branch=develop" alt="CI status (develop)"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platform: Windows 10/11 | macOS (Apple Silicon)">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
@@ -449,7 +450,7 @@ LayerPeek releases, without any account or token, and the download of an update 
 
 ## Roadmap
 
-- `winget install` as soon as the first release is public
+- `winget install` after the 1.0.0 release
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
 

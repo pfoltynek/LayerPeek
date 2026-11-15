@@ -290,6 +290,8 @@ internal static partial class AppServices
                 sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<CameraWindowAutoVisibilityObserver>(),
+                // T-203: before the hub, so that a connection it starts for these settings decodes as they say.
+                sp.GetRequiredService<CameraHardwareDecodingObserver>(),
                 // Before MonitoredPrinters: the hub knows a new camera address before the open camera windows hear of it.
                 sp.GetRequiredService<CameraStreamHubObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
@@ -734,9 +736,20 @@ internal static partial class AppServices
     /// <summary>
     /// The video decoder of the camera windows and of the camera test (T-014): FFmpeg. This is the only place that chooses
     /// it. Creating it loads nothing; missing native libraries surface as a camera error, the rest of the app works.
+    /// T-203: hardware decoding follows the setting (<see cref="CameraHardwareDecodingObserver"/>); the Debug test mode may
+    /// override it for measurements (<see cref="AppEnvironment.TestHardwareDecoderVariable"/>).
     /// </summary>
-    private static readonly Func<IServiceProvider, ICameraFeedFactory> CreateCameraFeedFactory =
-        static _ => new FFmpegCameraFeedFactory();
+    private static readonly Func<IServiceProvider, ICameraFeedFactory> CreateCameraFeedFactory = static sp =>
+    {
+        FFmpegCameraFeedFactory factory = new(sp.GetRequiredService<ILogger<FFmpegCameraFeedFactory>>());
+#if DEBUG
+        if (sp.GetRequiredService<AppEnvironment>().TestHardwareDecoder is { } decoder)
+        {
+            factory.UseTestHardwareDecoder(decoder);
+        }
+#endif
+        return factory;
+    };
 
     /// <summary>
     /// The test mode (T-044) records into its data folder by default, never into the user's video folder; the E2E tests
@@ -824,6 +837,8 @@ internal static partial class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CameraStreamHub>>()));
         services.AddSingleton(static sp => new CameraStreamHubObserver(sp.GetRequiredService<CameraStreamHub>()));
+        // T-203: the "Hardware decoding" setting goes to the decoder after loading and every save.
+        services.AddSingleton(static sp => new CameraHardwareDecodingObserver(sp.GetRequiredService<ICameraFeedFactory>()));
         // T-144: recordings remux the hub's packets into fragmented MP4 (FFmpeg, never an encoder); when and where to
         // record is decided by T-145. Creating them loads nothing; a build without the muxer reports "not available".
         services.AddSingleton<ICameraRecordingWriterFactory>(static _ => new FFmpegCameraRecordingWriterFactory());
@@ -1088,6 +1103,8 @@ internal static partial class AppServices
             ImageStartDirectory = environment.IsIsolated ? environment.DataDirectory() : null,
             // macOS (T-019, user decision 2026-10-29): "Open at Login". T-058: the pre-release option on every OS (Q3 a).
             UsesMacTerms = OperatingSystem.IsMacOS(),
+            // T-204 (user decision 2026-11-12): the note that "Automatic" hardware decoding is still software (Windows).
+            ShowsHardwareDecodingSoftwareNote = !FFmpegCameraFeedFactory.AutomaticUsesHardware,
             // T-058: "Check now" (Q4 a) and the hint to move the macOS app to Applications first (Q8 a).
             CheckForUpdatesNow = services.GetRequiredService<UpdateOffer>().CheckNowAsync,
             ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,

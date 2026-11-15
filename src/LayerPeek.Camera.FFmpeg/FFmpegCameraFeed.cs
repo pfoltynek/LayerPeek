@@ -32,16 +32,22 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
     private readonly string _url;
     private readonly bool _isNetwork;
     private readonly TimeSpan _ioTimeout;
+    private readonly HardwareDecodingPolicy _hardware;
+    private readonly HardwareDecodingHistory _hardwareHistory;
     private readonly Lock _lock = new();
     private bool _enumerated;
     private bool _disposed;
     private FrameReader? _reader;
 
-    public FFmpegCameraFeed(string url, bool isNetwork, TimeSpan ioTimeout)
+    /// <param name="hardware">Hardware decoding of the factory (T-203).</param>
+    /// <param name="hardwareHistory">The hardware failures of this camera (T-203).</param>
+    public FFmpegCameraFeed(string url, bool isNetwork, TimeSpan ioTimeout, HardwareDecodingPolicy hardware, HardwareDecodingHistory hardwareHistory)
     {
         _url = url;
         _isNetwork = isNetwork;
         _ioTimeout = ioTimeout;
+        _hardware = hardware;
+        _hardwareHistory = hardwareHistory;
     }
 
     /// <summary>Native FFmpeg objects are currently allocated (for tests).</summary>
@@ -52,6 +58,18 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
 
     /// <summary>Whether the H.264 decoder was opened (for tests, T-143).</summary>
     internal bool DecoderOpened => Volatile.Read(ref _reader)?.DecoderOpened ?? false;
+
+    /// <summary>The hardware failures of this camera (for tests, T-203).</summary>
+    internal HardwareDecodingHistory HardwareHistory => _hardwareHistory;
+
+    /// <summary>Whether a hardware device is attached to the decoder now (for tests, T-203).</summary>
+    internal bool HoldsHardwareDevice => Volatile.Read(ref _reader)?.Decoder.HoldsHardwareDevice ?? false;
+
+    /// <summary>Hardware frames mapped into memory so far (for tests, T-203).</summary>
+    internal long MappedFrames => Volatile.Read(ref _reader)?.Decoder.MappedFrames ?? 0;
+
+    /// <summary>Hardware frames copied into memory so far because mapping failed (for tests, T-203).</summary>
+    internal long TransferredFrames => Volatile.Read(ref _reader)?.Decoder.TransferredFrames ?? 0;
 
     public IAsyncEnumerable<CameraFrame> ReadFramesAsync(CancellationToken cancellationToken)
     {
@@ -102,7 +120,7 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
                 throw new InvalidOperationException("A camera feed can be enumerated only once.");
             }
 
-            FrameReader reader = new(_url, _isNetwork, _ioTimeout, demand, emitInfo, feedToken, enumeratorToken);
+            FrameReader reader = new(new FFmpegDecoder(_url, _isNetwork, _ioTimeout, new InterruptFlag(), _hardware, _hardwareHistory), demand, emitInfo, feedToken, enumeratorToken);
             Volatile.Write(ref _reader, reader);
             return reader;
         }
@@ -159,12 +177,12 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
         // Written by the decoder thread before it completes a step, read by the consumer after awaiting it.
         private volatile bool _finished;
 
-        public FrameReader(string url, bool isNetwork, TimeSpan ioTimeout, CameraStreamDemand demand, bool emitInfo, CancellationToken feedToken, CancellationToken enumeratorToken)
+        public FrameReader(FFmpegDecoder decoder, CameraStreamDemand demand, bool emitInfo, CancellationToken feedToken, CancellationToken enumeratorToken)
         {
             _demand = demand;
             _emitInfo = emitInfo;
-            _interrupt = new InterruptFlag();
-            _decoder = new FFmpegDecoder(url, isNetwork, ioTimeout, _interrupt);
+            _interrupt = decoder.Interrupt;
+            _decoder = decoder;
             if (feedToken.CanBeCanceled && enumeratorToken.CanBeCanceled && feedToken != enumeratorToken)
             {
                 _linked = CancellationTokenSource.CreateLinkedTokenSource(feedToken, enumeratorToken);
@@ -185,6 +203,8 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
         public long DecodedFrames => _decoder.DecodedFrames;
 
         public bool DecoderOpened => _decoder.DecoderOpened;
+
+        public FFmpegDecoder Decoder => _decoder;
 
         public ValueTask<bool> MoveNextAsync()
         {

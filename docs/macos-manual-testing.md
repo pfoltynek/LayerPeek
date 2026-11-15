@@ -36,11 +36,40 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notificat
 caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user
 ```
 
+### Regresní běh před vydáním (T-208)
+
+Jeden příkaz spustí bez dozoru všechny kontroly, které nepotřebují člověka (preset `release`: kontroly `Auto`
+a `Permission` z tabulky `$presets` ve skriptu; seznam ukáže `pwsh tools/macos-verify.ps1 -ListChecks -Preset release`).
+Nic se neptá: preset v sobě má `-Unattended` a `-Allow` pro své kontroly s oprávněním. Opakuje se před každým vydáním.
+
+```bash
+cd -P /cesta/k/LayerPeek
+caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release
+caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Preset release -Skip mac.aot-smoke   # -Skip jde, -Only ne
+```
+
+- **Jednorázová příprava:** viz „Bez vás“ níže – Zpřístupnění pro Terminál, volitelně Nahrávání obrazovky, povolená
+  oznámení „LayerPeek E2E“, pravidlo sudoers (`sudo bash tools/macos-verify-sudoers.sh`) a delší prodleva hesla po
+  vypnutí displeje. Spouštět u Macu z Terminálu s odemčenou obrazovkou, bez Sdílení obrazovky.
+- **Předběžné podmínky** se zkontrolují jednou na začátku: odemčená obrazovka na konzoli (`Session`), Zpřístupnění
+  (`Accessibility`), Nahrávání obrazovky (`ScreenRecording`), žádné Sdílení obrazovky (`NoScreenSharing`), výstup
+  `scripts/release-build.ps1` pro verzi z `Directory.Build.props` (`ReleaseBuild`: `.dmg`, `.tar.gz`
+  a `SHA256SUMS-macos.txt` v `artifacts/release/<verze>/dist`; sestavení `caffeinate -d -u -i pwsh
+  scripts/release-build.ps1 -SkipFeedSignature`, asi 20 min) a žádná spuštěná LayerPeek (`AppNotRunning`). Co chybí, se
+  vypíše jednou se seznamem dotčených kontrol; ty skončí `SKIP` s důvodem, ne `FAIL`, a vůbec se nespustí. Bez
+  `caffeinate` v rodičovských procesech si skript drží Mac i displej vzhůru sám (`caffeinate -d -i -u -w`).
+- **Zpráva:** `artifacts/verify/<čas>/report.md` a `report.json` (id, výsledek, důvod, uzavíraná kritéria, doba trvání);
+  hlavička: commit, čistý strom ano / ne, verze aplikace, macOS (`sw_vers`), model Macu, datum, doba běhu, preset
+  a stav předběžných podmínek. `artifacts/verify/latest` ukazuje na poslední běh. Domovská složka je ve zprávě jako `~`.
+- **Odškrtávání v T-127 / T-126:** bod s kontrolou `mac.X` se odškrtne, když je `mac.X` `PASS` ve zprávě
+  `-Preset release` na commitu, který obsahuje ověřovaný kód; do poznámek úkolu se zapíše složka běhu, commit a řádek
+  zprávy (pravidlo v `tasks/README.md`).
+
 **Bez vás (T-140, rozhodnutí uživatele 2026-11-02):** `-Allow` spustí vyjmenované kontroly s oprávněním bez otázky,
 i s `-Unattended`; otázky na posouzení nahrazuje Accessibility (záložka Nastavení, tooltip ikony v menu baru). Jednou
 připravit:
-- **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.camera-pin`,
-  `mac.update-check`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
+- **Zpřístupnění** pro Terminál (Soukromí a zabezpečení → Zpřístupnění) – `mac.keys`, `mac.menubar`, `mac.menu-items`,
+  `mac.camera-pin`, `mac.update-check`; **Nahrávání obrazovky** pro Terminál – `mac.camera-outline`, volitelně `mac.update-check` (snímky
   okna jako důkaz, že je text výsledku opravdu vykreslený).
 - **Oznámení** „LayerPeek E2E“ povolená (Nastavení systému → Oznámení, nebo jednou interaktivně `-Only mac.notifications`)
   – `mac.notifications` a oznámení během spánku v `mac.display-sleep`.
@@ -65,7 +94,7 @@ připravit:
   Klíčenky s prefixem `LayerPeek.Tests`, dočasné složky. Řízené ruční kroky s `/Applications/LayerPeek.app` nabídnou
   dočasné odsunutí profilu LayerPeek (žurnál `scripts/aot-smoke.ps1`, obnova i `pwsh scripts/aot-smoke.ps1 -RestoreOnly`).
 - **Známé pozůstatky:** položka „LayerPeek E2E“ v Nastavení systému → Oznámení; Terminál v Soukromí a zabezpečení →
-  Zpřístupnění, pokud jste ho povolili pro `mac.keys` nebo `mac.update-check` (po běhu vypněte).
+  Zpřístupnění, pokud jste ho povolili pro `mac.keys`, `mac.menu-items` nebo `mac.update-check` (po běhu vypněte).
 
 | Kontrola | Druh | Uzavírá | Sezení níže |
 |---|---|---|---|
@@ -75,9 +104,11 @@ připravit:
 | `mac.keychain` | automaticky | T-021 krit. 1–5 a 8 (přeskočený test = `FAIL`), krit. 7 s `mac.profile-unchanged` | 3.1 |
 | `mac.dock` | automaticky | T-019 krit. 7 (bez Docku, `lsappinfo` typ `UIElement`) | 2.1 |
 | `mac.menubar` | automaticky | T-019 krit. 7 (ikona v menu baru), T-018 krit. 3 (část: Ukončit) | 2.1, 2.3 |
+| `mac.menu-items` | oprávnění (Zpřístupnění pro Terminál, odemčená obrazovka) | T-018 krit. 3 (menu se zobrazí a aktualizuje: skutečné menu stavové položky přes helper `menu` ve stavech idle, printing, paused, finished, error, offline se simulátorem `--speed 20`, tooltip ikony; kamera přes `menupress`; „Ukončit“ z menu), T-209; zapíše AXHelp zakázaných položek (`disabled-items-help.txt`) | 2.3 |
 | `mac.settings-front` | automaticky | T-019 krit. 8 (Nastavení, O aplikaci, Diagnostika a další spuštění nad Finderem, `lsappinfo front`) | 2.4 |
 | `mac.plist-localnetwork` | automaticky | T-097 krit. 3 (podklad: text každého jazyka, jak ho vybere NSBundle) | 4.1 |
 | `mac.gatekeeper` | automaticky | T-019 krit. 12 (část: `spctl` odmítne kopii z `.dmg` s karanténou; potřebuje `release-build.ps1`) | 1.4 |
+| `mac.release-bundle` | automaticky (`ReleaseBuild`, `AppNotRunning`) | T-217 krit. 1 a 2; T-026 „čistý Mac“ v T-127 (rozhodnutí 2026-11-13: start s vyčištěným prostředím na tomto Macu stačí, stream v Release se nekontroluje). Kopie aplikace z `.dmg` (`hdiutil attach -readonly -nobrowse`, `ditto` do dočasné složky, vždy `detach`) a z `.tar.gz`: `codesign --verify --deep --strict`, hardened runtime a entitlements, `otool -L` jen cesty bundlu a systému (ne Homebrew, `/usr/local`, `/opt`, `artifacts/`, `LayerPeek.Build`), `LC_RPATH` jen `@executable_path` / `@loader_path`, `Info.plist` (verze, identifikátor, `LSUIElement`), SHA-256 proti `SHA256SUMS-macos.txt`; pak start kopie z `.dmg` přes `aot-smoke.ps1 -CleanEnvironment` (`env -i`: jen `HOME`, systémový `PATH`, `TMPDIR`) ≥ 10 s, typ `UIElement`, v logu žádná chyba načtení nativní knihovny | 1.4 |
 | `mac.notifications` | automaticky* | T-020 krit. 1 a 5 (E2E test bundlu) | 5.1 |
 | `mac.display-wait` | automaticky | T-096 krit. 1 a T-099 krit. 1 (podklad: simulované čekání) | – |
 | `mac.camera` | automaticky | T-026 krit. 1 (část: okno a trvalé RTSP spojení v normálním, malém a celoobrazovkovém režimu) | 6.1 |

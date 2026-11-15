@@ -525,6 +525,14 @@ Paramètres de toutes les caméras (la caméra de chaque imprimante se configure
   reste lue en entier, les enregistrements, les timelapses et la détection des défauts d'impression ne changent pas. La
   fenêtre normale et le plein écran affichent toujours chaque image. Le changement s'applique à un mini-aperçu ouvert
   après **Enregistrer**.
+- **Décodage matériel :** **Automatique** (par défaut) laisse le matériel graphique décoder la vidéo de la fenêtre de la
+  caméra et du mini-aperçu quand c'est possible, sinon le processeur s'en charge ; la charge processeur baisse.
+  **Désactivé** décode toujours avec le processeur : moins de mémoire et aucun décodeur système, mais plus de charge
+  processeur. Choisissez **Désactivé** si l'image de la caméra est abîmée ou noire, après un problème de pilote
+  graphique ou pour économiser la mémoire. Sous Windows, **Automatique** décode pour l'instant aussi avec le processeur.
+  Le test de la caméra et la détection des défauts d'impression utilisent toujours le processeur. Le changement
+  s'applique après **Enregistrer** ; une fenêtre de caméra ouverte bascule à la prochaine image clé de la caméra (en
+  général en quelques secondes), sans nouvelle connexion.
 
 ## 12. Mises à jour
 
@@ -742,6 +750,10 @@ Réglages Système** ; activez LayerPeek dans **Réglages Système → Confiden
 
 **La caméra affiche Pas de signal.** Vérifiez l'adresse RTSP avec **Tester la caméra**, et que la caméra est allumée et
 accessible. Ne mettez ni nom d'utilisateur ni mot de passe dans l'adresse.
+
+**L'image de la caméra est abîmée ou noire** (l'adresse et **Tester la caméra** sont bons). Réglez **Paramètres →
+Caméra → Décodage matériel** sur **Désactivé** et enregistrez ; la fenêtre de la caméra décode alors avec le processeur
+(voir [11.6](#116-caméra)).
 
 **Les notifications n'apparaissent pas.** Utilisez **Envoyer une notification de test** dans **Paramètres → Général**
 et vérifiez **Ne pas déranger** (Windows) ou **Concentration** (macOS).

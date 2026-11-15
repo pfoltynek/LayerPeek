@@ -301,9 +301,10 @@ public sealed partial class ThirdPartyLicensesTests
     }
 
     [Fact]
-    public void FFmpegMacOSBuildIsLgplOnlyWithoutHardwareDecoding()
+    public void FFmpegMacOSBuildIsLgplOnlyWithVideoToolboxAsItsOnlyHardwareDecoder()
     {
-        // T-026 (user decisions 2026-10-29): LGPL only, version 3 like the BtbN build, software decoding only.
+        // T-026 (user decisions 2026-10-29): LGPL only, version 3 like the BtbN build. T-203 (user decision 2026-11-12):
+        // hardware decoding of H.264 through VideoToolbox, a system framework, and nothing else.
         string script = File.ReadAllText(Path.Combine(RepositoryRoot, "build", "macos", "build-ffmpeg.sh"));
         Match flags = ConfigureFlags().Match(script);
         Assert.True(flags.Success);
@@ -311,7 +312,8 @@ public sealed partial class ThirdPartyLicensesTests
 
         Assert.DoesNotContain("--enable-gpl", configure, StringComparison.Ordinal);
         Assert.DoesNotContain("--enable-nonfree", configure, StringComparison.Ordinal);
-        Assert.DoesNotContain("--enable-videotoolbox", configure, StringComparison.Ordinal);
+        Assert.Contains("--enable-videotoolbox --enable-hwaccel=h264_videotoolbox", configure, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(configure, "--enable-hwaccel"));
         // T-147: recording only remuxes (--enable-muxer=mp4), it never encodes.
         Assert.DoesNotContain("--enable-encoder", configure, StringComparison.Ordinal);
         Assert.Contains("--enable-version3", configure, StringComparison.Ordinal);

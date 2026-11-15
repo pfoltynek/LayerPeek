@@ -63,6 +63,7 @@ Legenda: **W** = potřebuje Windows, **M** = potřebuje Mac, **U** = potřebuje 
 | B8 | **Identita autorů v historii** (oddíl 3.1, otázka 1) – **rozhodnuto 2026-11-11:** historie zůstává, od teď adresa noreply | T-198, T-125 2aa | U | Repozitář je veřejný od 2026-10-30, adresy v historii už veřejné jsou; přepis by nepomohl. Zbývá `user.email` na Windows (T-125 2aa); na Macu nastavil hlavní agent |
 | B9 | **Kontrola veřejného repozitáře na GitHubu** (oddíl 3.2) | T-198, T-180 | U | Repozitář je už veřejný. Agent nevidí obsah na GitHubu (vydání 0.x, issues, vzdálené větve, nastavení); před 1.0.0 zkontrolovat, co je vidět, a upozornění secret scanningu. Nevratnost zveřejnění už nehraje roli, bod je doporučený, ne blokující |
 | B10 | **T-202** – vlastní minimální LGPL build FFmpeg na Windows (místo BtbN, s D3D11VA) – přidáno 2026-11-12 | T-202 | W, U | Rozhodnutí uživatele 2026-11-12 (T-199, otázka 2c): DLL BtbN obsahují ~50 staticky přilinkovaných knihoven, jejichž zdroje vydání nepřikládá (bod 18 kontrolního seznamu https://ffmpeg.org/legal.html). Uživatel musí nejdřív zvolit toolchain (T-202, otázka 1) |
+| B11 | **T-201** – přeinstalace (`winget upgrade`, `Setup.exe`) nezapne znovu vypnutý autostart – přidáno 2026-11-12 | T-201 | W | Rozhodnutí uživatele 2026-11-12 (T-201, otázka 4): závislost na T-059 zrušena, oprava musí být ve vydání 1.0.0 |
 
 ### 1.2 Sběrné úkoly T-124–T-127: co je důležité pro 1.0.0
 
@@ -221,8 +222,8 @@ Možnosti k e-mailům autorů (původní rozbor):
 Repozitář už je veřejný, takže jde o kontrolu toho, co je **už vidět** (ne o přípravu na zveřejnění).
 - [ ] Vzdálené větve a tagy: `git ls-remote origin` (smazat zapomenuté `feature/*`, které nemají být veřejné).
 - [ ] Veřejný obsah: text a soubory vydání `v0.1.0`–`v0.5.0` (koncepty smazat nebo zkontrolovat),
-      issues, PR, Discussions, popisy commitů v PR. **`v0.2.0` je jako jediné 0.x vydání označené jako „Latest“
-      (rozhodnuto 2026-10-30 nechat), dokud nevyjde 1.0.0.**
+      issues, PR, Discussions, popisy commitů v PR. **Opraveno 2026-11-13:** příznak předběžného vydání u 0.2.0–0.5.0
+      byl změněn mimo skripty, „Latest“ je dnes `v0.5.0`; uživatel 2026-11-13 rozhodl nechat, jak je (1.0.0 bude Latest).
 - [x] Ponechat vydání 0.x veřejně? (otázka 6) → rozhodnuto 2026-11-11: vydání 0.1.0–0.5.0 zůstávají, jak jsou.
 - [ ] Nastavení repozitáře: popis, web, témata (topics), náhled pro sociální sítě, Discussions zapnuté (odkazuje na ně
       `CONTRIBUTING.md` a `.github/ISSUE_TEMPLATE/config.yml`), private vulnerability reporting (odkaz v `SECURITY.md`),
@@ -396,6 +397,9 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
       → Mac: nastavil hlavní agent 2026-11-11 (`git config user.email`); Windows → přesunuto do T-125 (2aa)
 - [ ] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný
 - [ ] B10: T-202 hotový (vlastní minimální LGPL build FFmpeg na Windows s D3D11VA, zdroj Windows u vydání bez BtbN)
+- [ ] B11: T-201 hotový (přeinstalace respektuje vypnutý autostart)
+- [ ] Uživatel zapnul v GitHubu (Settings → Emails) „Keep my email addresses private“ a „Block command line pushes
+      that expose my email“ (otázka 11); první push po zapnutí projde
 - [x] Odpovědi na otázky 2–4 a 6–10 zapsané
 - [x] `docs/release.md` po rozhodnutí o otázce 4 popisuje tok 1.0.0 (oba OS do konceptu), doplněný `caffeinate`
       a oprava věty o zkušebním vydání (2.2)
@@ -435,10 +439,22 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     Emails): zapnout? Druhá volba odmítne push commitu s osobní adresou. Historie obsahuje commity
     s `pfoltynek@outlook.cz`; jestli by to ovlivnilo push větví, které je obsahují (např. `release.ps1`), architekt
     neověřil, ověřit podle dokumentace GitHubu před zapnutím. Změna nastavení GitHubu, agent ji nedělá.
+
+    Rozhodnuto uživatelem 2026-11-13: **zapnout obě, po ověření.** Ověřeno (hlavní agent 2026-11-13,
+    https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-email-preferences/blocking-command-line-pushes-that-expose-your-personal-email-address):
+    GitHub při pushi kontroluje jen **nejnovější commit** („we'll check the most recent commit“), staré commity
+    s osobní adresou v historii push neblokují, pokud špička větve má adresu noreply. Obě volby zapne **uživatel**
+    v Settings → Emails (krit. níže).
 12. **`git config user.useConfigOnly true`** (globálně na obou počítačích): git pak odmítne commit bez nastaveného
     `user.email` místo odvození adresy ze jména počítače. Doporučuje se jako pojistka pro nové klony; zavést?
+
+    Rozhodnuto uživatelem 2026-11-13: **ano.** Mac: nastavil hlavní agent 2026-11-13; Windows → T-125 (2aa);
+    postup v `docs/prerequisites.md`.
 13. **README Roadmap „`winget install` as soon as the first release is public“:** ponechat do odeslání do winget
     (T-059 ho po přijetí balíčku přepíše), nebo upravit už teď (např. „after the 1.0.0 release“)?
+
+    Rozhodnuto uživatelem 2026-11-13: **upravit teď** – „`winget install` after the 1.0.0 release“ (README EN/CZ),
+    provedeno; T-059 řádek po přijetí balíčku přepíše.
 
 ## Poznámky k implementaci
 Analýza 2026-11-11 (architekt, Mac, větev `feature/T-198-release-1-0-0-readiness`):

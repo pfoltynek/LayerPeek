@@ -496,6 +496,13 @@ Ustawienia wszystkich kamer (kamerę każdej drukarki ustawisz w jej podkarcie *
   30 kl./s (**Własny**). Mniej klatek to mniejsze obciążenie procesora i mniej kopiowanych danych; kamera jest nadal
   odczytywana w całości, więc nagrania, timelapse i wykrywanie błędów druku się nie zmieniają. Zwykłe okno i pełny ekran
   zawsze pokazują każdą klatkę. Zmiana obowiązuje dla otwartego małego podglądu po **Zapisz**.
+- **Dekodowanie sprzętowe:** **Automatycznie** (domyślnie) pozwala sprzętowi graficznemu dekodować wideo okna kamery
+  i małego podglądu, gdy to możliwe, a w przeciwnym razie dekoduje je procesor; zmniejsza to obciążenie procesora.
+  **Wyłączone** zawsze dekoduje procesorem: mniej pamięci i brak dekodera systemowego, ale większe obciążenie procesora.
+  Wybierz **Wyłączone**, gdy obraz kamery jest uszkodzony lub czarny, po problemach ze sterownikiem grafiki albo aby
+  oszczędzić pamięć. W systemie Windows na razie także **Automatycznie** dekoduje procesorem. Test kamery
+  i wykrywanie błędów druku zawsze używają procesora. Zmiana obowiązuje po **Zapisz**; otwarte okno kamery przełącza się
+  od następnej klatki kluczowej kamery (zwykle w ciągu kilku sekund), bez ponownego łączenia.
 
 ## 12. Aktualizacje
 
@@ -701,6 +708,10 @@ systemowe**; włącz LayerPeek w **Ustawienia systemowe → Prywatność i ochro
 
 **Kamera pokazuje Brak sygnału.** Sprawdź adres RTSP przyciskiem **Testuj kamerę** oraz to, czy kamera jest włączona
 i osiągalna. Nie wpisuj do adresu nazwy użytkownika ani hasła.
+
+**Obraz kamery jest uszkodzony lub czarny** (adres i **Testuj kamerę** są w porządku). Ustaw **Ustawienia →
+Kamera → Dekodowanie sprzętowe** na **Wyłączone** i zapisz; okno kamery dekoduje wtedy procesorem (zob.
+[11.6](#116-kamera)).
 
 **Powiadomienia się nie pojawiają.** Użyj **Wyślij powiadomienie testowe** w **Ustawienia → Ogólne** i sprawdź tryb
 **Nie przeszkadzać** (Windows) lub **Tryb skupienia** (macOS).

@@ -509,6 +509,13 @@ Einstellungen für alle Kameras (die Kamera eines Druckers richten Sie in seinem
   kopierte Bilddaten; die Kamera wird weiter vollständig gelesen, Aufnahmen, Zeitraffer und Druckfehlererkennung ändern
   sich nicht. Das normale Fenster und das Vollbild zeigen immer jedes Bild. Die Änderung gilt für eine offene
   Mini-Vorschau nach **Speichern**.
+- **Hardware-Dekodierung:** **Automatisch** (Standard) lässt die Grafikhardware das Video des Kamerafensters und der
+  Mini-Vorschau dekodieren, wenn möglich, sonst dekodiert der Prozessor; das senkt die CPU-Last. **Aus** dekodiert immer
+  mit dem Prozessor: weniger Speicher und kein Systemdecoder, aber eine höhere CPU-Last. Wählen Sie **Aus**, wenn das
+  Kamerabild beschädigt oder schwarz ist, nach Problemen mit dem Grafiktreiber oder um Speicher zu sparen. Unter Windows
+  dekodiert vorerst auch **Automatisch** mit dem Prozessor. Kameratest und Druckfehlererkennung nutzen immer den
+  Prozessor. Die Änderung gilt nach **Speichern**; ein offenes Kamerafenster wechselt ab dem nächsten Schlüsselbild der
+  Kamera (meist innerhalb weniger Sekunden), ohne neue Verbindung.
 
 ## 12. Updates
 
@@ -727,6 +734,10 @@ Lokales Netzwerk** ein.
 
 **Die Kamera zeigt „Kein Signal“.** Prüfen Sie die RTSP-Adresse mit **Kamera testen** und ob die Kamera eingeschaltet
 und erreichbar ist. Schreiben Sie keinen Benutzernamen und kein Passwort in die Adresse.
+
+**Das Kamerabild ist beschädigt oder schwarz** (Adresse und **Kamera testen** sind in Ordnung). Stellen Sie
+**Einstellungen → Kamera → Hardware-Dekodierung** auf **Aus** und speichern Sie; das Kamerafenster dekodiert dann mit
+dem Prozessor (siehe [11.6](#116-kamera)).
 
 **Benachrichtigungen erscheinen nicht.** Verwenden Sie **Testbenachrichtigung senden** in **Einstellungen → Allgemein**
 und prüfen Sie **Nicht stören** (Windows) bzw. **Fokus** (macOS).

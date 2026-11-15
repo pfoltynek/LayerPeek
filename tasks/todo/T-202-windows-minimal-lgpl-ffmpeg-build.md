@@ -73,6 +73,16 @@ Vlastní minimální build:
   `CHANGELOG.md`, T-125 oddíl 2ab (body o `git archive` / BtbN nahradit).
 - **Ověření:** kamera se simulátorem (RTSP, nahrávání MP4, export timelapse do JPEG), E2E testy kamery, AOT publish,
   porovnání velikosti DLL a doby prvního buildu s BtbN.
+- **CI (T-218, doplněno architektem 2026-11-13):** pokud už bude workflow `.github/workflows/ci.yml` hotový, upravit
+  klíč cache FFmpeg pro Windows (hash nového skriptu buildu + tarball) a instalaci toolchainu na runneru `windows-*`;
+  pokud ne, T-218 to převezme podle tohoto úkolu.
+  *Stav 2026-11-13 (T-218):* workflow existuje. Klíč cache FFmpeg pro Windows (job `Build and test (Windows)`, krok
+  `Restore FFmpeg`) = obraz + RID + hash `build/FFmpeg.targets` a vzoru `build/windows/build-ffmpeg.*` (položka matice
+  `ffmpeg-script`). Skript s tímto názvem se do klíče dostane sám; jiný název = upravit `ffmpeg-script`. T-202 doplní
+  do jobu Windows instalaci toolchainu (krok před `Build (Release)`, akce připnutá na SHA s komentářem verze, test
+  `CiWorkflowTests`) a v `docs/prerequisites.md`, oddíl „CI (GitHub Actions)“, větu o Windows zipu BtbN.
+- **T-221 (2026-11-14):** s buildem BtbN dává rovina Y na Windows větší rozdíl proti BGRA než meze T-189 (1,72 / +1,44).
+  Po přechodu na vlastní build změřit `GrayscaleSampleEquivalenceTests` znovu (zapsat do T-221).
 
 ## Akceptační kritéria
 - [ ] První `dotnet build` na Windows přeloží FFmpeg z připnutého oficiálního tarballu (ověřený SHA-256, stejný jako

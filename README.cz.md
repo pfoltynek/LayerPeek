@@ -22,6 +22,7 @@
 
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Poslední vydání"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml?query=branch%3Adevelop"><img src="https://github.com/pfoltynek/LayerPeek/actions/workflows/ci.yml/badge.svg?branch=develop" alt="Stav CI (develop)"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="Licence: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platforma: Windows 10/11 | macOS (Apple Silicon)">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
@@ -442,7 +443,7 @@ LayerPeeku, bez účtu a tokenu, a stažení aktualizace, kterou spustíš).
 
 ## Plán
 
-- `winget install` hned po zveřejnění prvního vydání
+- `winget install` po vydání 1.0.0
 - Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
   podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory
   projektu přibudou později.

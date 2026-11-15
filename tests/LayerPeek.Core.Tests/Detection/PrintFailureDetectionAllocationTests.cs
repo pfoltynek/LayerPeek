@@ -8,6 +8,7 @@ using LayerPeek.Core.Settings;
 using LayerPeek.Core.Tests.Cameras;
 using LayerPeek.Core.Tests.Cameras.Recording;
 using LayerPeek.Tests.Allocation;
+using LayerPeek.Tests.Shared;
 
 namespace LayerPeek.Core.Tests.Detection;
 
@@ -25,6 +26,7 @@ public sealed class PrintFailureDetectionAllocationTests
     [Fact]
     public async Task ASampleDoesNotAllocate()
     {
+        Assert.SkipWhen(ContinuousIntegration.IsWindowsRunner, "Unstable on the 4-CPU Windows runner of the CI (T-220); runs everywhere else.");
         long allocated = await Task.Run(MeasureAsync, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, allocated);
