@@ -385,7 +385,9 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 
 ## Akceptační kritéria
 - [ ] B1 (T-125 2r), B2 (T-125 2w a automatické body 2n, 2p, 2u, 2x), B3 (T-125 2v bod 1) odškrtnuté na Windows
-- [ ] B5 (T-127 1c bod 1) ověřený a odškrtnutý na Macu
+- [x] B5 (T-127 1c bod 1) ověřený a odškrtnutý na Macu
+      → T-127 1c bod 1 odškrtnutý 2026-11-13; znovu ověřeno 2026-11-15 generálkou B4 (celý `dotnet test` s verzí 1.0.0:
+      11 093 prošlo, 0 selhalo)
 - [ ] B4: generálka podepsaného buildu 1.0.0 bez GitHubu prošla na Macu i na Windows (`build-info.json` `signed`,
       otisk `4cb047d1…7b91e26`), výsledek (datum, OS, doba buildu) zapsaný v Poznámkách. Žádná větev ani tag se
       nepushnuly
