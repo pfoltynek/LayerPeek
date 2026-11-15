@@ -161,6 +161,35 @@ dotnet publish src/LayerPeek.App -c Release -r win-x64
 
 První příkaz musí vypsat název instalace, druhý vytvoří `LayerPeek.exe` v `src/LayerPeek.App/bin/Release/net11.0/win-x64/publish/`.
 
+### Windows ARM64 (`win-arm64`, T-224)
+
+Native AOT pro Windows ARM64 se křížově překládá na Windows x64 (Microsoft Learn, [Cross-compilation](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/cross-compile): „To target ARM64 make sure the Visual Studio component "VS 2022 C++ ARM64/ARM64EC build tools (Latest)" is installed“). Navíc k workloadu výše je potřeba komponenta **`Microsoft.VisualStudio.Component.VC.Tools.ARM64`** (v instalátoru *Jednotlivé komponenty → MSVC … ARM64/ARM64EC build tools (nejnovější)*). Pro `dotnet build`, `dotnet test` a publish `win-x64` potřeba není.
+
+Instalace (PowerShell **jako správce**; instalátor Visual Studia bez zvýšených oprávnění nic nezmění, pokus v T-055 skončil kódem 5007; `setup.exe` se musí spustit z jiné složky, než ve které leží, proto `Push-Location`):
+
+```powershell
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+Push-Location $env:TEMP
+& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath $installPath --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --passive --norestart
+Pop-Location
+```
+
+Parametry podle Microsoft Learn ([Use command-line parameters to install Visual Studio](https://learn.microsoft.com/en-us/visualstudio/install/use-command-line-parameters-to-install-visual-studio)): `modify` mění existující instalaci, `--installPath` je u `modify` povinný, `--passive` ukáže průběh bez dotazů, `--norestart` odloží případný restart. Visual Studio musí být zavřené. Totéž ručně: *Visual Studio Installer → Upravit → Jednotlivé komponenty*, hledat „ARM64“.
+
+Ověření:
+
+```powershell
+& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property displayName
+dotnet publish src/LayerPeek.App -c Release -r win-arm64
+```
+
+První příkaz musí vypsat název instalace (jinak publish skončí chybou `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.ARM64`), druhý vytvoří ARM64 `LayerPeek.exe` v `src/LayerPeek.App/bin/Release/net11.0/win-arm64/publish/` (bez varování trim/AOT; balíčky `runtime.win-arm64.Microsoft.DotNet.ILCompiler`, `Microsoft.NETCore.App.Runtime.win-arm64` a další stáhne NuGet sám, hostitelský překladač zůstává `runtime.win-x64.*`).
+
+- **Bez kamery (do T-225):** pro `win-arm64` zatím není build FFmpeg. `src/LayerPeek.App/LayerPeek.App.csproj` pro tento RID předá `LayerPeek.Camera.FFmpeg` vlastnost `LayerPeekAppRuntimeIdentifier=win-arm64` a knihovna podle ní nastaví `LayerPeekFFmpegEnabled=false` (rozhodnutí uživatele 2026-11-15: vypnutí automaticky podle RID), publish proto neobsahuje DLL FFmpeg ani `FFmpeg-LICENSE.txt` a kamera v něm nefunguje. (Knihovní projekt se sestavuje bez RID, `build/FFmpeg.targets` by jinak přibalil x64 DLL.)
+- **Kontrola architektury:** `Get-PublishArchitectureCheck` (`scripts/ReleaseTools/ReleaseTools.psm1`) ověří, že `LayerPeek.exe` a všechny DLL publish složky mají v hlavičce PE pole Machine podle RID (`win-arm64` = ARM64 `0xAA64`, `win-x64` = x64 `0x8664`). Volá ji `scripts/release-build.ps1` po každém publish Windows a `scripts/aot-smoke.ps1` před spuštěním. Ručně: `Import-Module ./scripts/ReleaseTools/ReleaseTools.psm1; (Get-PublishArchitectureCheck -Directory src/LayerPeek.App/bin/Release/net11.0/win-arm64/publish -Runtime win-arm64).Problems` (prázdný výstup = v pořádku).
+- **Spuštění:** Windows na x64 ARM64 binárky spustit neumí, ověření běhu na zařízení ARM64 je T-227. `scripts/release-build.ps1` a `scripts/aot-smoke.ps1` `win-arm64` zatím odmítají (viz „Časté chyby“), vydávání přidá T-226.
+
 ### Velopack `vpk` (instalátor T-017, macOS T-058)
 
 Instalátor pro Windows balí nástroj **`vpk`** (Velopack, licence MIT) jako balicí krok `scripts/release-build.ps1`. Je to lokální dotnet tool s připnutou verzí v `.config/dotnet-tools.json`. Globálně se nic neinstaluje:
@@ -313,7 +342,7 @@ Workflow `.github/workflows/ci.yml` (T-218) běží při pushi do `develop`, `re
 | `LAYERPEEK_DETECTION_SWEEP=1` | dlouhé sweepy detektorů (`*SeedSweep*`, `BedChangeDarkSweep`) |
 | `LAYERPEEK_README_SCREENSHOTS=1`, `LAYERPEEK_UPDATE_SNAPSHOTS=1` | přegenerování snímků README / referenčních snímků UI testů (zapisují do repozitáře) |
 | `LAYERPEEK_SAMPLES` | složka lokálních vzorků kamery (bez ní a bez `~/LayerPeek-samples` se testy vzorků přeskočí) |
-| `LAYERPEEK_CI=1` | **opak přepínače:** nastavuje ho jen workflow CI. Na runneru Windows přeskočí testy se známou příčinou selhání, každý s důvodem a úkolem: `ASampleDoesNotAllocate`, `SteadyStateTimelapseDoesNotAllocate` (T-220) a `TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture` (T-221). Na počítači vývojáře se nenastavuje. |
+| `LAYERPEEK_CI=1` | **opak přepínače:** nastavuje ho jen workflow CI. Na runneru Windows přeskočí testy se známou příčinou selhání, každý s důvodem a úkolem: `TheLumaPlaneSamplesMatchTheBgraSamplesOfTheFixture` (T-221; alokační testy T-220 už nepřeskakuje). Na počítači vývojáře se nenastavuje. |
 
 **Snímky UI na macOS** (rozhodnutí uživatele 2026-11-14): Skia kreslí glyfy přes Core Graphics systému, takže jiná hlavní verze macOS dá jiné okrajové pixely písmen (rozvržení stejné; ověřeno na obrázcích rozdílů z runneru macOS 26). Sada `Snapshots/macOS/` proto v `rendered-on.txt` zapisuje hlavní verzi macOS, na které vznikla (`LAYERPEEK_UPDATE_SNAPSHOTS=1` ho přepíše). Na jiné hlavní verzi se porovnání pixelů **přeskočí s důvodem** (test skončí v místě snímku). CI proto běží na macOS 27 (`xcode-27`). Sada Windows soubor nemá a porovnává se vždy; dokud ji uživatel nepřegeneruje na Windows (T-125), snímky Nastavení a O aplikaci v CI na Windows selhávají (bez přeskočení, rozhodnutí 2026-11-14).
 
@@ -335,6 +364,8 @@ Jen `CI result`, ne joby `Build and test (…)`: ty se u změn jen dokumentace p
 | Chyba | Řešení |
 |---|---|
 | `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.x86.x64` | chybí workload *Desktop development with C++* (viz Windows) |
+| `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.ARM64` (publish `-r win-arm64`) | chybí komponenta MSVC ARM64 (viz „Windows ARM64“) |
+| `… is x64 (0x8664), expected ARM64 (0xAA64) for win-arm64` | publish složka obsahuje nativní soubor jiné architektury (balíček NuGet nebo FFmpeg bez knihoven pro RID, případně starý soubor z dřívějšího publish do stejné složky – složku smazat a publikovat znovu) |
 | macOS: `CS0246` u `ServiceProvider` / `IHttpClientFactory` v `LayerPeek.App` (hlavně `dotnet publish -r osx-arm64`) | repozitář je otevřený přes symbolický odkaz, `$PWD` se liší od `pwd -P`; skripty v `scripts/` to řeší samy, pro ruční příkazy viz macOS (`setopt CHASE_LINKS`) |
 | `xcrun: error: invalid active developer path` | chybí Xcode Command Line Tools: `xcode-select --install` |
 | Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |

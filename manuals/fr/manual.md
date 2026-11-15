@@ -225,6 +225,12 @@ Pour économiser le processeur, le mini-aperçu affiche par défaut au plus 10 i
 la petite image ; la fenêtre normale et le plein écran affichent chaque image de la caméra. La limite se règle dans
 l'onglet **Caméra** des paramètres (voir [11.6](#116-caméra)).
 
+La fenêtre cesse aussi de recevoir des images tant que personne ne la voit : quand elle est réduite et, sous Windows,
+tant que l'ordinateur est verrouillé, que l'écran est éteint ou que la fenêtre est sur un autre bureau virtuel (une
+fenêtre simplement cachée par d'autres fenêtres continue). Peu après votre retour, l'image revient à partir de la
+prochaine image clé de la caméra. L'enregistrement, la dashcam, les timelapses et la détection des échecs d'impression
+continuent pendant ce temps.
+
 <p align="center">
   <img src="../../docs/images/fr/camera-mini.jpg" alt="Mini-aperçu avec le bandeau d'informations, la ligne du nom de l'impression et la ligne du graphique des températures" width="400">
 </p>

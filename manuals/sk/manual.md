@@ -217,6 +217,10 @@ Aby šetril procesor, ukazuje malý náhľad v predvolenom nastavení najviac 10
 normálne okno a celá obrazovka ukazujú každú snímku kamery. Obmedzenie sa nastavuje na karte **Kamera** v nastaveniach
 (pozrite [11.6](#116-kamera)).
 
+Okno tiež prestane brať snímky, keď ho nikto nevidí: keď je minimalizované a na Windows aj pri zamknutom počítači,
+vypnutom displeji alebo na inej virtuálnej ploche (okno len zakryté inými oknami beží ďalej). Chvíľu po návrate sa obraz
+vráti od ďalšej kľúčovej snímky kamery. Nahrávanie, dashcam, timelapse a detekcia chýb tlače medzitým bežia ďalej.
+
 <p align="center">
   <img src="../../docs/images/sk/camera-mini.jpg" alt="Malý náhľad s informačným pásikom, riadkom s názvom tlače a riadkom s grafom teplôt" width="400">
 </p>

@@ -7,8 +7,8 @@ using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 using LayerPeek.Core.Tests.Cameras;
 using LayerPeek.Core.Tests.Cameras.Recording;
+using LayerPeek.Core.Tests.Monitoring;
 using LayerPeek.Tests.Allocation;
-using LayerPeek.Tests.Shared;
 
 namespace LayerPeek.Core.Tests.Detection;
 
@@ -26,14 +26,14 @@ public sealed class PrintFailureDetectionAllocationTests
     [Fact]
     public async Task ASampleDoesNotAllocate()
     {
-        Assert.SkipWhen(ContinuousIntegration.IsWindowsRunner, "Unstable on the 4-CPU Windows runner of the CI (T-220); runs everywhere else.");
         long allocated = await Task.Run(MeasureAsync, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, allocated);
+        AllocationProbe.AssertNoneAllocated(allocated);
     }
 
     private static async Task<long> MeasureAsync()
     {
+        AllocationProbe.WaitForQuietBeforeTest();
         SteppingClock clock = new();
         CameraStreamHubAllocationTests.LockstepFeed feed = new(packets: false);
         await using CameraStreamHub hub = new(
@@ -86,9 +86,15 @@ public sealed class PrintFailureDetectionAllocationTests
             clock.Advance(PrintFailureDetectionSettings.DefaultSampleInterval);
             feed.Produce();
             samples++;
+            // The sample crosses the hub thread and a thread-pool worker; on a loaded machine each of them waits for a CPU.
+            // SpinOnce yields it to them (Sleep(0) / Sleep(1) once it spun a few times); the timeout catches a sample that
+            // never arrives.
+            DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
+            SpinWait spin = default;
             while (detector.Samples < samples)
             {
-                Thread.Yield();
+                Assert.True(DateTime.UtcNow < deadline, "Sample not analyzed.");
+                spin.SpinOnce();
             }
         }
 
@@ -97,13 +103,16 @@ public sealed class PrintFailureDetectionAllocationTests
             Step();
         }
 
-        // All threads are counted (the sample crosses the hub thread and the thread pool). The thread pool starting or
-        // retiring a worker meanwhile (a loaded machine) allocates a few hundred bytes in the runtime, not per sample:
-        // such a pass proves nothing and is repeated. A real allocation per sample shows on every pass.
+        // All threads are counted (the sample crosses the hub thread and the thread pool). Each pass starts once the rest
+        // of the process is quiet (T-220: the test platform sends the results of the earlier tests for many seconds on a
+        // loaded machine, ~200 KB per pass). The thread pool starting or retiring a worker meanwhile allocates a few
+        // hundred bytes in the runtime, not per sample: such a pass proves nothing and is repeated. A real allocation per
+        // sample shows on every pass.
         long minimum = long.MaxValue;
         int valid = 0;
         for (int pass = 0; pass < 12 && valid < 4 && minimum > 0; pass++)
         {
+            AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
             int threads = ThreadPool.ThreadCount;
             long before = GC.GetTotalAllocatedBytes(precise: true);
             for (int i = 0; i < Measured; i++)

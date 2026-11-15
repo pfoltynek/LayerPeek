@@ -83,4 +83,14 @@
     <!-- Camera decoder (T-014); its native FFmpeg DLLs flow here through the reference (do not import build/FFmpeg.targets). -->
     <ProjectReference Include="..\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" />
   </ItemGroup>
+  <!--
+    win-arm64 (T-224): no FFmpeg build for ARM64 yet (T-225), so the app is built without the camera libraries (user
+    decision 2026-11-15: switched off automatically by the RID). The library project is RID-agnostic: the SDK builds it
+    without RuntimeIdentifier, so build/FFmpeg.targets cannot see the RID and would hand over its x64 DLLs. The App's RID
+    goes to it as LayerPeekAppRuntimeIdentifier instead (read in LayerPeek.Camera.FFmpeg.csproj, which keeps it from its
+    own references, so LayerPeek.Core is still built once).
+  -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-arm64'">
+    <ProjectReference Update="..\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" AdditionalProperties="LayerPeekAppRuntimeIdentifier=$(RuntimeIdentifier)" />
+  </ItemGroup>
 </Project>

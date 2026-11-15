@@ -11,6 +11,25 @@ public sealed partial class ThirdPartyLicensesTests
 {
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
+    /// <summary>
+    /// Runtime identifiers the app is published for (win-arm64: T-224). The App's project.assets.json holds the runtime
+    /// packs of the RID of the last restore only, so the entries of the others are matched by name.
+    /// </summary>
+    private static readonly string[] PublishedRuntimes = ["win-x64", "win-arm64", "osx-arm64"];
+
+    /// <summary>The package id with every published RID in place of the one it names; just the id when it names none.</summary>
+    private static IEnumerable<string> RuntimeVariants(string id)
+    {
+        string? named = PublishedRuntimes.FirstOrDefault(rid => ContainsRuntime(id, rid));
+        return named is null ? [id] : PublishedRuntimes.Select(rid => ReplaceRuntime(id, named, rid));
+    }
+
+    // "runtime.win-x64.Microsoft..." or "...Runtime.win-x64": the RID is a whole dot-separated segment.
+    private static bool ContainsRuntime(string id, string rid) => id.Split('.').Contains(rid, StringComparer.OrdinalIgnoreCase);
+
+    private static string ReplaceRuntime(string id, string from, string to) =>
+        string.Join('.', id.Split('.').Select(segment => string.Equals(segment, from, StringComparison.OrdinalIgnoreCase) ? to : segment));
+
     private static string FindRepositoryRoot()
     {
         for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
@@ -143,10 +162,27 @@ public sealed partial class ThirdPartyLicensesTests
         Assert.Contains("Microsoft.AspNetCore.App", frameworks);
         foreach (string framework in frameworks)
         {
+            List<string> missing = [.. PublishedRuntimes.Select(rid => framework + ".Runtime." + rid).Where(static id => Find(id) is null)];
             Assert.True(
-                Find(framework + ".Runtime.win-x64") is not null && Find(framework + ".Runtime.osx-arm64") is not null,
-                $"Add a licence entry for the shared framework {framework} (its runtime packs) in Licenses/ThirdPartyLicenses.cs.");
+                missing.Count == 0,
+                $"Add licence entries for the runtime packs of the shared framework {framework} in Licenses/ThirdPartyLicenses.cs: " + string.Join(", ", missing));
         }
+    }
+
+    [Fact]
+    public void EveryRuntimeSpecificEntryCoversEveryPublishedRuntime()
+    {
+        // A runtime pack (ASP.NET Core, the ILCompiler of the target) is listed once per published RID, so that a publish
+        // for any of them (win-arm64 included, T-224) ships no package without a licence entry.
+        List<string> ids = [.. ThirdPartyLicenses.All.SelectMany(static component => component.Packages).Select(static package => package.Id)];
+        List<string> runtimeSpecific = [.. ids.Where(static id => PublishedRuntimes.Any(rid => ContainsRuntime(id, rid)))];
+        Assert.NotEmpty(runtimeSpecific);
+        Assert.Contains("Microsoft.AspNetCore.App.Runtime.win-arm64", runtimeSpecific);
+        Assert.Contains("runtime.win-arm64.Microsoft.DotNet.ILCompiler", runtimeSpecific);
+
+        List<string> missing = [.. runtimeSpecific.SelectMany(RuntimeVariants).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(variant => !ids.Contains(variant, StringComparer.OrdinalIgnoreCase))];
+        Assert.True(missing.Count == 0, "Add licence entries for these runtime packs in Licenses/ThirdPartyLicenses.cs: " + string.Join(", ", missing));
     }
 
     [Fact]
@@ -156,9 +192,8 @@ public sealed partial class ThirdPartyLicensesTests
         List<string> stale = [];
         foreach (PackageRef package in ThirdPartyLicenses.All.SelectMany(static component => component.Packages))
         {
-            // Entries for the other operating system name the same package with another runtime identifier.
-            string[] candidates = [package.Id, package.Id.Replace("osx-arm64", "win-x64", StringComparison.Ordinal), package.Id.Replace("win-x64", "osx-arm64", StringComparison.Ordinal)];
-            if (!candidates.Any(restored.Contains))
+            // Entries for the other runtimes name the same package with another runtime identifier.
+            if (!RuntimeVariants(package.Id).Any(restored.Contains))
             {
                 stale.Add(package.Id);
             }

@@ -218,6 +218,11 @@ Aby oszczędzać procesor, mały podgląd domyślnie pokazuje najwyżej 10 klate
 zwykłe okno i pełny ekran pokazują każdą klatkę kamery. Limit ustawisz na karcie **Kamera** w ustawieniach (zob.
 [11.6](#116-kamera)).
 
+Okno przestaje też pobierać klatki, gdy nikt go nie widzi: gdy jest zminimalizowane, a w Windows także przy
+zablokowanym komputerze, wyłączonym ekranie lub gdy okno jest na innym pulpicie wirtualnym (okno tylko zasłonięte innymi
+oknami działa dalej). Chwilę po powrocie obraz wraca od następnej klatki kluczowej kamery. Nagrywanie, dashcam, timelapse
+i wykrywanie błędów wydruku w tym czasie działają dalej.
+
 <p align="center">
   <img src="../../docs/images/pl/camera-mini.jpg" alt="Mały podgląd z paskiem informacji, wierszem nazwy wydruku i wierszem wykresu temperatur" width="400">
 </p>

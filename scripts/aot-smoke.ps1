@@ -200,6 +200,12 @@ try {
 
     $exe = Join-Path $publishFolder $exeName
     if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Published executable not found: $exe" }
+    if ($Runtime -like 'win-*') {
+        # T-224: the exe and every DLL are of the RID's architecture (a native file of another one fails only on load).
+        $architecture = Get-PublishArchitectureCheck -Directory $publishFolder -Runtime $Runtime
+        if ($architecture.Problems.Count -gt 0) { throw "The publish folder does not match $($Runtime): $($architecture.Problems -join ' ')" }
+        Write-Host "Architecture: $($architecture.Files.Count) PE file(s), all $($architecture.Expected)."
+    }
 
     # Outside the publish folder, so that an existing (release) publish folder stays unchanged.
     $null = New-Item -ItemType Directory -Path $logDir

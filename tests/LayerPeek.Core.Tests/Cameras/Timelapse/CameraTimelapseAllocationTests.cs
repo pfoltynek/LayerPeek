@@ -4,7 +4,6 @@ using LayerPeek.Core.Cameras.Timelapse;
 using LayerPeek.Core.Tests.Cameras.Recording;
 using LayerPeek.Core.Tests.Monitoring;
 using LayerPeek.Tests.Allocation;
-using LayerPeek.Tests.Shared;
 
 namespace LayerPeek.Core.Tests.Cameras.Timelapse;
 
@@ -23,11 +22,13 @@ public sealed class CameraTimelapseAllocationTests : IDisposable
     [Fact]
     public async Task SteadyStateTimelapseDoesNotAllocate()
     {
-        Assert.SkipWhen(ContinuousIntegration.IsWindowsRunner, "Unstable on the 4-CPU Windows runner of the CI (T-220); runs everywhere else.");
+        AllocationProbe.WaitForQuietBeforeTest();
         // The timelapse reads on the thread pool: all threads are counted. Stray allocations elsewhere in the process (seen
         // on Windows: 56, 784, 4176 B in three passes in a row) differ from pass to pass and some pass sees none; a
         // per-packet allocation (200 key frames and as many P-frames) would show in every pass, so it never reaches 0.
         // A pass during which the thread pool started or retired workers (allocations of the runtime) measures nothing.
+        // Each pass starts once the process is quiet (T-220: the results of the earlier tests still being sent by the test
+        // platform added ~200 KB to every pass on a loaded machine).
         List<string> passes = [];
         long minimum = long.MaxValue;
         for (int pass = 0; pass < 10 && minimum > 0; pass++)
@@ -40,7 +41,7 @@ public sealed class CameraTimelapseAllocationTests : IDisposable
             }
         }
 
-        Assert.True(minimum == 0, $"Every pass allocated (bytes per pass): {string.Join(", ", passes)}.");
+        Assert.True(minimum == 0, $"Every pass allocated (bytes per pass): {string.Join(", ", passes)}.{AllocationProbe.QuietNote}");
     }
 
     /// <returns>The bytes allocated over the measured key frames; <see langword="null"/> when the thread pool changed its size meanwhile.</returns>
@@ -61,10 +62,12 @@ public sealed class CameraTimelapseAllocationTests : IDisposable
             await Eventually.TrueAsync(() => timelapse.ItemsRead == items, "warm-up read");
         }
 
+        // The reader is idle now: the pass starts once the rest of the process (the test platform) stopped allocating.
+        AllocationProbe.WaitForQuietProcess(AllocationProbe.QuietBeforePass);
+
         // Paced like a camera: every other key frame is asked for, the others (and the P-frames) are dropped.
         int threads = ThreadPool.ThreadCount;
         long before = GC.GetTotalAllocatedBytes(precise: true);
-        DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
         long read = timelapse.ItemsRead;
         for (int i = 0; i < MeasuredKeyFrames; i++)
         {
@@ -76,6 +79,11 @@ public sealed class CameraTimelapseAllocationTests : IDisposable
             packets.Packet((byte)i, keyFrame: true);
             packets.Packet((byte)i);
             read += 2;
+            // Every pair wakes the reader on the thread pool. On a loaded machine (T-220: the 4-CPU CI runner next to the
+            // other test assemblies) each wake-up can wait tens of milliseconds for a CPU, so a pass can take longer than
+            // the timeout: it applies to each pair (a reader that stopped reading), not to the pass. SpinOnce yields the
+            // CPU to the reader (Sleep(0) / Sleep(1) once it spun a few times).
+            DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
             SpinWait spin = default;
             while (timelapse.ItemsRead < read)
             {

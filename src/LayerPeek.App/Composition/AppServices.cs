@@ -32,6 +32,7 @@ using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cameras.Timelapse;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Detection;
+using LayerPeek.Core.Display;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Monitoring;
@@ -71,14 +72,19 @@ internal static partial class AppServices
     /// The UI thread's dispatcher of the view models and observers; <see langword="null"/>: Avalonia's. Before Avalonia exists
     /// (T-099, macOS waiting for a display): a <see cref="StartupUiDispatcher"/> that later forwards to Avalonia's.
     /// </param>
+    /// <param name="displayActivity">
+    /// Whether the screen can be seen (T-186); <see langword="null"/>: the one of the OS (Windows: session and display
+    /// notifications, started with the first camera window). Tests that create camera windows pass a fake.
+    /// </param>
     public static ServiceProvider Create(
         ILoggerFactory? loggerFactory = null,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
         AppEnvironment? environment = null,
         LogLevelSwitch? logLevel = null,
-        IUiDispatcher? uiDispatcher = null) =>
-        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel, uiDispatcher: uiDispatcher);
+        IUiDispatcher? uiDispatcher = null,
+        Func<IServiceProvider, IDisplayActivityService>? displayActivity = null) =>
+        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel, uiDispatcher: uiDispatcher, displayActivity: displayActivity);
 
     /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
     /// <param name="macNotifications">
@@ -93,7 +99,8 @@ internal static partial class AppServices
         AppEnvironment? environment = null,
         LogLevelSwitch? logLevel = null,
         IUserNotificationCenter? macNotifications = null,
-        IUiDispatcher? uiDispatcher = null)
+        IUiDispatcher? uiDispatcher = null,
+        Func<IServiceProvider, IDisplayActivityService>? displayActivity = null)
     {
         AppEnvironment env = environment ?? AppEnvironment.Production;
         ServiceCollection services = new();
@@ -264,6 +271,8 @@ internal static partial class AppServices
         // T-151: the camera window of a switched-off printer closes and opens again once it is back (T-150 state machine);
         // the resume after sleep starts its delays again. The app attaches the camera windows once the UI runs.
         services.AddSingleton(static _ => CreateSystemResumeEvents());
+        // T-186: camera windows pause while the session is locked or the display is off.
+        services.AddSingleton(displayActivity ?? (static _ => CreateDisplayActivity()));
         services.AddSingleton(sp => new CameraWindowAutoVisibilityObserver(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<ICameraWindowStateStore>(),
@@ -958,6 +967,10 @@ internal static partial class AppServices
             sp.GetRequiredService<ILogger<CameraMonitorPathUpdater>>()));
     }
 
+    /// <summary>Whether the screen can be seen on this OS (T-186); always elsewhere (macOS: T-187).</summary>
+    private static IDisplayActivityService CreateDisplayActivity() =>
+        OperatingSystem.IsWindows() ? new WindowsDisplayActivityService() : AlwaysVisibleDisplayActivity.Instance;
+
     /// <summary>The resume after sleep of this OS (T-151); none elsewhere.</summary>
     private static ISystemResumeEvents CreateSystemResumeEvents() =>
         OperatingSystem.IsWindows() ? new WindowsSystemResumeEvents()
@@ -1030,6 +1043,14 @@ internal static partial class AppServices
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
         PrinterDefinition? printer = saved ?? Monitored(services.GetRequiredService<MonitoredPrinters>(), printerId);
+        IDisplayActivityService displayActivity = services.GetRequiredService<IDisplayActivityService>();
+        if (OperatingSystem.IsWindows() && displayActivity is WindowsDisplayActivityService windows)
+        {
+            // Lazily with the first camera window (once; it has its own message thread). It may open while the session is
+            // locked (T-151): Start reads the current lock state first.
+            windows.Start();
+        }
+
         return printer is not null
             && string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase)
             && CameraTarget.From(printer) is { } target
@@ -1051,7 +1072,8 @@ internal static partial class AppServices
                 services.GetRequiredService<ICameraOverlayLayoutWriter>(),
                 services.GetRequiredService<ILocalNetworkPrivacy>(),
                 services.GetRequiredService<ICameraWindowTopmostWriter>(),
-                services.GetRequiredService<ICameraRecordings>())
+                services.GetRequiredService<ICameraRecordings>(),
+                displayActivity)
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
