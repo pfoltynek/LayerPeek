@@ -20,7 +20,8 @@
     test bundle, Keychain items with the test prefix LayerPeek.Tests and the temporary folders. Known leftovers that no
     tool can remove: the entry "LayerPeek E2E" in System Settings > Notifications and (after mac.keys, mac.menu-items,
     mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content,
-    mac.file-dialogs, mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live or mac.camera-next-attempt) Terminal in
+    mac.file-dialogs, mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live, mac.camera-next-attempt,
+    mac.detection-region, mac.appkit-language, mac.hw-decoding-switch or mac.keys-czech-layout) Terminal in
     Privacy & Security > Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
@@ -369,16 +370,19 @@ function Remove-TestBundle($Bundle) {
     if ((Test-Path -LiteralPath $parent) -and -not (Get-ChildItem -LiteralPath $parent -Force)) { Remove-Item -LiteralPath $parent -Force }
 }
 
-function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip, [int] $Layers) {
+function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip, [int] $Layers, [double] $Fps, [string] $Instance) {
     <#
     .SYNOPSIS
         The PrusaSimulator (one printer, camera) on 127.0.0.1 with free ports, started once per run, time speed-up
         (-Speed, e.g. 20 for a print that moves in seconds, T-209), camera clip (-Clip, default the built-in one) and the
-        layers of a print (-Layers: the Z axis rises in that many 0.2 mm steps, T-211; default smoothly).
+        layers of a print (-Layers: the Z axis rises in that many 0.2 mm steps, T-211; default smoothly), camera frame
+        rate (-Fps, default the simulator's 25) and -Instance: a name for a second simulator of the same options (T-216).
     #>
     $key = if ($Speed -eq 1) { 'Simulator' } else { "Simulator-x$Speed" }
     if ($Clip) { $key += "-$Clip" }
     if ($Layers) { $key += "-layers$Layers" }
+    if ($Fps) { $key += "-fps$Fps" }
+    if ($Instance) { $key += "-$Instance" }
     if ($Context.Shared.ContainsKey($key)) { return $Context.Shared[$key] }
     $dll = Get-SimulatorDll $Context
     $folder = Join-Path $Context.RunFolder 'tmp' "simulator-$(New-ShortId)"
@@ -388,6 +392,7 @@ function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip, [int] $Lay
     foreach ($argument in @('-c', 'exec dotnet "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', $dll, '--port', '0', '--camera-port', '0', '--scenario', 'printing', '--speed', "$Speed")) { $start.ArgumentList.Add($argument) }
     if ($Clip) { foreach ($argument in '--camera-clip', $Clip) { $start.ArgumentList.Add($argument) } }
     if ($Layers) { foreach ($argument in '--layers', "$Layers") { $start.ArgumentList.Add($argument) } }
+    if ($Fps) { foreach ($argument in '--fps', ([string]::Create([cultureinfo]::InvariantCulture, "$Fps"))) { $start.ArgumentList.Add($argument) } }
     $start.Environment['LPV_OUT'] = $out
     $start.UseShellExecute = $false
     $process = [System.Diagnostics.Process]::Start($start)
@@ -446,7 +451,8 @@ function New-TestData {
     #>
     param($Context, $Simulator, [string] $Camera, [System.Collections.IDictionary] $Window, [System.Collections.IDictionary] $CameraOptions,
         [string] $RecordingFolder, [System.Collections.IDictionary] $RecordingOptions, [int] $PollingSeconds = 5, [switch] $SharedTemp, [switch] $Notifications,
-        [ValidateSet('Off', 'ImportantOnly', 'All')] [string] $Sound = 'Off', [switch] $Detection, [System.Collections.IDictionary] $NotificationOptions)
+        [ValidateSet('Off', 'ImportantOnly', 'All')] [string] $Sound = 'Off', [switch] $Detection, [System.Collections.IDictionary] $NotificationOptions,
+        [string] $Language = 'en', [System.Collections.IDictionary] $SettingsOptions, [System.Collections.IDictionary] $PrinterOptions)
     $base = if ($SharedTemp) { '/tmp' } else { [System.IO.Path]::GetTempPath() }
     $data = Join-Path $base "lpv-$(New-ShortId)"
     $null = New-Item -ItemType Directory -Force -Path $data
@@ -455,12 +461,14 @@ function New-TestData {
     $settings = [ordered]@{
         version                = 1
         pollingIntervalSeconds = $PollingSeconds
-        language               = 'en'
+        language               = $Language
         notifications          = [ordered]@{ enabled = [bool] $Notifications; remainingTimeMinutes = 0; sound = $Sound }
         printers               = @()
     }
     # -NotificationOptions (T-215): e.g. offline = $false next to the master switch.
     if ($NotificationOptions) { foreach ($name in $NotificationOptions.Keys) { $settings.notifications[$name] = $NotificationOptions[$name] } }
+    # -SettingsOptions (T-216): top-level values, e.g. debugLogging, cameraHardwareDecoding.
+    if ($SettingsOptions) { foreach ($name in $SettingsOptions.Keys) { $settings[$name] = $SettingsOptions[$name] } }
     if ($Simulator) {
         $printer = [ordered]@{ id = $script:PrinterId; name = "LP verify $(New-ShortId)"; connectionType = 'PrusaLink'; address = $Simulator.Address; userName = $Simulator.User }
         if ($Camera) {
@@ -471,6 +479,8 @@ function New-TestData {
         }
         # -Detection (T-212): print failure detection on, for the detector of the test mode (LAYERPEEK_TEST_FAKE_DETECTOR).
         if ($Detection) { $printer.detection = [ordered]@{ enabled = $true } }
+        # -PrinterOptions (T-216): e.g. image = @{ mode = 'Model'; model = 'CoreOne' }.
+        if ($PrinterOptions) { foreach ($name in $PrinterOptions.Keys) { $printer[$name] = $PrinterOptions[$name] } }
         $settings.printers = @($printer)
         [System.IO.File]::WriteAllText((Join-Path $data 'test-secrets.txt'), "printer/$($script:PrinterId)`t$($Simulator.Password)`n")
     }
@@ -500,6 +510,21 @@ function New-TestData {
         if (Test-Path -LiteralPath $s.Data) { Remove-Item -LiteralPath $s.Data -Recurse -Force }
     } -State ([pscustomobject]@{ Shared = $Context.Shared; Data = $data; Suffix = $suffix })
     $testData
+}
+
+function Add-TestPrinter($TestData, $Simulator, [string] $Id) {
+    <#
+    .SYNOPSIS
+        Adds a printer (-Id) of another simulator with its camera to the settings.json and test-secrets.txt of a test data
+        folder before the app starts (T-216: two cameras); returns its name.
+    #>
+    $file = Join-Path $TestData.Data 'settings.json'
+    $settings = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json -AsHashtable
+    $name = "LP verify $(New-ShortId)"
+    $settings.printers = @($settings.printers) + @([ordered]@{ id = $Id; name = $name; connectionType = 'PrusaLink'; address = $Simulator.Address; userName = $Simulator.User; camera = [ordered]@{ enabled = $true; streamUrl = $Simulator.Camera } })
+    [System.IO.File]::WriteAllText($file, ($settings | ConvertTo-Json -Depth 8))
+    [System.IO.File]::AppendAllText((Join-Path $TestData.Data 'test-secrets.txt'), "printer/$Id`t$($Simulator.Password)`n")
+    $name
 }
 
 function Read-TestLog($TestData) {
@@ -773,6 +798,17 @@ function Get-StatusToolTipLines($Context, [int] $ProcessId) {
 function Find-MenuEntry($Items, [string] $Title) {
     <# .SYNOPSIS The item of the helper's 'menu' JSON (or a submenu) with that exact title, or $null. #>
     @(Get-VerifyMenuEntries $Items | Where-Object { $_.title -ceq $Title }) | Select-Object -First 1
+}
+
+function Get-AppTexts([string] $Language) {
+    <# .SYNOPSIS The UI texts of the app in a language (Strings.<lang>.resx over the English Strings.resx), by resource name. #>
+    $folder = Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources'
+    $texts = Get-VerifyResxStrings (Join-Path $folder 'Strings.resx')
+    if ($Language -and $Language -ne 'en') {
+        $translated = Get-VerifyResxStrings (Join-Path $folder "Strings.$Language.resx")
+        foreach ($name in $translated.Keys) { $texts[$name] = $translated[$name] }
+    }
+    $texts
 }
 
 function Get-AxTree($Context, [int] $ProcessId) { @((Invoke-Helper $Context @('ax', "$ProcessId")) -join "`n" | ConvertFrom-Json -Depth 100) }
@@ -2488,6 +2524,569 @@ $checks = @(
         }
     }
 
+    New-VerifyCheck -Id 'mac.camera-autoclose' -Needs Session -Kind Auto -Title 'E2E of the camera window closed while the printer is offline and opened again once it is back, with Finder in front: Finder stays the active app (MacCameraWindowAutoCloseE2ETests, unlocked screen)' `
+        -Closes 'T-151 (krit. „Automaticky otevřené okno nebere fokus aktivnímu oknu jiné aplikace“, část macOS)', 'T-216 kritérium 1' -Action {
+        param($c)
+        Invoke-SessionCheck $c {
+            $run = Invoke-DotnetTest $c 'dotnet-test-camera-autoclose' @('--project', (Join-Path $script:Repo 'tests' 'LayerPeek.App.Tests'), '--', '--filter-class', '*MacCameraWindowAutoCloseE2ETests') @{ LAYERPEEK_E2E = '1' }
+            if (-not $run.Totals) { return New-VerifyResult FAIL "no test results, exit code $($run.ExitCode)." }
+            # Every display asleep: the app waits for one before its UI starts, so the camera command never arrives (as Start-TestApp).
+            if ($run.Totals.Failed -gt 0 -and ($run.Output -join "`n") -match 'No active display') { Skip-VerifyCheck 'every display is asleep (the app waits for one before its UI starts): wake the display and run the script under caffeinate -d -u.' }
+            if ($run.Totals.Failed -gt 0) { return New-VerifyResult FAIL (Format-Totals $run.Totals) }
+            $reason = "$((@($run.Skipped) | Select-Object -First 1).Reason)"
+            # The test closes and reopens the window also with a locked screen, but then the login window is in front.
+            if ($run.Totals.Skipped -gt 0 -and $reason -match 'the screen is locked') { Skip-VerifyCheck "the focus was not judged: $reason" }
+            if ($run.Totals.Skipped -gt 0) { return New-VerifyResult FAIL "the E2E test was skipped: $reason" }
+            if ($run.Totals.Passed -lt 1) { return New-VerifyResult FAIL "no test ran: $(Format-Totals $run.Totals)" }
+            New-VerifyResult PASS "$(Format-Totals $run.Totals): the window closed while the printer was offline and opened again, Finder stayed the active app."
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.camera-pin-ax' -Needs Session, Accessibility -Kind Auto -Title 'the pin of the camera window in the Accessibility tree (instead of listening to VoiceOver), Czech UI: its name "Vždy navrchu: zapnuto / vypnuto" follows its state and AXPress switches it in the normal window and the mini preview; no pin in full screen; open Settings show the state (simulator)' `
+        -Closes 'T-122 (VoiceOver: jméno a stav špendlíku, aktivace ho přepne, v normálním okně i malém náhledu; kontrola přes Accessibility, rozhodnutí 2026-11-13)', 'T-117 (ruční část, jen VoiceOver: „Vždy navrchu: zapnuto / vypnuto“, na celé obrazovce špendlík není, otevřené Nastavení ukáže stav)', 'T-216 kritérium 2' -Action {
+        param($c)
+        if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (the Accessibility tree of the camera window and of Settings).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-AppTexts 'cs'
+            $onName = $texts['CameraTopmostOn']
+            $offName = $texts['CameraTopmostOff']
+            $simulator = Get-Simulator $c
+            $screens = @(Get-Screens $c)
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            foreach ($mode in 'Normal', 'Mini') {
+                $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Language 'cs' -Window ([ordered]@{ rememberLastPlacement = $false; startMode = $mode })
+                $app = Start-TestApp -Context $c -TestData $data
+                $appId = $app.Id
+                $script:pin = $null
+                $readPin = { $script:pin = Get-AxElement $c $appId 'CameraTopmostButton'; $script:pin -and $script:pin.frame.width -gt 0 }
+                # The name says the state the value has (AXValue 1 = on); -On: the state expected.
+                $expect = {
+                    param([bool] $On, [string] $What)
+                    $want = if ($On) { $onName } else { $offName }
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (& $readPin) -and ([string] $script:pin.value -eq '1') -eq $On -and [string] $script:pin.title -ceq $want })) {
+                        $problems.Add("${mode} ${What}: the pin has the name '$($script:pin.title)' and value '$($script:pin.value)', expected '$want'")
+                        return $false
+                    }
+                    $true
+                }
+                $settingsBox = "PrinterCameraWindow$($mode)Topmost"
+                try {
+                    Send-TestCommand $data "camera:$($script:PrinterId)"
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-CameraWindow $c $appId) -and (& $readPin) })) { $problems.Add("${mode}: no camera window with the pin in the Accessibility tree"); continue }
+                    $initial = [string] $script:pin.value -eq '1'
+                    $null = & $expect $initial 'at the start'
+                    # AXPress (what VoiceOver does with VO-Space) twice: on and off again, the name with it.
+                    foreach ($round in 1, 2) {
+                        $state = -not ([string] $script:pin.value -eq '1')
+                        $null = Invoke-Helper $c @('axpress', "$appId", 'CameraTopmostButton')
+                        $null = & $expect $state "after AXPress $round"
+                    }
+                    # Open Settings show the state of the pin and follow it.
+                    Send-TestCommand $data 'settings'
+                    $box = Open-SettingsTab $c $appId @('SettingsTabPrinters', 'PrinterTabCameraWindow') $settingsBox
+                    if (-not $box) { $problems.Add("${mode}: Settings > Printers > Camera window shows no $settingsBox") }
+                    else {
+                        $null = & $readPin
+                        $state = [string] $script:pin.value -eq '1'
+                        if (([string] $box.value -eq '1') -ne $state) { $problems.Add("${mode}: Settings show '$($box.value)' for 'always on top', the pin is $(if ($state) { 'on' } else { 'off' })") }
+                        $null = Invoke-Helper $c @('axpress', "$appId", 'CameraTopmostButton')
+                        $null = & $expect (-not $state) 'with Settings open'
+                        $script:box = $null
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $script:box = Get-AxElement $c $appId $settingsBox; $script:box -and (([string] $script:box.value -eq '1') -eq (-not $state)) })) { $problems.Add("${mode}: the open Settings did not follow the pin ($settingsBox value '$($script:box.value)')") }
+                        else { $notes.Add("${mode}: open Settings follow the pin ($settingsBox '$($script:box.title)')") }
+                        $null = Invoke-Helper $c @('axpress', "$appId", 'SettingsCancel') -AllowFailure
+                        $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { -not (Get-AxElement $c $appId $settingsBox) }
+                    }
+                    # Full screen has no pin (it is never on top); back to the mode afterwards.
+                    $null = Invoke-Helper $c @('axpress', "$appId", 'CameraFullScreenButton')
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $w = Get-CameraWindow $c $appId; $w -and (Test-FullScreen $w $screens) })) { $problems.Add("${mode}: the full screen button did not reach full screen") }
+                    else {
+                        Start-Sleep -Seconds 1
+                        if (& $readPin) { $problems.Add("${mode}: in full screen the pin is in the Accessibility tree ('$($script:pin.title)')") }
+                        else { $notes.Add("${mode}: no pin in full screen") }
+                        $back = if ($mode -eq 'Normal') { 'CameraNormalButton' } else { 'CameraMiniButton' }
+                        $null = Invoke-Helper $c @('axpress', "$appId", $back) -AllowFailure
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { & $readPin })) { $problems.Add("${mode}: after full screen ($back) the pin did not come back") }
+                    }
+                    $notes.Add("${mode}: the pin '$($script:pin.title)' (started $(if ($initial) { 'on' } else { 'off' })), AXPress switched it with its name")
+                }
+                finally { $null = Stop-TestApp $data $app }
+            }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS "names '$onName' / '$offName': $($notes -join '; ')"
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.detection-region' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to press buttons, drag the mouse, post the arrow keys and read the Accessibility tree, and an unlocked screen' `
+        -Title 'the bed region editor of print failure detection (Settings > Printers > Detection, a Core One of the simulator): Load frame shows a frame, a mouse drag draws a region, the arrows move it by 1 %, Cmd-arrows by 10 %, Shift-arrows change its size; its accessible name "Bed region: ... % from the left ..." matches settings.json after Save; Default for Core One sets the region of the code' `
+        -Closes 'T-154 (ruční část macOS, editor výřezu: tažení myší, šipky, ⌘+šipky o 10 %, popisek „Výřez podložky: … % zleva …“; bez skutečné Buddy3D)', 'T-216 kritérium 3' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-AppTexts 'en'
+            $format = $texts['SettingsDetectionRegionName']
+            $source = Get-Content -LiteralPath (Join-Path $script:Repo 'src' 'LayerPeek.Core' 'Detection' 'DetectionRegion.cs') -Raw
+            $code = [regex]::Match($source, 'CoreOneBed \{ get; \} = new\((?<v>[^)]+)\)')
+            if (-not $code.Success) { return New-VerifyResult FAIL 'DetectionRegion.CoreOneBed was not found in src/LayerPeek.Core/Detection/DetectionRegion.cs.' }
+            $coreOne = [double[]] @($code.Groups['v'].Value -split ',' | ForEach-Object { [double]::Parse($_.Trim(), [cultureinfo]::InvariantCulture) })
+            $coreOnePercent = [double[]] @($coreOne | ForEach-Object { [math]::Round($_ * 100, [MidpointRounding]::AwayFromZero) })
+            $simulator = Get-Simulator $c
+            Set-SimulatorScenario $simulator 'idle'
+            # A Core One by its chosen image, so that "Default for Core One" shows also before the model is detected.
+            $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Detection -PrinterOptions ([ordered]@{ image = [ordered]@{ mode = 'Model'; model = 'CoreOne' } })
+            $settingsFile = Join-Path $data.Data 'settings.json'
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            $app = Start-TestApp -Context $c -TestData $data
+            $appId = $app.Id
+            $script:editor = $null
+            # Its accessible name (AXTitle, or AXDescription for a control without its own role) as whole percent.
+            $readRegion = {
+                $script:editor = Get-AxElement $c $appId 'PrinterDetectionRegion'
+                if ($script:editor) { ConvertFrom-VerifyFormattedText -Format $format -Text ([string] (@($script:editor.title, $script:editor.description) | Where-Object { $_ } | Select-Object -First 1)) }
+            }
+            $openEditor = {
+                Send-TestCommand $data 'settings'
+                $found = Open-SettingsTab $c $appId @('SettingsTabPrinters', 'PrinterTabDetection') 'PrinterDetectionRegion'
+                if (-not $found) { throw 'Settings > Printers > Detection shows no bed region editor (PrinterDetectionRegion)' }
+                & $readRegion
+            }
+            $saved = { $json = Get-Content -LiteralPath $settingsFile -Raw | ConvertFrom-Json; $p = @($json.printers)[0]; if ($p.PSObject.Properties['detection'] -and $p.detection.PSObject.Properties['region']) { $p.detection.region } }
+            $save = {
+                param([string] $What)
+                $hash = (Get-FileHash -LiteralPath $settingsFile).Hash
+                $null = Invoke-Helper $c @('axpress', "$appId", 'SettingsSave')
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FileHash -LiteralPath $settingsFile).Hash -ne $hash })) { $problems.Add("${What}: Save did not write settings.json") }
+                $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { -not (Get-AxElement $c $appId 'PrinterDetectionRegion') }
+                $null = Save-VerifyEvidence -Context $c -Name "settings-$What.json" -Path $settingsFile
+                & $saved
+            }
+            try {
+                # The default of a Core One before any edit.
+                $region = & $openEditor
+                $problem = Get-VerifyRegionProblem -Actual $region -Expected $coreOnePercent
+                if ($problem) { $problems.Add("the default region of a Core One ('$($script:editor.title)$($script:editor.description)'): $problem") }
+
+                # Load frame: a frame of the simulator's camera in the editor (the note "no frame" goes, no error).
+                $null = Invoke-Helper $c @('axpress', "$appId", 'PrinterDetectionLoadFrame')
+                $loaded = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { $t = Get-AxTree $c $appId; -not (Find-AxElement $t 'PrinterDetectionNoFrame') -and -not (Find-AxElement $t 'PrinterDetectionLoadFrameFailed') -and (Find-AxElement $t 'PrinterDetectionRegion') }
+                $null = Save-VerifyEvidence -Context $c -Name 'detection-after-load.json' -Content ((Get-AxTree $c $appId) | ConvertTo-Json -Depth 100)
+                if (-not $loaded) { $problems.Add("Load frame showed no frame within 30 s ($((Get-AxElement $c $appId 'PrinterDetectionLoadFrameFailed').title))") }
+                else { $notes.Add('Load frame showed a frame of the simulator') }
+
+                # A mouse drag outside the region draws a new one: 5 % / 5 % to 45 % / 40 % of the frame (16:9 like the editor).
+                $null = & $readRegion
+                $f = $script:editor.frame
+                $aspect = 16 / 9
+                $w = [math]::Min($f.width, $f.height * $aspect)
+                $h = $w / $aspect
+                $ix = $f.x + ($f.width - $w) / 2
+                $iy = $f.y + ($f.height - $h) / 2
+                $point = { param([double] $X, [double] $Y) @("$([math]::Round($ix + $w * $X, 1))", "$([math]::Round($iy + $h * $Y, 1))") }
+                $null = Invoke-Helper $c (@('drag') + (& $point 0.05 0.05) + (& $point 0.45 0.40) + @('800'))
+                Start-Sleep -Milliseconds 500
+                $region = & $readRegion
+                $problem = Get-VerifyRegionProblem -Actual $region -Expected 5, 5, 40, 35 -Tolerance 2
+                if ($problem) { $problems.Add("the drag from 5 / 5 % to 45 / 40 % of the frame: $problem") }
+                else { $notes.Add("the drag drew $($region -join ' / ') %") }
+                if ((Get-AxFocusedId $c $appId) -cne 'PrinterDetectionRegion') { $problems.Add("after the drag the editor has no keyboard focus (focused: '$(Get-AxFocusedId $c $appId)')") }
+
+                # The keys: each changes one value by 1 or 10 percentage points (Cmd = 10 %, Shift = the size).
+                $steps = @(
+                    @{ Key = 'right'; Delta = 1, 0, 0, 0 }, @{ Key = 'down'; Delta = 0, 1, 0, 0 }, @{ Key = 'shift+right'; Delta = 0, 0, 1, 0 },
+                    @{ Key = 'shift+down'; Delta = 0, 0, 0, 1 }, @{ Key = 'cmd+right'; Delta = 10, 0, 0, 0 }, @{ Key = 'cmd+down'; Delta = 0, 10, 0, 0 },
+                    @{ Key = 'cmd+shift+right'; Delta = 0, 0, 10, 0 }, @{ Key = 'cmd+left'; Delta = -10, 0, 0, 0 }, @{ Key = 'up'; Delta = 0, -1, 0, 0 }
+                )
+                foreach ($step in $steps) {
+                    if (-not $region) { break }
+                    $want = [double[]] @(for ($i = 0; $i -lt 4; $i++) { $region[$i] + $step.Delta[$i] })
+                    $null = Invoke-Helper $c @('key', $step.Key)
+                    $script:keyRegion = $null
+                    $null = Wait-VerifyCondition -TimeoutSeconds 3 -Condition { $script:keyRegion = & $readRegion; -not (Get-VerifyRegionProblem -Actual $script:keyRegion -Expected $want) }
+                    $problem = Get-VerifyRegionProblem -Actual $script:keyRegion -Expected $want
+                    if ($problem) { $problems.Add("key $($step.Key) from $($region -join ' / ') %: $problem") }
+                    $region = $script:keyRegion
+                }
+                if ($region) { $notes.Add("the keys $(@($steps | ForEach-Object Key) -join ', ') moved and sized it to $($region -join ' / ') % ('$($script:editor.title)$($script:editor.description)')") }
+
+                # Save: settings.json has the region the name says; opened again, the same name.
+                $named = $region
+                $file = & $save 'region'
+                $problem = Get-VerifyRegionProblem -Actual (ConvertTo-VerifyRegionPercent $file) -Expected $named
+                if ($problem) { $problems.Add("settings.json after Save, against the name before: $problem") }
+                $region = & $openEditor
+                $problem = Get-VerifyRegionProblem -Actual $region -Expected $named
+                if ($problem) { $problems.Add("Settings opened again: $problem") }
+
+                # Default for Core One: the region of the code, saved as it is.
+                $null = Invoke-Helper $c @('axpress', "$appId", 'PrinterDetectionCoreOne')
+                $script:coreRegion = $null
+                $null = Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $script:coreRegion = & $readRegion; -not (Get-VerifyRegionProblem -Actual $script:coreRegion -Expected $coreOnePercent) }
+                $problem = Get-VerifyRegionProblem -Actual $script:coreRegion -Expected $coreOnePercent
+                if ($problem) { $problems.Add("Default for Core One: $problem") }
+                $file = & $save 'core-one'
+                $exact = $file -and [math]::Abs([double] $file.x - $coreOne[0]) -lt 1e-9 -and [math]::Abs([double] $file.y - $coreOne[1]) -lt 1e-9 -and [math]::Abs([double] $file.width - $coreOne[2]) -lt 1e-9 -and [math]::Abs([double] $file.height - $coreOne[3]) -lt 1e-9
+                if (-not $exact) { $problems.Add("settings.json after Default for Core One and Save: $($file | ConvertTo-Json -Compress), expected the code's $($coreOne -join ', ')") }
+                else { $notes.Add("Default for Core One saved $($coreOne -join ', ') (DetectionRegion.CoreOneBed)") }
+            }
+            finally {
+                $null = Stop-TestApp $data $app
+            }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS ($notes -join '; ')
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.appkit-language' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to open the image panel and the context menu of a text field and read them, and an unlocked screen' `
+        -Title 'T-097 question 5 (a finding, not a failure): with LayerPeek in another language than the system (de, or fr on a German system), the language of the buttons of the printer image panel (NSOpenPanel) and of the items of the context menu of a text field (simulator)' `
+        -Closes 'T-097 (otázka 5: v jakém jazyce jsou prvky AppKitu při jazyce LayerPeeku jiném než jazyk systému; zjištění i do T-097)', 'T-216 kritérium 4' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $system = @(& /usr/bin/defaults read -g AppleLanguages 2>$null | ForEach-Object { if ("$_" -match '"?(?<l>[A-Za-z]{2,3}(-[A-Za-z0-9]+)*)"?,?\s*$') { $Matches.l } })
+            $language = Get-VerifyOtherLanguage -SystemLanguages $system
+            $simulator = Get-Simulator $c
+            $data = New-TestData -Context $c -Simulator $simulator -Language $language
+            $app = Start-TestApp -Context $c -TestData $data
+            $appId = $app.Id
+            $findings = [System.Collections.Generic.List[string]]::new()
+            $failures = [System.Collections.Generic.List[string]]::new()
+            $describe = { param([string[]] $Titles) $l = @(Get-VerifyTitleLanguages -Titles $Titles); if ($l.Count) { ($l | ForEach-Object { "$($_.Language) ($($_.Matches))" }) -join ', ' } else { 'not recognised' } }
+            try {
+                Send-TestCommand $data 'settings'
+                if (-not (Open-SettingsTab $c $appId @('SettingsTabPrinters') 'PrinterImageButton')) { throw 'Settings show no printer image button (PrinterImageButton)' }
+                # 1. The printer image panel: its default and cancel buttons.
+                $null = Invoke-Helper $c @('axpress', "$appId", 'PrinterImageButton')
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $null -ne (Get-AxElement $c $appId 'PrinterImageCustom') })) { $failures.Add('the menu of the printer image did not open') }
+                else {
+                    $item = Get-AxElement $c $appId 'PrinterImageCustom'
+                    $pressed = Invoke-HelperExit $c @('axpress', "$appId", 'PrinterImageCustom')
+                    if ($pressed.ExitCode -ne 0) { $point = Get-AxCenter $item; $null = Invoke-Helper $c @('click', "$($point[0])", "$($point[1])") }
+                    $panel = Invoke-HelperExit $c @('panel', "$appId", '10') 'panel.json'
+                    $found = if ($panel.ExitCode -eq 0) { @($panel.Output -join "`n" | ConvertFrom-Json -Depth 10) | Select-Object -First 1 }
+                    if (-not $found) { $failures.Add("the image panel did not open ($($panel.Output -join ' '))") }
+                    else {
+                        $titles = @($found.defaultButton.title, $found.cancelButton.title) | Where-Object { $_ }
+                        $findings.Add("image panel ($($found.process)): buttons '$($titles -join "', '")' = $(& $describe $titles)")
+                    }
+                    $null = Invoke-HelperExit $c @('panelcancel', "$appId")
+                }
+                # 2. The context menu of a text field (the printer name): Control-click, then its items in the AX tree.
+                $field = Get-AxElement $c $appId 'PrinterName'
+                if (-not $field) { $failures.Add('no text field PrinterName') }
+                else {
+                    $point = Get-AxCenter $field
+                    $before = @(Get-AxNodes (Get-AxTree $c $appId) | Where-Object role -EQ 'AXMenuItem' | ForEach-Object title)
+                    $script:menuTitles = @()
+                    foreach ($click in 'ctrlclick', 'rightclick') {
+                        $null = Invoke-Helper $c @($click, "$($point[0])", "$($point[1])")
+                        if (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $script:menuTitles = @(Get-AxNodes (Get-AxTree $c $appId) | Where-Object { $_.role -eq 'AXMenuItem' -and $_.title -and $before -notcontains $_.title } | ForEach-Object title); $script:menuTitles.Count -gt 0 }) { break }
+                    }
+                    $null = Save-VerifyEvidence -Context $c -Name 'text-menu.json' -Content ((Get-AxTree $c $appId) | ConvertTo-Json -Depth 100)
+                    if ($script:menuTitles.Count -eq 0) { $failures.Add('Control-click and right click on the printer name opened no context menu in the Accessibility tree (text-menu.json)') }
+                    else { $findings.Add("text field context menu: '$($script:menuTitles -join "', '")' = $(& $describe $script:menuTitles)") }
+                    $null = Invoke-Helper $c @('key', 'escape')
+                }
+                $null = Invoke-Helper $c @('axpress', "$appId", 'SettingsCancel') -AllowFailure
+            }
+            finally { $null = Stop-TestApp $data $app }
+            $null = Save-VerifyEvidence -Context $c -Name 'finding.txt' -Content (@("system languages: $($system -join ', ')", "LayerPeek language: $language") + $findings + $failures)
+            $head = "system $($system -join ', '), LayerPeek $language"
+            # A decision point: what AppKit shows is the finding; only nothing read at all is a failure of the check.
+            if ($findings.Count -eq 0) { return New-VerifyResult FAIL "$head; nothing could be read: $($failures -join '; ')" }
+            New-VerifyResult PASS "finding for T-097 question 5 ($head): $($findings -join '; ')$(if ($failures.Count) { "; not read: $($failures -join '; ')" })"
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.open-fake' -Needs Session, Accessibility -Kind Auto -Title 'links open through /usr/bin/open, never a planted open of PATH (T-053 L4): the app runs with a fake open first in PATH that leaves a marker; the repository link of About and Open PrusaLink of the menu (simulator) open the default browser, which loads the web of the simulator through the proxy (HTTP 200 in the detailed log); the licences of About open; the marker stays missing' `
+        -Closes 'T-053 (krit. „Ručně na Macu: /usr/bin/open otevírá odkazy a web PrusaLink přes proxy (L4)“; přihlášení do webu přes proxy ověřují E2E testy T-028 / T-107)', 'T-216 kritérium 5' -Action {
+        param($c)
+        if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (clicks on the links of About, the menu of the status item).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-AppTexts 'en'
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            # The fake open: leaves a marker only (never its arguments: the proxy address carries an access token).
+            $fake = Join-Path $c.RunFolder 'tmp' "fake-open-$(New-ShortId)"
+            $null = New-Item -ItemType Directory -Force -Path $fake
+            $marker = Join-Path $fake 'called'
+            [System.IO.File]::WriteAllText((Join-Path $fake 'open'), "#!/bin/sh`n: > '$marker'`nexit 0`n")
+            & /bin/chmod 755 (Join-Path $fake 'open')
+            $path = "${fake}:$([Environment]::GetEnvironmentVariable('PATH'))"
+            $resolved = (@(& /usr/bin/env "PATH=$path" /bin/sh -c 'command -v open') -join '').Trim()
+            if ($resolved -cne (Join-Path $fake 'open')) { return New-VerifyResult FAIL "the fake open is not the first open of PATH (command -v open: '$resolved')." }
+            $notes.Add('the fake open was first in PATH (command -v open)')
+            $handlers = try { (@(& /usr/bin/plutil -convert json -o - (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Library' 'Preferences' 'com.apple.LaunchServices' 'com.apple.launchservices.secure.plist') 2>$null) -join "`n") | ConvertFrom-Json -Depth 20 } catch { $null }
+            $browser = Get-VerifyDefaultBrowser $handlers
+            $browserPids = { @((Invoke-Helper $c @('apps', $browser)) -join "`n" | ConvertFrom-Json) }
+            $browserWindows = { param([int] $Id) @(Get-AxWindows $c $Id | ForEach-Object title) }
+            $runningBefore = @(& $browserPids)
+            $windowsBefore = @(foreach ($id in $runningBefore) { & $browserWindows $id })
+            $simulator = Get-Simulator $c
+            Set-SimulatorScenario $simulator 'idle'
+            $data = New-TestData -Context $c -Simulator $simulator -SettingsOptions ([ordered]@{ debugLogging = $true })
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $app = Start-TestApp -Context $c -TestData $data -Environment @{ PATH = $path }
+            $appId = $app.Id
+            $browserFront = { $front = Get-FrontProcessId; $front -and (@(& $browserPids) -contains $front) }
+            $logSince = { param([int] $Length) $log = Read-TestLog $data; if ($log.Length -ge $Length) { $log.Substring($Length) } else { $log } }
+            try {
+                # 1. About: the repository link opens the default browser; the licences open their window.
+                Send-TestCommand $data 'about'
+                $script:link = $null
+                $null = Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $script:link = @(Get-AxNodes (Get-AxTree $c $appId) | Where-Object { $_.frame -and (@($_.title, $_.description, $_.value) -ccontains $texts['AboutRepository']) }) | Select-Object -First 1; $null -ne $script:link }
+                if (-not $script:link) { $problems.Add("About shows no link '$($texts['AboutRepository'])'") }
+                else {
+                    $point = Get-AxCenter $script:link
+                    $null = Invoke-Helper $c @('click', "$($point[0])", "$($point[1])")
+                    if (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { & $browserFront }) { $notes.Add("the repository link brought the default browser ($browser) to the front") }
+                    else { $problems.Add("the repository link did not bring the default browser ($browser) to the front (front app $(Get-FrontAppText))") }
+                }
+                Send-TestCommand $data 'about'
+                $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId }
+                $licences = @(Get-AxNodes (Get-AxTree $c $appId) | Where-Object { $_.frame -and (@($_.title, $_.description, $_.value) -ccontains $texts['AboutThirdPartyLicenses']) }) | Select-Object -First 1
+                if (-not $licences) { $problems.Add("About shows no link '$($texts['AboutThirdPartyLicenses'])'") }
+                else {
+                    $point = Get-AxCenter $licences
+                    $null = Invoke-Helper $c @('click', "$($point[0])", "$($point[1])")
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { @(Get-AxWindows $c $appId | Where-Object title -CEQ $texts['LicensesTitle']).Count -gt 0 })) { $problems.Add("the licences link opened no window '$($texts['LicensesTitle'])'") }
+                    else {
+                        $notes.Add("the licences opened the window '$($texts['LicensesTitle'])'")
+                        $null = Invoke-HelperExit $c @('axwin', "$appId", $texts['LicensesTitle'], 'close')
+                    }
+                }
+                $null = Invoke-HelperExit $c @('axwin', "$appId", $texts['AboutTitle'], 'close')
+
+                # 2. Open PrusaLink: the browser loads the web of the simulator through the proxy of the app.
+                $logLength = (Read-TestLog $data).Length
+                $item = "$($texts['MenuPrinter'] -f $name, $texts['StateIdle'])>$(ConvertFrom-VerifyAccessText $texts['MenuOpenPrusaLink'])"
+                $press = Invoke-MenuPress $c $appId $item
+                if ($press.ExitCode -ne 0) { $problems.Add("menupress '$item': $($press.Output -join ' ')") }
+                else {
+                    $script:answers = @()
+                    $answered = Wait-VerifyCondition -TimeoutSeconds 30 -IntervalMilliseconds 500 -Condition { $script:answers = @(Get-VerifyProxyAnswers (& $logSince $logLength) | Where-Object { $_.Printer -ceq $script:PrinterId }); @($script:answers | Where-Object { $_.Status -eq 200 }).Count -gt 0 }
+                    if (-not $answered) { $problems.Add("the web proxy answered no request with 200 within 30 s after Open PrusaLink (answers: $(@($script:answers | ForEach-Object { "$($_.Method) $($_.Path) $($_.Status)" }) -join ', '))") }
+                    else { $notes.Add("Open PrusaLink: the browser loaded the simulator's web through the proxy ($(@($script:answers | Select-Object -First 3 | ForEach-Object { "$($_.Method) $($_.Path) $($_.Status)" }) -join ', '))") }
+                }
+                if (Test-Path -LiteralPath $marker) { $problems.Add('the fake open of PATH ran (T-053 L4: the app must start /usr/bin/open)') }
+                else { $notes.Add('the fake open never ran') }
+            }
+            finally {
+                $null = Stop-TestApp $data $app
+                # The browser as it was: the windows the links opened closed, the browser quit when it was not running.
+                foreach ($id in @(& $browserPids)) {
+                    if ($runningBefore -notcontains $id) { $null = Invoke-HelperExit $c @('terminate', "$id"); $notes.Add("the browser started by the links was quit"); continue }
+                    $new = @(& $browserWindows $id | Where-Object { $_ -and $windowsBefore -notcontains $_ })
+                    foreach ($title in $new) { $null = Invoke-HelperExit $c @('axwin', "$id", $title, 'close') }
+                    $notes.Add($(if ($new.Count) { "$($new.Count) new browser window(s) closed" } else { 'the links opened in tabs of the running browser (left open)' }))
+                }
+            }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS ($notes -join '; ')
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.hw-decoding-switch' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to choose Hardware decoding in Settings and read the camera windows, and an unlocked screen; Screen Recording optional (two captures of the image instead of the Accessibility state)' `
+        -Title 'Hardware decoding switched while the camera window is open (Automatic -> Off -> Automatic, Save): the image goes on within about 2 s (a key frame) and the log says "Camera video decoding: ..." with the new path; two simulators, two printers, two camera windows: both show the image and one VTDecoderXPCService serves both (Debug test bundle, the Buddy3D clip at 25 fps when present)' `
+        -Closes 'T-205 (body (4) přepnutí volby za běhu a (5) dvě kamery s jedním VTDecoderXPCService; testovací Debug bundle, rozhodnutí 2026-11-13)', 'T-216 kritérium 6' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $texts = Get-AppTexts 'en'
+            $capture = (Invoke-Helper $c @('screenrecording')) -contains 'true'
+            $clip = Get-Buddy3DClip
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            $notes.Add($(if ($clip) { 'the Buddy3D clip at 25 fps' } else { "the simulator's own clip at 25 fps (no $((Join-Path (Get-SamplesFolder) 'clips' 'coreone-20261103-1905-60s.mp4')))" }))
+            $first = Get-Simulator $c -Clip $clip -Fps 25
+            $second = Get-Simulator $c -Clip $clip -Fps 25 -Instance 'second'
+            foreach ($s in $first, $second) { Set-SimulatorScenario $s 'printing' }
+            $xpc = { @(& /usr/bin/pgrep -x VTDecoderXPCService 2>$null | ForEach-Object { [int] $_ }) }
+            # The image of a camera window goes on: two captures differ (Screen Recording), else its print status overlay
+            # and no connection state ("No signal", "Connecting...") in the Accessibility tree.
+            $states = @($texts['CameraNoSignal'], $texts['CameraConnecting'])
+            $running = {
+                param([int] $AppId, [string] $Title, [string] $What)
+                $script:axState = $null
+                $ok = Wait-VerifyCondition -TimeoutSeconds 5 -IntervalMilliseconds 200 -Condition {
+                    $tree = @(Get-AxTree $c $AppId | Where-Object { $_.title -ceq $Title })
+                    $shown = @(Get-AxNodes $tree | ForEach-Object { "$($_.title)"; "$($_.value)" } | Where-Object { $_ })
+                    $script:axState = @($shown | Where-Object { $states -contains $_ })
+                    (Find-AxElement $tree 'CameraOverlay') -and $script:axState.Count -eq 0
+                }
+                if (-not $ok) { $problems.Add("${What}: the window '$Title' shows $(if ($script:axState) { "'$($script:axState -join "', '")'" } else { 'no print status overlay' })"); return }
+                if (-not $capture) { return 'running (Accessibility)' }
+                $window = @(Get-ProcessWindows $c $AppId | Where-Object { $_.onscreen -and $_.layer -eq 0 -and $_.width -ge 80 }) | Sort-Object { $_.width * $_.height } -Descending | Select-Object -First 1
+                $tree = @(Get-AxTree $c $AppId | Where-Object { $_.title -ceq $Title })
+                $surface = Find-AxElement $tree 'Surface'
+                $axWindow = @($tree)[0]
+                $number = @(Get-ProcessWindows $c $AppId | Where-Object { $_.onscreen -and [math]::Abs($_.x - $axWindow.frame.x) -le 2 -and [math]::Abs($_.y - $axWindow.frame.y) -le 2 }) | Select-Object -First 1
+                if (-not $number -or -not $surface) { return 'running (Accessibility; no window to capture)' }
+                $files = foreach ($i in 1, 2) {
+                    $file = Join-Path (Get-VerifyEvidenceFolder $c) "$($What -replace '[^A-Za-z0-9]+', '-')-$i.png"
+                    & /usr/sbin/screencapture -x -o -l "$($number.number)" $file
+                    $file
+                    if ($i -eq 1) { Start-Sleep -Seconds 1 }
+                }
+                $diff = (Invoke-Helper $c @('regiondiff', $files[0], $files[1], "$($number.width)", "$($surface.frame.x - $number.x)", "$($surface.frame.y - $number.y)", "$($surface.frame.width)", "$($surface.frame.height)") -AllowFailure) -join "`n" | ConvertFrom-Json -ErrorAction SilentlyContinue
+                $verdict = Get-VerifyLiveImageVerdict -Diff $diff
+                if (-not $verdict.Live) { $problems.Add("${What}: the image of '$Title' did not change within 1 s ($($verdict.Detail))"); return }
+                "live ($($verdict.Detail))"
+            }
+            $chooseDecoding = {
+                param($Data, [int] $AppId, [string] $Choice)
+                $hash = (Get-FileHash -LiteralPath (Join-Path $Data.Data 'settings.json')).Hash
+                Send-TestCommand $Data 'settings'
+                $combo = Open-SettingsTab $c $AppId @('SettingsTabCamera') 'HardwareDecoding'
+                if (-not $combo) { throw 'Settings > Camera shows no HardwareDecoding' }
+                $windows = @(Get-ProcessWindows $c $AppId).Count
+                $center = Get-AxCenter $combo
+                $null = Invoke-Helper $c @('click', "$($center[0])", "$($center[1])")
+                if (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $AppId).Count -gt $windows }) {
+                    Start-Sleep -Milliseconds 400
+                    $inCombo = { param($Node) $f = $Node.frame; $b = $combo.frame; $x = $f.x + $f.width / 2; $y = $f.y + $f.height / 2; $x -ge $b.x -and $x -le $b.x + $b.width -and $y -ge $b.y -and $y -le $b.y + $b.height }
+                    $item = @(Get-AxNodes (Get-AxTree $c $AppId) | Where-Object { $_.frame -and (@($_.title, $_.value, $_.description) -ccontains $Choice) -and -not (& $inCombo $_) }) | Select-Object -First 1
+                    if ($item) { $point = Get-AxCenter $item; $null = Invoke-Helper $c @('click', "$($point[0])", "$($point[1])") }
+                    else { $null = Invoke-Helper $c @('key', 'escape') }
+                    Start-Sleep -Milliseconds 600
+                }
+                $shown = Get-AxElement $c $AppId 'HardwareDecoding'
+                if (-not ($shown -and (@(Get-AxNodes @($shown) | ForEach-Object { $_.title; $_.value }) -ccontains $Choice))) { $null = Invoke-Helper $c @('axpress', "$AppId", 'SettingsCancel') -AllowFailure; throw "HardwareDecoding does not show '$Choice' after choosing it" }
+                $clock = [System.Diagnostics.Stopwatch]::StartNew()
+                $null = Invoke-Helper $c @('axpress', "$AppId", 'SettingsSave')
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FileHash -LiteralPath (Join-Path $Data.Data 'settings.json')).Hash -ne $hash })) { $problems.Add("Save of '$Choice' did not write settings.json") }
+                $clock
+            }
+
+            # (4) One camera window; Automatic -> Off -> Automatic.
+            $data = New-TestData -Context $c -Simulator $first -Camera $first.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
+            $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
+            $cameraTitle = $texts['CameraTitle'] -f $name
+            $app = Start-TestApp -Context $c -TestData $data
+            try {
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { @(Get-VerifyDecodingPaths (Read-TestLog $data)).Count -gt 0 })) { throw 'the camera window logged no "Camera video decoding" line within 20 s' }
+                $start = @(Get-VerifyDecodingPaths (Read-TestLog $data))[-1]
+                if ($start -cne 'videotoolbox') { $problems.Add("(4) Automatic decodes with '$start', expected videotoolbox") }
+                $state = & $running $app.Id $cameraTitle '(4) Automatic'
+                if ($state) { $notes.Add("(4) Automatic: $start, $state") }
+                foreach ($step in @(@{ Choice = $texts['SettingsHardwareDecodingOff']; Expected = 'software*'; File = 'Off' }, @{ Choice = $texts['SettingsHardwareDecodingAutomatic']; Expected = 'videotoolbox'; File = $null })) {
+                    $count = @(Get-VerifyDecodingPaths (Read-TestLog $data)).Count
+                    $clock = & $chooseDecoding $data $app.Id $step.Choice
+                    $saved = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json)
+                    $value = if ($saved.PSObject.Properties['cameraHardwareDecoding']) { [string] $saved.cameraHardwareDecoding } else { $null }
+                    if ($value -cne $step.File) { $problems.Add("(4) '$($step.Choice)' saved cameraHardwareDecoding '$value'") }
+                    $script:paths = @()
+                    $logged = Wait-VerifyCondition -TimeoutSeconds 10 -IntervalMilliseconds 200 -Condition { $script:paths = @(Get-VerifyDecodingPaths (Read-TestLog $data) | Select-Object -Skip $count); @($script:paths | Where-Object { $_ -like $step.Expected }).Count -gt 0 }
+                    $seconds = [math]::Round($clock.Elapsed.TotalSeconds, 1)
+                    if (-not $logged) { $problems.Add("(4) after '$($step.Choice)' no log line 'Camera video decoding: $($step.Expected)' within 10 s (logged: $($script:paths -join ', '))"); continue }
+                    $state = & $running $app.Id $cameraTitle "(4) $($step.Choice)"
+                    if ($state) { $notes.Add("(4) $($step.Choice): '$(@($script:paths)[-1])' $seconds s after Save, $state") }
+                }
+            }
+            finally {
+                $null = Stop-TestApp $data $app
+                $null = Save-VerifyEvidence -Context $c -Name 'switch-app.log' -Content (Read-TestLog $data)
+            }
+
+            # (5) Two printers of two simulators, two camera windows: one VTDecoderXPCService more than before.
+            $baseline = @(& $xpc)
+            $data = New-TestData -Context $c -Simulator $first -Camera $first.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
+            $names = @((Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name)
+            $names += Add-TestPrinter $data $second 'verify2'
+            $app = Start-TestApp -Context $c -TestData $data
+            try {
+                foreach ($id in $script:PrinterId, 'verify2') { Send-TestCommand $data "camera:$id"; Start-Sleep -Seconds 1 }
+                $titles = @($names | ForEach-Object { $texts['CameraTitle'] -f $_ })
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 30 -Condition { @(Get-AxWindows $c $app.Id | Where-Object { $titles -ccontains $_.title }).Count -eq 2 -and @(Get-VerifyDecodingPaths (Read-TestLog $data) | Where-Object { $_ -ceq 'videotoolbox' }).Count -ge 2 })) {
+                    $problems.Add("(5) not two camera windows decoding with videotoolbox within 30 s (windows: $(@(Get-AxWindows $c $app.Id | ForEach-Object title) -join ', '); decoding: $(@(Get-VerifyDecodingPaths (Read-TestLog $data)) -join ', '))")
+                }
+                Start-Sleep -Seconds 2
+                foreach ($title in $titles) { $state = & $running $app.Id $title "(5) $title"; if ($state) { $notes.Add("(5) '$title': $state") } }
+                $peers = foreach ($s in $first, $second) { (Get-RtspConnections $app.Id $s.CameraPort).Count }
+                if (@($peers | Where-Object { $_ -lt 1 }).Count) { $problems.Add("(5) RTSP connections per camera: $($peers -join ', ')") }
+                $now = @(& $xpc)
+                $new = @($now | Where-Object { $baseline -notcontains $_ })
+                $null = Save-VerifyEvidence -Context $c -Name 'vtdecoder.txt' -Content @("before: $($baseline -join ', ')", "with two windows: $($now -join ', ')")
+                if ($new.Count -ne 1) { $problems.Add("(5) $($new.Count) new VTDecoderXPCService process(es) for two camera windows (pids $($new -join ', '); before $($baseline -join ', ')), expected exactly 1") }
+                else { $notes.Add("(5) one VTDecoderXPCService ($($new[0])) for both windows$(if ($baseline.Count) { " ($($baseline.Count) of other apps before)" })") }
+            }
+            finally {
+                $null = Stop-TestApp $data $app
+                $null = Save-VerifyEvidence -Context $c -Name 'two-cameras-app.log' -Content (Read-TestLog $data)
+            }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            New-VerifyResult PASS ($notes -join '; ')
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.keys-czech-layout' -Needs Session, Accessibility -Kind Permission `
+        -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to post real key events, and an unlocked screen; the Czech keyboard layout is selected for the check and the previous one always selected again' `
+        -Title 'T-100 question 1 with the software Czech layout (com.apple.keylayout.Czech): Cmd-Shift-] / Cmd-Shift-[ by their physical keys (right of P) switch the main tab of Settings and nothing else happens (no new window, the text field keeps its text); the previous input source is selected again' `
+        -Closes 'T-100 (otázka 1 pro softwarové české rozložení: ⌘⇧] / ⌘⇧[ přepnou hlavní záložky Nastavení a nic jiného se nestane; vestavěná a Logitech klávesnice zůstávají ruční)', 'T-216 kritérium 7' -Action {
+        param($c)
+        if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
+        Invoke-SessionCheck $c {
+            $layout = 'com.apple.keylayout.Czech'
+            $before = (Invoke-Helper $c @('inputsource')) -join "`n" | ConvertFrom-Json
+            $simulator = Get-Simulator $c
+            $data = New-TestData -Context $c -Simulator $simulator
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            $app = Start-TestApp -Context $c -TestData $data
+            $appId = $app.Id
+            $source = $null
+            $sourceOut = Join-Path $c.RunFolder 'tmp' "inputsource-$(New-ShortId).txt"
+            try {
+                Send-TestCommand $data 'settings'
+                $field = Open-SettingsTab $c $appId @('SettingsTabPrinters') 'PrinterName'
+                if (-not $field) { throw 'Settings show no PrinterName' }
+                # The layout for at most 5 min; the helper selects the previous one again when it ends, also after an error here.
+                $source = Start-HelperProcess $c @('inputsource', $layout, '300') $sourceOut
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Test-Path -LiteralPath $sourceOut) -and (Select-String -LiteralPath $sourceOut -Pattern '"selected"' -Quiet) })) { throw "the Czech layout was not selected: $(Get-Content -LiteralPath $sourceOut -Raw -ErrorAction SilentlyContinue)" }
+                $selected = (Get-Content -LiteralPath $sourceOut | Select-Object -First 1) | ConvertFrom-Json
+                if ($selected.selected -cne $layout) { throw "the input source is '$($selected.selected)' after selecting $layout" }
+                $notes.Add("input source $($selected.previous) -> $layout$(if ($selected.enabledHere) { ' (enabled for the check)' })")
+                # The text field focused (a click), its text and the windows before the shortcuts.
+                $point = Get-AxCenter $field
+                $null = Invoke-Helper $c @('click', "$($point[0])", "$($point[1])")
+                Start-Sleep -Milliseconds 500
+                $text = [string] (Get-AxElement $c $appId 'PrinterName').value
+                $windows = @(Get-AxWindows $c $appId).Count
+                $start = Get-AxSelectedTab $c $appId 'SettingsTabs'
+                $null = Invoke-Helper $c @('key', 'cmd+shift+]')
+                Start-Sleep -Milliseconds 600
+                $next = Get-AxSelectedTab $c $appId 'SettingsTabs'
+                $problem = Get-VerifyTabMoveProblem -Tabs $start.Tabs -Before $start.Selected -After $next.Selected -Step 1
+                if ($problem) { $problems.Add("Cmd-Shift-] (the key right of P and the next): $problem") } else { $notes.Add("Cmd-Shift-] $($start.Selected) -> $($next.Selected)") }
+                $null = Invoke-Helper $c @('key', 'cmd+shift+[')
+                Start-Sleep -Milliseconds 600
+                $back = Get-AxSelectedTab $c $appId 'SettingsTabs'
+                $problem = Get-VerifyTabMoveProblem -Tabs $start.Tabs -Before $next.Selected -After $back.Selected -Step -1
+                if ($problem) { $problems.Add("Cmd-Shift-[: $problem") } else { $notes.Add("Cmd-Shift-[ $($next.Selected) -> $($back.Selected)") }
+                if (@(Get-AxWindows $c $appId).Count -ne $windows) { $problems.Add("the shortcuts changed the windows of the app ($windows -> $(@(Get-AxWindows $c $appId).Count))") }
+                $after = [string] (Get-AxElement $c $appId 'PrinterName').value
+                if ($after -cne $text) { $problems.Add("the shortcuts changed the printer name '$text' to '$after'") } else { $notes.Add('no new window, the printer name unchanged') }
+                $null = Invoke-Helper $c @('axpress', "$appId", 'SettingsCancel') -AllowFailure
+            }
+            finally {
+                # SIGTERM: the helper selects the previous input source again before it ends.
+                if ($source -and -not $source.HasExited) { & /bin/kill -TERM $source.Id; $null = $source.WaitForExit(10000) }
+                $null = Stop-TestApp $data $app
+                if (Test-Path -LiteralPath $sourceOut) { $null = Save-VerifyEvidence -Context $c -Name 'inputsource.jsonl' -Path $sourceOut }
+                $current = ((Invoke-Helper $c @('inputsource')) -join "`n" | ConvertFrom-Json).current
+                if ($current -cne $before.current) { $problems.Add("the input source is '$current' after the check, before '$($before.current)' (select it again in the menu bar)") }
+                else { $notes.Add("input source $current again") }
+            }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s) (T-100 question 1: a new task): $($problems -join '; ')" }
+            New-VerifyResult PASS "T-100 question 1, software Czech layout: $($notes -join '; ')"
+        }
+    }
+
     New-VerifyCheck -Id 'mac.recording-files' -Kind Auto -Title 'files of the automatic print recording (a camera outage, the next print, the end a minute later) and of the dashcam triggers error, attention and stopped; every file decodes (simulator x20 with a real Buddy3D clip)' `
         -Closes 'T-145 (simulátorová část: soubor <datum>_<čas>_<název tisku>.mp4, uzavření asi minutu po konci, další tisk = nový soubor)', 'T-147 (kamera simulátoru se skutečným klipem Buddy3D: oba soubory nahrávky s výpadkem, …mp4 a …-2.mp4, decode OK)', 'T-148 (simulátorová část: spouštěče error / attention / stopped → …_dashcam-<spouštěč>.mp4, decode OK)', 'T-210 kritérium 5 a 6 (nahrávka simulátoru decode OK; nic mimo dočasnou složku, ~/Movies/LayerPeek beze změny)' -Action {
         param($c)
@@ -4135,7 +4734,8 @@ $presets = [ordered]@{
         'mac.build', 'mac.test', 'mac.aot-smoke', 'mac.keychain', 'mac.dock', 'mac.menubar', 'mac.menu-items', 'mac.settings-front',
         'mac.plist-localnetwork', 'mac.decode', 'mac.gatekeeper', 'mac.release-bundle', 'mac.notifications', 'mac.display-wait', 'mac.camera',
         'mac.camera-placement', 'mac.camera-pin', 'mac.camera-outline', 'mac.dock-windows', 'mac.mini-after-fullscreen', 'mac.camera-live',
-        'mac.camera-next-attempt', 'mac.recording-files', 'mac.recording', 'mac.dashcam',
+        'mac.camera-next-attempt', 'mac.camera-autoclose', 'mac.camera-pin-ax', 'mac.detection-region', 'mac.appkit-language', 'mac.open-fake',
+        'mac.hw-decoding-switch', 'mac.keys-czech-layout', 'mac.recording-files', 'mac.recording', 'mac.dashcam',
         'mac.timelapse-files', 'mac.timelapse', 'mac.timelapse-layers', 'mac.notifications-content', 'mac.file-dialogs', 'mac.keys', 'mac.update-check',
         'mac.socket-other-user', 'mac.display-sleep', 'mac.profile-unchanged'
     )
@@ -4295,5 +4895,5 @@ $latest = Set-VerifyLatestLink -Root $root -RunFolder $runFolder
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }
 Write-Host "Report: $($report.Markdown) ($(Format-VerifyDuration $info.Seconds)$(if ($latest) { "; also $latest" }))"
-Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content, mac.file-dialogs, mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live or mac.camera-next-attempt.'
+Write-Host 'Known leftovers no tool can remove: "LayerPeek E2E" in System Settings > Notifications; the terminal in Privacy & Security > Accessibility if you allowed it for mac.keys, mac.menu-items, mac.update-check, mac.recording, mac.dashcam, mac.timelapse, mac.timelapse-layers, mac.notifications-content, mac.file-dialogs, mac.dock-windows, mac.mini-after-fullscreen, mac.camera-live, mac.camera-next-attempt, mac.detection-region, mac.appkit-language, mac.hw-decoding-switch or mac.keys-czech-layout.'
 exit (Get-VerifyExitCode -Results $results)

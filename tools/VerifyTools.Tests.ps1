@@ -1276,3 +1276,92 @@ Describe 'Windows, the Dock and the camera image (mac.dock-windows, mac.mini-aft
         $problems | Should -Contain 'pause 3 started with 30 s, expected 20 s'
     }
 }
+
+Describe 'Small checks (mac.camera-pin-ax, mac.detection-region, mac.appkit-language, mac.open-fake, mac.hw-decoding-switch, mac.keys-czech-layout; T-216, pure)' {
+    BeforeAll {
+        $script:regionFormat = "Bed region: {0}`u{00A0}% from the left, {1}`u{00A0}% from the top, {2}`u{00A0}% wide, {3}`u{00A0}% high"
+    }
+
+    It 'reads the numbers of a formatted resource text' {
+        ConvertFrom-VerifyFormattedText -Format $regionFormat -Text "Bed region: 15`u{00A0}% from the left, 55`u{00A0}% from the top, 70`u{00A0}% wide, 45`u{00A0}% high" | Should -Be @(15, 55, 70, 45)
+        # Any white space matches, the numbers come in the order of the placeholders, not of the text.
+        ConvertFrom-VerifyFormattedText -Format $regionFormat -Text 'Bed region: 5 % from the left, 6 % from the top, 40 % wide, 35 % high' | Should -Be @(5, 6, 40, 35)
+        ConvertFrom-VerifyFormattedText -Format '{1} high, {0} wide (*)' -Text '20 high, 30 wide (*)' | Should -Be @(30, 20)
+        ConvertFrom-VerifyFormattedText -Format $regionFormat -Text 'Whole frame' | Should -BeNullOrEmpty
+        ConvertFrom-VerifyFormattedText -Format $regionFormat -Text '' | Should -BeNullOrEmpty
+    }
+
+    It 'compares a region in percent and converts one of settings.json' {
+        Get-VerifyRegionProblem -Actual 15, 55, 70, 45 -Expected 15, 55, 70, 45 | Should -BeNullOrEmpty
+        Get-VerifyRegionProblem -Actual 6, 5, 40, 35 -Expected 5, 5, 40, 35 -Tolerance 2 | Should -BeNullOrEmpty
+        Get-VerifyRegionProblem -Actual 16, 55, 70, 45 -Expected 15, 55, 71.5, 45 | Should -Be 'region 16 / 55 / 70 / 45 %: x 16 (expected 15), width 70 (expected 71.5)'
+        Get-VerifyRegionProblem -Actual $null -Expected 15, 55, 70, 45 | Should -Be 'no region'
+        ConvertTo-VerifyRegionPercent ([pscustomobject]@{ x = 0.15; y = 0.55; width = 0.7; height = 0.45 }) | Should -Be @(15, 55, 70, 45)
+        ConvertTo-VerifyRegionPercent ([pscustomobject]@{ x = 0.065; y = 0; width = 0.4049; height = 1 }) | Should -Be @(7, 0, 40, 100)
+        ConvertTo-VerifyRegionPercent $null | Should -BeNullOrEmpty
+    }
+
+    It 'lists the decoding paths of the log in order' {
+        $log = "2026-11-15 10:00:01 [Information] Camera video decoding: videotoolbox.`n2026-11-15 10:00:09 [Information] Camera video decoding: software (the option is off).`r`nother`nCamera video decoding: videotoolbox."
+        Get-VerifyDecodingPaths $log | Should -Be @('videotoolbox', 'software (the option is off)', 'videotoolbox')
+        Get-VerifyDecodingPaths '' | Should -HaveCount 0
+    }
+
+    It 'tells the language of AppKit titles' {
+        $found = @(Get-VerifyTitleLanguages -Titles 'Abbrechen', 'Öffnen', 'Copy')
+        $found[0].Language | Should -Be 'de'
+        $found[0].Matches | Should -Be 2
+        $found[1].Language | Should -Be 'en'
+        (Get-VerifyTitleLanguages -Titles 'Zrušit', 'Otevřít…')[0].Language | Should -Be 'cs'
+        # "Kopírovat" is Czech, "Kopírovať" Slovak.
+        (Get-VerifyTitleLanguages -Titles 'Kopírovať', 'Vložiť')[0].Language | Should -Be 'sk'
+        Get-VerifyTitleLanguages -Titles 'Something' | Should -HaveCount 0
+        Get-VerifyTitleLanguages -Titles @() | Should -HaveCount 0
+    }
+
+    It 'picks a LayerPeek language other than the system language' {
+        Get-VerifyOtherLanguage -SystemLanguages 'cs-CZ', 'en-US' | Should -Be 'de'
+        Get-VerifyOtherLanguage -SystemLanguages 'de-AT' | Should -Be 'fr'
+        Get-VerifyOtherLanguage -SystemLanguages 'de' | Should -Be 'fr'
+        Get-VerifyOtherLanguage -SystemLanguages @() | Should -Be 'de'
+    }
+
+    It 'finds the default browser of the LaunchServices handlers' {
+        $handlers = '{"LSHandlers":[{"LSHandlerContentType":"public.html","LSHandlerRoleAll":"com.apple.safari"},{"LSHandlerURLScheme":"http","LSHandlerRoleAll":"org.mozilla.firefox"},{"LSHandlerURLScheme":"https","LSHandlerRoleAll":"com.Google.Chrome"}]}' | ConvertFrom-Json
+        Get-VerifyDefaultBrowser $handlers | Should -Be 'com.google.chrome'
+        Get-VerifyDefaultBrowser ('{"LSHandlers":[{"LSHandlerURLScheme":"http","LSHandlerRoleAll":"org.mozilla.firefox"}]}' | ConvertFrom-Json) | Should -Be 'org.mozilla.firefox'
+        Get-VerifyDefaultBrowser ('{"LSHandlers":[]}' | ConvertFrom-Json) | Should -Be 'com.apple.safari'
+        Get-VerifyDefaultBrowser $null | Should -Be 'com.apple.safari'
+    }
+
+    It 'reads the answers of the web proxy from the detailed log' {
+        $log = "x Web proxy: GET / answered 200 (printer 'verify').`ny Web proxy: GET /assets/app.js answered 304 (printer 'verify').`nWeb proxy: a POST request from another web page was rejected (header Origin) (printer 'verify')."
+        $answers = @(Get-VerifyProxyAnswers $log)
+        $answers | Should -HaveCount 2
+        $answers[0].Method | Should -Be 'GET'
+        $answers[0].Path | Should -Be '/'
+        $answers[0].Status | Should -Be 200
+        $answers[0].Printer | Should -Be 'verify'
+        $answers[1].Status | Should -Be 304
+        Get-VerifyProxyAnswers '' | Should -HaveCount 0
+    }
+
+    It 'judges a move of the selected tab' {
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b', 'c' -Before 'a' -After 'b' | Should -BeNullOrEmpty
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b', 'c' -Before 'c' -After 'a' | Should -BeNullOrEmpty
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b', 'c' -Before 'a' -After 'c' -Step -1 | Should -BeNullOrEmpty
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b', 'c' -Before 'a' -After 'a' | Should -Be 'went from a to a, expected b'
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b' -Before 'x' -After 'a' | Should -Be 'the tab x is not one of a, b'
+        Get-VerifyTabMoveProblem -Tabs 'a', 'b' -Before '' -After 'a' | Should -Be 'the selected tab could not be read'
+    }
+
+    It 'puts the small checks into the release preset' {
+        $run = Invoke-Script 'macos-verify.ps1' @('-ListChecks', '-Preset', 'release')
+        $run.ExitCode | Should -Be 0 -Because $run.Text
+        foreach ($id in 'mac.camera-autoclose', 'mac.camera-pin-ax', 'mac.open-fake') { @($run.Output | Where-Object { $_ -like "$id  *``[auto``]*" }) | Should -HaveCount 1 -Because $id }
+        foreach ($id in 'mac.detection-region', 'mac.appkit-language', 'mac.hw-decoding-switch', 'mac.keys-czech-layout') {
+            @($run.Output | Where-Object { $_ -like "$id  *``[permission``]*" }) | Should -HaveCount 1 -Because $id
+            $run.Output[0] | Should -BeLike "*allowed in advance:*$id*"
+        }
+    }
+}

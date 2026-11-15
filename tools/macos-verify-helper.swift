@@ -78,6 +78,18 @@
 //   axwatch <pid> <identifier> <ms> [<stop>]  JSON lines: the text (value, title or description) and frame of the
 //                                    element with that identifier at the start and at every change, polled every 50 ms
 //                                    for <ms>, or until 1.5 s after the text contained <stop> (needs Accessibility)
+//   inputsource                      the keyboard input sources as JSON: current (the selected one's id, e.g.
+//                                    com.apple.keylayout.Czech) and enabled (the ids of the enabled keyboard layouts)
+//   inputsource <id> <seconds>       selects the keyboard input source <id> (enabled first when it is not, disabled again
+//                                    afterwards), prints a JSON line (previous, selected, enabledHere) and keeps it until
+//                                    <seconds> pass or it gets SIGTERM, SIGINT or SIGHUP; then it always selects the
+//                                    previous source again and prints a JSON line (restored, current). Exit code 1: no such
+//                                    source, 2: it could not be selected (the previous one is selected again) (T-216)
+//   apps <bundle id>                 the pids of the running apps with that bundle identifier (case-insensitive) as JSON
+//                                    (T-216: the default browser before and after a link opened)
+//   terminate <pid>                  asks the app with that pid to quit, as the Quit menu item would
+//                                    (NSRunningApplication.terminate, no Apple event permission needed); exit code 1
+//                                    when it is still running after 10 s (T-216: the browser a check started)
 //   windowsat <x> <y>                the on-screen windows containing a point, front to back: pid, owner, number, layer,
 //                                    bounds (whether a click there reaches the window under test)
 //   front <x> <y> <seconds> [regular]  a stand-in other app: an accessory app (regular: an ordinary app with a Dock
@@ -113,6 +125,7 @@
 //                                    1x and 2x, and the app icon next to the system app icons at 16 to 128 points
 
 import AppKit
+import Carbon
 import ApplicationServices
 import AVFoundation
 import CoreGraphics
@@ -1497,8 +1510,92 @@ func lumaWatch(_ window: Int, _ milliseconds: Int, _ seconds: Double, _ folder: 
     }
 }
 
+// Keyboard input sources (T-216, mac.keys-czech-layout): Text Input Sources of HIToolbox.
+func inputSourceID(_ source: TISInputSource) -> String {
+    guard let pointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else { return "" }
+    return Unmanaged<CFString>.fromOpaque(pointer).takeUnretainedValue() as String
+}
+
+func inputSourceEnabled(_ source: TISInputSource) -> Bool {
+    guard let pointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsEnabled) else { return false }
+    return CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque(pointer).takeUnretainedValue())
+}
+
+func inputSources(_ properties: [CFString: Any], includeAllInstalled: Bool) -> [TISInputSource] {
+    (TISCreateInputSourceList(properties as CFDictionary, includeAllInstalled)?.takeRetainedValue() as? [TISInputSource]) ?? []
+}
+
+func currentKeyboardSourceID() -> String {
+    guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return "" }
+    return inputSourceID(source)
+}
+
+func inputSourceInfo() {
+    let enabled = inputSources([kTISPropertyInputSourceCategory: kTISCategoryKeyboardInputSource as Any], includeAllInstalled: false).map(inputSourceID)
+    printJSON(["current": currentKeyboardSourceID(), "enabled": enabled])
+}
+
+func useInputSource(_ id: String, _ seconds: Double) {
+    let previous = currentKeyboardSourceID()
+    guard let source = inputSources([kTISPropertyInputSourceID: id as CFString], includeAllInstalled: true).first else { fail("no input source \(id)") }
+    var enabledHere = false
+    if !inputSourceEnabled(source) {
+        let enabled = TISEnableInputSource(source)
+        if enabled != noErr { fail("the input source \(id) could not be enabled (\(enabled))", code: 2) }
+        enabledHere = true
+    }
+    // Always back to the previous source (and the source disabled again when this command enabled it), whatever ends it.
+    var restored = false
+    func restore() {
+        if restored { return }
+        restored = true
+        if !previous.isEmpty, let back = inputSources([kTISPropertyInputSourceID: previous as CFString], includeAllInstalled: false).first { _ = TISSelectInputSource(back) }
+        if enabledHere { _ = TISDisableInputSource(source) }
+    }
+    let selected = TISSelectInputSource(source)
+    if selected != noErr {
+        restore()
+        fail("the input source \(id) could not be selected (\(selected))", code: 2)
+    }
+    // One compact JSON line each: the script reads the first while the command still runs.
+    func line(_ value: [String: Any]) {
+        if let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]), let text = String(data: data, encoding: .utf8) { print(text) }
+        fflush(stdout)
+    }
+    line(["previous": previous, "selected": currentKeyboardSourceID(), "enabledHere": enabledHere])
+    func finish() {
+        restore()
+        line(["restored": previous, "current": currentKeyboardSourceID()])
+        exit(0)
+    }
+    var signals: [DispatchSourceSignal] = []
+    for number in [SIGTERM, SIGINT, SIGHUP] {
+        signal(number, SIG_IGN)
+        let watch = DispatchSource.makeSignalSource(signal: number, queue: .main)
+        watch.setEventHandler { finish() }
+        watch.resume()
+        signals.append(watch)
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + max(seconds, 1)) { finish() }
+    withExtendedLifetime(signals) { dispatchMain() }
+}
+
+func runningApps(_ bundleIdentifier: String) {
+    let wanted = bundleIdentifier.lowercased()
+    printJSON(NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier?.lowercased() == wanted }.map { Int($0.processIdentifier) })
+}
+
+func terminateApp(_ pid: Int32) {
+    guard let app = NSRunningApplication(processIdentifier: pid) else { print("not running"); return }
+    _ = app.terminate()
+    let deadline = Date().addingTimeInterval(10)
+    while !app.isTerminated && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+    if !app.isTerminated { fail("the app \(pid) is still running after 10 s") }
+    print("terminated")
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|type|panel|panelgo|panelcancel|click|axwin|dock|drag|luma|lumawatch|decode|dlopen|localized|icons ...") }
+guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|statusitems|menu|menupress|trusted|key|type|panel|panelgo|panelcancel|click|axwin|dock|drag|luma|lumawatch|inputsource|apps|terminate|decode|dlopen|localized|icons ...") }
 switch command {
 case "screens": screens()
 case "windows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; windows(pid)
@@ -1560,5 +1657,9 @@ case "luma" where arguments.count == 2 || arguments.count == 6:
 case "lumawatch" where arguments.count == 5:
     guard let window = Int(arguments[1]), let milliseconds = Int(arguments[2]), let seconds = Double(arguments[3]) else { fail("not a window number or a time") }
     lumaWatch(window, milliseconds, seconds, arguments[4])
+case "inputsource" where arguments.count == 1: inputSourceInfo()
+case "inputsource" where arguments.count == 3: guard let seconds = Double(arguments[2]) else { fail("not a number of seconds") }; useInputSource(arguments[1], seconds)
+case "apps" where arguments.count == 2: runningApps(arguments[1])
+case "terminate" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; terminateApp(pid)
 default: fail("unknown command or arguments: \(arguments.joined(separator: " "))")
 }
