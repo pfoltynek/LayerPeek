@@ -766,6 +766,7 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
    „Latest“ je do 1.0.0 `v0.5.0`.
 
 ## Poznámky k implementaci
+- **Rozhodnutí uživatele 2026-11-15** (`mac.recording`, celá obrazovka): náhradní zastavení nahrávání tlačítkem v okně kamery, když stavová položka v liště není dosažitelná, je **přijatelné**; report to zapisuje do poznámek kontroly („stopped by the window button“).
 - **2026-11-15, qa-reviewer – první běh `-Preset release` s odemčenou obrazovkou (oddíly 1i–1r):**
   - Běh `artifacts/verify/20261115-155430/` (commit `24d73aa3` na `develop`, čistý strom), Mac mini Mac14,12,
     macOS 27.2.1, Terminál se Zpřístupněním, **Sdílení obrazovky připojené** (hlavní displej „iPad Remote“ 1287 × 900

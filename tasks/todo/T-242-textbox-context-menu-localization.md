@@ -35,8 +35,8 @@ panely AppKitu (výběr obrázku tiskárny) jsou naopak v jazyce systému.
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
-1. Lokalizovat kontextové menu textových polí (vlastní menu místo výchozího Avalonie), nebo nechat výchozí anglické?
-2. Které položky: jen Vyjmout / Kopírovat / Vložit, nebo i Vybrat vše / Zpět?
+1. ~~Lokalizovat?~~ **Rozhodnutí uživatele 2026-11-15: ano**, vlastní lokalizované menu místo výchozího Avalonie.
+2. ~~Které položky?~~ **Rozhodnutí uživatele 2026-11-15: Vyjmout, Kopírovat, Vložit, Vybrat vše** (bez Zpět/Znovu); pole hesla bez Vyjmout a Kopírovat.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

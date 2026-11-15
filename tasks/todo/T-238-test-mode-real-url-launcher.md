@@ -35,9 +35,7 @@ skončit `PASS`.
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
-1. Smí testovací režim (Debug) dostat takový přepínač, nebo má `mac.open-fake` ověřovat jen zapsané adresy a falešné
-   `open` (bez skutečného prohlížeče, T-216 otázka 1 – druhá možnost)? Rozhodnutí 2026-11-13 počítalo se skutečným
-   prohlížečem.
+1. ~~Smí testovací režim dostat přepínač?~~ **Rozhodnutí uživatele 2026-11-15: ano** – přidat proměnnou testovacího režimu (Debug), se kterou se odkazy otevřou přes `/usr/bin/open` ve skutečném prohlížeči; Release beze změny.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
