@@ -448,6 +448,48 @@ public sealed class TestModeSwitchesTests
     }
 
     [Fact]
+    public void TheRealUrlLauncherIsOnlyForTheTestModeWithItsSwitch()
+    {
+        // T-238: "1" only; anything else, or outside the test mode, keeps the addresses recorded.
+        Assert.Equal("LAYERPEEK_TEST_REAL_URL_LAUNCHER", AppEnvironment.TestRealUrlLauncherVariable);
+        Assert.True(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestRealUrlLauncherVariable, "1")).TestRealUrlLauncher);
+        Assert.False(Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestRealUrlLauncherVariable, "true")).TestRealUrlLauncher);
+        Assert.False(Read((AppEnvironment.DataDirectoryVariable, Folder)).TestRealUrlLauncher);
+
+        AppEnvironment outside = Read((AppEnvironment.TestRealUrlLauncherVariable, "1"));
+        Assert.False(outside.IsIsolated);
+        Assert.False(outside.TestRealUrlLauncher);
+        Assert.Equal([AppEnvironment.TestRealUrlLauncherVariable], outside.IgnoredTestSwitches);
+    }
+
+    [Fact]
+    public async Task TestModeWithTheRealUrlLauncherSwitchStartsTheBrowser()
+    {
+        // T-238: mac.open-fake needs /usr/bin/open and the real browser; nothing is written to opened-urls.txt.
+        string folder = TestDirectories.NewDirectoryPath();
+        try
+        {
+            await using (ServiceProvider services = AppServices.Create(environment: Read((AppEnvironment.DataDirectoryVariable, folder), (AppEnvironment.TestRealUrlLauncherVariable, "1"))))
+            {
+                Assert.IsType<ProcessUrlLauncher>(services.GetRequiredService<IUrlLauncher>());
+                // The other launchers of the test mode stay replaced.
+                Assert.IsType<RecordingFileLauncher>(services.GetRequiredService<IFileLauncher>());
+            }
+
+            await using (ServiceProvider services = AppServices.Create(environment: Read((AppEnvironment.DataDirectoryVariable, folder))))
+            {
+                Assert.IsType<RecordingUrlLauncher>(services.GetRequiredService<IUrlLauncher>());
+            }
+
+            Assert.False(File.Exists(Path.Combine(folder, "opened-urls.txt")));
+        }
+        finally
+        {
+            TestDirectories.Delete(folder);
+        }
+    }
+
+    [Fact]
     public async Task TestModeRecordsFilesToOpenInsteadOfStartingTheirApp()
     {
         string folder = TestDirectories.NewDirectoryPath();

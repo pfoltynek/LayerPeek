@@ -2922,13 +2922,14 @@ $checks = @(
             Set-SimulatorScenario $simulator 'idle'
             $data = New-TestData -Context $c -Simulator $simulator -SettingsOptions ([ordered]@{ debugLogging = $true })
             $name = (Get-Content -LiteralPath (Join-Path $data.Data 'settings.json') -Raw | ConvertFrom-Json).printers[0].name
-            $app = Start-TestApp -Context $c -TestData $data -Environment @{ PATH = $path }
+            $app = Start-TestApp -Context $c -TestData $data -Environment (Get-VerifyOpenFakeEnvironment -Path $path)
             $appId = $app.Id
             $browserFront = { $front = Get-FrontProcessId; $front -and (@(& $browserPids) -contains $front) }
             $logSince = { param([int] $Length) $log = Read-TestLog $data; if ($log.Length -ge $Length) { $log.Substring($Length) } else { $log } }
-            # The Debug test mode hands the addresses to opened-urls.txt instead of the browser (RecordingUrlLauncher, T-067;
-            # first run with an unlocked screen 2026-11-15): then /usr/bin/open and the browser are not exercised (a SKIP),
-            # and the check loads the recorded proxy address itself (never written anywhere: it carries the access token).
+            # The test app opens the links through /usr/bin/open (LAYERPEEK_TEST_REAL_URL_LAUNCHER, T-238). A build older than
+            # T-238 ignores the switch and hands the addresses to opened-urls.txt (RecordingUrlLauncher, T-067): then
+            # /usr/bin/open and the browser are not exercised (a SKIP), and the check loads the recorded proxy address itself
+            # (never written anywhere: it carries the access token).
             $skipped = [System.Collections.Generic.List[string]]::new()
             $recordedUrls = { $file = Join-Path $data.Data 'opened-urls.txt'; if (Test-Path -LiteralPath $file) { @(Get-Content -LiteralPath $file | Where-Object { $_ }) } else { @() } }
             try {
@@ -2972,7 +2973,7 @@ $checks = @(
                 if ($press.ExitCode -ne 0) { $problems.Add("menupress '$item': $($press.Output -join ' ')") }
                 else {
                     $script:answers = @()
-                    # The test mode: the check opens the recorded proxy address itself, as the browser would (one GET).
+                    # A build older than T-238: the check opens the recorded proxy address itself, as the browser would (one GET).
                     $script:proxyUrl = $null
                     if ((Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:proxyUrl = @(& $recordedUrls | Where-Object { ([uri] $_).Host -ceq '127.0.0.1' }) | Select-Object -Last 1; $script:proxyUrl -or (& $browserFront) }) -and $script:proxyUrl) {
                         try { $null = Invoke-WebRequest -Uri $script:proxyUrl -TimeoutSec 15 -MaximumRedirection 5 -SkipHttpErrorCheck }
@@ -2997,7 +2998,7 @@ $checks = @(
                 }
             }
             if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
-            if ($skipped.Count -gt 0) { Skip-VerifyCheck "not judged: /usr/bin/open and the default browser ($($skipped -join '; '); a test mode that opens them is T-238). Done: $($notes -join '; ')." }
+            if ($skipped.Count -gt 0) { Skip-VerifyCheck "not judged: /usr/bin/open and the default browser ($($skipped -join '; '); the build predates the switch LAYERPEEK_TEST_REAL_URL_LAUNCHER of T-238). Done: $($notes -join '; ')." }
             New-VerifyResult PASS ($notes -join '; ')
         }
     }

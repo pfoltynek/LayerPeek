@@ -75,10 +75,14 @@ a kritérium.
       zvukem i bez, nahrazení v Centru oznámení, klik přenese Nastavení na záložku Obecné, stav „zamítnuto“ s hláškou,
       `notDetermined` jen bez zásahu do TCC.
       **Automatizace:** T-212 `mac.notifications-content` (c). Stav „zamítnuto“ a `notDetermined` zůstávají ruční.
-- [ ] **T-053** (krit. „Ručně na Macu: `/usr/bin/open` otevírá odkazy a web PrusaLink přes proxy (L4)“): sezení 10.2
+- [x] **T-053** (krit. „Ručně na Macu: `/usr/bin/open` otevírá odkazy a web PrusaLink přes proxy (L4)“): sezení 10.2
       (falešné `open` v `PATH` se nespustí, web PrusaLink simulátoru přes proxy přihlášený, odkazy v O aplikaci se
       otevřou) a sezení 2.6 (odkazy a licence v O aplikaci).
       **Automatizace:** T-216 `mac.open-fake` (viz T-216 otázka 1).
+      **Ověřeno 2026-11-15 (T-238):** `mac.open-fake` = `PASS` s odemčenou obrazovkou (`artifacts/verify/20261115-203317/`,
+      větev T-238 s přepínačem `LAYERPEEK_TEST_REAL_URL_LAUNCHER=1`): falešné `open` první v `PATH` se nespustilo, odkaz
+      na GitHub přenesl Safari dopředu, licence otevřely okno „Third-party licences“, „Open PrusaLink“ → web simulátoru přes
+      proxy (`GET / 200`, `GET /api/v1/status 200`). Přihlášení přes proxy kryjí E2E T-028 / T-107.
 - [ ] **T-097** (otázka 5, „uživatel to ověří při ručním testu“): sezení 4.5 – jazyk LayerPeeku jiný než jazyk systému;
       zapsat, v jakém jazyce jsou prvky AppKitu (výběr obrázku tiskárny, kontextové menu textového pole).
       **Automatizace:** T-216 `mac.appkit-language` (zjištění se zapíše do zprávy a do T-097).
@@ -558,7 +562,7 @@ a kritérium.
       zavře, spuštěný prohlížeč ukončí, panel v už otevřeném okně nechá. `PASS` odškrtne v tomto úkolu body: `mac.camera-autoclose`
       **T-151** „Automaticky otevřené okno nebere fokus …“; `mac.camera-pin-ax` **T-122** a část VoiceOver bodu **T-117**;
       `mac.detection-region` část editoru výřezu bodu **T-154** (bez skutečné Buddy3D); `mac.open-fake` bod **T-053**
-      (přihlášení přes proxy kryjí E2E T-028 / T-107); `mac.hw-decoding-switch` body (4) a (5) bodu **T-205** (výsledek
+      (přihlášení přes proxy kryjí E2E T-028 / T-107; **hotovo 2026-11-15 v T-238**, `PASS`, bod T-053 odškrtnut); `mac.hw-decoding-switch` body (4) a (5) bodu **T-205** (výsledek
       i do poznámek T-205); `mac.keys-czech-layout` = `PASS` bod **T-100** otázka 1 pro softwarové rozložení (`FAIL` = nový
       úkol; fyzické klávesnice zůstávají). `mac.appkit-language` je vždy `PASS` se zjištěním: jazyk tlačítek panelu
       a kontextového menu zapsat k bodu **T-097** otázka 5 a do T-097 (pak bod odškrtnout). Do poznámek T-216 zapsat
