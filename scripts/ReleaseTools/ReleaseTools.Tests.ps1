@@ -2452,10 +2452,11 @@ Describe 'PE architecture of a publish folder (T-224)' {
         $root = New-PublishStandIn 0xAA64
         Assert-Problems (Get-PublishArchitectureCheck -Directory $root -Runtime $_).Problems "No PE machine type is known for runtime '$_' \(known: win-x64, win-arm64\)\."
     }
-    It 'builds the camera library without FFmpeg for win-arm64 only and LayerPeek.Core once (no ARM64 FFmpeg until T-225)' {
-        # The library is RID-agnostic (built without RuntimeIdentifier), so build/FFmpeg.targets would hand x64 DLLs to a
-        # win-arm64 publish; the App passes its RID as LayerPeekAppRuntimeIdentifier, the library switches FFmpeg off for
-        # it and keeps the property from its reference to Core (else Core is a second project instance, T-224 review).
+    It 'hands the RID of the app to the camera library (FFmpeg of that RID, T-225) and builds LayerPeek.Core once' {
+        # The library is RID-agnostic (built without RuntimeIdentifier), so build/FFmpeg.targets would hand the libraries of
+        # the host to a win-arm64 publish; the App (and the FFmpeg tests) pass their RID as LayerPeekAppRuntimeIdentifier,
+        # build/FFmpeg.targets builds the libraries of that RID (win-arm64: cross build, T-225), and the library keeps the
+        # property from its reference to Core (else Core is a second project instance, T-224 review).
         # Evaluation only (-getItem / -getProperty): nothing is built or written.
         function Evaluate([string] $Project, [string[]] $Arguments) {
             $path = Join-Path $script:RepoRoot 'src' $Project "$Project.csproj"
@@ -2463,22 +2464,32 @@ Describe 'PE architecture of a publish folder (T-224)' {
             if ($LASTEXITCODE -ne 0) { throw "dotnet msbuild failed: $json" }
             $json
         }
-        function Reference([string] $Project, [string] $Target, [string[]] $Arguments = @()) {
-            $references = @((Evaluate $Project (@('-getItem:ProjectReference') + $Arguments) | ConvertFrom-Json).Items.ProjectReference | Where-Object Filename -EQ $Target)
+        function Reference([string] $Project, [string] $Target, [string[]] $Arguments = @(), [string] $Folder = 'src') {
+            $path = Join-Path $script:RepoRoot $Folder $Project "$Project.csproj"
+            $json = (& dotnet msbuild $path -nologo -nr:false -getItem:ProjectReference @Arguments 2>&1) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "dotnet msbuild failed: $json" }
+            $references = @(($json | ConvertFrom-Json).Items.ProjectReference | Where-Object Filename -EQ $Target)
             $references | Should -HaveCount 1
             $references[0]
         }
-        (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg' '-p:RuntimeIdentifier=win-arm64').AdditionalProperties | Should -BeExactly 'LayerPeekAppRuntimeIdentifier=win-arm64'
-        (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg' '-p:RuntimeIdentifier=win-x64').AdditionalProperties | Should -BeNullOrEmpty
+        foreach ($rid in 'win-arm64', 'win-x64', 'osx-arm64') {
+            (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg' "-p:RuntimeIdentifier=$rid").AdditionalProperties | Should -BeExactly "LayerPeekAppRuntimeIdentifier=$rid"
+        }
         (Reference 'LayerPeek.App' 'LayerPeek.Camera.FFmpeg').AdditionalProperties | Should -BeNullOrEmpty
+        # dotnet test -r win-arm64 on an ARM64 machine (T-227) gets the ARM64 libraries the same way.
+        (Reference 'LayerPeek.Camera.FFmpeg.Tests' 'LayerPeek.Camera.FFmpeg' '-p:RuntimeIdentifier=win-arm64' -Folder 'tests').AdditionalProperties | Should -BeExactly 'LayerPeekAppRuntimeIdentifier=win-arm64'
+        (Reference 'LayerPeek.Camera.FFmpeg.Tests' 'LayerPeek.Camera.FFmpeg' -Folder 'tests').AdditionalProperties | Should -BeNullOrEmpty
         $core = Reference 'LayerPeek.Camera.FFmpeg' 'LayerPeek.Core'
         $core.UndefineProperties | Should -BeExactly 'LayerPeekAppRuntimeIdentifier'
         $core.GlobalPropertiesToRemove | Should -BeExactly 'LayerPeekAppRuntimeIdentifier'
-        # -getProperty of one property prints the bare value.
-        (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled', '-p:LayerPeekAppRuntimeIdentifier=win-arm64').Trim() | Should -BeExactly 'false'
+        # -getProperty of one property prints the bare value. On Windows win-arm64 now has FFmpeg (T-225), like win-x64.
         $default = (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled').Trim()
-        (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled', '-p:LayerPeekAppRuntimeIdentifier=win-x64').Trim() | Should -BeExactly $default
+        if ($IsWindows) {
+            (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled', '-p:LayerPeekAppRuntimeIdentifier=win-arm64').Trim() | Should -BeExactly 'true'
+            (Evaluate 'LayerPeek.Camera.FFmpeg' '-getProperty:LayerPeekFFmpegEnabled', '-p:LayerPeekAppRuntimeIdentifier=win-x64').Trim() | Should -BeExactly 'true'
+        }
         if ($IsWindows -and (Get-HostArchitecture) -eq 'x64') { $default | Should -BeExactly 'true' }
+        # The selection per RID and host in detail: build/FFmpeg.Tests.ps1.
     }
     It 'is called by release-build.ps1 before the smoke test and by aot-smoke.ps1 before the start' {
         $build = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-build.ps1') -Raw
@@ -3099,14 +3110,14 @@ Describe 'FFmpeg source of a release (T-199)' {
     }
 
     It 'reads the pinned <Os> source of build/FFmpeg.targets: the official tarball and the build script of the OS' -ForEach @(
-        @{ Os = 'macos'; Rid = 'osx-arm64'; Script = 'build/macos/build-ffmpeg.sh' },
-        @{ Os = 'windows'; Rid = 'win-x64'; Script = 'build/windows/build-ffmpeg.sh' }
+        @{ Os = 'macos'; Rids = @('osx-arm64'); Script = 'build/macos/build-ffmpeg.sh' },
+        @{ Os = 'windows'; Rids = @('win-x64', 'win-arm64'); Script = 'build/windows/build-ffmpeg.sh' }
     ) {
-        # T-202: both OS build the same tarball; only the build script differs.
+        # T-202: both OS build the same tarball; only the build script differs. T-225: one Windows script for both RIDs.
         $pins = Get-FFmpegSourcePins -TargetsText $script:Targets -Os $Os
         $folder = [regex]::Match($script:Targets, '<LayerPeekFFmpegSourceFolder>([^<]+)<').Groups[1].Value
         $pins.Os | Should -BeExactly $Os
-        $pins.Rid | Should -BeExactly $Rid
+        $pins.Rids | Should -BeExactly $Rids
         $pins.Version | Should -BeExactly ($folder -replace '^ffmpeg-')
         $pins.Inputs.Count | Should -Be 1
         $pins.Inputs[0].Kind | Should -BeExactly 'download'
@@ -3115,6 +3126,19 @@ Describe 'FFmpeg source of a release (T-199)' {
         $pins.Inputs[0].Sha256 | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekFFmpegSourceSha256>([^<]+)<').Groups[1].Value)
         $pins.BuildScript | Should -BeExactly $Script
         Test-Path -LiteralPath (Join-Path $script:RepoRoot $pins.BuildScript) -PathType Leaf | Should -BeTrue
+    }
+
+    It 'reads the llvm-mingw of the win-arm64 build for the Windows source only (T-225)' {
+        $windows = Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'windows'
+        $windows.LlvmMingw.Url | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekLlvmMingwUrl>([^<]+)<').Groups[1].Value)
+        $windows.LlvmMingw.Sha256 | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekLlvmMingwSha256>([^<]+)<').Groups[1].Value)
+        $windows.LlvmMingw.Folder | Should -BeExactly ([regex]::Match($script:Targets, '<LayerPeekLlvmMingwFolder>([^<]+)<').Groups[1].Value)
+        (Get-FFmpegSourcePins -TargetsText $script:Targets -Os 'macos').LlvmMingw | Should -BeNullOrEmpty
+        $missing = $script:Targets -replace '<LayerPeekLlvmMingwSha256>[^<]*</LayerPeekLlvmMingwSha256>', ''
+        { Get-FFmpegSourcePins -TargetsText $missing -Os 'windows' } | Should -Throw -ExpectedMessage '*must contain <LayerPeekLlvmMingwSha256> exactly once (found 0)*'
+        (Get-FFmpegSourcePins -TargetsText $missing -Os 'macos').Os | Should -BeExactly 'macos'
+        $other = Set-Pin $script:Targets 'LayerPeekLlvmMingwFolder' 'llvm-mingw-20990101-ucrt-x86_64'
+        { Get-FFmpegSourcePins -TargetsText $other -Os 'windows' } | Should -Throw -ExpectedMessage '*LayerPeekLlvmMingwUrl * is not the zip of LayerPeekLlvmMingwFolder*'
     }
 
     It 'refuses a missing pin, a malformed hash and a URL that is not the tarball of the pinned folder' {
@@ -3225,10 +3249,10 @@ Describe 'FFmpeg source of a release (T-199)' {
             $tarball = New-FileWith (Join-Path $script:FFmpegRoot 'inputs' $script:MacPins.Inputs[0].Name) 'tarball'
             $script:MacSource = [pscustomobject]@{ Pins = $script:MacPins; Files = @($tarball) }
             $script:WindowsSource = [pscustomobject]@{ Pins = $script:WindowsPins; Files = @($tarball) }
-            function New-Publish([string] $Name, [string] $Library, [string] $Version) {
+            function New-Publish([string] $Name, [string] $Library, [string] $Version, [string] $Configure = '--enable-version3 --enable-shared') {
                 $folder = Join-Path $script:FFmpegRoot $Name
                 $null = New-Item -ItemType Directory -Path $folder
-                [System.IO.File]::WriteAllBytes((Join-Path $folder $Library), (New-LibraryBytes $Version '--prefix=/build/prefix --enable-version3 --enable-shared'))
+                [System.IO.File]::WriteAllBytes((Join-Path $folder $Library), (New-LibraryBytes $Version "--prefix=/build/prefix $Configure"))
                 $null = New-FileWith (Join-Path $folder 'LayerPeek') 'app'
                 $folder
             }
@@ -3241,7 +3265,7 @@ Describe 'FFmpeg source of a release (T-199)' {
             $archive = Join-Path $script:FFmpegRoot 'dist-mac' 'ffmpeg-source-1.0.0-macos.tar.xz'
             $null = New-Item -ItemType Directory -Path (Split-Path -Parent $archive)
             $work = Join-Path $script:FFmpegRoot 'work-mac'
-            New-FFmpegSourceArchive -Source $script:MacSource -PublishDirectory $publish -AppVersion '1.0.0' -Destination $archive -WorkDirectory $work -RepoRoot $script:RepoRoot | Should -BeExactly $archive
+            New-FFmpegSourceArchive -Source $script:MacSource -PublishDirectories ([ordered]@{ 'osx-arm64' = $publish }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory $work -RepoRoot $script:RepoRoot | Should -BeExactly $archive
             Get-Entries $archive | Should -Be (@('ffmpeg-source-1.0.0-macos', 'ffmpeg-source-1.0.0-macos/README.txt', 'ffmpeg-source-1.0.0-macos/build-ffmpeg.sh', "ffmpeg-source-1.0.0-macos/$($script:MacPins.Inputs[0].Name)") | Sort-Object -CaseSensitive)
             Test-Path -LiteralPath $work | Should -BeFalse
             $buildScript = Get-Member $archive 'ffmpeg-source-1.0.0-macos/build-ffmpeg.sh'
@@ -3253,7 +3277,8 @@ Describe 'FFmpeg source of a release (T-199)' {
             $readme | Should -Match ([regex]::Escape("SHA-256: $($script:MacPins.Inputs[0].Sha256)"))
             $readme | Should -Match 'build/macos/build-ffmpeg\.sh of LayerPeek, tag v1\.0\.0'
             $readme | Should -Match ([regex]::Escape("FFmpeg version of the shipped libraries: $($script:MacPins.Version)"))
-            $readme | Should -Match ([regex]::Escape('read from libavcodec.63.dylib; the installation prefix replaced by <prefix>):'))
+            $readme | Should -Match ([regex]::Escape('Configure line of the shipped osx-arm64 libraries (read from libavcodec.63.dylib; the installation prefix replaced by <prefix>):'))
+            $readme | Should -Not -Match 'llvm-mingw|win-'
             $readme | Should -Match ([regex]::Escape('--prefix=<prefix> --enable-version3 --enable-shared'))
             $readme | Should -Not -Match '/build/prefix'
         }
@@ -3262,7 +3287,7 @@ Describe 'FFmpeg source of a release (T-199)' {
             $publish = New-Publish 'publish-win' 'avcodec-63.dll' $script:WindowsPins.Version
             $archive = Join-Path $script:FFmpegRoot 'dist-win' 'ffmpeg-source-1.0.0-windows.tar.xz'
             $null = New-Item -ItemType Directory -Path (Split-Path -Parent $archive)
-            New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectory $publish -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-win') -RepoRoot $script:RepoRoot | Should -BeExactly $archive
+            New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'win-x64' = $publish }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-win') -RepoRoot $script:RepoRoot | Should -BeExactly $archive
             Get-Entries $archive | Should -Be (@('ffmpeg-source-1.0.0-windows', 'ffmpeg-source-1.0.0-windows/README.txt', 'ffmpeg-source-1.0.0-windows/build-ffmpeg.sh', "ffmpeg-source-1.0.0-windows/$($script:WindowsPins.Inputs[0].Name)") | Sort-Object -CaseSensitive)
             $buildScript = Get-Member $archive 'ffmpeg-source-1.0.0-windows/build-ffmpeg.sh'
             $buildScript.TrimEnd() | Should -BeExactly ([System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'build' 'windows' 'build-ffmpeg.sh')).Replace("`r`n", "`n").TrimEnd())
@@ -3273,8 +3298,43 @@ Describe 'FFmpeg source of a release (T-199)' {
             $readme | Should -Match 'build/windows/build-ffmpeg\.sh of LayerPeek, tag v1\.0\.0'
             $readme | Should -Match 'MSYS2 and MinGW-w64'
             $readme | Should -Match ([regex]::Escape("bash build-ffmpeg.sh win-x64 $($script:WindowsPins.Inputs[0].Name) ffmpeg-$($script:WindowsPins.Version)"))
-            $readme | Should -Match ([regex]::Escape('read from avcodec-63.dll; the installation prefix replaced by <prefix>):'))
+            $readme | Should -Match ([regex]::Escape('Configure line of the shipped win-x64 libraries (read from avcodec-63.dll; the installation prefix replaced by <prefix>):'))
             $readme | Should -Not -Match 'BtbN|git archive|swresample'
+            # Only the build that is shipped (no win-arm64 in this release).
+            $readme | Should -Not -Match 'win-arm64|llvm-mingw'
+        }
+
+        It 'packs one Windows source for both architectures: README.txt with both configure lines and the ARM64 toolchain (T-225)' {
+            $x64 = New-Publish 'publish-win-both-x64' 'avcodec-63.dll' $script:WindowsPins.Version '--enable-d3d11va --arch=x86_64'
+            $arm = New-Publish 'publish-win-both-arm64' 'avcodec-63.dll' $script:WindowsPins.Version '--enable-d3d11va --arch=aarch64 --enable-cross-compile'
+            $archive = Join-Path $script:FFmpegRoot 'dist-win-both' 'ffmpeg-source-1.0.0-windows.tar.xz'
+            $null = New-Item -ItemType Directory -Path (Split-Path -Parent $archive)
+            New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'win-x64' = $x64; 'win-arm64' = $arm }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-win-both') -RepoRoot $script:RepoRoot | Should -BeExactly $archive
+            # The same four files: one tarball and one script for both builds.
+            Get-Entries $archive | Should -Be (@('ffmpeg-source-1.0.0-windows', 'ffmpeg-source-1.0.0-windows/README.txt', 'ffmpeg-source-1.0.0-windows/build-ffmpeg.sh', "ffmpeg-source-1.0.0-windows/$($script:WindowsPins.Inputs[0].Name)") | Sort-Object -CaseSensitive)
+            $readme = Get-Member $archive 'ffmpeg-source-1.0.0-windows/README.txt'
+            $readme | Should -Match 'for Windows \(win-x64, win-arm64\)'
+            $readme | Should -Match ([regex]::Escape("bash build-ffmpeg.sh win-x64 $($script:WindowsPins.Inputs[0].Name) ffmpeg-$($script:WindowsPins.Version) <work folder> <output folder>"))
+            $readme | Should -Match ([regex]::Escape("bash build-ffmpeg.sh win-arm64 $($script:WindowsPins.Inputs[0].Name) ffmpeg-$($script:WindowsPins.Version) <work folder> <output folder> <llvm-mingw folder>"))
+            $readme | Should -Match ([regex]::Escape("llvm-mingw: $($script:WindowsPins.LlvmMingw.Url)"))
+            $readme | Should -Match ([regex]::Escape("SHA-256: $($script:WindowsPins.LlvmMingw.Sha256)"))
+            $readme | Should -Match 'cross-compiled on Windows x64'
+            $readme | Should -Match "(?s)Configure line of the shipped win-x64 libraries \(read from avcodec-63\.dll; [^\n]*\n    --prefix=<prefix> --enable-d3d11va --arch=x86_64\n"
+            $readme | Should -Match "(?s)Configure line of the shipped win-arm64 libraries \(read from avcodec-63\.dll; [^\n]*\n    --prefix=<prefix> --enable-d3d11va --arch=aarch64 --enable-cross-compile\n"
+        }
+
+        It 'refuses a runtime identifier of another OS or none, and an ARM64 library of another version, and writes no archive' {
+            $archive = Join-Path $script:FFmpegRoot 'dist-bad-rid' 'ffmpeg-source-1.0.0-windows.tar.xz'
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $archive)
+            $good = New-Publish "publish-rid-$([guid]::NewGuid().ToString('N').Substring(0, 8))" 'avcodec-63.dll' $script:WindowsPins.Version
+            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'osx-arm64' = $good }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad-rid') -RepoRoot $script:RepoRoot } |
+                Should -Throw -ExpectedMessage '*The FFmpeg source of windows covers win-x64, win-arm64, not osx-arm64.*'
+            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{}) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad-rid') -RepoRoot $script:RepoRoot } |
+                Should -Throw -ExpectedMessage '*No publish folder*'
+            $old = New-Publish "publish-rid-$([guid]::NewGuid().ToString('N').Substring(0, 8))" 'avcodec-63.dll' '9.0.1'
+            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'win-x64' = $good; 'win-arm64' = $old }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad-rid') -RepoRoot $script:RepoRoot } |
+                Should -Throw -ExpectedMessage '*win-arm64: avcodec-63.dll is FFmpeg 9.0.1, but the pinned source*'
+            Test-Path -LiteralPath $archive | Should -BeFalse
         }
 
         It 'refuses <Name> and writes no archive' -ForEach @(
@@ -3284,7 +3344,7 @@ Describe 'FFmpeg source of a release (T-199)' {
             $publish = New-Publish "publish-bad-$([guid]::NewGuid().ToString('N').Substring(0, 8))" $Library $Version
             $archive = Join-Path $script:FFmpegRoot 'dist-bad' 'ffmpeg-source-1.0.0-windows.tar.xz'
             $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $archive)
-            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectory $publish -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad') -RepoRoot $script:RepoRoot } | Should -Throw -ExpectedMessage "*$Pattern*"
+            { New-FFmpegSourceArchive -Source $script:WindowsSource -PublishDirectories ([ordered]@{ 'win-x64' = $publish }) -AppVersion '1.0.0' -Destination $archive -WorkDirectory (Join-Path $script:FFmpegRoot 'work-bad') -RepoRoot $script:RepoRoot } | Should -Throw -ExpectedMessage "*$Pattern*"
             Test-Path -LiteralPath $archive | Should -BeFalse
         }
     }
@@ -3295,7 +3355,12 @@ Describe 'FFmpeg source of a release (T-199)' {
         $fetch = $script.IndexOf('Get-FFmpegSourceInputs -RepoRoot $repoRoot -Os $hostOs')
         $fetch | Should -BeGreaterThan 0
         $fetch | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
-        $script | Should -Match ([regex]::Escape('New-FFmpegSourceArchive -Source $ffmpegSource -PublishDirectory $Context.PublishDirectory'))
+        # T-225: one archive per OS for all its RIDs (win-x64 and win-arm64), packed with the last RID of the OS.
+        $script | Should -Match ([regex]::Escape('if ($Context.Runtime -cne $Context.Runtimes[-1]) { return }'))
+        $script | Should -Match ([regex]::Escape('foreach ($rid in $Context.Runtimes) { $publish[$rid] = Join-Path $Context.PublishRoot $rid }'))
+        $script | Should -Match ([regex]::Escape('New-FFmpegSourceArchive -Source $ffmpegSource -PublishDirectories $publish'))
+        $script | Should -Match 'Runtimes\s+=\s+\$runtimes'
+        $script | Should -Match 'PublishRoot\s+=\s+\$publishRoot'
     }
 }
 

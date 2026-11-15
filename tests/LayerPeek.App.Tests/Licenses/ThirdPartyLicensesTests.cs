@@ -426,20 +426,80 @@ public sealed partial class ThirdPartyLicensesTests
     [Fact]
     public void MinGWRuntimeVersionIsTheOneThatBuiltTheDlls()
     {
-        // T-202 review (N1): the licences window names the version of the MinGW-w64 runtime in the Windows FFmpeg DLLs. The
-        // build records the packages it used (build/windows/build-ffmpeg.sh, "Packages:" in BUILD.txt, copied next to the
-        // tests as FFmpeg-BUILD.txt); after an MSYS2 update that rebuilt FFmpeg, this fails until the entry is updated.
+        // T-202 review (N1), T-225 (user decision 2026-11-15): the licences window names the version of the MinGW-w64
+        // runtime in the Windows FFmpeg DLLs. The build records it from the toolchain headers ("MinGW-w64 runtime:" in
+        // BUILD.txt, copied next to the tests as FFmpeg-BUILD.txt) for the RID it built (win-x64, or win-arm64 with
+        // dotnet test -r win-arm64); after a toolchain update that rebuilt FFmpeg this fails until the entry is updated.
         string build = Path.Combine(AppContext.BaseDirectory, "FFmpeg-BUILD.txt");
-        Assert.SkipUnless(File.Exists(build) && File.ReadAllText(build).Contains("Packages:", StringComparison.Ordinal),
+        Assert.SkipUnless(File.Exists(build) && File.ReadAllText(build).Contains("build/windows/build-ffmpeg.sh", StringComparison.Ordinal),
             "No FFmpeg-BUILD.txt of the Windows FFmpeg build next to the tests (macOS, or built with LayerPeekFFmpegEnabled=false).");
 
-        string packages = File.ReadAllLines(build).Single(static line => line.StartsWith("Packages:", StringComparison.Ordinal));
-        Match crt = CrtPackage().Match(packages);
-        Assert.True(crt.Success, $"No mingw-w64 crt package in '{packages}' (MSYS2 without pacman?).");
-        ThirdPartyComponent mingw = Assert.Single(ThirdPartyLicenses.All, static c => c.Name == "MinGW-w64 runtime");
+        string[] lines = File.ReadAllLines(build);
+        Match rid = BuildRid().Match(lines[0]);
+        Assert.True(rid.Success, $"No runtime identifier in '{lines[0]}'.");
+        string runtime = Assert.Single(lines, static line => line.StartsWith("MinGW-w64 runtime: ", StringComparison.Ordinal))["MinGW-w64 runtime: ".Length..];
+        System.Runtime.InteropServices.Architecture architecture = rid.Groups[1].Value == "win-arm64"
+            ? System.Runtime.InteropServices.Architecture.Arm64
+            : System.Runtime.InteropServices.Architecture.X64;
 
-        Assert.Equal(crt.Groups[1].Value, mingw.Version);
-        Assert.Contains($"mingw-w64-x86_64-winpthreads {crt.Groups[1].Value}", packages, StringComparison.Ordinal);
+        Assert.Equal(runtime, ThirdPartyLicenses.MinGWRuntimeVersion(architecture));
+    }
+
+    [Fact]
+    public void MinGWRuntimeVersionShownIsThatOfTheRunningWindowsArchitecture()
+    {
+        // T-225 review: a Windows-only entry; on Windows the architecture of the process, elsewhere the x64 value.
+        System.Runtime.InteropServices.Architecture shown = OperatingSystem.IsWindows()
+            ? System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
+            : System.Runtime.InteropServices.Architecture.X64;
+
+        Assert.Equal(ThirdPartyLicenses.MinGWRuntimeVersion(shown),
+            Assert.Single(ThirdPartyLicenses.All, static c => c.Name == "MinGW-w64 runtime").Version);
+        Assert.Equal(ThirdPartyLicenses.MinGWRuntimeVersionArm64, ThirdPartyLicenses.MinGWRuntimeVersion(System.Runtime.InteropServices.Architecture.Arm64));
+        Assert.Equal(ThirdPartyLicenses.MinGWRuntimeVersionX64, ThirdPartyLicenses.MinGWRuntimeVersion(System.Runtime.InteropServices.Architecture.X64));
+        // The rule of build-ffmpeg.sh: "<major>.<minor>.<bugfix>" with " (<state>)" unless it is a release.
+        Assert.Matches(@"^\d+\.\d+\.\d+( \([a-z]+\))?$", ThirdPartyLicenses.MinGWRuntimeVersionX64);
+        Assert.Matches(@"^\d+\.\d+\.\d+( \([a-z]+\))?$", ThirdPartyLicenses.MinGWRuntimeVersionArm64);
+    }
+
+    [Fact]
+    public void MinGWRuntimeNoticesAreThoseOfThePinnedLlvmMingw()
+    {
+        // T-225: the same notices cover the runtime of llvm-mingw (COPYING.MinGW-w64-runtime.txt and COPYING.winpthreads.txt
+        // of its aarch64-w64-mingw32 sysroot, byte for byte apart from line ends). Checked against the extracted toolchain
+        // in the FFmpeg cache after a win-arm64 build (dotnet publish src/LayerPeek.App -r win-arm64); a new llvm-mingw
+        // with other notices fails here.
+        string targets = File.ReadAllText(Path.Combine(RepositoryRoot, "build", "FFmpeg.targets"));
+        string folder = LlvmMingwFolder().Match(targets).Groups[1].Value;
+        string root = Environment.GetEnvironmentVariable("LayerPeekFFmpegCacheRoot") is { Length: > 0 } custom
+            ? custom
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LayerPeek.Build", "ffmpeg");
+        string licenses = Path.Combine(root, folder, "aarch64-w64-mingw32", "share", "mingw32");
+        Assert.SkipUnless(OperatingSystem.IsWindows() && File.Exists(Path.Combine(root, folder, "verified.sha256")),
+            $"No extracted {folder} in {root} (only after a win-arm64 build on Windows).");
+
+        static string Normalized(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd();
+        Assert.Equal(Normalized(File.ReadAllText(Path.Combine(licenses, "COPYING.MinGW-w64-runtime.txt"))),
+            Normalized(ThirdPartyLicenses.ReadResource("LayerPeek.Licenses.mingw-w64-runtime.txt")));
+        Assert.Equal(Normalized(File.ReadAllText(Path.Combine(licenses, "COPYING.winpthreads.txt"))),
+            Normalized(ThirdPartyLicenses.ReadResource("LayerPeek.Licenses.mingw-w64-winpthreads.txt")));
+    }
+
+    [Fact]
+    public void FFmpegWindowsArm64BuildDiffersFromX64OnlyInArchitectureAndToolchain()
+    {
+        // T-225 (user decision 2026-11-12): one configure line for both Windows builds (CONFIGURE_FLAGS, the same
+        // features including D3D11VA); win-arm64 only adds the cross compiler of llvm-mingw.
+        string script = File.ReadAllText(Path.Combine(RepositoryRoot, "build", "windows", "build-ffmpeg.sh"));
+        Match arm = Arm64ToolchainFlags().Match(script);
+
+        Assert.Single(Regex.Matches(script, "^CONFIGURE_FLAGS=\\(", RegexOptions.Multiline));
+        Assert.Contains("CONFIGURE_FLAGS+=(\"${TOOLCHAIN_FLAGS[@]}\")", script, StringComparison.Ordinal);
+        Assert.True(arm.Success, "build-ffmpeg.sh has no TOOLCHAIN_FLAGS for win-arm64.");
+        Assert.Equal(
+            ["--enable-cross-compile", "--cross-prefix=aarch64-w64-mingw32-", "--host-cc=x86_64-w64-mingw32-gcc"],
+            arm.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        Assert.Contains("--arch=$ARCH", WindowsConfigureFlags(), StringComparison.Ordinal);
     }
 
     private static string WindowsConfigureFlags()
@@ -467,9 +527,15 @@ public sealed partial class ThirdPartyLicensesTests
         Assert.Equal(minimum, pinned.Groups[1].Value);
     }
 
-    // "mingw-w64-x86_64-crt 14.0.0.r598.ge3d18511f-1": the release version before the git suffix.
-    [GeneratedRegex(@"mingw-w64-[a-z0-9_]+-crt (\d+\.\d+\.\d+)")]
-    private static partial Regex CrtPackage();
+    // The first line of BUILD.txt: "... built by build/windows/build-ffmpeg.sh for win-arm64".
+    [GeneratedRegex(@" for (win-x64|win-arm64)$")]
+    private static partial Regex BuildRid();
+
+    [GeneratedRegex(@"^\s+win-arm64\)$.*?^\s+TOOLCHAIN_FLAGS=\(([^)]*)\)$", RegexOptions.Multiline | RegexOptions.Singleline)]
+    private static partial Regex Arm64ToolchainFlags();
+
+    [GeneratedRegex("<LayerPeekLlvmMingwFolder>([^<]+)</LayerPeekLlvmMingwFolder>")]
+    private static partial Regex LlvmMingwFolder();
 
     [GeneratedRegex("<LayerPeekFFmpegSourceUrl>([^<]+)</LayerPeekFFmpegSourceUrl>")]
     private static partial Regex PinnedSourceUrl();

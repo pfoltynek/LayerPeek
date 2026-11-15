@@ -31,4 +31,11 @@
     <!-- The real bed-change detector for the end-to-end alarm through the simulated camera (T-155). -->
     <ProjectReference Include="..\..\src\LayerPeek.Detection\LayerPeek.Detection.csproj" />
   </ItemGroup>
+  <!--
+    With a RID (dotnet test -r win-arm64 on a Windows ARM64 machine, T-227) the FFmpeg libraries of that RID, as for the
+    app (LayerPeek.App.csproj, T-224/T-225); without one those of the host (build/FFmpeg.targets).
+  -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <ProjectReference Update="..\..\src\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" AdditionalProperties="LayerPeekAppRuntimeIdentifier=$(RuntimeIdentifier)" />
+  </ItemGroup>
 </Project>

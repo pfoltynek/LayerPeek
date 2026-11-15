@@ -196,17 +196,42 @@ internal static class ThirdPartyLicenses
         // statically into the FFmpeg DLLs (no libgcc / libwinpthread DLLs). Their notices must be reproduced in binary
         // distributions; the texts are COPYING.MinGW-w64-runtime.txt of mingw-w64-x86_64-crt and COPYING of
         // mingw-w64-x86_64-winpthreads (MSYS2, version 14.0.0.r598.ge3d18511f-1, /mingw64/share/licenses). The GCC runtime
-        // (libgcc) is under the GCC Runtime Library Exception, which needs no notice. The version is that of the crt
-        // package that built the DLLs ("Packages:" in BUILD.txt of the FFmpeg cache, checked by a test after every rebuild).
+        // (libgcc) is under the GCC Runtime Library Exception, which needs no notice.
+        // win-arm64 (T-225): the DLLs are cross-built with llvm-mingw and link its MinGW-w64 runtime (crt with the UCRT
+        // glue, winpthreads) the same way; its notices (COPYING.MinGW-w64-runtime.txt and COPYING.winpthreads.txt of the
+        // aarch64-w64-mingw32 sysroot) are the same texts. The version per architecture: MinGWRuntimeVersion. Of LLVM
+        // only a few compiler-rt builtins are linked (__chkstk, 128-bit division), under
+        // Apache-2.0 with LLVM Exceptions, whose exception needs no notice for code embedded by compiling (like libgcc);
+        // no libunwind or libc++ (checked with a link map of all four DLLs, 2026-11-15).
         new(
             "MinGW-w64 runtime",
-            "14.0.0",
+            // A Windows-only entry: the architecture of the process on Windows, elsewhere the x64 value.
+            MinGWRuntimeVersion(OperatingSystem.IsWindows()
+                ? System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
+                : System.Runtime.InteropServices.Architecture.X64),
             "ZPL-2.1 AND MIT AND BSD-3-Clause",
             new Uri("https://www.mingw-w64.org/"),
             [],
             [ResourcePrefix + "mingw-w64-runtime.txt", ResourcePrefix + "mingw-w64-winpthreads.txt"],
             nameof(Strings.LicensesComponentMinGW)),
     ];
+
+    /// <summary>
+    /// The MinGW-w64 runtime in the x64 FFmpeg DLLs (MSYS2 MINGW64, T-202): the version of the toolchain headers
+    /// (<c>_mingw_mac.h</c>) with its state when it is not a release (user decision 2026-11-15). It must equal the
+    /// <c>MinGW-w64 runtime:</c> line of <c>BUILD.txt</c> of the win-x64 build (ThirdPartyLicensesTests).
+    /// </summary>
+    internal const string MinGWRuntimeVersionX64 = "15.0.0 (alpha)";
+
+    /// <summary>
+    /// The same for the ARM64 FFmpeg DLLs (the pinned llvm-mingw, T-225); checked against <c>BUILD.txt</c> of the
+    /// win-arm64 build (build/FFmpeg.Tests.ps1, ThirdPartyLicensesTests).
+    /// </summary>
+    internal const string MinGWRuntimeVersionArm64 = "15.0.0 (alpha)";
+
+    /// <summary>The MinGW-w64 runtime version in the FFmpeg DLLs of a Windows architecture.</summary>
+    internal static string MinGWRuntimeVersion(System.Runtime.InteropServices.Architecture architecture) =>
+        architecture == System.Runtime.InteropServices.Architecture.Arm64 ? MinGWRuntimeVersionArm64 : MinGWRuntimeVersionX64;
 
     /// <summary>
     /// The licence texts of <paramref name="component"/>, separated by a line. Embedded resources are read by their exact

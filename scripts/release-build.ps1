@@ -233,16 +233,20 @@ $packagingSteps = @(
         }
     },
     # T-199 (LGPL, https://ffmpeg.org/legal.html): the exact source of the FFmpeg libraries of this OS with how they were
-    # built, verified before the build (Get-FFmpegSourceInputs below). One file per OS: there is one RID per OS, and the
-    # FFmpeg build of build/FFmpeg.targets is that of the OS (a second RID of an OS would return the same name twice).
+    # built, verified before the build (Get-FFmpegSourceInputs below). One file per OS for all its RIDs (T-225, user
+    # decision 2026-11-12: Windows win-x64 and win-arm64 build the same tarball with the same script): packed once, with
+    # the last RID of the run, when every publish folder exists, its README naming the configure line of each.
     [pscustomobject]@{
         Name   = 'ffmpeg-source'
         Os     = @('windows', 'macos')
         Invoke = {
             param($Context)
-            $work = Join-Path (Split-Path -Parent $Context.OutputDirectory) "ffmpeg-source-$($Context.Runtime)"
+            if ($Context.Runtime -cne $Context.Runtimes[-1]) { return }
+            $publish = [ordered]@{}
+            foreach ($rid in $Context.Runtimes) { $publish[$rid] = Join-Path $Context.PublishRoot $rid }
+            $work = Join-Path (Split-Path -Parent $Context.OutputDirectory) "ffmpeg-source-$($Context.Os)"
             if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
-            New-FFmpegSourceArchive -Source $ffmpegSource -PublishDirectory $Context.PublishDirectory -AppVersion $Context.Version -RepoRoot $repoRoot `
+            New-FFmpegSourceArchive -Source $ffmpegSource -PublishDirectories $publish -AppVersion $Context.Version -RepoRoot $repoRoot `
                 -Destination (Join-Path $Context.OutputDirectory (Get-FFmpegSourceFileName -Version $Context.Version -Os $Context.Os)) -WorkDirectory $work
         }
     }
@@ -506,8 +510,11 @@ try {
         $context = [pscustomobject]@{
             Version          = $version
             Runtime          = $rid
+            # Every RID of this run (all of this OS) and their publish folders, for steps that pack one file per OS.
+            Runtimes         = $runtimes
             Os               = $hostOs
             PublishDirectory = Join-Path $publishRoot $rid
+            PublishRoot      = $publishRoot
             OutputDirectory  = $distDir
         }
         foreach ($step in @($packagingSteps | Where-Object { $_.Os -contains $hostOs })) {
