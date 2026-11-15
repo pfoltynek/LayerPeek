@@ -234,6 +234,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-242 | Kontextové menu textových polí (Cut / Copy / Paste) je anglicky i v jiném jazyce aplikace (hotovo) | all | ui-dev | P3 | T-029 |
 | T-244 | Nestabilní test InstanceTransportTests – kontrola peera nestihne proběhnout pod zátěží (4 jádra) | all | qa-reviewer | P3 | – |
 | T-245 | UI test EveryButtonIsAtLeast32DipHighInEveryState překračuje 30 s na runneru Windows (blokuje další UI testy) | all | qa-reviewer | P2 | – |
+| T-246 | CI Windows – Pester VerifyTools.Tests.ps1 překračuje 5 min (macos-verify -ListChecks 66 s na runneru) | windows | qa-reviewer | P2 | – |
 
 ### Windows (`windows`)
 
