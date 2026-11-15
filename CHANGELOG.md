@@ -8,6 +8,8 @@ older versions always load.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-15
+
 The first stable release. The [user manual](https://github.com/pfoltynek/LayerPeek/blob/main/manuals/en/manual.md)
 (also in the other seven languages of the app, in
 [`manuals/`](https://github.com/pfoltynek/LayerPeek/tree/main/manuals)) explains the installation and every feature.
@@ -535,7 +537,8 @@ released, so the app does not migrate anything; developers who ran the old build
 - The PrusaLink web proxy rejects write requests from other origins.
 - Native libraries are loaded only from the application folder and the system folder.
 
-[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.0...v0.3.1
