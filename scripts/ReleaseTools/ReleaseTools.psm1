@@ -2572,6 +2572,7 @@ function Get-MacLoadPathRules {
         cache LayerPeek.Build), so that a problem says where a reference points.
     #>
     param([Parameter(Mandatory)] [string] $RepoRoot, [Parameter(Mandatory)] [string] $HomePath)
+    # macOS paths joined with '/' (not Join-Path, which would use '\' when the tests run on Windows).
     $folder = { param($Path) $Path.TrimEnd('/') + '/' }
     [pscustomobject]@{
         Allowed   = @('@rpath/', '@loader_path/', '@executable_path/', '/usr/lib/', '/System/Library/')
@@ -2579,8 +2580,8 @@ function Get-MacLoadPathRules {
             '/opt/homebrew/'                                              = 'Homebrew'
             '/usr/local/'                                                 = '/usr/local (Homebrew on Intel, hand-built libraries)'
             '/opt/'                                                       = '/opt'
-            (& $folder (Join-Path $RepoRoot 'artifacts'))                 = 'the build output artifacts/'
-            (& $folder (Join-Path $HomePath 'Library' 'Caches' 'LayerPeek.Build')) = 'the FFmpeg build cache LayerPeek.Build'
+            (& $folder ((& $folder $RepoRoot) + 'artifacts'))             = 'the build output artifacts/'
+            (& $folder ((& $folder $HomePath) + 'Library/Caches/LayerPeek.Build')) = 'the FFmpeg build cache LayerPeek.Build'
         }
         # LC_RPATH entries: relative to the bundle only.
         RpathPrefixes = @('@executable_path', '@loader_path')
