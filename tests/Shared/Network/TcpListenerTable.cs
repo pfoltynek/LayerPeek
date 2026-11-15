@@ -6,7 +6,7 @@ namespace LayerPeek.Tests.Shared;
 
 /// <summary>
 /// TCP listening sockets of this machine from the OS table, without connecting (a refused connect to loopback takes
-/// seconds on Windows). Shared by the proxy tests and the browser tests (T-211).
+/// seconds on Windows). Shared by the proxy tests and the browser tests (T-227).
 /// </summary>
 /// <remarks>
 /// On Windows the listeners are the rows of <c>GetExtendedTcpTable</c> (IPv4 and IPv6) without a remote end point
