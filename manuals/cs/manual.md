@@ -218,8 +218,9 @@ Aby šetřil procesor, ukazuje malý náhled ve výchozím nastavení nejvýš 1
 normální okno a celá obrazovka ukazují každý snímek kamery. Omezení se nastavuje na záložce **Kamera** v nastavení (viz
 [11.6](#116-kamera)).
 
-Okno také přestane brát snímky, když ho nikdo nevidí: když je minimalizované a na Windows i při zamčeném počítači,
-vypnutém displeji nebo na jiné virtuální ploše (okno jen zakryté jinými okny běží dál). Chvíli po návratu se obraz vrátí
+Okno také přestane brát snímky, když ho nikdo nevidí: když je minimalizované, při zamčeném počítači nebo vypnutém
+displeji, na Windows i na jiné virtuální ploše (okno jen zakryté jinými okny běží dál) a na macOS, když z něj není vidět
+nic, třeba když je celé zakryté jinými okny nebo na jiné ploše (asi po dvou sekundách). Chvíli po návratu se obraz vrátí
 od dalšího klíčového snímku kamery. Nahrávání, dashcam, timelapse a detekce chyb tisku mezitím běží dál.
 
 <p align="center">

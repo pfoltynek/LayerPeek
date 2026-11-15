@@ -4,7 +4,8 @@ namespace LayerPeek.App.Platform;
 
 /// <summary>
 /// Combines what the OS reports into "the screen can be seen" (T-186): the session is unlocked and the console display
-/// is on (dimmed counts as on). The platform implementation feeds it (<see cref="Windows.WindowsDisplayActivityService"/>);
+/// is on (dimmed counts as on). The platform implementation feeds it (<see cref="Windows.WindowsDisplayActivityService"/>,
+/// <see cref="MacOS.MacDisplayActivityService"/>);
 /// <see cref="ScreenVisibilityChanged"/> is raised on the reporting thread, only when the result changed. Starts as
 /// visible until the platform reports the current state (the lock state is queried when listening starts). Thread-safe.
 /// </summary>
@@ -46,7 +47,10 @@ internal sealed class DisplayActivityTracker : IDisplayActivityService
     public void SetSessionLocked(bool locked) => Update(() => _locked = locked);
 
     /// <summary>The console display state (<see cref="DisplayOff"/>, <see cref="DisplayOn"/>, <see cref="DisplayDimmed"/>); unknown values count as on.</summary>
-    public void SetConsoleDisplayState(uint state) => Update(() => _displayOff = state == DisplayOff);
+    public void SetConsoleDisplayState(uint state) => SetDisplayAsleep(state == DisplayOff);
+
+    /// <summary>The display went to sleep (<see langword="true"/>) or woke up (macOS: all screens together).</summary>
+    public void SetDisplayAsleep(bool asleep) => Update(() => _displayOff = asleep);
 
     /// <summary>
     /// Whether <c>WTSINFOEX_LEVEL1.SessionFlags</c> means a locked session: <see cref="SessionStateLock"/>; unlocked,

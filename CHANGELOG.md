@@ -51,10 +51,12 @@ your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this
   **Settings → Camera → Hardware decoding** offers **Automatic** (the default) and **Off** (always the processor: less
   memory, no system decoder; try it if the camera picture is damaged or black). A change applies after **Save** from the
   camera's next key frame, without reconnecting. On Windows, **Automatic** still decodes on the processor for now.
-- **Camera window pauses while nobody can see it (Windows):** besides when minimised, the camera window and the mini
-  preview stop receiving and drawing the picture while the computer is locked, the display is off or the window is on
-  another virtual desktop, and resume from the camera's next key frame when you come back. A window merely covered by
-  other windows keeps running. Recording, the dashcam, timelapses and print failure detection are not affected.
+- **Camera window pauses while nobody can see it:** besides when minimised, the camera window and the mini preview stop
+  receiving and drawing the picture while the computer is locked or the display is off, on Windows while the window is
+  on another virtual desktop (a window merely covered by other windows keeps running) and on macOS while no part of it
+  can be seen (completely covered by other windows or on another Space, after about two seconds), and resume from the
+  camera's next key frame when you come back. Recording, the dashcam, timelapses and print failure detection are not
+  affected.
 - **Shorter settings tab names** in French ("Démarrage, MàJ"), Italian ("Riprese"), Polish ("Start i aktualizacje") and
   Slovak ("Štart a aktualizácie"), so that the six tabs fit on one row.
 - **Print failure detection performance:** its samples are scaled straight from the brightness (luma) of the camera

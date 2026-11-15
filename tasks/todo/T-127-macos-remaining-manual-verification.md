@@ -557,6 +557,26 @@ a kritérium.
       simulátorů s klipem Buddy3D logují dvakrát „Camera video decoding: videotoolbox.“ a přibyl právě jeden
       `VTDecoderXPCService` (jeden už běžel pro jinou aplikaci).
 
+### 1r. Pozastavení kamery, když okno nikdo nevidí (z T-187, implementováno na Macu 2026-11-15)
+Debug aplikace v testovacím režimu (`LAYERPEEK_TEST_DATA_DIR`, simulátor s kamerou, příkaz instance `camera:<id>`),
+v jiném okně Terminálu `lsof -a -n -P -p <pid> -iTCP:<port kamery> -sTCP:ESTABLISHED` a Monitor činnosti (CPU). Pauza je
+vidět jako konec spojení RTSP asi 10 s po pozastavení (bez nahrávání a detekce už spojení nikdo nedrží) a pokles CPU;
+po návratu se spojení obnoví a obraz se vrátí od dalšího klíčového snímku. Automatická kontrola: T-235.
+- [ ] **T-187** krit. 1 – zamčení: okno kamery otevřené a streamující, ⌃⌘Q → spojení skončí, CPU klesne; odemčení → obraz
+      se vrátí do pár sekund. (Ověřeno agentem jen se zamčenou obrazovkou: okno otevřené při zamčení vůbec nezačne
+      streamovat, 0 spojení RTSP, 1,3 % CPU proti 13,8 % na `develop`; návrat po odemčení neověřen.)
+- [ ] **T-187** krit. 1 – spánek displeje: bez zamykání (Zamykací obrazovka → heslo „Nikdy“ nebo s prodlevou) `pmset
+      displaysleepnow` → spojení skončí; probuzení klávesou → obraz se vrátí. S heslem se probudí na zamykací obrazovku
+      a obraz se vrátí až po odemčení.
+- [ ] **T-187** krit. 1 – zakrytí: okno celé zakryté jiným oknem (např. zvětšené okno Finderu) → asi po 2 s spojení
+      skončí; odkrytí i jen kousku okna → obraz se vrátí hned. Okno zakryté jen zčásti běží dál.
+- [ ] **T-187** krit. 1 – jiná plocha (Space): okno kamery na ploše 1, přepnout na plochu 2 (⌃→) → pauza; zpět → obraz.
+      Malý náhled „vždy navrchu“ je na všech plochách (T-038), při přepnutí plochy se tedy nepozastaví.
+- [ ] **T-187** – přechody bez zbytečné pauzy: přepnutí okna do celé obrazovky a zpět, Mission Control (⌃↑) a rychlé
+      přepnutí ploch tam a zpět (do 2 s) nezpůsobí výpadek obrazu (žádné nové připojení v logu).
+- [ ] **T-187** krit. 2 – při zamčení s probíhajícím nahráváním (dashcam nebo nahrávání tisku) a zapnutou detekcí spojení
+      zůstane, nahrávka po odemčení nemá mezeru a detekce dál loguje vzorky.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

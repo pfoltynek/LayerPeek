@@ -496,8 +496,8 @@ public sealed class AppServicesTests
     }
 
     /// <summary>
-    /// T-186: the screen visibility of the OS (Windows: session and display notifications; elsewhere always visible until
-    /// T-187), one per app. Resolving it starts nothing: it starts with the first camera window (not created here).
+    /// T-186: the screen visibility of the OS (Windows: session and display notifications; macOS, T-187: lock and display
+    /// sleep notifications; elsewhere always visible), one per app. Resolving it starts nothing: it starts with the first camera window (not created here).
     /// </summary>
     [Fact]
     public async Task DisplayActivityOfTheOsIsRegisteredAndNotStartedByResolving()
@@ -513,6 +513,11 @@ public sealed class AppServicesTests
         {
             WindowsDisplayActivityService windows = Assert.IsType<WindowsDisplayActivityService>(display);
             Assert.False(windows.HasThread);
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            MacDisplayActivityService mac = Assert.IsType<MacDisplayActivityService>(display);
+            Assert.Equal(0, mac.ObserverCount);
         }
         else
         {

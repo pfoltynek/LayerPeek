@@ -967,9 +967,11 @@ internal static partial class AppServices
             sp.GetRequiredService<ILogger<CameraMonitorPathUpdater>>()));
     }
 
-    /// <summary>Whether the screen can be seen on this OS (T-186); always elsewhere (macOS: T-187).</summary>
+    /// <summary>Whether the screen can be seen on this OS (T-186, macOS T-187); always elsewhere.</summary>
     private static IDisplayActivityService CreateDisplayActivity() =>
-        OperatingSystem.IsWindows() ? new WindowsDisplayActivityService() : AlwaysVisibleDisplayActivity.Instance;
+        OperatingSystem.IsWindows() ? new WindowsDisplayActivityService()
+        : OperatingSystem.IsMacOS() ? new MacDisplayActivityService()
+        : AlwaysVisibleDisplayActivity.Instance;
 
     /// <summary>The resume after sleep of this OS (T-151); none elsewhere.</summary>
     private static ISystemResumeEvents CreateSystemResumeEvents() =>
@@ -1049,6 +1051,11 @@ internal static partial class AppServices
             // Lazily with the first camera window (once; it has its own message thread). It may open while the session is
             // locked (T-151): Start reads the current lock state first.
             windows.Start();
+        }
+        else if (OperatingSystem.IsMacOS() && displayActivity is MacDisplayActivityService mac)
+        {
+            // Lazily with the first camera window too (T-187): observers on the main queue, the current state read at once.
+            mac.Start();
         }
 
         return printer is not null

@@ -308,7 +308,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-141 | macOS – ⌘. (Zrušit) se k oknům aplikace nedostane (hotovo) | macos | ui-dev | P2 | T-100 |
 | T-142 | E2E test aktualizace na Macu selže se zapnutým displejem (hotovo; dřív T-133, přečíslováno 2026-11-02) | macos | qa-reviewer | P2 | T-058, T-099 |
 | T-147 | macOS – FFmpeg s muxerem pro nahrávání kamery (hotovo; QuickTime v T-127) | macos | ui-dev | P2 | T-144, T-026 |
-| T-187 | macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna (výkon) | macos | ui-dev | P3 | T-186 |
+| T-187 | macOS – pozastavení streamu kamery při zamčení, spánku displeje a zakrytí okna (výkon) (hotovo; ruční ověření v T-127 1r) | macos | ui-dev | P3 | T-186 |
 | T-205 | macOS – hardwarové dekódování VideoToolbox, ověření a měření v aplikaci (hotovo; uspání a pohled okem v T-127) | macos | core-dev | P2 | T-203, T-204 |
 | T-208 | macOS ověření – jeden regresní příkaz `macos-verify.ps1 -Preset release` s jednou zprávou (hotovo; běh s odemčenou obrazovkou v T-127) | macos | qa-reviewer | P2 | T-105, T-140 |
 | T-209 | macOS ověření – ovládání menu v menu baru přes Accessibility (`menu` / `menupress`), `mac.menu-items` (hotovo) | macos | qa-reviewer | P2 | T-208 |
@@ -323,3 +323,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-222 | Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (hotovo; rozhodnutí 2026-11-15: Inter na macOS v T-223, chybu nahlásit Avalonii; 12.1.6 změřena 2026-11-15, chyba trvá) | macos | ui-designer | P3 | T-214 |
 | T-223 | macOS – písmo Inter jako výchozí písmo aplikace (místo San Francisco, které Avalonia rozvrhuje úzce) (hotovo; šířky v běžící aplikaci v T-127; SystemFont ponechán 2026-11-15) | macos | ui-dev | P2 | T-222 |
 | T-231 | macOS – aktualizace nativních závislostí a nástrojů (FFmpeg ze zdrojů, Xcode, runner CI) (hotovo) | macos | qa-reviewer | P2 | – |
+| T-235 | macOS ověření – kontrola pozastavení kamery při zakrytí okna a na jiném Space (`mac.camera-pause-hidden`) | macos | qa-reviewer | P3 | T-187, T-215 |

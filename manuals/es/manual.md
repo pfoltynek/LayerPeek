@@ -220,10 +220,12 @@ Para ahorrar CPU, la vista mini muestra por defecto como máximo 10 fotogramas p
 imagen pequeña; la ventana normal y la pantalla completa muestran todos los fotogramas de la cámara. El límite se
 configura en la pestaña **Cámara** de la configuración (consulte [11.6](#116-cámara)).
 
-La ventana también deja de recibir fotogramas mientras nadie la ve: cuando está minimizada y, en Windows, mientras el
-equipo está bloqueado, la pantalla está apagada o la ventana está en otro escritorio virtual (una ventana solo tapada por
-otras sigue funcionando). Poco después de volver, la imagen regresa a partir del siguiente fotograma clave de la cámara.
-La grabación, la dashcam, los timelapses y la detección de fallos de impresión siguen funcionando mientras tanto.
+La ventana también deja de recibir fotogramas mientras nadie la ve: cuando está minimizada, mientras el equipo está
+bloqueado o la pantalla está apagada, en Windows mientras la ventana está en otro escritorio virtual (una ventana solo
+tapada por otras sigue funcionando) y en macOS mientras no se ve ninguna parte de ella, por ejemplo cuando otras
+ventanas la tapan por completo o está en otro escritorio (al cabo de unos dos segundos). Poco después de volver, la
+imagen regresa a partir del siguiente fotograma clave de la cámara. La grabación, la dashcam, los timelapses y la
+detección de fallos de impresión siguen funcionando mientras tanto.
 
 <p align="center">
   <img src="../../docs/images/es/camera-mini.jpg" alt="Vista mini con la franja de información, la fila del nombre de impresión y la fila del gráfico de temperaturas" width="400">
