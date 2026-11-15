@@ -654,18 +654,23 @@ doporučuje zdroj hostovat u binárky (body 3–8); dřív aplikace jen odkazova
 zmizel (T-162).
 
 **Co vydání obsahuje.** Obě OS od T-202 překládají stejný oficiální tarball (`LayerPeekFFmpegSource*` v
-`build/FFmpeg.targets`), liší se skriptem buildu. Každý build má svůj soubor `ffmpeg-source-<verze>-<os>.tar.xz` (jedna
-složka nejvyšší úrovně stejného názvu, xz):
+`build/FFmpeg.targets`), liší se skriptem buildu. Každý OS má svůj soubor `ffmpeg-source-<verze>-<os>.tar.xz` (jedna
+složka nejvyšší úrovně stejného názvu, xz). Windows má **jeden archiv pro obě architektury** (`win-x64` a `win-arm64`,
+rozhodnutí uživatele 2026-11-12, T-225): stejný tarball i skript, `README.txt` uvádí řádek configure každé vydávané
+architektury.
 
 | OS | Obsah |
 |---|---|
 | macOS | `ffmpeg-9.0.2.tar.xz` (oficiální tarball beze změny, ověřitelný podpisem `.asc` z ffmpeg.org), `build-ffmpeg.sh` (`build/macos/build-ffmpeg.sh`, Xcode Command Line Tools) a `README.txt` |
-| Windows | `ffmpeg-9.0.2.tar.xz` (týž tarball), `build-ffmpeg.sh` (`build/windows/build-ffmpeg.sh`, MSYS2 + MinGW-w64) a `README.txt` |
+| Windows | `ffmpeg-9.0.2.tar.xz` (týž tarball), `build-ffmpeg.sh` (`build/windows/build-ffmpeg.sh`: `win-x64` MSYS2 + MinGW-w64, `win-arm64` llvm-mingw ze shellu MSYS2) a `README.txt` |
 
 Žádné skripty ani zdroje cizích buildů (do T-202 měl archiv Windows commit FFmpeg a skripty BtbN jako tary
 `git archive`; build BtbN obsahoval ~50 knihoven, jejichž zdroje se nepřikládaly). `README.txt` popisuje obsah, původ
-(URL, SHA-256), postup buildu (Windows: toolchain a staticky linkovaný runtime MinGW-w64) a **řádek configure přečtený
-z vydávané knihovny `avcodec`** (prefix instalace nahrazený `<prefix>`, aby v něm nebyla cesta stroje buildu).
+(URL, SHA-256), postup buildu (Windows: toolchain a staticky linkovaný runtime MinGW-w64; u `win-arm64` i URL a SHA-256
+připnutého zipu llvm-mingw a příkaz s šestým argumentem `<llvm-mingw folder>`) a **řádek configure přečtený z vydávané
+knihovny `avcodec` každého RID** (prefix instalace nahrazený `<prefix>`, aby v něm nebyla cesta stroje buildu). Zip
+llvm-mingw se nepřikládá (je to překladač; z něj jsou v DLL jen runtime MinGW-w64 a pár funkcí compiler-rt, viz
+`docs/prerequisites.md`, „Windows ARM64 navíc“).
 
 **Jak to dělá `release-build.ps1`.**
 1. **Před dlouhým buildem** (po kontrole klíče feedu) `Get-FFmpegSourceInputs` přečte připnuté hodnoty
@@ -674,11 +679,12 @@ z vydávané knihovny `avcodec`** (prefix instalace nahrazený `<prefix>`, aby v
    `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source`, vedle cache buildu FFmpeg). Soubor v cache se připnutým SHA-256 se
    použije bez stahování; jinak se stáhne (HTTPS) do pracovní složky `tmp-…` v cache, ověří a přesune na místo. Při neshodě SHA-256 skript skončí chybou a stažené zahodí. **Cache se
    nikdy nemaže**; soubor se špatným hashem se nahradí.
-2. **Krok balení `ffmpeg-source`** (oba OS, po smoke testu publish složky): z publish složky přečte knihovnu
-   `avcodec-<n>.dll` / `libavcodec.<n>.dylib` a ověří, že je z připnutého zdroje (`FFmpeg version` v knihovně přesně
-   `9.0.2` na obou OS). Pak sbalí tarball, skript buildu OS a
-   `README.txt` do `dist/` (pracovní složka `ffmpeg-source-<RID>` vedle `dist/`, po zabalení smazaná) a výsledek
-   vypíše a porovná s očekávaným seznamem souborů.
+2. **Krok balení `ffmpeg-source`** (oba OS, po smoke testu publish složky): běží jednou za OS, s posledním RID běhu
+   (T-225), až jsou hotové publish složky všech RID. Z každé publish složky přečte knihovnu `avcodec-<n>.dll` /
+   `libavcodec.<n>.dylib` a ověří, že je z připnutého zdroje (`FFmpeg version` v knihovně přesně `9.0.2`). Pak sbalí
+   tarball, skript buildu OS a `README.txt` (řádek configure každého RID) do `dist/` (pracovní složka
+   `ffmpeg-source-<os>` vedle `dist/`, po zabalení smazaná) a výsledek vypíše a porovná s očekávaným seznamem souborů.
+   Dokud se `win-arm64` nevydává (T-226), má archiv Windows jen řádek `win-x64`.
 3. Soubor je jako ostatní kroky v `build-info.json` (krok `ffmpeg-source`, i v záznamu `pending` před podpisem, takže
    `-SignOnly` z T-197 funguje beze změny) a v `SHA256SUMS-<os>.txt`; `release-upload.ps1` ho nahraje v první dávce
    (není to značka OS) a `release-publish.ps1` ho zkontroluje proti součtům. Seznam povolených názvů nahrání nemá:

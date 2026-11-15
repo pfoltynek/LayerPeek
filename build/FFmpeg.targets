@@ -4,6 +4,10 @@
     with only what LayerPeek uses (no external library):
     - win-x64: built by build/windows/build-ffmpeg.sh with MSYS2 + MinGW-w64 (T-202, user decisions 2026-11-12; it replaced
       the prebuilt download of T-014). Takes a few minutes, once.
+    - win-arm64: cross-built on Windows x64 by the same script with llvm-mingw, run from the shell of MSYS2 (T-225, user
+      decisions 2026-11-12), only when win-arm64 is requested (dotnet publish src/LayerPeek.App -r win-arm64). The pinned
+      llvm-mingw release is downloaded, verified and extracted into the cache once, like the source tarball. Takes a few
+      minutes, once.
     - osx-arm64: built by build/macos/build-ffmpeg.sh with the Xcode Command Line Tools (T-026, decided 2026-10-29).
       Takes about half a minute, once.
 
@@ -17,9 +21,14 @@
     kept in the cache. Later builds only check the cache. Nothing is downloaded or built during design-time builds (IDE),
     and nothing is ever installed: a missing toolchain fails the build with instructions before anything is downloaded.
 
-    Windows x64 and macOS arm64 (host and runtime identifier) only; elsewhere nothing happens. Another Windows
-    architecture (win-arm64, T-225) is another _LayerPeekFFmpegRid with its toolchain folder below and another case in
-    build/windows/build-ffmpeg.sh.
+    Which build (_LayerPeekFFmpegRid): for the runtime identifier of the app (LayerPeekAppRuntimeIdentifier, passed by
+    LayerPeek.App.csproj, T-224: this library is RID-agnostic, the SDK builds it without RuntimeIdentifier), else for this
+    project's own RuntimeIdentifier, else for the host:
+      win-x64 or win-arm64 (Windows host)   that build
+      none, Windows x64 host                win-x64 (dotnet build / dotnet test never need llvm-mingw)
+      none, Windows ARM64 host              no libraries, with a message (not supported, user decision 2026-11-12)
+      osx-arm64 or none, Mac (Apple chip)   osx-arm64
+    Elsewhere nothing happens.
 
     Overridable properties:
       LayerPeekFFmpegCacheRoot  cache root (default %LOCALAPPDATA%\LayerPeek.Build\ffmpeg\ on Windows,
@@ -42,11 +51,30 @@
     <_LayerPeekFFmpegMacBuildScript>$(MSBuildThisFileDirectory)macos/build-ffmpeg.sh</_LayerPeekFFmpegMacBuildScript>
     <_LayerPeekFFmpegWindowsBuildScript>$(MSBuildThisFileDirectory)windows\build-ffmpeg.sh</_LayerPeekFFmpegWindowsBuildScript>
 
-    <!-- Which libraries this build provides: "windows", "macos" or none, and for which runtime identifier. -->
-    <_LayerPeekFFmpegPlatform Condition="$([MSBuild]::IsOSPlatform('Windows')) and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'win-x64')">windows</_LayerPeekFFmpegPlatform>
-    <_LayerPeekFFmpegPlatform Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'osx-arm64')">macos</_LayerPeekFFmpegPlatform>
-    <_LayerPeekFFmpegRid Condition="'$(_LayerPeekFFmpegPlatform)' == 'windows'">win-x64</_LayerPeekFFmpegRid>
-    <_LayerPeekFFmpegRid Condition="'$(_LayerPeekFFmpegPlatform)' == 'macos'">osx-arm64</_LayerPeekFFmpegRid>
+    <!--
+      The llvm-mingw release of the win-arm64 cross build (T-225, user decision 2026-11-12): the toolchain for Windows x64
+      hosts in the ucrt flavour from https://github.com/mstorsjo/llvm-mingw/releases (LLVM: Apache-2.0 with LLVM
+      Exceptions; MinGW-w64 runtime inside, see docs/prerequisites.md). The SHA-256 is the digest GitHub lists for the
+      release asset, checked against the downloaded file on 2026-11-15. Extracted into <cache root>\<folder>\ on the first
+      win-arm64 build. A new release: change all three values, then MinGWRuntimeVersionArm64 in ThirdPartyLicenses.cs
+      when the "MinGW-w64 runtime:" line of BUILD.txt changes; delete the folder of the old release by hand (docs/prerequisites.md, "Nová verze llvm-mingw").
+    -->
+    <LayerPeekLlvmMingwUrl>https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-x86_64.zip</LayerPeekLlvmMingwUrl>
+    <LayerPeekLlvmMingwSha256>552191b5754c49a5a20723276a6fc56541ea1922c4c50b7b669022333fc1b40f</LayerPeekLlvmMingwSha256>
+    <!-- Top-level folder inside the zip. -->
+    <LayerPeekLlvmMingwFolder>llvm-mingw-20261104-ucrt-x86_64</LayerPeekLlvmMingwFolder>
+
+    <!-- Which libraries this build provides ("windows", "macos" or none) and for which runtime identifier (see above). -->
+    <_LayerPeekFFmpegRequestedRid>$(LayerPeekAppRuntimeIdentifier)</_LayerPeekFFmpegRequestedRid>
+    <_LayerPeekFFmpegRequestedRid Condition="'$(_LayerPeekFFmpegRequestedRid)' == ''">$(RuntimeIdentifier)</_LayerPeekFFmpegRequestedRid>
+    <_LayerPeekFFmpegHostArchitecture>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)</_LayerPeekFFmpegHostArchitecture>
+    <_LayerPeekFFmpegRid Condition="$([MSBuild]::IsOSPlatform('Windows')) and ('$(_LayerPeekFFmpegRequestedRid)' == 'win-x64' or '$(_LayerPeekFFmpegRequestedRid)' == 'win-arm64')">$(_LayerPeekFFmpegRequestedRid)</_LayerPeekFFmpegRid>
+    <_LayerPeekFFmpegRid Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(_LayerPeekFFmpegRequestedRid)' == '' and '$(_LayerPeekFFmpegHostArchitecture)' == 'X64'">win-x64</_LayerPeekFFmpegRid>
+    <_LayerPeekFFmpegRid Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$(_LayerPeekFFmpegHostArchitecture)' == 'Arm64' and ('$(_LayerPeekFFmpegRequestedRid)' == '' or '$(_LayerPeekFFmpegRequestedRid)' == 'osx-arm64')">osx-arm64</_LayerPeekFFmpegRid>
+    <_LayerPeekFFmpegPlatform Condition="'$(_LayerPeekFFmpegRid)' == 'win-x64' or '$(_LayerPeekFFmpegRid)' == 'win-arm64'">windows</_LayerPeekFFmpegPlatform>
+    <_LayerPeekFFmpegPlatform Condition="'$(_LayerPeekFFmpegRid)' == 'osx-arm64'">macos</_LayerPeekFFmpegPlatform>
+    <!-- A Windows ARM64 host without a runtime identifier: no libraries (LayerPeekFFmpegArm64HostNotice says why). -->
+    <_LayerPeekFFmpegArm64HostWithoutRid Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(_LayerPeekFFmpegRequestedRid)' == '' and '$(_LayerPeekFFmpegHostArchitecture)' == 'Arm64'">true</_LayerPeekFFmpegArm64HostWithoutRid>
     <LayerPeekFFmpegEnabled Condition="'$(LayerPeekFFmpegEnabled)' == '' and '$(_LayerPeekFFmpegPlatform)' != ''">true</LayerPeekFFmpegEnabled>
     <LayerPeekFFmpegEnabled Condition="'$(_LayerPeekFFmpegPlatform)' == ''">false</LayerPeekFFmpegEnabled>
     <LayerPeekFFmpegCacheRoot Condition="'$(LayerPeekFFmpegCacheRoot)' == '' and '$(_LayerPeekFFmpegPlatform)' == 'macos'">$(HOME)/Library/Caches/LayerPeek.Build/ffmpeg/</LayerPeekFFmpegCacheRoot>
@@ -54,21 +82,27 @@
     <!-- Separate property: a global property (/p:) cannot be reassigned. -->
     <_LayerPeekFFmpegCacheRoot>$([MSBuild]::EnsureTrailingSlash('$(LayerPeekFFmpegCacheRoot)'))</_LayerPeekFFmpegCacheRoot>
 
-    <!-- Windows: MSYS2 (T-202). The MinGW-w64 environment of the runtime identifier (win-x64: MINGW64 in mingw64\). -->
+    <!--
+      Windows: MSYS2 (T-202). win-x64: the MinGW-w64 environment MINGW64 in mingw64\. win-arm64 (T-225): only the shell and
+      the tools of MSYS2 (bash, make, cmp, tar, xz); the compiler is llvm-mingw in the cache (_LayerPeekLlvmMingwDir).
+    -->
     <LayerPeekMsys2Root Condition="'$(LayerPeekMsys2Root)' == ''">C:\msys64</LayerPeekMsys2Root>
     <_LayerPeekMsys2Root>$([MSBuild]::EnsureTrailingSlash('$(LayerPeekMsys2Root)'))</_LayerPeekMsys2Root>
     <_LayerPeekFFmpegMsys2Toolchain Condition="'$(_LayerPeekFFmpegRid)' == 'win-x64'">mingw64</_LayerPeekFFmpegMsys2Toolchain>
     <_LayerPeekFFmpegMsys2Packages Condition="'$(_LayerPeekFFmpegRid)' == 'win-x64'">make diffutils mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm</_LayerPeekFFmpegMsys2Packages>
+    <_LayerPeekFFmpegMsys2Packages Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64'">make diffutils</_LayerPeekFFmpegMsys2Packages>
+    <_LayerPeekLlvmMingwDir>$(_LayerPeekFFmpegCacheRoot)$(LayerPeekLlvmMingwFolder)\</_LayerPeekLlvmMingwDir>
 
     <!--
       Keyed by the runtime identifier, the source hash and the build script (flags, version, toolchain choices), so any
-      change of the recipe builds into a new folder.
+      change of the recipe builds into a new folder; win-arm64 also by the llvm-mingw release.
     -->
+    <_LayerPeekFFmpegToolchainKey Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64'">|$(LayerPeekLlvmMingwSha256)</_LayerPeekFFmpegToolchainKey>
     <_LayerPeekFFmpegBuildScript Condition="'$(_LayerPeekFFmpegPlatform)' == 'windows'">$(_LayerPeekFFmpegWindowsBuildScript)</_LayerPeekFFmpegBuildScript>
     <_LayerPeekFFmpegBuildScript Condition="'$(_LayerPeekFFmpegPlatform)' == 'macos'">$(_LayerPeekFFmpegMacBuildScript)</_LayerPeekFFmpegBuildScript>
     <_LayerPeekFFmpegSeparator>\</_LayerPeekFFmpegSeparator>
     <_LayerPeekFFmpegSeparator Condition="'$(_LayerPeekFFmpegPlatform)' == 'macos'">/</_LayerPeekFFmpegSeparator>
-    <LayerPeekFFmpegCacheDir Condition="'$(_LayerPeekFFmpegPlatform)' != ''">$(_LayerPeekFFmpegCacheRoot)$(_LayerPeekFFmpegRid)-$([MSBuild]::StableStringHash('$(LayerPeekFFmpegSourceSha256)|$([System.IO.File]::ReadAllText('$(_LayerPeekFFmpegBuildScript)'))', 'Sha256'))$(_LayerPeekFFmpegSeparator)</LayerPeekFFmpegCacheDir>
+    <LayerPeekFFmpegCacheDir Condition="'$(_LayerPeekFFmpegPlatform)' != ''">$(_LayerPeekFFmpegCacheRoot)$(_LayerPeekFFmpegRid)-$([MSBuild]::StableStringHash('$(LayerPeekFFmpegSourceSha256)|$([System.IO.File]::ReadAllText('$(_LayerPeekFFmpegBuildScript)'))$(_LayerPeekFFmpegToolchainKey)', 'Sha256'))$(_LayerPeekFFmpegSeparator)</LayerPeekFFmpegCacheDir>
     <_LayerPeekFFmpegMarker>$(LayerPeekFFmpegCacheDir)verified.sha256</_LayerPeekFFmpegMarker>
     <!-- Folder of the libraries inside the cache. -->
     <_LayerPeekFFmpegLibraryDir>$(LayerPeekFFmpegCacheDir)bin\</_LayerPeekFFmpegLibraryDir>
@@ -133,7 +167,17 @@
   </Target>
 
   <!--
-    Windows (T-202): check the MSYS2 toolchain, download the pinned source tarball, verify it, build it with
+    A Windows ARM64 host without a runtime identifier (T-225, user decision 2026-11-12: not supported for now): no FFmpeg
+    libraries instead of x64 ones the ARM64 process could not load. A message, not a warning (warnings fail the build).
+  -->
+  <Target Name="LayerPeekFFmpegArm64HostNotice"
+          BeforeTargets="AssignTargetPaths;GetCopyToOutputDirectoryItems;GetCopyToPublishDirectoryItems;CopyFilesToOutputDirectory"
+          Condition="'$(_LayerPeekFFmpegArm64HostWithoutRid)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Message Importance="high" Text="$(MSBuildProjectName): no FFmpeg camera libraries. On a Windows ARM64 machine a build without a runtime identifier is not supported (it would get x64 libraries); the camera does not work and the FFmpeg tests are skipped. For the ARM64 app: dotnet publish src/LayerPeek.App -c Release -r win-arm64 (cross-builds FFmpeg for ARM64). See docs/prerequisites.md, Windows ARM64." />
+  </Target>
+
+  <!--
+    Windows (T-202; win-arm64 T-225): check the MSYS2 toolchain (win-arm64: then fetch llvm-mingw into the cache), download the pinned source tarball, verify it, build it with
     build/windows/build-ffmpeg.sh (run by the bash of MSYS2) into a staging folder of this build's work folder, write the
     marker last and rename the staging folder into place, exactly like the macOS target below (same stale work folder
     cleanup, same handling of concurrent builds, with cmd's move).
@@ -151,7 +195,15 @@
       <_LayerPeekFFmpegStaleBefore>$([System.DateTime]::UtcNow.AddHours(-2).ToString('yyyyMMddHHmmss'))</_LayerPeekFFmpegStaleBefore>
       <_LayerPeekFFmpegBash>$(_LayerPeekMsys2Root)usr\bin\bash.exe</_LayerPeekFFmpegBash>
       <_LayerPeekFFmpegMsys2Help>Install MSYS2 (winget install MSYS2.MSYS2, or https://www.msys2.org/), then in an MSYS2 shell: pacman -S --needed $(_LayerPeekFFmpegMsys2Packages), and build again. MSYS2 in another folder: set the property or environment variable LayerPeekMsys2Root to it (now $(LayerPeekMsys2Root)).</_LayerPeekFFmpegMsys2Help>
-      <_LayerPeekFFmpegHelp>To fix it: if the pinned source release is no longer available, update LayerPeekFFmpegSourceUrl, LayerPeekFFmpegSourceSha256 and LayerPeekFFmpegSourceFolder in build/FFmpeg.targets to another official FFmpeg 9.0.x source tarball (the same library versions; build/update-ffmpeg.ps1 verifies and writes them). A failing compile needs MSYS2 with MinGW-w64: $(_LayerPeekFFmpegMsys2Help) The logs (configure.log, make.log) stay in the work folder named above (a later build removes it after two hours). Or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds such a cache, or LayerPeekFFmpegEnabled=false to build without the camera libraries. See docs/prerequisites.md.</_LayerPeekFFmpegHelp>
+      <!-- What the compile needs: win-x64 MSYS2 with MinGW-w64, win-arm64 MSYS2 and llvm-mingw (T-225). -->
+      <_LayerPeekFFmpegToolchainHelp>A failing compile needs MSYS2 with MinGW-w64: $(_LayerPeekFFmpegMsys2Help)</_LayerPeekFFmpegToolchainHelp>
+      <_LayerPeekFFmpegToolchainHelp Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64'">A failing compile needs MSYS2 ($(_LayerPeekFFmpegMsys2Help)) and the pinned llvm-mingw in $(_LayerPeekLlvmMingwDir) (downloaded by the build; delete that folder to fetch it again).</_LayerPeekFFmpegToolchainHelp>
+      <_LayerPeekFFmpegHelp>To fix it: if the pinned source release is no longer available, update LayerPeekFFmpegSourceUrl, LayerPeekFFmpegSourceSha256 and LayerPeekFFmpegSourceFolder in build/FFmpeg.targets to another official FFmpeg 9.0.x source tarball (the same library versions; build/update-ffmpeg.ps1 verifies and writes them). $(_LayerPeekFFmpegToolchainHelp) The logs (configure.log, make.log) stay in the work folder named above (a later build removes it after two hours). Or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds such a cache, or LayerPeekFFmpegEnabled=false to build without the camera libraries. See docs/prerequisites.md.</_LayerPeekFFmpegHelp>
+      <!-- win-arm64 (T-225): llvm-mingw, downloaded and extracted into the cache root like the FFmpeg cache. -->
+      <_LayerPeekLlvmMingwZip>$(_LayerPeekFFmpegWorkDir)$(LayerPeekLlvmMingwFolder).zip</_LayerPeekLlvmMingwZip>
+      <_LayerPeekLlvmMingwStaging>$(_LayerPeekFFmpegWorkDir)llvm-mingw</_LayerPeekLlvmMingwStaging>
+      <_LayerPeekLlvmMingwFinal>$(_LayerPeekLlvmMingwDir.TrimEnd('\'))</_LayerPeekLlvmMingwFinal>
+      <_LayerPeekLlvmMingwHelp>To fix it: check the connection and build again. If the pinned release is no longer available, update LayerPeekLlvmMingwUrl, LayerPeekLlvmMingwSha256 and LayerPeekLlvmMingwFolder in build/FFmpeg.targets to another llvm-mingw release for Windows x64 hosts (ucrt-x86_64.zip; docs/prerequisites.md, Windows ARM64). Or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds an ARM64 FFmpeg cache, or build without the camera libraries: dotnet publish -r win-arm64 -p:LayerPeekFFmpegEnabled=false (the camera then does not work).</_LayerPeekLlvmMingwHelp>
     </PropertyGroup>
 
     <ItemGroup>
@@ -166,14 +218,75 @@
 
     <!--
       The toolchain is checked before anything is downloaded, with a dedicated error: the files build-ffmpeg.sh needs
-      (bash, make and cmp of MSYS2, gcc, nasm, objdump and strip of the MinGW-w64 environment, the static winpthreads).
+      (bash, make and cmp of MSYS2; win-x64 also gcc, nasm, objdump and strip of the MinGW-w64 environment and the static
+      winpthreads; win-arm64 nothing else of MSYS2, its compiler is llvm-mingw below).
     -->
     <ItemGroup>
-      <_LayerPeekFFmpegMsys2File Include="usr\bin\bash.exe;usr\bin\make.exe;usr\bin\cmp.exe;usr\bin\tar.exe;usr\bin\xz.exe;$(_LayerPeekFFmpegMsys2Toolchain)\bin\gcc.exe;$(_LayerPeekFFmpegMsys2Toolchain)\bin\nasm.exe;$(_LayerPeekFFmpegMsys2Toolchain)\bin\objdump.exe;$(_LayerPeekFFmpegMsys2Toolchain)\bin\strip.exe;$(_LayerPeekFFmpegMsys2Toolchain)\lib\libwinpthread.a" />
+      <_LayerPeekFFmpegMsys2File Include="usr\bin\bash.exe;usr\bin\make.exe;usr\bin\cmp.exe;usr\bin\tar.exe;usr\bin\xz.exe" />
+      <_LayerPeekFFmpegMsys2File Include="$(_LayerPeekFFmpegMsys2Toolchain)\bin\gcc.exe;$(_LayerPeekFFmpegMsys2Toolchain)\bin\nasm.exe;$(_LayerPeekFFmpegMsys2Toolchain)\bin\objdump.exe;$(_LayerPeekFFmpegMsys2Toolchain)\bin\strip.exe;$(_LayerPeekFFmpegMsys2Toolchain)\lib\libwinpthread.a" Condition="'$(_LayerPeekFFmpegRid)' == 'win-x64'" />
       <_LayerPeekFFmpegMsys2Missing Include="@(_LayerPeekFFmpegMsys2File)" Condition="!Exists('$(_LayerPeekMsys2Root)%(Identity)')" />
     </ItemGroup>
-    <Error Condition="'@(_LayerPeekFFmpegMsys2Missing)' != ''"
+    <Error Condition="'@(_LayerPeekFFmpegMsys2Missing)' != '' and '$(_LayerPeekFFmpegRid)' == 'win-x64'"
            Text="MSYS2 with MinGW-w64 is not installed in $(LayerPeekMsys2Root) (missing: @(_LayerPeekFFmpegMsys2Missing, ', ')). The first build on Windows compiles the FFmpeg camera libraries from source and needs it. To fix it: $(_LayerPeekFFmpegMsys2Help) To build without the camera libraries instead: dotnet build -p:LayerPeekFFmpegEnabled=false (the camera then does not work and the FFmpeg tests are skipped). See docs/prerequisites.md." />
+    <Error Condition="'@(_LayerPeekFFmpegMsys2Missing)' != '' and '$(_LayerPeekFFmpegRid)' == 'win-arm64'"
+           Text="MSYS2 is not installed in $(LayerPeekMsys2Root) (missing: @(_LayerPeekFFmpegMsys2Missing, ', ')). The first win-arm64 build cross-compiles the FFmpeg camera libraries for ARM64 from source with llvm-mingw (downloaded by the build) run from the shell of MSYS2. To fix it: $(_LayerPeekFFmpegMsys2Help) To build without the camera libraries instead: dotnet publish -r win-arm64 -p:LayerPeekFFmpegEnabled=false (the camera then does not work). See docs/prerequisites.md, Windows ARM64." />
+
+    <!--
+      win-arm64 (T-225): the pinned llvm-mingw, downloaded once (~190 MB), verified against its SHA-256, extracted into a
+      staging folder of this build's work folder (without the Python of lldb and the sysroots of 32-bit x86 and ARMv7,
+      which nothing here uses; x86_64 stays for the generators the FFmpeg build runs on this machine), marked and renamed
+      into place like the FFmpeg cache (a concurrent build that won keeps its folder). Nothing is installed.
+    -->
+    <PropertyGroup Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64'">
+      <_LayerPeekLlvmMingwComplete>false</_LayerPeekLlvmMingwComplete>
+      <_LayerPeekLlvmMingwMarkerSha></_LayerPeekLlvmMingwMarkerSha>
+      <_LayerPeekLlvmMingwMarkerSha Condition="Exists('$(_LayerPeekLlvmMingwDir)verified.sha256')">$([System.IO.File]::ReadAllText('$(_LayerPeekLlvmMingwDir)verified.sha256').Trim())</_LayerPeekLlvmMingwMarkerSha>
+      <_LayerPeekLlvmMingwComplete Condition="'$(_LayerPeekLlvmMingwMarkerSha)' == '$(LayerPeekLlvmMingwSha256)' and Exists('$(_LayerPeekLlvmMingwDir)bin\aarch64-w64-mingw32-clang.exe') and Exists('$(_LayerPeekLlvmMingwDir)bin\llvm-objdump.exe')">true</_LayerPeekLlvmMingwComplete>
+    </PropertyGroup>
+    <Message Importance="high" Text="Downloading the ARM64 toolchain llvm-mingw (~190 MB, once) into $(_LayerPeekLlvmMingwDir) ..." Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'" />
+    <DownloadFile SourceUrl="$(LayerPeekLlvmMingwUrl)" DestinationFolder="$(_LayerPeekFFmpegWorkDir)" DestinationFileName="$(LayerPeekLlvmMingwFolder).zip" Retries="3" RetryDelayMilliseconds="2000" ContinueOnError="true"
+                  Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'" />
+    <Error Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true' and !Exists('$(_LayerPeekLlvmMingwZip)')"
+           Text="Downloading the ARM64 toolchain llvm-mingw from $(LayerPeekLlvmMingwUrl) failed (see the message above: offline, or the release was removed). It is needed for the win-arm64 FFmpeg camera libraries. $(_LayerPeekLlvmMingwHelp)" />
+    <GetFileHash Files="$(_LayerPeekLlvmMingwZip)" Algorithm="SHA256" HashEncoding="hex" Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'">
+      <Output TaskParameter="Hash" PropertyName="_LayerPeekLlvmMingwActualSha256" />
+    </GetFileHash>
+    <Delete Files="$(_LayerPeekLlvmMingwZip)" Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true' and '$(_LayerPeekLlvmMingwActualSha256)' != '$(LayerPeekLlvmMingwSha256)'" />
+    <Error Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true' and '$(_LayerPeekLlvmMingwActualSha256)' != '$(LayerPeekLlvmMingwSha256)'"
+           Text="llvm-mingw SHA256 mismatch: expected $(LayerPeekLlvmMingwSha256), got $(_LayerPeekLlvmMingwActualSha256) ($(LayerPeekLlvmMingwUrl)). The download was discarded (an interrupted download ends here too: build again). $(_LayerPeekLlvmMingwHelp)" />
+    <Unzip SourceFiles="$(_LayerPeekLlvmMingwZip)" DestinationFolder="$(_LayerPeekLlvmMingwStaging)"
+           Exclude="$(LayerPeekLlvmMingwFolder)/python/**;$(LayerPeekLlvmMingwFolder)/i686-w64-mingw32/**;$(LayerPeekLlvmMingwFolder)/armv7-w64-mingw32/**"
+           Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'" />
+    <Delete Files="$(_LayerPeekLlvmMingwZip)" Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'" />
+    <!-- Unzip creates the excluded folders empty. -->
+    <RemoveDir Directories="$(_LayerPeekLlvmMingwStaging)\$(LayerPeekLlvmMingwFolder)\python;$(_LayerPeekLlvmMingwStaging)\$(LayerPeekLlvmMingwFolder)\i686-w64-mingw32;$(_LayerPeekLlvmMingwStaging)\$(LayerPeekLlvmMingwFolder)\armv7-w64-mingw32"
+               Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'" ContinueOnError="true" />
+    <Error Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true' and !Exists('$(_LayerPeekLlvmMingwStaging)\$(LayerPeekLlvmMingwFolder)\bin\aarch64-w64-mingw32-clang.exe')"
+           Text="$(LayerPeekLlvmMingwFolder).zip has no $(LayerPeekLlvmMingwFolder)\bin\aarch64-w64-mingw32-clang.exe (LayerPeekLlvmMingwFolder in build/FFmpeg.targets must be the top folder of the zip). $(_LayerPeekLlvmMingwHelp)" />
+    <WriteLinesToFile File="$(_LayerPeekLlvmMingwStaging)\$(LayerPeekLlvmMingwFolder)\verified.sha256" Lines="$(LayerPeekLlvmMingwSha256)" Overwrite="true"
+                      Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'" />
+    <!-- Renames only, as for the FFmpeg cache below: an incomplete folder is moved away first; a concurrent winner stays. -->
+    <PropertyGroup Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'">
+      <_LayerPeekLlvmMingwMarkerSha></_LayerPeekLlvmMingwMarkerSha>
+      <_LayerPeekLlvmMingwMarkerSha Condition="Exists('$(_LayerPeekLlvmMingwDir)verified.sha256')">$([System.IO.File]::ReadAllText('$(_LayerPeekLlvmMingwDir)verified.sha256').Trim())</_LayerPeekLlvmMingwMarkerSha>
+      <_LayerPeekLlvmMingwComplete Condition="'$(_LayerPeekLlvmMingwMarkerSha)' == '$(LayerPeekLlvmMingwSha256)' and Exists('$(_LayerPeekLlvmMingwDir)bin\aarch64-w64-mingw32-clang.exe') and Exists('$(_LayerPeekLlvmMingwDir)bin\llvm-objdump.exe')">true</_LayerPeekLlvmMingwComplete>
+    </PropertyGroup>
+    <Exec Command="move &quot;$(_LayerPeekLlvmMingwFinal)&quot; &quot;$(_LayerPeekFFmpegWorkDir)replaced-llvm-mingw&quot;"
+          Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true' and Exists('$(_LayerPeekLlvmMingwFinal)')"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <Exec Command="move &quot;$(_LayerPeekLlvmMingwStaging)\$(LayerPeekLlvmMingwFolder)&quot; &quot;$(_LayerPeekLlvmMingwFinal)&quot;"
+          Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <RemoveDir Directories="$(_LayerPeekLlvmMingwFinal)\$(LayerPeekLlvmMingwFolder)" Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and Exists('$(_LayerPeekLlvmMingwFinal)\$(LayerPeekLlvmMingwFolder)')" ContinueOnError="true" />
+    <PropertyGroup Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64'">
+      <_LayerPeekLlvmMingwComplete>false</_LayerPeekLlvmMingwComplete>
+      <_LayerPeekLlvmMingwMarkerSha></_LayerPeekLlvmMingwMarkerSha>
+      <_LayerPeekLlvmMingwMarkerSha Condition="Exists('$(_LayerPeekLlvmMingwDir)verified.sha256')">$([System.IO.File]::ReadAllText('$(_LayerPeekLlvmMingwDir)verified.sha256').Trim())</_LayerPeekLlvmMingwMarkerSha>
+      <_LayerPeekLlvmMingwComplete Condition="'$(_LayerPeekLlvmMingwMarkerSha)' == '$(LayerPeekLlvmMingwSha256)' and Exists('$(_LayerPeekLlvmMingwDir)bin\aarch64-w64-mingw32-clang.exe') and Exists('$(_LayerPeekLlvmMingwDir)bin\llvm-objdump.exe')">true</_LayerPeekLlvmMingwComplete>
+    </PropertyGroup>
+    <Error Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and '$(_LayerPeekLlvmMingwComplete)' != 'true'"
+           Text="llvm-mingw could not be moved into $(_LayerPeekLlvmMingwDir) (is a file there in use?). $(_LayerPeekLlvmMingwHelp)" />
+    <RemoveDir Directories="$(_LayerPeekLlvmMingwStaging)" Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64' and Exists('$(_LayerPeekLlvmMingwStaging)')" ContinueOnError="true" />
 
     <Message Importance="high" Text="Building FFmpeg from source (LGPL, ~12 MB download, a few minutes, once) into $(LayerPeekFFmpegCacheDir) ..." />
     <DownloadFile SourceUrl="$(LayerPeekFFmpegSourceUrl)" DestinationFolder="$(_LayerPeekFFmpegWorkDir)" DestinationFileName="$(LayerPeekFFmpegSourceFolder).tar.xz" Retries="3" RetryDelayMilliseconds="2000" ContinueOnError="true" />
@@ -189,9 +302,13 @@
 
     <!--
       The script writes <staging>\bin\*.dll, LICENSE.txt and BUILD.txt; its compiler output goes to logs. bash runs it
-      without profile files (it sets its own clean environment); paths are converted by the script (cygpath).
+      without profile files (it sets its own clean environment); paths are converted by the script (cygpath). win-arm64
+      gets the llvm-mingw folder as the sixth argument.
     -->
-    <Exec Command="&quot;$(_LayerPeekFFmpegBash)&quot; --noprofile --norc &quot;$(_LayerPeekFFmpegWindowsBuildScript.Replace('\', '/'))&quot; $(_LayerPeekFFmpegRid) &quot;$(_LayerPeekFFmpegArchive)&quot; &quot;$(LayerPeekFFmpegSourceFolder)&quot; &quot;$(_LayerPeekFFmpegWorkDir)build&quot; &quot;$(_LayerPeekFFmpegStaging)&quot;"
+    <PropertyGroup>
+      <_LayerPeekFFmpegToolchainArgument Condition="'$(_LayerPeekFFmpegRid)' == 'win-arm64'"> &quot;$(_LayerPeekLlvmMingwFinal)&quot;</_LayerPeekFFmpegToolchainArgument>
+    </PropertyGroup>
+    <Exec Command="&quot;$(_LayerPeekFFmpegBash)&quot; --noprofile --norc &quot;$(_LayerPeekFFmpegWindowsBuildScript.Replace('\', '/'))&quot; $(_LayerPeekFFmpegRid) &quot;$(_LayerPeekFFmpegArchive)&quot; &quot;$(LayerPeekFFmpegSourceFolder)&quot; &quot;$(_LayerPeekFFmpegWorkDir)build&quot; &quot;$(_LayerPeekFFmpegStaging)&quot;$(_LayerPeekFFmpegToolchainArgument)"
           IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="high" StandardErrorImportance="high">
       <Output TaskParameter="ExitCode" PropertyName="_LayerPeekFFmpegBuildExitCode" />
     </Exec>

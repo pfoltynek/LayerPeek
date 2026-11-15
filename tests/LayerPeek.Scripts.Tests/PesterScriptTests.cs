@@ -8,7 +8,8 @@ namespace LayerPeek.Scripts.Tests;
 /// ReleaseWinget.Tests.ps1 of the winget submission, T-059) and the
 /// one-time migration from the former name (tools/migrate-from-prusatraydiagnostic.Tests.ps1, T-074) and the before/after
 /// check of the user profile (tools/profile-snapshot.Tests.ps1, T-095) and the maintainer tool for a new FFmpeg version on
-/// macOS and Windows (build/update-ffmpeg.Tests.ps1, T-026) and the engine of the user-run verification scripts
+/// macOS and Windows (build/update-ffmpeg.Tests.ps1, T-026) and the selection of the FFmpeg build per runtime identifier with the
+/// win-arm64 cross build (build/FFmpeg.Tests.ps1, T-225) and the engine of the user-run verification scripts
 /// (tools/VerifyTools.Tests.ps1, T-105) and the main part of tools/windows-verify.ps1 with stand-in checks: the interactive
 /// run with answers on standard input, an interrupted run and -RestoreOnly
 /// (tools/windows-verify.Tests.ps1, T-129; off Windows only its -ListChecks test runs) and the kept results of failed
@@ -41,6 +42,7 @@ public sealed class PesterScriptTests
     [InlineData("tools/migrate-from-prusatraydiagnostic.Tests.ps1", 5)]
     [InlineData("tools/profile-snapshot.Tests.ps1", 5)]
     [InlineData("build/update-ffmpeg.Tests.ps1", 5)]
+    [InlineData("build/FFmpeg.Tests.ps1", 5)]
     [InlineData("tools/VerifyTools.Tests.ps1", 5)]
     [InlineData("tools/windows-verify.Tests.ps1", 5)]
     [InlineData("tools/RunE2E.Results.Tests.ps1", 5)]

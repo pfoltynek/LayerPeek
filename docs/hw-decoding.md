@@ -172,6 +172,12 @@ Doplněno 2026-11-15 (T-202): vlastní build Windows (`build/windows/build-ffmpe
 (`AV_PIX_FMT_D3D11VA_VLD`, bez typu zařízení). `FFmpegRuntime.HasHardwareDecoder(D3D11VA)` vrací `true`, jediný typ
 zařízení v buildu je `d3d11va` (test `FFmpegWindowsBuildTests`). DXVA2, D3D12VA, NVDEC, QSV ani AMF build nemá.
 
+Doplněno 2026-11-15 (T-225): build `win-arm64` (křížový překlad s llvm-mingw) má stejný řádek configure včetně
+`--enable-d3d11va --enable-hwaccel=h264_d3d11va,h264_d3d11va2` (rozhodnutí uživatele 2026-11-12: stejná sada funkcí jako
+`win-x64`). Na x64 se ARM64 DLL načíst nedají, proto je ověřené jen bez načtení: řádek configure v `avcodec-63.dll`
+a řetězec `h264_d3d11va2` (Pester `build/FFmpeg.Tests.ps1`). Zda D3D11VA na ARM64 zařízení opravdu dekóduje (ovladače
+GPU Qualcomm Adreno a další), nebo aplikace spadne zpět na software, **neověřeno – T-227**.
+
 ### AOT a interop
 
 Všechno potřebné je ve stávajících vazbách FFmpeg.AutoGen 9.0.1.1 (`[DllImport]`, už ověřené pro AOT):

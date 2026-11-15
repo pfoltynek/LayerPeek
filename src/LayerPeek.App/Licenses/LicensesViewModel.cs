@@ -102,8 +102,8 @@ public sealed partial class LicenseItemViewModel : ObservableObject, ILanguageAw
 /// to its source and the exact build used) and every other shipped component from <see cref="ThirdPartyLicenses"/>.
 /// The FFmpeg version is read off the UI thread (it loads the native libraries); a missing FFmpeg is shown, not thrown.
 /// Both platforms build the same official source tarball (macOS: build/macos/build-ffmpeg.sh, T-026; Windows:
-/// build/windows/build-ffmpeg.sh, T-202); the note and the build script link describe the build of the platform. UI thread
-/// only.
+/// build/windows/build-ffmpeg.sh, T-202, for win-x64 and win-arm64, T-225); the note and the build script link describe
+/// the build of the platform. UI thread only.
 /// </summary>
 public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
 {

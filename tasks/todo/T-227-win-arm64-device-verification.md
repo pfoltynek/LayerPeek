@@ -39,7 +39,13 @@ stroji v síti nebo na zařízení):
    (malá změna v `ReleaseTools.psm1` + test), v README a příručkách nabídnout soubory ARM64 ke stažení; od prvního
    vydání s `win-arm64` přidat uzel `arm64` do winget (T-226 otázka 3).
 8. **Přesunuté body z jiných úkolů** (doplňují se sem podle pravidla v `tasks/README.md`):
-   - (zatím žádné)
+   - [ ] **T-225** – „Běh kamery na ARM64 (RTSP, nahrávání, timelapse, D3D11VA)“. Postup: na zařízení
+     `dotnet test tests/LayerPeek.Camera.FFmpeg.Tests -r win-arm64` (FFmpeg ARM64 se přeloží křížově přes emulaci x64,
+     nebo zkopírovat cache `win-arm64-…` z x64 stroje a nastavit `LayerPeekFFmpegCacheRoot`); `[FFmpegFact]` se na ARM64
+     spouští, když jsou DLL vedle testů (`FFmpegTestEnvironment.IsProvidedOnWindows`), včetně
+     `FFmpegWindowsBuildTests` (architektura `Arm64`, importy, D3D11VA). Pak v aplikaci z publish `win-arm64` živý stream
+     ze simulátoru, nahrávání MP4, timelapse a export JPEG, okno licencí (MinGW-w64 runtime 15.0.0) a hardwarové
+     dekódování D3D11VA – funguje, nebo spadne zpět na software (zapsat GPU a ovladač).
 
 ## Akceptační kritéria
 - [ ] AOT smoke test `win-arm64` prošel na ARM64 (zařízení, Windows verze a CPU v poznámkách)

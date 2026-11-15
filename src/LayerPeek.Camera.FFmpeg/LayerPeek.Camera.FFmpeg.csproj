@@ -3,6 +3,14 @@
     <!-- FFmpeg structures are accessed through pointers (FFmpeg.AutoGen). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <!--
+    Built for the RID of an app (LayerPeekAppRuntimeIdentifier, below): an output folder per RID (bin\<config>\app-<rid>\
+    <tfm>\), so the native libraries of win-x64 and win-arm64 never share one folder (T-225: the copy is PreserveNewest,
+    so a newer ARM64 DLL would otherwise stay in the folder of a later x64 build). The SDK appends the framework.
+  -->
+  <PropertyGroup Condition="'$(LayerPeekAppRuntimeIdentifier)' != ''">
+    <OutputPath>bin\$(Configuration)\app-$(LayerPeekAppRuntimeIdentifier)\</OutputPath>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="FFmpeg.AutoGen.Abstractions" />
     <PackageReference Include="FFmpeg.AutoGen.Bindings.DynamicallyLinked" />
@@ -18,13 +26,10 @@
     <ProjectReference Include="..\LayerPeek.Core\LayerPeek.Core.csproj" UndefineProperties="LayerPeekAppRuntimeIdentifier" GlobalPropertiesToRemove="LayerPeekAppRuntimeIdentifier" />
   </ItemGroup>
   <!--
-    The RID of the app that references this RID-agnostic library (LayerPeek.App.csproj sets it for win-arm64 only, T-224):
-    no ARM64 FFmpeg build yet (T-225), so no native libraries instead of x64 ones. A global LayerPeekFFmpegEnabled
-    (command line) still wins.
+    Native FFmpeg DLLs; they flow to the output and publish directory of every referencing project. Which build
+    (win-x64, win-arm64 since T-225, osx-arm64) follows LayerPeekAppRuntimeIdentifier, the RID of the app that references
+    this RID-agnostic library (set by LayerPeek.App.csproj and the FFmpeg tests for every RID, T-224), see
+    build/FFmpeg.targets.
   -->
-  <PropertyGroup Condition="'$(LayerPeekAppRuntimeIdentifier)' == 'win-arm64'">
-    <LayerPeekFFmpegEnabled>false</LayerPeekFFmpegEnabled>
-  </PropertyGroup>
-  <!-- Native FFmpeg DLLs; they flow to the output and publish directory of every referencing project. -->
   <Import Project="..\..\build\FFmpeg.targets" />
 </Project>

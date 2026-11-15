@@ -16,12 +16,28 @@ public sealed class FFmpegWindowsBuildTests
 {
     private const string WindowsOnly = "The Windows build of FFmpeg (build/windows/build-ffmpeg.sh); macOS: HardwareDecodingFallbackTests.";
 
-    /// <summary>What the libraries may import: each other and DLLs that are part of every Windows (build-ffmpeg.sh, SYSTEM_DLLS).</summary>
-    private static readonly HashSet<string> AllowedImports = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "avformat-63.dll", "avcodec-63.dll", "avutil-61.dll", "swscale-10.dll",
-        "kernel32.dll", "msvcrt.dll", "user32.dll", "advapi32.dll", "bcrypt.dll", "ws2_32.dll", "ole32.dll", "shell32.dll",
-    };
+    /// <summary>
+    /// What the libraries may import: each other and DLLs that are part of every Windows (build-ffmpeg.sh, SYSTEM_DLLS of
+    /// the RID): win-x64 the C runtime msvcrt.dll of MSYS2 MINGW64, win-arm64 (T-225, llvm-mingw ucrt) the API sets of the
+    /// Universal C Runtime instead.
+    /// </summary>
+    private static readonly HashSet<string> AllowedImports = new(
+        RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+            ?
+            [
+                "avformat-63.dll", "avcodec-63.dll", "avutil-61.dll", "swscale-10.dll",
+                "kernel32.dll", "user32.dll", "advapi32.dll", "bcrypt.dll", "ws2_32.dll", "ole32.dll", "shell32.dll",
+                "api-ms-win-crt-convert-l1-1-0.dll", "api-ms-win-crt-environment-l1-1-0.dll", "api-ms-win-crt-filesystem-l1-1-0.dll",
+                "api-ms-win-crt-heap-l1-1-0.dll", "api-ms-win-crt-locale-l1-1-0.dll", "api-ms-win-crt-math-l1-1-0.dll",
+                "api-ms-win-crt-private-l1-1-0.dll", "api-ms-win-crt-runtime-l1-1-0.dll", "api-ms-win-crt-stdio-l1-1-0.dll",
+                "api-ms-win-crt-string-l1-1-0.dll", "api-ms-win-crt-time-l1-1-0.dll", "api-ms-win-crt-utility-l1-1-0.dll",
+            ]
+            :
+            [
+                "avformat-63.dll", "avcodec-63.dll", "avutil-61.dll", "swscale-10.dll",
+                "kernel32.dll", "msvcrt.dll", "user32.dll", "advapi32.dll", "bcrypt.dll", "ws2_32.dll", "ole32.dll", "shell32.dll",
+            ],
+        StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The libraries build/FFmpeg.targets provides on Windows (its _LayerPeekFFmpegLibrary items).</summary>
     private static readonly string[] Libraries = ["avcodec-63.dll", "avformat-63.dll", "avutil-61.dll", "swscale-10.dll"];

@@ -84,13 +84,13 @@
     <ProjectReference Include="..\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" />
   </ItemGroup>
   <!--
-    win-arm64 (T-224): no FFmpeg build for ARM64 yet (T-225), so the app is built without the camera libraries (user
-    decision 2026-11-15: switched off automatically by the RID). The library project is RID-agnostic: the SDK builds it
-    without RuntimeIdentifier, so build/FFmpeg.targets cannot see the RID and would hand over its x64 DLLs. The App's RID
-    goes to it as LayerPeekAppRuntimeIdentifier instead (read in LayerPeek.Camera.FFmpeg.csproj, which keeps it from its
-    own references, so LayerPeek.Core is still built once).
+    The FFmpeg libraries of the App's RID (T-224, T-225: win-arm64 gets ARM64 libraries cross-built on x64). The library
+    project is RID-agnostic: the SDK builds it without RuntimeIdentifier, so build/FFmpeg.targets cannot see the RID and
+    would hand over the libraries of the host. The App's RID goes to it as LayerPeekAppRuntimeIdentifier instead (read by
+    build/FFmpeg.targets; LayerPeek.Camera.FFmpeg.csproj keeps it from its own references, so LayerPeek.Core is still
+    built once). Every RID, so that -r win-x64 also gets x64 libraries on an ARM64 machine.
   -->
-  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-arm64'">
+  <ItemGroup Condition="'$(RuntimeIdentifier)' != ''">
     <ProjectReference Update="..\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" AdditionalProperties="LayerPeekAppRuntimeIdentifier=$(RuntimeIdentifier)" />
   </ItemGroup>
 </Project>

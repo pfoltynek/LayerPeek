@@ -1356,7 +1356,9 @@ function Get-UploadBatches {
 # (LayerPeekFFmpegSource* in build/FFmpeg.targets; Windows since T-202, before it the BtbN build); each build makes its
 # own archive with the tarball, unchanged, and the build script of the OS that compiled it:
 #   macos    build/macos/build-ffmpeg.sh (Xcode Command Line Tools, T-026)
-#   windows  build/windows/build-ffmpeg.sh (MSYS2 + MinGW-w64, T-202)
+#   windows  build/windows/build-ffmpeg.sh (win-x64: MSYS2 + MinGW-w64, T-202; win-arm64: llvm-mingw, T-225)
+# One archive per OS covers all its RIDs (user decision 2026-11-12, T-225): Windows ships win-x64 and win-arm64 from the
+# same tarball and script, the README names the configure line of each shipped build and the ARM64 toolchain.
 # The tarball is verified against the pinned SHA-256 and kept in a cache next to the FFmpeg build cache
 # (LayerPeek.Build/ffmpeg-source); the version embedded in the published libraries must match the pinned source.
 # Nothing in the cache is ever deleted; a file with the wrong hash is replaced.
@@ -1408,8 +1410,10 @@ function Get-FFmpegSourcePins {
         Pure: the pinned FFmpeg source of an OS from the text of build/FFmpeg.targets, checked for consistency; throws
         with every problem. Both OSes build the same official tarball (T-202); they differ in the build script.
     .OUTPUTS
-        Os, Rid, Version (the FFmpeg version the libraries report, e.g. '9.0.2'), Inputs (one Kind 'download' input with
-        Name, Url and Sha256) and BuildScript (the build script of the OS, relative to the repository).
+        Os, Rids (the runtime identifiers the script builds: windows win-x64 and win-arm64, macos osx-arm64), Version (the
+        FFmpeg version the libraries report, e.g. '9.0.2'), Inputs (one Kind 'download' input with Name, Url and Sha256),
+        BuildScript (the build script of the OS, relative to the repository) and LlvmMingw (windows: the pinned toolchain
+        of the win-arm64 cross build with Url, Sha256 and Folder, T-225; macos: $null).
     #>
     param([Parameter(Mandatory)] [string] $TargetsText, [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os)
     $problems = [System.Collections.Generic.List[string]]::new()
@@ -1427,13 +1431,24 @@ function Get-FFmpegSourcePins {
     if ($folder -and $url -and -not $url.EndsWith("/$folder.tar.xz", [StringComparison]::Ordinal)) {
         $problems.Add("LayerPeekFFmpegSourceUrl ($url) is not the tarball of LayerPeekFFmpegSourceFolder ($folder).")
     }
+    $llvmMingw = $null
+    if ($Os -eq 'windows') {
+        $llvmFolder = & $value 'LayerPeekLlvmMingwFolder' '^llvm-mingw-\d{8}-ucrt-x86_64$'
+        $llvmUrl = & $value 'LayerPeekLlvmMingwUrl' '^https://github\.com/mstorsjo/llvm-mingw/releases/download/\d{8}/llvm-mingw-\d{8}-ucrt-x86_64\.zip$'
+        $llvmHash = & $value 'LayerPeekLlvmMingwSha256' '^[0-9a-f]{64}$'
+        if ($llvmFolder -and $llvmUrl -and -not $llvmUrl.EndsWith("/$llvmFolder.zip", [StringComparison]::Ordinal)) {
+            $problems.Add("LayerPeekLlvmMingwUrl ($llvmUrl) is not the zip of LayerPeekLlvmMingwFolder ($llvmFolder).")
+        }
+        $llvmMingw = [pscustomobject]@{ Url = $llvmUrl; Sha256 = $llvmHash; Folder = $llvmFolder }
+    }
     if ($problems.Count -gt 0) { throw ($problems -join ' ') }
     [pscustomobject]@{
         Os          = $Os
-        Rid         = if ($Os -eq 'windows') { 'win-x64' } else { 'osx-arm64' }
+        Rids        = if ($Os -eq 'windows') { @('win-x64', 'win-arm64') } else { @('osx-arm64') }
         Version     = $folder.Substring('ffmpeg-'.Length)
         Inputs      = @([pscustomobject]@{ Kind = 'download'; Name = "$folder.tar.xz"; Url = $url; Sha256 = $hash })
         BuildScript = if ($Os -eq 'windows') { 'build/windows/build-ffmpeg.sh' } else { 'build/macos/build-ffmpeg.sh' }
+        LlvmMingw   = $llvmMingw
     }
 }
 
@@ -1530,15 +1545,21 @@ function Get-FFmpegLibraryVersionProblems {
 }
 
 function Get-FFmpegSourceReadme {
-    <# .SYNOPSIS Pure: README.txt of the FFmpeg source archive (what it contains, where it comes from, how it was built). #>
+    <#
+    .SYNOPSIS
+        Pure: README.txt of the FFmpeg source archive (what it contains, where it comes from, how it was built).
+    .PARAMETER Builds
+        The shipped builds, in order: objects with Rid, LibraryName (the avcodec library the line was read from) and
+        Configuration (its configure line). All of the same FFmpeg version, LibraryVersion.
+    #>
     param(
         [Parameter(Mandatory)] $Pins,
         [Parameter(Mandatory)] [string] $AppVersion,
-        [Parameter(Mandatory)] [string] $LibraryName,
-        [Parameter(Mandatory)] [string] $LibraryVersion,
-        [Parameter(Mandatory)] [string] $Configuration
+        [Parameter(Mandatory)] [object[]] $Builds,
+        [Parameter(Mandatory)] [string] $LibraryVersion
     )
-    $platform = if ($Pins.Os -eq 'windows') { "Windows ($($Pins.Rid))" } else { "macOS ($($Pins.Rid))" }
+    $rids = @($Builds | ForEach-Object Rid)
+    $platform = if ($Pins.Os -eq 'windows') { "Windows ($($rids -join ', '))" } else { "macOS ($($rids -join ', '))" }
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add("FFmpeg source code of LayerPeek $AppVersion for $platform")
     $lines.Add('')
@@ -1564,18 +1585,32 @@ function Get-FFmpegSourceReadme {
         $lines.Add("        bash build-ffmpeg.sh $($tarball.Name) ffmpeg-$($Pins.Version) <work folder> <output folder>")
     }
     else {
-        $lines.Add('    https://github.com/pfoltynek/LayerPeek). It extracts the tarball, runs configure with the line below,')
-        $lines.Add('    make and make install with MSYS2 and MinGW-w64 (packages make, diffutils, mingw-w64-x86_64-gcc and')
-        $lines.Add('    mingw-w64-x86_64-nasm) in a clean environment, and keeps avformat-63.dll, avcodec-63.dll, avutil-61.dll')
-        $lines.Add('    and swscale-10.dll. The GCC runtime and the MinGW-w64 runtime with winpthreads are linked statically')
-        $lines.Add('    (their notices are in the licences window of LayerPeek). To build them again, in an MSYS2 shell:')
-        $lines.Add("        bash build-ffmpeg.sh $($Pins.Rid) $($tarball.Name) ffmpeg-$($Pins.Version) <work folder> <output folder>")
+        $lines.Add('    https://github.com/pfoltynek/LayerPeek). It extracts the tarball, runs configure with the line of its RID below,')
+        $lines.Add('    make and make install in a clean environment, and keeps avformat-63.dll, avcodec-63.dll, avutil-61.dll')
+        $lines.Add('    and swscale-10.dll. The compiler runtime and the MinGW-w64 runtime with winpthreads are linked statically')
+        $lines.Add('    (their notices are in the licences window of LayerPeek).')
+        if ($rids -contains 'win-x64') {
+            $lines.Add('    win-x64: built with MSYS2 and MinGW-w64 (packages make, diffutils, mingw-w64-x86_64-gcc and')
+            $lines.Add('    mingw-w64-x86_64-nasm). To build them again, in an MSYS2 shell:')
+            $lines.Add("        bash build-ffmpeg.sh win-x64 $($tarball.Name) ffmpeg-$($Pins.Version) <work folder> <output folder>")
+        }
+        if ($rids -contains 'win-arm64') {
+            $lines.Add('    win-arm64: cross-compiled on Windows x64 with llvm-mingw, run from an MSYS2 shell (packages make and')
+            $lines.Add('    diffutils). The toolchain is the release zip')
+            $lines.Add("        llvm-mingw: $($Pins.LlvmMingw.Url)")
+            $lines.Add("        SHA-256: $($Pins.LlvmMingw.Sha256)")
+            $lines.Add('    extracted into a folder. To build them again, in an MSYS2 shell:')
+            $lines.Add("        bash build-ffmpeg.sh win-arm64 $($tarball.Name) ffmpeg-$($Pins.Version) <work folder> <output folder> <llvm-mingw folder>")
+            $lines.Add("    (<llvm-mingw folder>: the extracted $($Pins.LlvmMingw.Folder) with its bin folder).")
+        }
     }
     $lines.Add('README.txt')
     $lines.Add('    This file.')
-    $lines.Add('')
-    $lines.Add("Configure line of the shipped libraries (read from $LibraryName; the installation prefix replaced by <prefix>):")
-    $lines.Add("    $Configuration")
+    foreach ($build in $Builds) {
+        $lines.Add('')
+        $lines.Add("Configure line of the shipped $($build.Rid) libraries (read from $($build.LibraryName); the installation prefix replaced by <prefix>):")
+        $lines.Add("    $($build.Configuration)")
+    }
     $lines.Add('')
     $lines.Add('The license texts of FFmpeg are in its source (COPYING.LGPLv3, LICENSE.md). LayerPeek itself is licensed under')
     $lines.Add('the GPL-3.0-only: https://github.com/pfoltynek/LayerPeek')
@@ -1595,14 +1630,15 @@ function New-FFmpegSourceArchive {
     <#
     .SYNOPSIS
         Packs the FFmpeg source of a release: <Destination> (ffmpeg-source-<version>-<os>.tar.xz) with one top folder of
-        the same name holding the verified tarball, the build script of the OS and README.txt. The library of the
-        publish folder must report the version of the pinned source. The archive is listed afterwards and must hold
-        exactly these files. WorkDirectory (must not exist) holds the copies while packing and is deleted afterwards.
-        Returns Destination.
+        the same name holding the verified tarball, the build script of the OS and README.txt. One archive covers every
+        RID of the OS in the release (PublishDirectories, RID -> publish folder, in order; Windows: win-x64 and
+        win-arm64, T-225): the library of each publish folder must report the version of the pinned source, and the
+        README names the configure line of each. The archive is listed afterwards and must hold exactly these files.
+        WorkDirectory (must not exist) holds the copies while packing and is deleted afterwards. Returns Destination.
     #>
     param(
         [Parameter(Mandatory)] $Source,
-        [Parameter(Mandatory)] [string] $PublishDirectory,
+        [Parameter(Mandatory)] [System.Collections.IDictionary] $PublishDirectories,
         [Parameter(Mandatory)] [string] $AppVersion,
         [Parameter(Mandatory)] [string] $Destination,
         [Parameter(Mandatory)] [string] $WorkDirectory,
@@ -1611,11 +1647,18 @@ function New-FFmpegSourceArchive {
     if (Test-Path -LiteralPath $Destination) { throw "Archive already exists: $Destination" }
     if (Test-Path -LiteralPath $WorkDirectory) { throw "Work folder already exists: $WorkDirectory" }
     $pins = $Source.Pins
-    $library = Get-FFmpegPublishedLibrary -PublishDirectory $PublishDirectory -Os $pins.Os
-    $libraryName = Split-Path -Leaf $library
-    $facts = Get-FFmpegLibraryFacts -Bytes ([System.IO.File]::ReadAllBytes($library))
-    $problems = @(Get-FFmpegLibraryVersionProblems -Pins $pins -LibraryVersion $facts.Version -LibraryName $libraryName)
-    if (-not $facts.Configuration) { $problems += "$libraryName names no configure line (--prefix=...)." }
+    if ($PublishDirectories.Count -eq 0) { throw "No publish folder for the FFmpeg source of $($pins.Os)." }
+    $foreign = @($PublishDirectories.Keys | Where-Object { $pins.Rids -cnotcontains $_ })
+    if ($foreign.Count -gt 0) { throw "The FFmpeg source of $($pins.Os) covers $($pins.Rids -join ', '), not $($foreign -join ', ')." }
+    $problems = @()
+    $builds = @(foreach ($rid in $PublishDirectories.Keys) {
+            $library = Get-FFmpegPublishedLibrary -PublishDirectory $PublishDirectories[$rid] -Os $pins.Os
+            $libraryName = Split-Path -Leaf $library
+            $facts = Get-FFmpegLibraryFacts -Bytes ([System.IO.File]::ReadAllBytes($library))
+            $problems += @(Get-FFmpegLibraryVersionProblems -Pins $pins -LibraryVersion $facts.Version -LibraryName $libraryName | ForEach-Object { "${rid}: $_" })
+            if (-not $facts.Configuration) { $problems += "${rid}: $libraryName names no configure line (--prefix=...)." }
+            [pscustomobject]@{ Rid = $rid; LibraryName = $libraryName; Configuration = $facts.Configuration }
+        })
     if ($problems.Count -gt 0) { throw ($problems -join ' ') }
 
     $name = [System.IO.Path]::GetFileName($Destination)
@@ -1632,7 +1675,7 @@ function New-FFmpegSourceArchive {
         }
         Copy-Item -LiteralPath (Join-Path $RepoRoot $pins.BuildScript) -Destination $folder
         $entries.Add("$top/$(Split-Path -Leaf $pins.BuildScript)")
-        $readme = Get-FFmpegSourceReadme -Pins $pins -AppVersion $AppVersion -LibraryName $libraryName -LibraryVersion $facts.Version -Configuration $facts.Configuration
+        $readme = Get-FFmpegSourceReadme -Pins $pins -AppVersion $AppVersion -Builds $builds -LibraryVersion $pins.Version
         [System.IO.File]::WriteAllText((Join-Path $folder 'README.txt'), $readme, [System.Text.UTF8Encoding]::new($false))
         $entries.Add("$top/README.txt")
 
