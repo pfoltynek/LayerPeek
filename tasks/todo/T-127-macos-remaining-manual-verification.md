@@ -20,6 +20,10 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
     T-210);
   - poslech VoiceOveru nahrazuje kontrola popisků a stavů přes Accessibility;
   - prohlídku na MacBooku 13" nahrazuje headless test rozložení se San Francisco ve všech jazycích (T-214).
+    **Od T-223 (2026-11-15)** má aplikace na macOS výchozí písmo Inter (rozhodnutí uživatele v T-222): rozložení oken
+    pak pokrývají běžné UI testy s Inter (`tests/LayerPeek.App.UiTests`, testy rozložení a snímky ve všech jazycích);
+    Inter je proti San Francisco v Avalonii o 14–18 % širší a testy s ním procházely už před T-223. Odškrtnuté „části
+    se systémovým písmem“ níže tím platí dál; výsledky T-214 se SF zůstávají pro budoucí návrat k SF.
 - **Úkoly automatizace** (pořadí T-208 → T-209 → T-210 / T-211 → T-212 → T-213 → T-214 → T-215 → T-216 → T-217):
 
 | Úkol | Kontroly | Body tohoto úkolu |
@@ -30,7 +34,7 @@ Zastaralý oddíl „Před vydáním 0.5.0 – doporučené pořadí“ (archite
 | T-211 | `mac.timelapse`, `mac.timelapse-layers` | T-161, T-159 (UI), T-160 (přehrání) |
 | T-212 | `mac.notifications-content` | T-154 (notifikace), T-146 / T-161 (notifikace selhání), T-101 |
 | T-213 | `mac.file-dialogs` | T-146 („Změnit…“), T-165, T-164 |
-| T-214 | headless testy se San Francisco (hotovo 2026-11-14) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k |
+| T-214 | headless testy se San Francisco (hotovo 2026-11-14; od T-223 aplikace na macOS s Inter) | T-038 otázka 3, uříznutí u T-146 / T-148 / T-154 / T-159 / T-161 / T-188; zbývá bod 1k (od T-223 šířky s Inter) |
 | T-215 | `mac.dock-windows`, `mac.mini-after-fullscreen`, `mac.camera-live`, `mac.camera-next-attempt` | T-102, T-151 (Dock), T-038 otázka 2, T-026 (`mac.camera-look`), T-184, T-188 |
 | T-216 | `mac.camera-autoclose`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.appkit-language`, `mac.open-fake`, `mac.hw-decoding-switch`, `mac.keys-czech-layout` | T-151 (fokus), T-122, T-117 (VoiceOver), T-154 (editor), T-097 otázka 5, T-053, T-205 (4)(5), T-100 otázka 1 |
 | T-217 | `mac.release-bundle` (hotovo 2026-11-14) | T-026 „čistý Mac“ (rozhodnutí 2026-11-13: vyčištěné prostředí stačí) |
@@ -413,16 +417,18 @@ a kritérium.
       / T-161 výše („tip se ukáže?“). Do poznámek zapsat složku běhu, commit a řádek zprávy. `FAIL` = nový úkol (např.
       menu se přes AXPress neotevře nebo ho Esc nezavře).
 
-### 1k. Šířka písma v běžící aplikaci (z T-214, 2026-11-14)
-- [ ] **T-214** (předpoklad kalibrace, rozhodnutí uživatele 2026-11-14): headless testy se San Francisco kalibruje
-      systémové písmo Avalonie, ne AppKit (Avalonia kreslí výchozí instanci proměnného písma, o 7–21 % užší než AppKit).
-      Ověřit, že běžící aplikace rozvrhuje text stejně: spustit aplikaci (Debug nebo `LayerPeek.app`) v angličtině,
-      otevřít Nastavení a přes `helper ax <pid>` (Zpřístupnění pro Terminál, `docs/macos-manual-testing.md`) přečíst šířku
-      rámečků záložek `SettingsTabStartupUpdates` a `SettingsTabRecording`. Očekáváno (headless, 2026-11-14): 177 a 101 pt
-      (± 1 pt); aktuální hodnoty vypíše test `SystemFontCalibrationTests.MainTabWidthsForTheCheckInTheRunningApp`
-      (`tests/LayerPeek.App.UiTests.SystemFont`, výstup v TRX: `dotnet test --project tests/LayerPeek.App.UiTests.SystemFont
-      -- --filter-class "*SystemFontCalibrationTests" --report-xunit-trx`). S šířkami podle AppKitu by „Startup and updates“
-      byla o ~13 pt širší. Výsledek zapsat do T-214 a T-222; jiná šířka = nový úkol (výsledky T-214 pak neplatí).
+### 1k. Šířka písma v běžící aplikaci (z T-214, 2026-11-14; od T-223 s Inter)
+- [ ] **T-214 / T-223** (rozhodnutí uživatele 2026-11-14, upraveno 2026-11-15): **od T-223 má aplikace na macOS
+      výchozí písmo Inter**, původní předpoklad T-214 (běžící aplikace rozvrhuje San Francisco jako headless test) tím
+      odpadl. Ověřuje se teď, že běžící aplikace rozvrhuje Inter stejně jako headless UI testy: spustit aplikaci (Debug
+      nebo `LayerPeek.app`) v angličtině, otevřít Nastavení a přes `helper ax <pid>` (Zpřístupnění pro Terminál,
+      `docs/macos-manual-testing.md`) přečíst šířku rámečků záložek `SettingsTabStartupUpdates` a
+      `SettingsTabRecording`. Očekáváno (headless s Inter, 2026-11-15): **197 a 109 pt** (± 1 pt); aktuální hodnoty
+      vypíše test `SettingsWindowTabWidthsUiTests.MainTabWidthsForTheCheckInTheRunningApp` (`tests/LayerPeek.App.UiTests`,
+      výstup v TRX: `dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowTabWidthsUiTests"
+      --report-xunit-trx`). Pro srovnání: se San Francisco (před T-223) 177 a 101 pt. Na pohled: polotučná záhlaví
+      se nedotýkají (se SF „namačkaná“, T-222).
+      Výsledek zapsat do T-223; jiná šířka = nový úkol.
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

@@ -1,7 +1,7 @@
 ---
 id: T-222
 title: Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (užší tvary, umělé tučné)
-status: in-progress
+status: done
 owner: ui-designer
 priority: P3
 platform: macos
@@ -10,6 +10,11 @@ depends_on: [T-214]
 
 > **Rozhodnuto uživatelem 2026-11-14 (z T-214, otázka 2):** založit úkol pro ui-designer. Žádná změna UI bez schválení
 > uživatelem.
+>
+> **Rozhodnuto uživatelem 2026-11-15:** 1 – A + B (Inter na macOS hned a nahlásit chybu Avalonii; k San Francisco se
+> vrátit v budoucím úkolu, až ji Avalonia opraví); 2 – celý balíček `Avalonia.Fonts.Inter`; 3 – jen macOS (Windows
+> zůstává Segoe UI); 4 – text issue se nejdřív ukáže uživateli, pak rozhodne (agent nic na GitHub nezakládá ani
+> nepíše). Implementace: T-223.
 
 ## Cíl
 T-214 zjistil, že Avalonia 12.1.4 u proměnného systémového písma `SFNS.ttf` nepoužije osu váhy ani optické velikosti:
@@ -33,9 +38,10 @@ a navrhne řešení; rozhodne uživatel.
 ## Akceptační kritéria
 - [x] Porovnání s nativními aplikacemi popsané (velikosti, váhy, rozdíly), snímky jen mimo repozitář
 - [x] Možnosti zhodnocené (rozložení, balíček, licence, AOT) s doporučením
-- [ ] Rozhodnutí uživatele zapsané, případná implementace založená jako nový úkol
+- [x] Rozhodnutí uživatele zapsané, případná implementace založená jako nový úkol (T-223)
 
 ## Otevřené otázky
+Všechny zodpovězené 2026-11-15 (rozhodnutí nahoře); původní znění pro historii:
 1. **Které řešení?** (podklady v Poznámkách, tabulka možností)
    - A) Dodávat Inter na macOS (výchozí písmo aplikace jen na macOS) – správné rozestupy a skutečné řezy hned, rozložení
      = to, co už testují snímky s Inter; ale tvary nejsou nativní SF.
@@ -60,6 +66,10 @@ a navrhne řešení; rozhodne uživatel.
 ## Poznámky k implementaci
 **Stav (2026-11-14):** analýza hotová, čeká na rozhodnutí uživatele (kritérium 3) → úkol zůstává v `in-progress`.
 Žádná změna UI ani kódu aplikace.
+
+**Uzavřeno 2026-11-15:** rozhodnutí uživatele zapsané nahoře (A + B, celý balíček, jen macOS, text issue nejdřív
+uživateli). Inter na macOS implementuje T-223. Issue pro Avalonii (návrh níže) zatím nezaloženo – rozhodne uživatel po
+přečtení textu; návrat k San Francisco = budoucí úkol po opravě v Avalonii.
 
 ### Metoda (offscreen, obrazovka Macu byla zamčená)
 - macOS 27.2.1 (26B131), Avalonia 12.1.4 headless se Skia (stejný vykreslovač jako aplikace), AppKit/CoreText ze

@@ -59,6 +59,8 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <!-- Default font on macOS (T-223, Platform/AppFont.cs); Windows keeps Segoe UI. -->
+    <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Velopack" />
   </ItemGroup>
