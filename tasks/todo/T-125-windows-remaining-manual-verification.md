@@ -409,20 +409,27 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       z dřívějšího běhu); v menu ikony je místo nabídky „Aktualizace odmítnuta…“ a otevře záložku „Spuštění a aktualizace“.
 
 ### 2w. Záložka Kamera a snímková frekvence malého náhledu (z T-185, implementováno na Macu 2026-11-11)
-- [ ] **T-185** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
+- [x] **T-185** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
       a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) šestou hlavní záložku „Kamera“
       a kratší záhlaví (fr „Démarrage, MàJ“, it „Riprese“, pl „Start i aktualizacje“, sk „Štart a aktualizácie“) v řádku
       záložek: `settings-camera-notice.png`, `settings-camera-preview-4x3-de.png`, `settings-camera-preview.png`, `settings-camera-window-error-normal-size.png`, `settings-camera-window-errors-fr.png`, `settings-camera-window-off-cs.png`, `settings-camera-window.png`, `settings-camera.png`, `settings-detection-camera-off-fr.png`, `settings-detection.png`, `settings-errors-dark.png`, `settings-errors-fr.png`, `settings-general-errors-dark.png`, `settings-general-errors-focused.png`, `settings-general-errors.png`, `settings-general-test-sent-dark.png`, `settings-general-test-sent-fr.png`, `settings-general-turned-off-de.png`, `settings-general.png`, `settings-invalid-address-focused.png`, `settings-maximized.png`, `settings-printer-images.png`, `settings-prusalink.png`, `settings-recording.png`, `settings-startup-updates-not-installed.png`, `settings-startup-updates.png`, `settings-validation-cs.png`, `settings-validation.png`, `settings-widgets-camera-off-it.png`, `settings-widgets-cooldown-de.png`, `settings-widgets-cooldown-error-fr.png`, `settings-widgets-cooldown-error-nozzle.png`, `settings-widgets-dark.png`, `settings-widgets-mini-strip-camera-off-it.png`, `settings-widgets-mini-strip-dark.png`, `settings-widgets-mini-strip-de.png`, `settings-widgets-mini-strip-fr.png`, `settings-widgets-mini-strip.png`, `settings-widgets-no-printers.png`, `settings-widgets.png`.
-- [ ] **T-185** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
+      Hotovo v T-228 (2026-11-12): všech 40 snímků přegenerovaných a zkontrolovaných (šest záložek v jednom řádku, kratší
+      záhlaví fr / it, jinak beze změny; pl a sk nemají snímek Windows, šířku jejich záhlaví hlídá
+      `SettingsWindowLayoutTests.SixMainTabHeadersFitOnOneRowWithTheErrorMarker` pro všechny jazyky).
+- [x] **T-185** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
       `SettingsWindowLayoutTests.SixMainTabHeadersFitOnOneRowWithTheErrorMarker` (šest záhlaví v jednom řádku při 780 DIP
       s rezervou ≥ 12 DIP i se značkou „!“; na macOS s Inter nejmenší rezerva 19 DIP ve španělštině), `SettingsWindowCameraTabUiTests`,
       `CameraFrameRateLimitTests`, `CameraStreamHubFrameRateTests`, `CameraViewModelFrameRateTests`.
+      Hotovo v T-228 (2026-11-12): plný `dotnet test` na Windows 2× bez chyb (11 056 testů, 0 selhání), uvedené testy
+      proběhly (nepřeskočené).
 - [ ] **T-185** (volitelně, měření): malý náhled se simulátorem (1280 × 720, 25 fps) před / po – CPU procesu při
       Vyvážený (10 fps) a Úsporný (5 fps) proti Plynulý; na Macu −31 % / −42 % (poznámky T-185).
 
 ### 2x. Práh zmenšení obrazu kamery (z T-195, implementováno na Macu 2026-11-11)
-- [ ] **T-195** (automaticky): `dotnet test` na Windows bez chyb, hlavně `CameraDisplayScalerTests` a
+- [x] **T-195** (automaticky): `dotnet test` na Windows bez chyb, hlavně `CameraDisplayScalerTests` a
       `FFmpegCameraFeedDisplayTests.ADisplaySizeOnlyALittleSmallerThanTheCameraIsConvertedInFullResolution`.
+      Hotovo v T-228 (2026-11-12): plný `dotnet test` na Windows 2× bez chyb (11 056 testů, 0 selhání), uvedené testy
+      proběhly (nepřeskočené).
 - [ ] **T-195** (volitelně, měření x64): práh 70 % / 75 % strany zdroje je změřený na Macu (Skia na Metalu, swscale
       s NEON). Na Windows má renderer (Skia přes Direct3D/ANGLE) i swscale (x64 SIMD) jiné cesty. Simulátor 720p
       (`--camera-clip` s klipem 1280 × 720), normální okno při 100 % DPI s plochou obrazu 1152, 960, 928, 896 a 640 px
@@ -465,15 +472,18 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 > nahradí ho T-202 (vlastní build FFmpeg na Windows). Pokud T-202 skončí dřív než toto ověření, 3. bod se ověří už
 > podle T-202 (archiv jen s tarballem FFmpeg a skriptem buildu). Text vydání z `release-upload.ps1 -DryRun` má na konci
 > větu o FFmpeg s odkazy na oba archivy (T-199, rozhodnutí 2026-11-12).
-- [ ] **T-199** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*AboutWindowLayoutTests"`
+- [x] **T-199** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*AboutWindowLayoutTests"`
       a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) blok licence s větou o FFmpeg
       drobným písmem a řádek odkazů se třemi odkazy (třetí „FFmpeg source code of this version“ na dalším řádku):
       `about-support.png`, `about-support-copied.png`, `about-support-error-de.png`.
-- [ ] **T-199** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
+      Hotovo v T-228 (2026-11-12): 3 snímky přegenerované a zkontrolované (448 × 506 místo 484, věta o FFmpeg a třetí odkaz).
+- [x] **T-199** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně
       `AboutWindowLayoutTests.FitsTheSmallestScreenWithTheSameSizeInEveryState` (na macOS s Inter 506 z 508 DIP ve všech
       jazycích, rezerva jen 2 DIP) a `TabMovesFromTheLinksThroughTheSupportActionsToClose`; Pester
       `FFmpeg source of a release (T-199)` v `scripts/ReleaseTools/ReleaseTools.Tests.ps1` (mimo jiné `System32\tar.exe`
       zapíše a přečte `.tar.xz`, `git archive` bez převodu konců řádků i s `core.autocrlf=true`).
+      Hotovo v T-228 (2026-11-12): plný `dotnet test` na Windows 2× bez chyb (11 056 testů, 0 selhání), uvedené testy
+      proběhly (nepřeskočené).
 - [ ] **T-199** (vydání, bez nahrání): `pwsh scripts/release-build.ps1 -SkipFeedSignature` vytvoří
       `dist/ffmpeg-source-<verze>-windows.tar.xz` a před buildem v `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\`
       `ffmpeg-n9.0.2-39-g7adfbe40dc.tar` a `FFmpeg-Builds-autobuild-2026-10-31-12-59.tar` se SHA-256 z `build/FFmpeg.targets`
@@ -483,16 +493,28 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       Druhý běh nic nestahuje. Doba kroku (xz z ~100 MB) do poznámek T-199.
 
 ### 2ac. Nastavení > Kamera – Hardwarové dekódování (z T-204, implementováno na Macu 2026-11-12)
-- [ ] **T-204** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
+- [x] **T-204** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
       a zkontrolovat v `tests/LayerPeek.App.UiTests/Snapshots/` (macOS sada je hotová) nový snímek `settings-camera-tab.png`
       (záložka Kamera: snímková frekvence malého náhledu, pod ní „Hardware decoding“ s volbou „Automatic“, popisem
       a na Windows druhým řádkem „On Windows, Automatic still decodes in software for now.“); nic se neořezává.
+      Hotovo 2026-11-15 na Windows 11 (26300): snímek vytvořený a zkontrolovaný, odpovídá popisu, nic se neořezává.
 - [ ] **T-204** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně `SettingsWindowCameraTabUiTests`,
       `SettingsWindowLayoutTests.EverythingFitsWithoutScrollingInEveryState` (první stav má na záložce Kamera „Vypnuto“
       s poznámkou Windows) a `HardwareDecodingRuleTests.AutomaticUsesHardwareOnlyWhereTheRuleSelectsADevice`.
 - [ ] **T-204** (ruční, krátce): v nainstalované / spuštěné aplikaci Nastavení > Kamera ukazuje poznámku Windows;
       „Vypnuto“ uložit, v `%APPDATA%\LayerPeek\settings.json` je `"cameraHardwareDecoding": "Off"`, okno kamery dál
       ukazuje obraz; zpět „Automaticky“ hodnotu ze souboru odebere.
+
+### 2ad. Avalonia 12.1.6 (z T-224, ověřeno na Macu 2026-11-15)
+- [ ] **T-224** (automaticky): `dotnet build` a `dotnet test` na Windows bez chyb a varování (snímky sady Windows se
+      nemají změnit – vykreslení textu a Skia jsou mezi 12.1.4 a 12.1.6 beze změny, na Macu snímky prošly bez
+      přegenerování), `pwsh scripts/aot-smoke.ps1` PASS (win-x64).
+- [ ] **T-224** (ruční, krátce): spuštěná aplikace – ikona v oznamovací oblasti, menu tiskárny, okna Nastavení
+      a O aplikaci → Licence třetích stran (Avalonia „Verze 12.1.6“) se otevřou a zavřou bez ukončení aplikace.
+- [ ] **T-224** (informativní): Avalonia 12.1.5 opravuje `Screen.DisplayName` na Windows (#22593); v okně kamery
+      (volba monitoru pro celou obrazovku) zapsat do poznámek T-224, zda `DisplayName` Avalonie už vrací název monitoru
+      (např. „DELL U2719D“) – pak by šlo v novém úkolu zvážit odstranění vlastního čtení názvu (`MonitorNameNative`,
+      T-035). Nic neměnit v tomto bodě.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

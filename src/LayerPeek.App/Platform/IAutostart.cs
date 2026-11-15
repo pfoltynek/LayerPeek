@@ -65,3 +65,25 @@ internal interface IAutostartApproval
     /// </summary>
     void OpenApprovalSettings();
 }
+
+/// <summary>Whether the app starts after logon, with "cannot tell" (T-201).</summary>
+internal enum AutostartState
+{
+    /// <summary>It could not be told: the state cannot be read, or it belongs to another copy of the app.</summary>
+    Unknown,
+
+    Off,
+
+    On,
+}
+
+/// <summary>
+/// The autostart's state with <see cref="AutostartState.Unknown"/> (T-201): the one-time migration of the stored choice must
+/// never take an unreadable state for "off". Windows only (<c>StartupShortcutAutostart</c>); implemented next to
+/// <see cref="IAutostart"/> by the same object, whose <see cref="IAutostart.IsEnabled"/> keeps its answer.
+/// </summary>
+internal interface IAutostartState
+{
+    /// <summary>The state; never throws for an unreadable state (that is <see cref="AutostartState.Unknown"/>).</summary>
+    AutostartState QueryState();
+}

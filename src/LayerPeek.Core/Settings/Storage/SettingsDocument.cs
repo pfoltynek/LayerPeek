@@ -39,6 +39,13 @@ internal sealed class SettingsDocument
     /// <summary>"Check for updates automatically" (T-058); missing in older files, which load with the default (on).</summary>
     public bool? CheckForUpdates { get; set; }
 
+    /// <summary>
+    /// The start after logon the user chose in the settings window (T-201); written only once the user chose, so that
+    /// until then the install hook switches the autostart on like for a new install.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? StartAtLogin { get; set; }
+
     public NotificationsDocument? Notifications { get; set; }
 
     /// <summary>Global settings of the camera overlay (T-077); missing in older files and not written while all are the defaults.</summary>

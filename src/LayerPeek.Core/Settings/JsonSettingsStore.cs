@@ -315,6 +315,96 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         }
     }
 
+    /// <summary>
+    /// The start after logon the user chose (<see cref="AppSettings.StartAtLogin"/>), for the install hook of Velopack
+    /// (T-201), which runs synchronously within a short time limit in a process of its own: one synchronous read without
+    /// retries and without writing anything. Only the root <c>startAtLogin</c> is read (<see cref="StartAtLoginValue"/>), so
+    /// that a value elsewhere in the file the loader would reject never hides a stored choice; the file must still be valid
+    /// JSON.
+    /// </summary>
+    /// <returns><see langword="null"/> when there is no file, the root is <c>null</c>, or there is no choice.</returns>
+    /// <exception cref="JsonException">
+    /// The file is not valid JSON, its root is neither an object nor <c>null</c>, or <c>startAtLogin</c> is not a boolean.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">Invalid UTF-8 in a property name.</exception>
+    /// <exception cref="InvalidDataException">The file is too large to be settings.</exception>
+    /// <exception cref="IOException">The file cannot be read (also when another process holds it).</exception>
+    /// <exception cref="UnauthorizedAccessException">The file cannot be read.</exception>
+    public bool? ReadStartAtLoginChoice()
+    {
+        byte[] content;
+        using (FileStream? stream = OpenForReading(useAsync: false))
+        {
+            if (stream is null)
+            {
+                return null;
+            }
+
+            long length = stream.Length;
+            if (length > MaxFileSizeBytes)
+            {
+                throw new InvalidDataException($"Settings file is larger than {MaxFileSizeBytes} bytes.");
+            }
+
+            content = new byte[length];
+            stream.ReadExactly(content);
+        }
+
+        return StartAtLoginValue.Read(content);
+    }
+
+    /// <summary>
+    /// Stores <paramref name="choice"/> as the start after logon the user chose (T-201) while the file holds no choice yet:
+    /// only that value is added (<see cref="StartAtLoginValue.WriteIfUnset"/>), everything else of the file stays byte for
+    /// byte; without a file, a file of the default settings with the choice is written. A file that already holds a value,
+    /// is not valid JSON, is too large, has no settings object or is of a newer format is left alone.
+    /// </summary>
+    /// <returns>Whether the choice was written.</returns>
+    /// <exception cref="IOException">The file cannot be read or replaced (also when another process holds it after the retries).</exception>
+    /// <exception cref="UnauthorizedAccessException">The file cannot be read or replaced.</exception>
+    public async Task<bool> SetStartAtLoginChoiceIfUnsetAsync(bool choice, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            byte[]? content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            if (content is null)
+            {
+                if (File.Exists(FilePath))
+                {
+                    // Too large to be settings: not ours to change.
+                    return false;
+                }
+
+                await SaveCoreAsync(SettingsMapper.ToDocument(AppSettings.Default with { StartAtLogin = choice }), cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+
+            byte[]? written;
+            try
+            {
+                written = StartAtLoginValue.WriteIfUnset(content, choice);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                // Not valid JSON, or invalid UTF-8 in a property name: not ours to change.
+                return false;
+            }
+
+            if (written is null)
+            {
+                return false;
+            }
+
+            await WriteAtomicallyAsync(written, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public void Dispose() => _gate.Dispose();
 
     /// <summary>
@@ -412,12 +502,12 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
     }
 
     /// <summary>The settings file opened for reading, or <see langword="null"/> when it (or its folder) does not exist.</summary>
-    private FileStream? OpenForReading()
+    private FileStream? OpenForReading(bool useAsync = true)
     {
         try
         {
             // FileShare.Delete lets another process atomically replace the file while we read it.
-            return new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, BufferSize, useAsync: true);
+            return new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, BufferSize, useAsync);
         }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {

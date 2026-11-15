@@ -9,6 +9,9 @@
       initialized once per process, so a second assembly). The linked HeadlessSession / HeadlessTestApp switch on this
       constant: SFNS.ttf is read from /System/Library/Fonts at test time (never committed or shipped, Apple licence),
       without it every test is skipped with the reason, and no snapshot is ever written.
+      Since T-223 the app uses Inter on macOS too (Avalonia 12.1 lays San Francisco out too narrow, T-222), so these tests
+      no longer check the app's font: they are kept for the return to San Francisco once Avalonia fixes it (whether to
+      keep or remove them is an open question of T-223).
     -->
     <DefineConstants>$(DefineConstants);LAYERPEEK_SYSTEM_FONT</DefineConstants>
   </PropertyGroup>

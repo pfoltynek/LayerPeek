@@ -8,6 +8,11 @@ platform: windows
 depends_on: []
 ---
 
+> **Rozhodnutí zrušeno (rozhodnutí uživatele 2026-11-12):** LayerPeek se bude vydávat i pro Windows ARM64
+> (`win-arm64`) vedle `win-x64` a připraví se sestavovací prostředí pro ARM64. Návrat podpory řeší T-224 (prostředí a
+> AOT publish), T-225 (FFmpeg `win-arm64`, navazuje na T-202), T-226 (vydání, instalátor, aktualizace, winget,
+> dokumentace) a T-227 (ověření na zařízení ARM64). Tento úkol zůstává jako historie.
+
 ## Cíl
 Uživatel 2026-11-01: „odstraň celou podporu pro win arm, nemám stroj, na kterém bych to mohl testovat, tak aktuálně to
 nebudu ani podporovat.“ Windows se vydává a podporuje jen jako `win-x64`. macOS (`osx-arm64`, případně `osx-x64`) se

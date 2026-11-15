@@ -20,8 +20,12 @@ internal interface IToastRegistration
 /// <item><c>--veloapp-install</c>: the toast registrations of a normal start (COM activator <c>LocalServer32</c>, and the
 /// Start menu shortcut Velopack created gets the activator's <c>ToastActivatorCLSID</c>; docs/velopack.md point 4), so
 /// that clicks on toasts reach the app before it ever ran (a silent install does not start it), and autostart switched on
-/// (on by default, user decision 2026-10-26). Only a new install runs this hook, so an update keeps the user's choice; a
-/// failed autostart only goes to the log, the app works without it.</item>
+/// (on by default, user decision 2026-10-26) unless the user switched it off in the settings (T-201). Velopack runs this
+/// hook for a new install and also for a reinstall over an existing installation (<c>Setup.exe --silent</c>, which is what
+/// <c>winget upgrade</c> does), never for an update applied by the app; the settings survive a reinstall and an uninstall,
+/// so the stored choice (<see cref="Core.Settings.AppSettings.StartAtLogin"/>) tells them apart: none (a new install, or
+/// settings that cannot be read) or on = on, off = left alone. A failed autostart only goes to the log, the app works
+/// without it.</item>
 /// <item><c>--veloapp-uninstall</c>: the system registrations go: the app's toasts in the notification center, the COM
 /// activator, Windows' notification settings of the app, the taskbar choice of the tray icon (T-061) and autostart. Each
 /// step runs even when an earlier one failed. The Start menu shortcut is deleted by Velopack itself; settings and passwords
@@ -40,11 +44,13 @@ internal sealed partial class InstallerHooks
     private readonly IAppNotificationSettings _notificationSettings;
     private readonly TrayIconPromotion _trayIcons;
     private readonly IAutostart? _autostart;
+    private readonly IAutostartChoiceSource _autostartChoice;
     private readonly string? _executablePath;
     private readonly ILogger<InstallerHooks> _logger;
 
     /// <param name="trayIcons">Clears the taskbar choice of the tray icon of <paramref name="executablePath"/> (T-061).</param>
     /// <param name="autostart">The app's autostart; <see langword="null"/> when there is none to remove.</param>
+    /// <param name="autostartChoice">The start after logon the user chose, read by the install hook (T-201).</param>
     /// <param name="executablePath">The installed exe (<c>current\LayerPeek.exe</c>), normally <see cref="Environment.ProcessPath"/>.</param>
     public InstallerHooks(
         IToastRegistration toasts,
@@ -53,6 +59,7 @@ internal sealed partial class InstallerHooks
         IAppNotificationSettings notificationSettings,
         TrayIconPromotion trayIcons,
         IAutostart? autostart,
+        IAutostartChoiceSource autostartChoice,
         string? executablePath,
         ILogger<InstallerHooks> logger)
     {
@@ -61,6 +68,7 @@ internal sealed partial class InstallerHooks
         ArgumentNullException.ThrowIfNull(activators);
         ArgumentNullException.ThrowIfNull(notificationSettings);
         ArgumentNullException.ThrowIfNull(trayIcons);
+        ArgumentNullException.ThrowIfNull(autostartChoice);
         ArgumentNullException.ThrowIfNull(logger);
         _toasts = toasts;
         _history = history;
@@ -68,6 +76,7 @@ internal sealed partial class InstallerHooks
         _notificationSettings = notificationSettings;
         _trayIcons = trayIcons;
         _autostart = autostart;
+        _autostartChoice = autostartChoice;
         _executablePath = executablePath;
         _logger = logger;
     }
@@ -81,7 +90,7 @@ internal sealed partial class InstallerHooks
     {
         List<string> failures = [];
         Step(failures, "Registering the toasts", _toasts.Register);
-        if (_autostart is { } autostart)
+        if (_autostart is { } autostart && !UserSwitchedAutostartOff())
         {
             try
             {
@@ -94,6 +103,32 @@ internal sealed partial class InstallerHooks
         }
 
         return failures;
+    }
+
+    /// <summary>
+    /// T-201: the stored choice is off. Settings that cannot be read count as no choice (autostart on, like a new install);
+    /// the reason goes to the log.
+    /// </summary>
+    private bool UserSwitchedAutostartOff()
+    {
+        bool? choice;
+        try
+        {
+            choice = _autostartChoice.Read();
+        }
+        catch (Exception ex)
+        {
+            LogAutostartChoiceUnreadable(ex);
+            return false;
+        }
+
+        if (choice == false)
+        {
+            LogAutostartLeftOff();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary><c>--veloapp-uninstall</c>. Never throws.</summary>
@@ -135,6 +170,12 @@ internal sealed partial class InstallerHooks
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Install: autostart could not be switched on; the user can switch it on in the settings.")]
     private partial void LogAutostartNotEnabled(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Install: the settings could not be read; autostart is switched on as for a new install.")]
+    private partial void LogAutostartChoiceUnreadable(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Install: the user switched autostart off in the settings; it stays off.")]
+    private partial void LogAutostartLeftOff();
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Uninstall: the taskbar choice of {Count} tray icon entries was cleared.")]
     private partial void LogTrayIconsCleared(int count);

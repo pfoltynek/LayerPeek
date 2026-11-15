@@ -1,7 +1,7 @@
 ---
 id: T-222
 title: Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (užší tvary, umělé tučné)
-status: in-progress
+status: done
 owner: ui-designer
 priority: P3
 platform: macos
@@ -10,6 +10,11 @@ depends_on: [T-214]
 
 > **Rozhodnuto uživatelem 2026-11-14 (z T-214, otázka 2):** založit úkol pro ui-designer. Žádná změna UI bez schválení
 > uživatelem.
+>
+> **Rozhodnuto uživatelem 2026-11-15:** 1 – A + B (Inter na macOS hned a nahlásit chybu Avalonii; k San Francisco se
+> vrátit v budoucím úkolu, až ji Avalonia opraví); 2 – celý balíček `Avalonia.Fonts.Inter`; 3 – jen macOS (Windows
+> zůstává Segoe UI); 4 – text issue se nejdřív ukáže uživateli, pak rozhodne (agent nic na GitHub nezakládá ani
+> nepíše). Implementace: T-223.
 
 ## Cíl
 T-214 zjistil, že Avalonia 12.1.4 u proměnného systémového písma `SFNS.ttf` nepoužije osu váhy ani optické velikosti:
@@ -33,9 +38,10 @@ a navrhne řešení; rozhodne uživatel.
 ## Akceptační kritéria
 - [x] Porovnání s nativními aplikacemi popsané (velikosti, váhy, rozdíly), snímky jen mimo repozitář
 - [x] Možnosti zhodnocené (rozložení, balíček, licence, AOT) s doporučením
-- [ ] Rozhodnutí uživatele zapsané, případná implementace založená jako nový úkol
+- [x] Rozhodnutí uživatele zapsané, případná implementace založená jako nový úkol (T-223)
 
 ## Otevřené otázky
+Všechny zodpovězené 2026-11-15 (rozhodnutí nahoře); původní znění pro historii:
 1. **Které řešení?** (podklady v Poznámkách, tabulka možností)
    - A) Dodávat Inter na macOS (výchozí písmo aplikace jen na macOS) – správné rozestupy a skutečné řezy hned, rozložení
      = to, co už testují snímky s Inter; ale tvary nejsou nativní SF.
@@ -60,6 +66,10 @@ a navrhne řešení; rozhodne uživatel.
 ## Poznámky k implementaci
 **Stav (2026-11-14):** analýza hotová, čeká na rozhodnutí uživatele (kritérium 3) → úkol zůstává v `in-progress`.
 Žádná změna UI ani kódu aplikace.
+
+**Uzavřeno 2026-11-15:** rozhodnutí uživatele zapsané nahoře (A + B, celý balíček, jen macOS, text issue nejdřív
+uživateli). Inter na macOS implementuje T-223. Issue pro Avalonii (návrh níže) zatím nezaloženo – rozhodne uživatel po
+přečtení textu; návrat k San Francisco = budoucí úkol po opravě v Avalonii.
 
 ### Metoda (offscreen, obrazovka Macu byla zamčená)
 - macOS 27.2.1 (26B131), Avalonia 12.1.4 headless se Skia (stejný vykreslovač jako aplikace), AppKit/CoreText ze
@@ -122,7 +132,7 @@ a navrhne řešení; rozhodne uživatel.
 > **macOS: system font (.AppleSystemUIFont / SF Pro variable) is laid out with default-instance advances while glyphs
 > are drawn at the requested weight – SemiBold/Bold glyphs collide, text 7–20 % narrower than AppKit**
 >
-> Avalonia 12.1.4 (Skia), macOS 27.2.1. With the default font family on macOS (`.AppleSystemUIFont`, the variable
+> Avalonia 12.1.4 and 12.1.6 (Skia), macOS 27.2.1. With the default font family on macOS (`.AppleSystemUIFont`, the variable
 > `SFNS.ttf`), `TextLayout` widths are identical for Normal, SemiBold and Bold (e.g. 13 pt "Startup and updates":
 > 110.31 DIP for all weights; AppKit `NSFont.systemFont(ofSize:weight:)`: 123.65 / 129.11 / 132.28). The advances match
 > the font's default instance (wght 400, opsz 28) without the `trak` table, while the glyphs are rasterized by Skia at
@@ -130,7 +140,48 @@ a navrhne řešení; rozhodne uživatel.
 > native apps. Expected: shaping uses the same variation instance as rendering (wght from FontWeight, opsz = point size
 > as CoreText's automatic optical sizing) and applies `trak` tracking for the size, so widths match AppKit. Repro: measure
 > `new TextLayout("Startup and updates", new Typeface(".AppleSystemUIFont", FontStyle.Normal, w), 13, …)` for the three
-> weights and compare with `CTLineGetTypographicBounds`. Related: #11092, #22179, #22665.
+> weights and compare with `CTLineGetTypographicBounds`. Related: #21565 (spacing workaround `LetterSpacing = 0.7`
+> in its last comment), #22182 (the same symptom for Avalonia's own variation clones), #11092, #22179, #22665.
+
+### 2026-11-15 – opakované měření na Avalonii 12.1.6 a hledání existujícího hlášení (T-224)
+- **Chyba ve 12.1.6 trvá, beze změny.** Stejný měřicí program jako výše (headless Skia, `TextLayout`,
+  `.AppleSystemUIFont` / `SFNS.ttf` / Inter, Normal / SemiBold / Bold, 11–17 pt, 10 vzorků) jen s balíčky 12.1.6:
+  CSV šířek je **bajtově shodné** s 12.1.4 a všech 630 vykreslených řádků Avalonie je bajtově shodných (žádná změna
+  ani v antialiasingu). Proti AppKitu (`NSFont.systemFont(ofSize:weight:)`, stejné CSV jako 2026-11-14): Regular
+  −6,3 až −14,8 % (průměr −10,1 %), SemiBold −10,4 až −18,4 % (−14,0 %), Bold −12,6 až −20,4 % (−16,0 %). 13 pt
+  „Startup and updates“: AppKit 123,6 / 129,1 / 132,3 DIP, Avalonia 110,3 DIP pro všechny tři váhy. Inter beze změny
+  (Avalonia = AppKit s Inter, 0,0 %).
+- Odpovídá to změnám: mezi tagy 12.1.4 a 12.1.6 se v `src/Avalonia.Base/Media/Fonts`, `src/Skia` (kromě geometrie
+  a bitmap) ani v `src/HarfBuzz` nezměnilo nic, co určuje posuny glyfů; změny textu (Bidi, zalamování,
+  `ShapedBuffer`, `Typeface.Normalize`) se šířky jednoho řádku netýkají.
+- **`main` (12.2, jen čteno, 449 commitů za 12.1.6, nesestaveno):** má podporu proměnných písem z vlastního čtení
+  tabulek (#22179–#22185 sloučené 30. 10.: fvar/avar, gvar, **HVAR posuny**, `FontVariationSettings`) a #22773
+  (12.2, sloučeno 13. 11.: umělé ztučnění z typeface platformy). Výběr instance proměnného písma podle `FontWeight`
+  (#22665) a fantomové body (#22664) jsou **otevřené**; v #22773 Gillibald 11. 11. píše „We are still not able to render
+  variable fonts properly“ a že platforma u instance proměnného písma hlásí vlastnosti výchozí instance. Optická velikost
+  podle velikosti písma (opsz jako CoreText) ani tabulka `trak` nezmiňuje nikdo. Odhad: ve 12.2 nejvýš možnost zadat
+  `FontVariationSettings` (wght) ručně; automatická oprava SF ne dřív než po #22665 a jen pokud ji někdo napojí na
+  systémové písmo macOS (neověřeno sestavením).
+- **Existující hlášení v AvaloniaUI/Avalonia** (hledáno přes `gh api search/issues`: AppleSystemUIFont, San Francisco,
+  SFNS, SF Pro, System Font, variable font, fvar, opsz, trak, HVAR, font weight / SemiBold macOS, LetterSpacing macOS,
+  glyphs overlap, text narrower, CTFont, AppKit font):
+
+  | Odkaz | Stav | Shoda |
+  |---|---|---|
+  | [#21565](https://github.com/AvaloniaUI/Avalonia/issues/21565) „No way to use Apple AppKit system font on macOS“ (12.0.4) | otevřené, `bug`, `area-textprocessing` | **nejbližší, částečná.** Hlavně o tom, že `$Default` dá Helvetica; v posledním komentáři (xecrets, 14. 6.) autor najde `.AppleSystemUIFont` / „System Font“ a píše o „further complications with spacing and perceived weight“, obchází je `LetterSpacing = 0.7` kolem 13 pt. Příčinu (posuny výchozí instance, opsz, `trak`, kolize tučného písma) ani čísla neuvádí; správce (Gillibald) odpovídá, že Avalonia nemá vlastní font manager pro macOS a chování Skia je „as intended“ |
+  | [#22182](https://github.com/AvaloniaUI/Avalonia/pull/22182) „Glyph Outline Part 9/17 – HVAR advance widths“ | PR sloučený (30. 10., do `main` přes řadu PR) | stejný příznak („a wght=900 layout draws correctly thickened glyphs at default-instance advances, so they overlap“), ale pro klony `WithVariations` z vlastní cesty Avalonie, ne pro typeface platformy macOS; ve 12.1.x není |
+  | [#22665](https://github.com/AvaloniaUI/Avalonia/pull/22665) „Part 13/17 – Resolve weights and styles to variable font instances“ | PR otevřený | budoucí základ opravy (váha → instance `wght`); systémové písmo, opsz podle velikosti ani `trak` neřeší |
+  | [#22773](https://github.com/AvaloniaUI/Avalonia/pull/22773) „Use the platform's simulated typeface…“ | PR sloučený do `main`, milník 12.2 | souvisí (instance proměnného písma od platformy hlásí výchozí vlastnosti), chybu SF neopravuje |
+  | [#11092](https://github.com/AvaloniaUI/Avalonia/issues/11092) „FontWeight not working with fonts in Resources“ | otevřené od 2023 | proměnná písma obecně, ne macOS / šířky |
+  | [#22019](https://github.com/AvaloniaUI/Avalonia/issues/22019) „Inconsistent font rendering between Windows and MacOS / iOS“ | otevřené | jiná chyba (Arial Rounded MT Bold → Helvetica na macOS/iOS) |
+  | [#2667](https://github.com/AvaloniaUI/Avalonia/issues/2667) „FontWeight=Bold doesn't work on macOS“ (2019) | uzavřené | historické, jiná příčina |
+
+  Přesné hlášení „systémové písmo macOS rozvržené s posuny výchozí instance (užší text, kolize polotučného / tučného)“
+  **neexistuje**. Návrh textu výše je doplněný o 12.1.6 a odkazy #21565 a #22182.
+- **K rozhodnutí uživatele:** (a) založit nové issue podle návrhu (s odkazem na #21565), nebo (b) přidat zjištění jako
+  komentář do #21565, nebo (c) nehlásit. Doporučení: (a) – #21565 řeší výběr rodiny (`$Default` → Helvetica)
+  a správce ho odmítá jako chování Skia, kdežto naše chyba je měřitelný rozpor mezi rozvržením a vykreslením uvnitř
+  Avalonie; odkaz na #21565 ji s ním spojí. Nic nebylo na GitHub zapsáno.
 
 ### Co ověřeno nebylo
 - Běžící aplikace na skutečné obrazovce (T-127 bod 1k – šířky záložek přes `helper ax`) zůstává uživateli; obrazovka
@@ -138,5 +189,5 @@ a navrhne řešení; rozhodne uživatel.
   a výběr písma jsou tytéž (T-214).
 - Nativní aplikace (Nastavení systému, Finder) nebyly snímány – za ně stojí AppKit `NSFont.systemFont` offscreen, což je
   písmo, které tyto aplikace v ovládacích prvcích používají.
-- Novější Avalonia (12.1.6, `master`) nebyla sestavena ani vyzkoušena.
+- Novější Avalonia: 12.1.6 změřena 2026-11-15 (viz výše); `main` / noční sestavení nesestaveny, jen čteny.
 - Windows beze změny (Segoe UI je statické písmo, problém se ho netýká).

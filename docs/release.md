@@ -826,7 +826,7 @@ winget uninstall --id 3DPrint.LayerPeek
 - Odeslání je **volitelný krok skriptu vydání**: po zveřejnění se skript zeptá, zda spustit odeslání. Token je z `gh auth token` jen za běhu, nikdy se neukládá, nevypisuje ani nepředává na příkazové řádce.
 - Doplněno 2026-11-11 (odpovědi na otázky v T-059):
   - **Token:** pro odeslání **dočasné `gh auth login`** (OAuth v prohlížeči) a po odeslání `gh auth logout`, pak zase obvyklé přihlášení (T-180: `GH_TOKEN`). Postup v části [Token](#token).
-  - **`winget upgrade`** přes běžící instalaci: zapnutí autostartu při přeinstalaci opraví nový úkol **T-201** (hook instalace), zbytek chování je zdokumentovaný v části [Velopack a `winget upgrade`](#velopack-a-winget-upgrade) a v příručkách (doporučená je aktualizace v aplikaci).
+  - **`winget upgrade`** přes běžící instalaci: zapnutí autostartu při přeinstalaci opravil úkol **T-201** (hook instalace respektuje volbu uloženou v nastavení), zbytek chování je zdokumentovaný v části [Velopack a `winget upgrade`](#velopack-a-winget-upgrade) a v příručkách (doporučená je aktualizace v aplikaci).
   - Repozitář `pfoltynek/LayerPeek` **už je veřejný** (ověřeno `gh repo view`), nic dalšího se nečeká.
   - **Microsoft CLA** podepíše uživatel svým účtem u prvního PR.
   - **Telemetrie `wingetcreate` je vypnutá:** skript ji před každým spuštěním `wingetcreate` vypne v jeho `settings.json` (viz [Telemetrie `wingetcreate`](#telemetrie-wingetcreate)).
@@ -959,7 +959,7 @@ Ověřeno ve zdroji Velopacku 1.2.161 ([install.rs](https://github.com/velopack/
 - **`winget upgrade`** (`UpgradeBehavior: install`, i v rámci `winget upgrade --all`) spustí nový `Setup.exe --silent` přes stávající instalaci. Velopack to bere jako přeinstalaci:
   - **násilně ukončí běžící aplikaci** (bez uložení stavu, jako ukončení ve Správci úloh),
   - celou složku `%LOCALAPPDATA%\LayerPeek` nahradí – **logy v `%LOCALAPPDATA%\LayerPeek\logs` se smažou** (stejně jako u instalace přes `.zip` verzi),
-  - znovu vytvoří zástupce a spustí hook `--veloapp-install`, který dnes **znovu zapne spouštění po přihlášení**, i když ho uživatel vypnul – **opraví úkol T-201** (P1, hook nemá zapnout autostart, když ho uživatel vypnul),
+  - znovu vytvoří zástupce a spustí hook `--veloapp-install`; ten od T-201 **respektuje vypnuté spouštění po přihlášení** (volba uložená v nastavení, `AppSettings.StartAtLogin`): když ho uživatel vypnul, zůstane vypnuté, když ho měl zapnuté nebo ho nikdy neměnil, zapne ho (podrobnosti v `docs/velopack.md`, bod 3),
   - aplikaci po tiché instalaci **nespustí**; uživatel ji spustí ze Start menu (nebo se spustí po dalším přihlášení).
   - Nastavení (`%APPDATA%\LayerPeek`) a hesla zůstanou. Při chybě Velopack vrátí původní složku.
 - **Doporučení pro uživatele: aktualizovat v aplikaci** (položka „Je dostupná nová verze X.Y.Z“ v menu ikony): aplikace před aktualizací uloží stav, běžně se ukončí, nová verze se sama spustí a logy zůstanou. Popsáno v příručkách (`manuals/*/manual.md`, kapitola 12 Aktualizace, Windows).

@@ -500,8 +500,32 @@ internal static partial class AppServices
             // Only the entries of the installed exe (T-061); Explorer's other entries are never touched.
             new TrayIconPromotion(new NotifyIconSettingsRegistry(), loggers.CreateLogger<TrayIconPromotion>()),
             CreateAutostart(production, windows: true, loggers.CreateLogger<StartupShortcutAutostart>()).Autostart,
+            // T-201: the settings of %APPDATA%\LayerPeek survive a reinstall and an uninstall; read only.
+            new SettingsFileAutostartChoice(production.DataDirectory),
             executable,
             loggers.CreateLogger<InstallerHooks>());
+    }
+
+    /// <summary>
+    /// The one-time migration of the autostart choice (T-201, <see cref="AutostartChoiceMigration"/>): only for the app
+    /// installed by Velopack on Windows with the production identity, which is exactly when <paramref name="autostart"/>
+    /// exists outside the test mode (<see cref="CreateAutostart(AppEnvironment, bool, ILogger{StartupShortcutAutostart})"/>:
+    /// none for a <c>.zip</c>, a development build or a test host); never on macOS (no install hook reads the choice there).
+    /// </summary>
+    /// <param name="store">The settings store of the app; <see langword="null"/> when it is no settings file (no migration).</param>
+    internal static AutostartChoiceMigration? CreateAutostartChoiceMigration(
+        AppEnvironment environment,
+        bool windows,
+        IAutostart? autostart,
+        JsonSettingsStore? store,
+        ILogger<AutostartChoiceMigration> logger)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(logger);
+        // Only an autostart that can tell "unknown" from "off" (the Startup folder shortcut).
+        return windows && OperatingSystem.IsWindows() && !environment.IsIsolated && autostart is IAutostartState state && store is not null
+            ? new AutostartChoiceMigration(state, new SettingsStoreAutostartChoice(store), logger)
+            : null;
     }
 
     /// <summary>

@@ -60,6 +60,13 @@ Mac → **T-115** (sezení s agentem na Macu), **T-126** (instalátor) nebo **T-
   `tools/macos-verify.ps1`, kontroly T-117 / T-118 / T-122). Nově přesouvané body se píšou do těchto úkolů stejným
   způsobem („→ přesunuto do T-12x“).
 
+## Sběrný ověřovací úkol Windows ARM64 (rozhodnutí uživatele 2026-11-12)
+
+Kritérium, které potřebuje běh na zařízení s Windows na ARM64 (Windows x64 binárky ARM64 spustit neumí), se přesouvá do
+sběrného úkolu **T-227 „Windows ARM64 – ověření na zařízení ARM64“** stejným způsobem jako do T-125 („→ přesunuto do
+T-227“; v T-227 bod se zaškrtávacím polem, původním úkolem, kritériem a postupem). Ověřuje se na vlastním nebo
+zapůjčeném zařízení ARM64, bez CI a cloudu. Přesunout nejde nedokončená práce ani kritérium blokované otevřenou otázkou.
+
 ## Větve (Gitflow)
 
 - Každý úkol má vlastní větev `feature/T-XXX-kratky-nazev` (stejný název jako soubor úkolu), založenou z `develop`.
@@ -220,6 +227,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-207 | Kamera – dekodér si pamatuje poslední SPS/PPS pro nově otevřený kontext kodeku | all | core-dev | P3 | T-205 |
 | T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR | all | qa-reviewer | P2 | – |
 | T-219 | Nestabilní test `CameraStreamHubKeyFrameTests.WithoutDueSubscribersNoKeyFrameIsWanted` při plném `dotnet test` | all | core-dev | P2 | – |
+| T-224 | Aktualizace Avalonia 12.1.4 → 12.1.6 (hotovo) | all | ui-dev | P2 | – |
 
 ### Windows (`windows`)
 
@@ -247,16 +255,21 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-073 | E2E – celá sada proti Debug i Native AOT (Debug) a test Správce pověření | windows | qa-reviewer | P2 | T-067, T-068, T-069, T-070, T-071, T-072 |
 | T-093 | E2E – widgety překryvu, malý náhled, režim rozložení + AOT (hotovo) | windows | qa-reviewer | P2 | T-080, T-087, T-088, T-090, T-091, T-092 |
 | T-114 | Ověření na Windows (sběrný úkol: build a testy po macOS úkolech, Windows snímky, ruční kontroly) (hotovo 2026-11-01; zbytek v T-124 / T-125) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109–T-112, T-117–T-119 |
-| T-124 | Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace) (hotovo 2026-11-01; zbytek v T-125) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-114 |
+| T-124 | Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace) (hotovo 2026-11-01; zbytek v T-125; znovu otevřeno 2026-11-12 kvůli bodu z T-201) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-114 |
 | T-125 | Windows – zbývající ruční ověření (interaktivní windows-verify, tiskárna, vydání) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-105, T-107, T-114, T-117, T-118 |
-| T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo) | windows | qa-reviewer | P2 | – |
+| T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo; rozhodnutí zrušeno 2026-11-12, návrat v T-224 až T-227) | windows | qa-reviewer | P2 | – |
 | T-162 | FFmpeg pro Windows – připnutý build BtbN už neexistuje (404) (hotovo; ověření v T-125) | windows | core-dev | P1 | – |
 | T-186 | Kamera – pozastavení streamu při zamčení počítače a vypnutém displeji (výkon) | windows | ui-dev | P2 | – |
-| T-201 | Přeinstalace (`winget upgrade`) nemá znovu zapnout spouštění po přihlášení (hook instalace) | windows | ui-dev | P1 | – |
+| T-201 | Přeinstalace (`winget upgrade`) nemá znovu zapnout spouštění po přihlášení (hook instalace) (hotovo; ruční ověření v T-124) | windows | ui-dev | P1 | – |
 | T-202 | Windows – vlastní minimální LGPL build FFmpeg ze zdrojů (místo BtbN), s D3D11VA (blokuje 1.0.0) | windows | core-dev | P1 | T-199 |
 | T-206 | Windows – hardwarové dekódování D3D11VA (výchozí software do měření v T-125) | windows | core-dev | P2 | T-202, T-203, T-204 |
 | T-220 | Alokační testy `ASampleDoesNotAllocate` a `SteadyStateTimelapseDoesNotAllocate` nestabilní na 4jádrovém runneru Windows (v CI přeskočené) | windows | qa-reviewer | P2 | – |
 | T-221 | Windows – vzorky z roviny Y se liší od BGRA víc, než dovolují meze T-189 (1,72 / +1,44; v CI přeskočené) | windows | core-dev | P2 | – |
+| T-224 | Windows ARM64 – sestavovací prostředí a Native AOT publish `win-arm64` z x64 (bez FFmpeg) | windows | core-dev | P2 | – |
+| T-225 | Windows ARM64 – vlastní LGPL build FFmpeg pro `win-arm64` (křížový překlad z x64) | windows | core-dev | P2 | T-202, T-224 |
+| T-226 | Windows ARM64 – vydání `win-arm64` (skripty, Velopack, aktualizace, winget, README a příručky) | windows | qa-reviewer | P2 | T-224, T-225 |
+| T-227 | Windows ARM64 – ověření na zařízení ARM64 (sběrný úkol pro ARM64: aplikace, kamera, instalátor, aktualizace) | windows | qa-reviewer | P2 | T-226 |
+| T-228 | Windows – 47 selhávajících testů na develop (snapshoty UI, proxy, porty E2E, FFmpeg, Pester) | windows | qa-reviewer | P1 | – |
 
 ### macOS (`macos`) – jen na Macu, později
 
@@ -304,4 +317,5 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-215 | macOS ověření – okna, Dock a ⌘Tab (T-151, T-102, T-038 otázka 2, T-184, T-026, T-188) | macos | qa-reviewer | P3 | T-209, T-210 |
 | T-216 | macOS ověření – drobné kontroly (autoclose, špendlík a editor výřezu přes AX, jazyk AppKitu, falešné `open`, HW dekódování, české rozložení) | macos | qa-reviewer | P3 | T-209, T-213 |
 | T-217 | macOS ověření – kontrola release bundlu z `.dmg` a `.tar.gz` (`mac.release-bundle`) (hotovo; odškrtnutí bodu T-026 v T-127 po běhu `-Preset release`) | macos | qa-reviewer | P3 | T-208 |
-| T-222 | Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (užší tvary, umělé tučné; bez změny UI bez schválení) | macos | ui-designer | P3 | T-214 |
+| T-222 | Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (hotovo; rozhodnutí 2026-11-15: Inter na macOS v T-223, chybu nahlásit Avalonii; 12.1.6 změřena 2026-11-15, chyba trvá) | macos | ui-designer | P3 | T-214 |
+| T-223 | macOS – písmo Inter jako výchozí písmo aplikace (místo San Francisco, které Avalonia rozvrhuje úzce) (hotovo; šířky v běžící aplikaci v T-127; SystemFont ponechán 2026-11-15) | macos | ui-dev | P2 | T-222 |

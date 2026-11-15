@@ -60,11 +60,23 @@ your downloads against `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` of this
   minute, instead of every 5 s; a successful stream starts over at 5 s. Opening or restoring the camera window, and
   **Test camera** in the settings, try again at once.
 - **Built with the stable .NET 11** release instead of a release candidate.
+- **UI framework updated** to Avalonia 12.1.6 (from 12.1.4), with its fixes for menus, windows, text layout and
+  accessibility. Nothing changes in how LayerPeek looks or works.
+- **Window font on macOS:** the settings, diagnostics, About and camera windows use the bundled Inter font instead of the
+  system font San Francisco, which the UI framework (Avalonia 12.1) laid out too tightly: text was 7–20 % narrower than
+  in native apps and semibold and bold letters touched. The menu bar menu, notifications and system dialogs keep the
+  system font; Windows is unchanged (Segoe UI). Inter (SIL Open Font License 1.1) is listed under **About →
+  Third-party licences…**. The macOS app is about 1.9 MB larger (about 0.9 MB in the download).
 
 ### Fixed
 
 - Settings, the printer's **Camera** sub-tab: in Italian, Spanish, French and Polish the **Keep the last minutes
   (dashcam)** check box was cut off; the labels are shorter now.
+- Windows: installing LayerPeek again over an existing installation (running `Setup.exe` again, or `winget upgrade`)
+  no longer switches **Start automatically when I sign in to Windows** back on after you switched it off. The settings
+  now remember your choice; a new installation still switches it on, and so does a reinstall when you never changed
+  the option. If you switched it off in an earlier version, the first start of this version remembers that, so the
+  next reinstall keeps it off too.
 
 ### Security
 

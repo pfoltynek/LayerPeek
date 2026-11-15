@@ -867,6 +867,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
     }
 
+    /// <summary>
+    /// The start after logon to save as the user's choice (T-201, user decision 2026-11-12): the option when the user switched
+    /// it in the window (saved even when the OS then refuses the switch: it stays the user's choice and the next Save tries
+    /// again), otherwise the saved choice as it is, so that the install hook of a reinstall (<c>winget upgrade</c>) keeps an
+    /// autostart the user switched off. A state the window only followed from the OS (macOS) is no choice.
+    /// </summary>
+    private bool? StartAtLoginChoice() =>
+        _autostart is not null && _startWithWindows != _autostartBaseline ? _startWithWindows : _baseline.StartAtLogin;
+
     /// <summary>The pre-release choice to save: none while the shown value is the default of a never-made choice.</summary>
     private bool? PrereleaseChoice() =>
         _baseline.OfferPrereleaseUpdates is null && _offerPrereleaseUpdates == PrereleaseUpdates.IsDefaultFor(_productVersion)
@@ -1494,6 +1503,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 DebugLogging = _debugLogging,
                 OfferPrereleaseUpdates = PrereleaseChoice(),
                 CheckForUpdates = _checkForUpdates,
+                StartAtLogin = StartAtLoginChoice(),
 
                 // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,
@@ -1592,7 +1602,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             dirty |= printer.HasNewPassword || printer.ForgetsRememberedCameraWindow || printer.PendingImage is not null;
         }
 
-        // T-017: the start after logon is the state of the OS, not part of the settings file.
+        // T-017: the start after logon is the state of the OS; the settings file only remembers the choice (T-201).
         dirty |= _autostart is not null && _startWithWindows != _autostartBaseline;
         IsDirty = dirty || !TryBuildSettings(out AppSettings? current) || !current.Equals(_baseline);
     }

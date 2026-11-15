@@ -172,6 +172,18 @@ public class AppSettingsTests
         Assert.Equal(new AppSettings { OfferPrereleaseUpdates = true }.GetHashCode(), new AppSettings { OfferPrereleaseUpdates = true }.GetHashCode());
     }
 
+    /// <summary>T-201: the start after logon the user chose in the settings window; unset until the user chose.</summary>
+    [Fact]
+    public void StartAtLoginChoiceIsUnsetByDefaultAndPartOfEquality()
+    {
+        Assert.Null(AppSettings.Default.StartAtLogin);
+        Assert.NotEqual(new AppSettings(), new AppSettings { StartAtLogin = true });
+        Assert.NotEqual(new AppSettings(), new AppSettings { StartAtLogin = false });
+        Assert.NotEqual(new AppSettings { StartAtLogin = true }, new AppSettings { StartAtLogin = false });
+        Assert.Equal(new AppSettings { StartAtLogin = false }, new AppSettings { StartAtLogin = false });
+        Assert.Equal(new AppSettings { StartAtLogin = true }.GetHashCode(), new AppSettings { StartAtLogin = true }.GetHashCode());
+    }
+
     [Fact]
     public void EqualityIncludesLanguage()
     {

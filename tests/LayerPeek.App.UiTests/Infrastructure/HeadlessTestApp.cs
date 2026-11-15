@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Headless;
-using Avalonia.Media;
+
+using LayerPeek.App.Platform;
 
 namespace LayerPeek.App.UiTests.Infrastructure;
 
@@ -17,13 +18,13 @@ namespace LayerPeek.App.UiTests.Infrastructure;
 /// </summary>
 public static class HeadlessTestApp
 {
-    /// <summary>The only font family of the UI tests.</summary>
-    public const string FontFamilyName = "fonts:Inter#Inter";
+    /// <summary>The only font family of the UI tests: the app's default font on macOS (T-223).</summary>
+    public const string FontFamilyName = AppFont.InterFamilyName;
 
+    // The app's own Inter set-up (Platform/AppFont.cs), only without fallbacks to installed fonts.
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()
             .UseSkia()
-            .WithInterFont()
-            .With(new FontManagerOptions { DefaultFamilyName = FontFamilyName, FontFallbacks = [] })
+            .UseInterFont(fallbacks: [])
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false, OverlayPopups = false });
 }

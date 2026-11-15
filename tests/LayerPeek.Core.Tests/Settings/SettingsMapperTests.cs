@@ -272,6 +272,33 @@ public class SettingsMapperTests
         Assert.Null(RoundTrip(new AppSettings(), out _).OfferPrereleaseUpdates);
     }
 
+    /// <summary>T-201: the start after logon the user chose is kept for the install hook of Velopack.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExplicitStartAtLoginChoiceRoundTrips(bool start)
+    {
+        AppSettings settings = new() { StartAtLogin = start };
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Contains($"\"startAtLogin\": {(start ? "true" : "false")}", json, StringComparison.Ordinal);
+        Assert.Empty(warnings);
+        Assert.Equal(start, loaded.StartAtLogin);
+        Assert.Equal(settings, loaded);
+    }
+
+    /// <summary>Never chosen: not written, so that files stay as they were and a new install switches autostart on.</summary>
+    [Fact]
+    public void UnsetStartAtLoginChoiceIsNotWritten()
+    {
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(new AppSettings()), SettingsJsonContext.Default.SettingsDocument);
+
+        Assert.DoesNotContain("startAtLogin", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(RoundTrip(new AppSettings(), out _).StartAtLogin);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

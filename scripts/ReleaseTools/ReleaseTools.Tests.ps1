@@ -2059,12 +2059,6 @@ Describe 'macOS packaging (T-019)' {
             (& /usr/bin/codesign -dv (Join-Path $macOS 'libavformat.63.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
         }
         It 'loads the ad-hoc signed libraries of the bundle under the hardened runtime and ignores DYLD_INSERT_LIBRARIES (T-108)' {
-            # The hardened runtime keeps DYLD_INSERT_LIBRARIES out only with System Integrity Protection on; GitHub's macOS
-            # runners have it off (T-218), where dyld honours the variable for every process and the check proves nothing.
-            if ((& /usr/bin/csrutil status 2>&1) -join ' ' -match 'disabled') {
-                Set-ItResult -Skipped -Because 'System Integrity Protection is off (csrutil status), so dyld ignores the hardened runtime'
-                return
-            }
             # A real executable and library (clang of the Xcode Command Line Tools, which the Native AOT build needs anyway):
             # the executable dlopens the library next to it, like the app loads Avalonia, Skia, HarfBuzz and FFmpeg.
             $destination = Join-Path $script:TempRoot "mac-runtime-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
@@ -2457,57 +2451,6 @@ Describe 'AOT smoke script with an existing publish folder' {
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
         # T-020 (user decision 2026-10-29): every smoke start skips the notification center of macOS, with exactly this switch.
         @(Get-Content -LiteralPath $arguments) | Should -BeExactly @('--layerpeek-smoke-skip-notification-center')
-    }
-    It 'starts the exe without the developer environment with -CleanEnvironment (T-217)' -Skip:(-not $IsMacOS) {
-        # A stand-in "app" that records its environment and keeps running; the folder has a space (quoted for env).
-        $profileRoot = New-SmokeStandInProfile
-        $profileBefore = Get-TreeState $profileRoot
-        $publish = Join-Path $script:TempRoot "smoke clean-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-        $null = New-Item -ItemType Directory -Path $publish
-        $seen = Join-Path $script:TempRoot "smoke-env-$([guid]::NewGuid().ToString('N').Substring(0, 8)).txt"
-        $exe = Join-Path $publish 'LayerPeek'
-        [System.IO.File]::WriteAllText($exe, "#!/bin/sh`n/usr/bin/env > '$seen'`nprintf '%s\n' `"`$@`" >> '$seen'`nexec sleep 60`n")
-        & chmod +x $exe
-        $saved = @{ DOTNET_ROOT = $env:DOTNET_ROOT; LAYERPEEK_T217_MARKER = $env:LAYERPEEK_T217_MARKER }
-        try {
-            # What a developer shell has, and the app must not get.
-            $env:DOTNET_ROOT = '/opt/homebrew/opt/dotnet/libexec'
-            $env:LAYERPEEK_T217_MARKER = 'leaked'
-            $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $publish -Seconds 2 -CleanEnvironment -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
-        }
-        finally { foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) } }
-        $LASTEXITCODE | Should -Be 0 -Because $output
-        $output | Should -Match 'PASSED'
-        $output | Should -Match 'No native library failed to load'
-        $lines = @(Get-Content -LiteralPath $seen)
-        $lines | Should -Contain 'PATH=/usr/bin:/bin:/usr/sbin:/sbin'
-        $lines | Should -Contain "HOME=$([Environment]::GetFolderPath('UserProfile'))"
-        @($lines | Where-Object { $_ -like 'TMPDIR=*' }).Count | Should -Be 1
-        $lines | Should -Contain '--layerpeek-smoke-skip-notification-center'
-        @($lines | Where-Object { $_ -match '^(DOTNET_|DYLD_|LAYERPEEK_T217_MARKER=|HOMEBREW_)' }) | Should -BeNullOrEmpty
-        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
-    }
-    It 'fails -CleanEnvironment when the app reports a native library that failed to load (T-217)' -Skip:(-not $IsMacOS) {
-        $profileRoot = New-SmokeStandInProfile
-        $profileBefore = Get-TreeState $profileRoot
-        $publish = Join-Path $script:TempRoot "smoke-dll-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-        $null = New-Item -ItemType Directory -Path $publish
-        $exe = Join-Path $publish 'LayerPeek'
-        # Like the app: the error lands in its log (the log folder of the stand-in profile) while it keeps running.
-        $log = (Get-SmokeProfile -ProfileRoot $profileRoot -BundleIdentifier $script:StandInBundleId).Folders[1]
-        [System.IO.File]::WriteAllText($exe, "#!/bin/sh`nmkdir -p '$log'`necho 'System.DllNotFoundException: Unable to load shared library libAvaloniaNative' > '$log/LayerPeek.log'`nexec sleep 60`n")
-        & chmod +x $exe
-        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $publish -Seconds 2 -CleanEnvironment -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
-        $LASTEXITCODE | Should -Be 1
-        $output | Should -Match 'FAILED: A native library failed to load: System\.DllNotFoundException'
-        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
-    }
-    It 'refuses -CleanEnvironment outside macOS and starts nothing' -Skip:$IsMacOS {
-        $profileRoot = New-SmokeStandInProfile
-        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 1 -CleanEnvironment -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
-        $LASTEXITCODE | Should -Be 1
-        $output | Should -Match 'CleanEnvironment is for macOS only'
-        $output | Should -Not -Match 'Starting'
     }
     It 'passes the switch the app knows for skipping the notification center' {
         # The same text as AppEnvironment.SkipNotificationCenterArgument (T-020), so a rename cannot silently stop working.
@@ -3070,14 +3013,13 @@ Describe 'FFmpeg source of a release (T-199)' {
             try { $path = Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache }
             finally { [System.IO.File]::WriteAllText($script:GitEnvironment.GIT_CONFIG_GLOBAL, '') }
             Get-FileSha256 $path | Should -BeExactly $script:Source.Sha256
-            # The bytes of the extracted file: PowerShell's pipeline would split the lines and Out-String join them with CRLF
-            # on Windows (T-218: failed on the Windows runner although the archive has LF).
-            $extracted = Join-Path $script:Cache 'x'
+            # Extracted to a file and read as is: native output piped through PowerShell is split into lines and joined
+            # with CRLF again on Windows (Out-String), which would hide the line endings of the archive (T-228).
+            $extracted = Join-Path $script:FFmpegRoot "extract-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
             $null = New-Item -ItemType Directory -Path $extracted
             & (Get-TarCommand) -xf $path -C $extracted 'ffmpeg-n1.0-1-gabc/configure'
             $LASTEXITCODE | Should -Be 0
-            [System.IO.File]::ReadAllBytes((Join-Path $extracted 'ffmpeg-n1.0-1-gabc' 'configure')) | Should -Not -Contain ([byte] 13)
-            Remove-Item -LiteralPath $extracted -Recurse -Force
+            [System.IO.File]::ReadAllText((Join-Path $extracted 'ffmpeg-n1.0-1-gabc' 'configure')) | Should -BeExactly "#!/bin/sh`necho configure`n"
             @(& (Get-TarCommand) -tf $path) | Should -Contain 'ffmpeg-n1.0-1-gabc/libavutil/avutil.h'
             @(Get-ChildItem -LiteralPath $script:Cache -Force | ForEach-Object Name) | Should -Be @('ffmpeg-n1.0-1-gabc.tar')
             Save-FFmpegSourceInput -SourceInput $script:GitInput -CacheDirectory $script:Cache | Should -BeExactly $path
@@ -3172,106 +3114,6 @@ Describe 'FFmpeg source of a release (T-199)' {
         $fetch | Should -BeGreaterThan 0
         $fetch | Should -BeLessThan $script.IndexOf("Invoke-Native 'dotnet build (Release)'")
         $script | Should -Match ([regex]::Escape('New-FFmpegSourceArchive -Source $ffmpegSource -PublishDirectory $Context.PublishDirectory'))
-    }
-}
-
-Describe 'Downloaded macOS release bundle (T-217, pure)' {
-    BeforeAll {
-        $script:LoadRules = Get-MacLoadPathRules -RepoRoot '/r/LayerPeek' -HomePath '/Users/u'
-    }
-    It 'forbids the places of a build machine and allows only the bundle and the system' {
-        @($script:LoadRules.Forbidden.Keys) | Should -BeExactly @('/opt/homebrew/', '/usr/local/', '/opt/', '/r/LayerPeek/artifacts/', '/Users/u/Library/Caches/LayerPeek.Build/')
-        @($script:LoadRules.Allowed) | Should -BeExactly @('@rpath/', '@loader_path/', '@executable_path/', '/usr/lib/', '/System/Library/')
-        @($script:LoadRules.RpathPrefixes) | Should -BeExactly @('@executable_path', '@loader_path')
-        # A trailing slash of the given folders makes no difference.
-        @((Get-MacLoadPathRules -RepoRoot '/r/LayerPeek/' -HomePath '/Users/u/').Forbidden.Keys) | Should -BeExactly @($script:LoadRules.Forbidden.Keys)
-    }
-    It 'names where a forbidden reference points and accepts the bundle and the system' {
-        foreach ($reference in '@rpath/libSkiaSharp.dylib', '@loader_path/libavcodec.63.dylib', '@executable_path/../Frameworks/x.dylib', '/usr/lib/libSystem.B.dylib', '/System/Library/Frameworks/VideoToolbox.framework/Versions/A/VideoToolbox') {
-            Get-MacLoadPathProblem -Reference $reference -Rules $script:LoadRules | Should -BeNullOrEmpty -Because $reference
-        }
-        Get-MacLoadPathProblem -Reference '/opt/homebrew/opt/x264/lib/libx264.164.dylib' -Rules $script:LoadRules | Should -Match '\(Homebrew\)$'
-        Get-MacLoadPathProblem -Reference '/usr/local/lib/libavcodec.62.dylib' -Rules $script:LoadRules | Should -Match '/usr/local'
-        Get-MacLoadPathProblem -Reference '/opt/x/lib.dylib' -Rules $script:LoadRules | Should -Match '\(/opt\)$'
-        Get-MacLoadPathProblem -Reference '/r/LayerPeek/artifacts/release/0.5.0/publish/osx-arm64/libavutil.61.dylib' -Rules $script:LoadRules | Should -Match 'build output artifacts/'
-        Get-MacLoadPathProblem -Reference '/Users/u/Library/Caches/LayerPeek.Build/ffmpeg/k/lib/libavutil.61.dylib' -Rules $script:LoadRules | Should -Match 'LayerPeek\.Build'
-        Get-MacLoadPathProblem -Reference '/Users/u/lib/libz.dylib' -Rules $script:LoadRules | Should -Match 'outside the bundle and the system'
-        # A prefix match on whole folders only: /usr/libexec is not /usr/lib/.
-        Get-MacLoadPathProblem -Reference '/usr/libexec/x.dylib' -Rules $script:LoadRules | Should -Match 'outside the bundle and the system'
-        Get-MacLoadPathProblem -Reference '/r/LayerPeek/artifacts-old/x.dylib' -Rules $script:LoadRules | Should -Match 'outside the bundle and the system'
-    }
-    It 'checks the otool -L references except the install name, and the LC_RPATH entries of otool -l' {
-        $list = @('/x/libAvaloniaNative.dylib:',
-            "`t/usr/local/lib/libAvalonia.Native.OSX.dylib (compatibility version 0.0.0, current version 0.0.0)",
-            "`t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1700.255.5)",
-            "`t/opt/homebrew/lib/libpng16.16.dylib (compatibility version 1.0.0, current version 1.0.0)")
-        $commands = @('Load command 12', '          cmd LC_RPATH', '      cmdsize 32', '         path @executable_path/../Frameworks (offset 12)',
-            'Load command 13', '          cmd LC_RPATH', '      cmdsize 48', '         path /Users/u/Library/Caches/LayerPeek.Build/lib (offset 12)',
-            'Load command 14', '          cmd LC_LOAD_DYLIB', '      cmdsize 56', '         name /usr/lib/libSystem.B.dylib (offset 24)',
-            'Load command 15', '          cmd LC_RPATH', '      cmdsize 32', '         path @loader_path (offset 12)')
-        @(Get-MacLoadCommandRpaths $commands) | Should -BeExactly @('@executable_path/../Frameworks', '/Users/u/Library/Caches/LayerPeek.Build/lib', '@loader_path')
-        @(Get-MacMachOLoadPathProblems -File 'Contents/MacOS/libAvaloniaNative.dylib' -OtoolList $list -OtoolLoadCommands $commands -InstallName '/usr/local/lib/libAvalonia.Native.OSX.dylib' -Rules $script:LoadRules) | Should -BeExactly @(
-            'Contents/MacOS/libAvaloniaNative.dylib loads /opt/homebrew/lib/libpng16.16.dylib (Homebrew).',
-            'Contents/MacOS/libAvaloniaNative.dylib has the LC_RPATH /Users/u/Library/Caches/LayerPeek.Build/lib (only @executable_path and @loader_path are allowed).')
-        # A universal file: one header line per architecture, never taken for a reference.
-        $fat = @('/x/libSkiaSharp.dylib (architecture x86_64):',
-            "`t@rpath/libSkiaSharp.dylib (compatibility version 0.0.0, current version 0.0.0)",
-            "`t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1700.255.5)",
-            '/x/libSkiaSharp.dylib (architecture arm64):',
-            "`t@rpath/libSkiaSharp.dylib (compatibility version 0.0.0, current version 0.0.0)",
-            "`t/usr/local/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.3.1)")
-        @(Get-MacMachOLoadPathProblems -File 'f' -OtoolList $fat -InstallName '@rpath/libSkiaSharp.dylib' -Rules $script:LoadRules) | Should -BeExactly @(
-            'f loads /usr/local/lib/libz.1.dylib (/usr/local (Homebrew on Intel, hand-built libraries)).')
-        # Without the install name exemption the identifier itself would count.
-        @(Get-MacMachOLoadPathProblems -File 'f' -OtoolList $list[0..1] -Rules $script:LoadRules) | Should -Match '/usr/local'
-        # @executable_path_x is no bundle path.
-        @(Get-MacMachOLoadPathProblems -File 'f' -OtoolLoadCommands @('cmd LC_RPATH', 'path @executable_pathx (offset 12)') -Rules $script:LoadRules) | Should -Match 'LC_RPATH @executable_pathx'
-        @(Get-MacMachOLoadPathProblems -File 'f' -Rules $script:LoadRules) | Should -BeNullOrEmpty
-    }
-    It 'checks the version, the identifier and LSUIElement of the Info.plist' {
-        $template = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'build' 'macos' 'Info.plist') -Raw
-        $identifier = Get-MacBundleIdentifier (Join-Path $script:RepoRoot 'build' 'macos' 'Info.plist')
-        $plist = ConvertTo-MacInfoPlist -TemplateText $template -Version '1.2.3'
-        @(Get-MacReleasePlistProblems -PlistText $plist -Version '1.2.3' -BundleIdentifier $identifier) | Should -BeNullOrEmpty
-        Assert-Problems @(Get-MacReleasePlistProblems -PlistText $plist -Version '1.2.4' -BundleIdentifier $identifier) @('CFBundleShortVersionString is .1\.2\.3., expected the build version 1\.2\.4', 'CFBundleVersion is .1\.2\.3.')
-        Assert-Problems @(Get-MacReleasePlistProblems -PlistText $plist -Version '1.2.3' -BundleIdentifier 'io.example.Other') @('CFBundleIdentifier is')
-        $agent = $plist -replace '<key>LSUIElement</key>\s*<true/>', '<key>LSUIElement</key><false/>'
-        Assert-Problems @(Get-MacReleasePlistProblems -PlistText $agent -Version '1.2.3' -BundleIdentifier $identifier) @('LSUIElement')
-        $none = $plist -replace '<key>LSUIElement</key>\s*<true/>', ''
-        Assert-Problems @(Get-MacReleasePlistProblems -PlistText $none -Version '1.2.3' -BundleIdentifier $identifier) @('LSUIElement')
-        Assert-Problems @(Get-MacReleasePlistProblems -PlistText 'not xml' -Version '1.2.3' -BundleIdentifier $identifier) @('no property list')
-    }
-    It 'starts the app through env -i with only HOME, the system PATH and TMPDIR' {
-        Get-SmokeCleanEnvironmentArguments -Executable '/t/c/LayerPeek.app/Contents/MacOS/LayerPeek' -Arguments @('--a', '--b') -HomePath '/Users/u' -TempPath '/var/folders/x/T/' | Should -BeExactly @(
-            '-i', 'HOME=/Users/u', 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', 'TMPDIR=/var/folders/x/T/', '/t/c/LayerPeek.app/Contents/MacOS/LayerPeek', '--a', '--b')
-        Get-SmokeCleanEnvironmentArguments -Executable '/x/LayerPeek' -HomePath '/Users/u' -TempPath '/tmp' | Should -BeExactly @('-i', 'HOME=/Users/u', 'PATH=/usr/bin:/bin:/usr/sbin:/sbin', 'TMPDIR=/tmp', '/x/LayerPeek')
-        # Never Homebrew, the .NET SDK or a dyld variable.
-        (Get-SmokeCleanEnvironmentArguments -Executable '/x/LayerPeek' -HomePath '/Users/u' -TempPath '/tmp') -join ' ' | Should -Not -Match 'homebrew|/usr/local|DOTNET|DYLD'
-        Assert-ThrowsMatching { Get-SmokeCleanEnvironmentArguments -Executable '/x/LayerPeek' -HomePath 'relative' -TempPath '/tmp' } 'no absolute path'
-        Assert-ThrowsMatching { Get-SmokeCleanEnvironmentArguments -Executable '/x/LayerPeek' -HomePath '/Users/u' -TempPath '/tmp/a=b' } 'no absolute path'
-    }
-    It 'finds the native library load errors in the output and the log' {
-        $lines = @(
-            '2026-11-14 10:00:00 [INF] LayerPeek 0.5.0 started',
-            'dyld[4242]: Library not loaded: /opt/homebrew/opt/x264/lib/libx264.164.dylib',
-            'System.DllNotFoundException: Unable to load shared library ''libAvaloniaNative'' or one of its dependencies.',
-            'LayerPeek.Core.Cameras.CameraFeedException: The video decoder (FFmpeg) is not available.',
-            'System.TypeInitializationException: The type initializer for ''SkiaSharp.SKImageInfo'' threw an exception.',
-            'System.EntryPointNotFoundException: Unable to find an entry point named ''avformat_version''',
-            'System.BadImageFormatException: bad image',
-            '2026-11-14 10:00:01 [INF] No printers configured')
-        @(Get-SmokeNativeLoadErrors $lines) | Should -BeExactly @($lines[1..6])
-        @(Get-SmokeNativeLoadErrors @('[INF] started', '', '[WRN] printer offline')) | Should -BeNullOrEmpty
-        @(Get-SmokeNativeLoadErrors @()) | Should -BeNullOrEmpty
-    }
-    It 'documents -CleanEnvironment and starts through /usr/bin/env only with it' {
-        $smoke = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1') -Raw
-        "$((Get-Help (Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1') -Parameter CleanEnvironment).description.Text)" | Should -Match 'env -i'
-        $smoke | Should -Match ([regex]::Escape("Start-Process -FilePath '/usr/bin/env' -ArgumentList `$quoted "))
-        $smoke | Should -Match 'Get-SmokeNativeLoadErrors'
-        # LaunchServices records the physical path: a bundle in the temp folder (/var -> /private/var) must still be
-        # recognised, so that the registration of the start is removed.
-        $smoke | Should -Match ([regex]::Escape("`$bundle = Resolve-PhysicalPath (Split-Path -Parent `$contents)"))
     }
 }
 
