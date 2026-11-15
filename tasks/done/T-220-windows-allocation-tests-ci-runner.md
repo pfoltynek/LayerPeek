@@ -1,7 +1,7 @@
 ---
 id: T-220
 title: Alokační testy ASampleDoesNotAllocate a SteadyStateTimelapseDoesNotAllocate nestabilní na 4jádrovém runneru Windows
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: windows
@@ -37,9 +37,11 @@ spolehlivý i na pomalém stroji a pořád zachytil skutečnou alokaci na vzorek
 
 ## Akceptační kritéria
 - [x] Příčina obou selhání popsaná v poznámkách
-- [ ] Oba testy spolehlivé v CI na Windows (aspoň 3 zelené běhy po sobě) bez přeskočení; záruka 0 B na vzorek / paket
-      zůstává
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Oba testy spolehlivé v CI na Windows (aspoň 3 zelené běhy po sobě) bez přeskočení; záruka 0 B na vzorek / paket
+      zůstává – krok „Test the allocation-sensitive tests“ zelený na Windows i macOS ve 3 ručních bězích za sebou
+      (43756249903, 43757948661, 43760026314; commit 113a7757, 2026-11-15)
+- [x] `dotnet build` a `dotnet test` bez chyb a varování – lokálně zelené; v uvedených bězích CI padal hlavní krok
+      na Windows jen kvůli nesouvisejícím limitům času (UI test → T-245, opraveno; Pester VerifyTools → T-246)
 
 ## Otevřené otázky
 - ~~**Q1 (2026-11-15, qa-reviewer): jak oddělit alokační testy od provozu výsledků platformy?**~~ **Rozhodnuto
@@ -48,6 +50,8 @@ spolehlivý i na pomalém stroji a pořád zachytil skutečnou alokaci na vzorek
   „Samostatný krok CI (rozhodnutí Q1)“.
 
 ## Poznámky k implementaci
+- 2026-11-15 (hlavní agent): tři ruční běhy CI na `ci/113a7757` – alokační krok zelený na obou OS ve všech třech.
+  Hlavní testovací krok na Windows selhal na limitech času jiných testů (T-245, T-246), ne na alokacích.
 Stav 2026-11-15 (qa-reviewer, worktree `LP-T-220`): příčiny nalezené a opravené v měření (ne v mezi, ne v kódu aplikace),
 přeskočení v CI odstraněné. **Zbývá kritérium „3 zelené běhy CI po sobě“** – ověří se až po pushi (hlavní agent), proto
 úkol zůstává v `in-progress`.
