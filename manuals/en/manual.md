@@ -216,6 +216,11 @@ To save CPU, the mini preview shows at most 10 frames per second by default, whi
 normal window and full screen show every frame of the camera. The limit is set on the **Camera** tab of the settings (see
 [11.6](#116-camera)).
 
+The window also stops taking frames while nobody can see it: when it is minimised and, on Windows, while the computer
+is locked, the display is off or the window is on another virtual desktop (a window merely covered by other windows keeps
+running). A moment after you come back, the picture returns from the camera's next key frame. Recording, the dashcam,
+timelapses and print failure detection keep running meanwhile.
+
 <p align="center">
   <img src="../../docs/images/en/camera-mini.jpg" alt="Mini preview with the info strip, the print name row and the temperature chart row" width="400">
 </p>

@@ -25,6 +25,7 @@ using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.Display;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Notifications;
@@ -463,7 +464,8 @@ public sealed class AppServicesTests
     {
         await using ServiceProvider services = AppServices.Create(
             cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
-            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore(),
+            displayActivity: static _ => AlwaysVisibleDisplayActivity.Instance);
 
         Assert.Same(services.GetRequiredService<PrintPreviewCache>(), services.GetRequiredService<PrintPreviewCache>());
         Assert.Same(services.GetRequiredService<PrintThumbnails>(), services.GetRequiredService<PrintThumbnails>());
@@ -493,13 +495,39 @@ public sealed class AppServicesTests
         Assert.NotNull(services.GetRequiredService<LayerPeek.App.Platform.ISystemResumeEvents>());
     }
 
+    /// <summary>
+    /// T-186: the screen visibility of the OS (Windows: session and display notifications; elsewhere always visible until
+    /// T-187), one per app. Resolving it starts nothing: it starts with the first camera window (not created here).
+    /// </summary>
+    [Fact]
+    public async Task DisplayActivityOfTheOsIsRegisteredAndNotStartedByResolving()
+    {
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+
+        IDisplayActivityService display = services.GetRequiredService<IDisplayActivityService>();
+
+        Assert.Same(display, services.GetRequiredService<IDisplayActivityService>());
+        if (OperatingSystem.IsWindows())
+        {
+            WindowsDisplayActivityService windows = Assert.IsType<WindowsDisplayActivityService>(display);
+            Assert.False(windows.HasThread);
+        }
+        else
+        {
+            Assert.Same(AlwaysVisibleDisplayActivity.Instance, display);
+        }
+    }
+
     [Fact]
     public async Task CameraWindowOfApplyComesFromTheSavedPrinter()
     {
         // T-040: Apply opens the window before monitoring knows the saved printer (or its camera).
         await using ServiceProvider services = AppServices.Create(
             cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
-            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore(),
+            displayActivity: static _ => AlwaysVisibleDisplayActivity.Instance);
         PrinterDefinition saved = new() { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) };
 
         using CameraViewModel? camera = AppServices.CreateCameraViewModel(services, "A", saved);
@@ -516,7 +544,8 @@ public sealed class AppServicesTests
         MemoryCameraWindowStateStore states = new();
         await using ServiceProvider services = AppServices.Create(
             cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
-            cameraWindowStateStore: _ => states);
+            cameraWindowStateStore: _ => states,
+            displayActivity: static _ => AlwaysVisibleDisplayActivity.Instance);
         Assert.Same(states, services.GetRequiredService<ICameraWindowStateStore>());
         IMonitoringObserver printers = services.GetRequiredService<MonitoredPrinters>();
 

@@ -516,6 +516,22 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       (např. „DELL U2719D“) – pak by šlo v novém úkolu zvážit odstranění vlastního čtení názvu (`MonitorNameNative`,
       T-035). Nic neměnit v tomto bodě.
 
+### 2ae. Pozastavení kamery při zamčení, vypnutém displeji a na jiné virtuální ploše (z T-186, implementováno na Windows 2026-11-15)
+Postup: simulátor (`docs/simulator.md`) nebo tiskárna s kamerou, otevřené okno kamery s obrazem. Že se obraz
+nedekóduje, je vidět ve Správci úloh (CPU procesu LayerPeek klesne téměř na nulu, pokud kameru nedrží nahrávání,
+dashcam, timelapse ani detekce; spojení se pak po 10 s zavře).
+- [ ] **T-186** (krit. „Při zamčení počítače a při vypnutí displeje okno kamery přestane přijímat snímky a po odemčení
+      nebo zapnutí se obnoví“): Win+L, po ~15 s odemknout → obraz se do pár sekund vrátí (od dalšího klíčového snímku),
+      okno zůstane na místě a v aplikaci nic nespadne. Totéž s malým náhledem „vždy navrchu“ a s celou obrazovkou.
+- [ ] **T-186** (vypnutý displej): Nastavení Windows > Napájení > vypnout obrazovku po 1 min (pak vrátit), počkat na
+      zhasnutí, pohnout myší → obraz se obnoví. Ztmavení displeje obraz nezastaví.
+- [ ] **T-186** (jiná virtuální plocha, rozhodnutí uživatele 2026-11-11, otázka 2): Win+Ctrl+D (nová plocha) → CPU klesne;
+      Win+Ctrl+← zpět → obraz se obnoví. Okno přesunuté na jinou plochu přes Win+Tab se pozastaví také. Okno jen zakryté
+      jiným oknem se nepozastavuje (záměrně).
+- [ ] **T-186** (nahrávání pokračuje): během zamčení běží nahrávání / dashcam / timelapse; po odemčení je nahrávka
+      souvislá (bez mezery v době zamčení). Automaticky pokrývá
+      `CameraViewModelVisibilityTests.RecordingTimelapseAndDetectionLeasesGoOnWhileTheScreenIsLocked`.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

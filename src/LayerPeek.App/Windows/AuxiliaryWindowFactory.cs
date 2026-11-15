@@ -2,6 +2,7 @@ using Avalonia.Controls;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Diagnostics;
+using LayerPeek.App.Platform;
 using LayerPeek.App.Settings;
 using LayerPeek.Core.Printers;
 
@@ -74,6 +75,7 @@ internal sealed class AuxiliaryWindowFactory
         Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
         Func<CameraWindow, WindowChrome?>? measureChrome = null,
-        Func<CameraWindow, double, WindowChrome?>? predictChrome = null) =>
-        new(createViewModel, screens, measureChrome, _track, predictChrome, _bringAppToFront, _activator);
+        Func<CameraWindow, double, WindowChrome?>? predictChrome = null,
+        IWindowCloaking? cloaking = null) =>
+        new(createViewModel, screens, measureChrome, _track, predictChrome, _bringAppToFront, _activator, cloaking);
 }
