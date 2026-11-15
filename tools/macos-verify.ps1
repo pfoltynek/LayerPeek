@@ -392,7 +392,7 @@ function Get-Simulator($Context, [double] $Speed = 1, [string] $Clip, [int] $Lay
     foreach ($argument in @('-c', 'exec dotnet "$0" "$@" >"$LPV_OUT" 2>&1 </dev/null', $dll, '--port', '0', '--camera-port', '0', '--scenario', 'printing', '--speed', "$Speed")) { $start.ArgumentList.Add($argument) }
     if ($Clip) { foreach ($argument in '--camera-clip', $Clip) { $start.ArgumentList.Add($argument) } }
     if ($Layers) { foreach ($argument in '--layers', "$Layers") { $start.ArgumentList.Add($argument) } }
-    if ($Fps) { foreach ($argument in '--fps', ([string]::Create([cultureinfo]::InvariantCulture, "$Fps"))) { $start.ArgumentList.Add($argument) } }
+    if ($Fps) { foreach ($argument in '--fps', (Format-VerifyInvariantNumber $Fps)) { $start.ArgumentList.Add($argument) } }
     $start.Environment['LPV_OUT'] = $out
     $start.UseShellExecute = $false
     $process = [System.Diagnostics.Process]::Start($start)
@@ -687,15 +687,16 @@ function Get-MoviesRecordingsState {
     (@(Get-ChildItem -LiteralPath $folder -Recurse -Force | ForEach-Object { "$([System.IO.Path]::GetRelativePath($folder, $_.FullName)) $(if ($_.PSIsContainer) { 'dir' } else { $_.Length })" }) | Sort-Object) -join "`n"
 }
 
-function Wait-RecordingEvent($TestData, [string] $Kind, [int] $Skip, [double] $TimeoutSeconds) {
+function Wait-RecordingEvent($TestData, [string] $Kind, [int] $Skip, [double] $TimeoutSeconds, [string] $ExcludeFile) {
     <#
     .SYNOPSIS
         Waits for the recording event -Kind of the app's log (Get-VerifyRecordingEvents) after the first -Skip of that kind;
-        returns it, or $null after -TimeoutSeconds.
+        returns it, or $null after -TimeoutSeconds. -ExcludeFile (a wildcard) leaves out the events of such files: a
+        timelapse file logs "writes" like a recording (2026-11-15: the "continuation" of a print with both was its timelapse).
     #>
     $script:recordingEvent = $null
     $null = Wait-VerifyCondition -TimeoutSeconds $TimeoutSeconds -IntervalMilliseconds 1000 -Condition {
-        $script:recordingEvent = @(Get-VerifyRecordingEvents (Read-TestLog $TestData) | Where-Object Kind -CEQ $Kind) | Select-Object -Skip $Skip -First 1
+        $script:recordingEvent = @(Get-VerifyRecordingEvents (Read-TestLog $TestData) | Where-Object { $_.Kind -ceq $Kind -and -not ($ExcludeFile -and $_.File -like $ExcludeFile) }) | Select-Object -Skip $Skip -First 1
         $null -ne $script:recordingEvent
     }
     $script:recordingEvent
@@ -766,13 +767,13 @@ function Get-FileDialogMedia($Context) {
     try {
         Start-Sleep -Seconds 4
         Set-SimulatorScenario $simulator 'printing'
-        $first = Wait-RecordingEvent $data 'Writes' 0 60
+        $first = Wait-RecordingEvent $data 'Writes' 0 60 -ExcludeFile '*_timelapse*'
         if (-not $first) { throw 'The print of the file dialog media recorded nothing within 60 s.' }
         Start-Sleep -Seconds 25
         Set-SimulatorCamera $simulator 'offline'
         Start-Sleep -Seconds 10
         Set-SimulatorCamera $simulator 'online'
-        $second = Wait-RecordingEvent $data 'Writes' 1 60
+        $second = Wait-RecordingEvent $data 'Writes' 1 60 -ExcludeFile '*_timelapse*'
         if (-not $second) { throw 'The print of the file dialog media wrote no second file within 60 s after the camera came back.' }
         Start-Sleep -Seconds 25
     }
@@ -796,8 +797,13 @@ function Get-StatusToolTipLines($Context, [int] $ProcessId) {
 }
 
 function Find-MenuEntry($Items, [string] $Title) {
-    <# .SYNOPSIS The item of the helper's 'menu' JSON (or a submenu) with that exact title, or $null. #>
-    @(Get-VerifyMenuEntries $Items | Where-Object { $_.title -ceq $Title }) | Select-Object -First 1
+    <#
+    .SYNOPSIS
+        The item of the helper's 'menu' JSON (or a submenu) with that exact title, or $null; no-break spaces count as
+        plain spaces (NSMenu shows them so to the Accessibility API, ConvertTo-VerifyMenuTitle).
+    #>
+    $wanted = ConvertTo-VerifyMenuTitle $Title
+    @(Get-VerifyMenuEntries $Items | Where-Object { (ConvertTo-VerifyMenuTitle $_.title) -ceq $wanted }) | Select-Object -First 1
 }
 
 function Get-AppTexts([string] $Language) {
@@ -843,10 +849,10 @@ function Get-AxSelectedTab($Context, [int] $ProcessId, [string] $TabsIdentifier)
         that shows the selection pipe of the Fluent theme (PART_SelectedPipe, hidden - so not in the tree - in the others).
     #>
     $tabs = Get-AxElement $Context $ProcessId $TabsIdentifier
-    $items = @(Get-AxNodes $tabs.children | Where-Object { $_.identifier -and $_.role -in 'AXRadioButton', 'AXTab' })
+    $items = @(Get-VerifyAxTabItems $tabs)
     [pscustomobject]@{
         Tabs     = [string[]] @($items.identifier)
-        Selected = [string] (@($items | Where-Object { "$($_.value)" -in '1', 'True' -or (Find-AxElement $_.children 'PART_SelectedPipe') }) | Select-Object -First 1).identifier
+        Selected = [string] (@($items | Where-Object { Test-VerifyAxTabSelected $_ }) | Select-Object -First 1).identifier
         Tree     = $tabs
     }
 }
@@ -906,15 +912,58 @@ function Wait-StableWindow {
     $null
 }
 
+function Select-SettingsTab($Context, [int] $ProcessId, [string] $Tab, [string] $WindowTitle) {
+    <#
+    .SYNOPSIS
+        Selects a tab (main tab or sub-tab) of the open Settings window; whether the Accessibility tree shows it selected.
+    .DESCRIPTION
+        AXPress on an Avalonia tab item does not select it (it reports success; first run with an unlocked screen
+        2026-11-15, T-127), so the tab gets a real click on its centre: Settings raised first (AXRaise, -WindowTitle,
+        default the English title) and only when no other window (e.g. the camera window) covers that point. Then
+        AXPress, in case a later Avalonia maps it, and last the keyboard in the raised Settings window: Ctrl-Tab for a
+        main tab (SettingsTab*), Cmd-Option-Right for a sub-tab of the printer (PrinterTab*), at most once round.
+    #>
+    if (-not $WindowTitle) {
+        if (-not $script:SettingsTitleEn) { $script:SettingsTitleEn = (Get-VerifyResxStrings (Join-Path $script:Repo 'src' 'LayerPeek.App' 'Resources' 'Strings.resx'))['SettingsTitle'] }
+        $WindowTitle = $script:SettingsTitleEn
+    }
+    $script:tabNode = $null
+    if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $script:tabNode = Get-AxElement $Context $ProcessId $Tab; $script:tabNode -and $script:tabNode.frame.width -gt 0 })) { return $false }
+    if (Test-VerifyAxTabSelected $script:tabNode) { return $true }
+    $selected = { Test-VerifyAxTabSelected (Get-AxElement $Context $ProcessId $Tab) }
+    $null = Invoke-HelperExit $Context @('axwin', "$ProcessId", $WindowTitle, 'raise')
+    Start-Sleep -Milliseconds 300
+    $script:tabNode = Get-AxElement $Context $ProcessId $Tab
+    if ($script:tabNode) {
+        $point = Get-AxCenter $script:tabNode
+        $top = Get-VerifyTopWindow @((Invoke-Helper $Context @('windowsat', "$($point[0])", "$($point[1])")) -join "`n" | ConvertFrom-Json)
+        if ($top -and $top.pid -eq $ProcessId -and $top.layer -eq 0) {
+            $null = Invoke-Helper $Context (@('click') + $point)
+            if (Wait-VerifyCondition -TimeoutSeconds 3 -Condition $selected) { return $true }
+        }
+        else { $null = Save-VerifyEvidence -Context $Context -Name "tab-$Tab-covered.txt" -Content @("the point $($point -join ', ') of $Tab is covered: $(if ($top) { "$($top.owner) ($($top.pid)), window $($top.number), layer $($top.layer)" } else { 'no window' })") }
+    }
+    $null = Invoke-Helper $Context @('axpress', "$ProcessId", $Tab) -AllowFailure
+    if (Wait-VerifyCondition -TimeoutSeconds 2 -Condition $selected) { return $true }
+    $group = if ($Tab -like 'PrinterTab*') { 'SettingsPrinterTabs' } else { 'SettingsTabs' }
+    $combo = if ($Tab -like 'PrinterTab*') { 'cmd+alt+right' } else { 'ctrl+tab' }
+    $count = @((Get-AxSelectedTab $Context $ProcessId $group).Tabs).Count
+    for ($i = 0; $i -lt $count; $i++) {
+        $null = Invoke-HelperExit $Context @('axwin', "$ProcessId", $WindowTitle, 'raise')
+        $null = Invoke-Helper $Context @('key', $combo)
+        if (Wait-VerifyCondition -TimeoutSeconds 1 -Condition $selected) { return $true }
+    }
+    $false
+}
+
 function Open-SettingsTab($Context, [int] $ProcessId, [string[]] $Tabs, [string] $Target) {
     <#
     .SYNOPSIS
-        Presses the tabs (AXPress, in order) of the open Settings window until the element -Target is in the
+        Selects the tabs (Select-SettingsTab, in order) of the open Settings window until the element -Target is in the
         Accessibility tree; the element, or $null.
     #>
     foreach ($tab in $Tabs) {
-        if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $Context $ProcessId $tab) })) { return $null }
-        $null = Invoke-Helper $Context @('axpress', "$ProcessId", $tab) -AllowFailure
+        if (-not (Select-SettingsTab $Context $ProcessId $tab)) { return $null }
     }
     $script:settingsTarget = $null
     $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:settingsTarget = Get-AxElement $Context $ProcessId $Target; $script:settingsTarget -and $script:settingsTarget.frame.width -gt 0 }
@@ -1110,6 +1159,18 @@ function Start-HelperProcess($Context, [string[]] $Arguments, [string] $Output) 
     $process
 }
 
+function Wait-StandInFront($Context, $Process) {
+    <#
+    .SYNOPSIS
+        Whether the stand-in app (helper 'front', started with Start-HelperProcess) is the front app within 10 s. Its own
+        activate() is cooperative on macOS 14+ and may be refused while another app (the app under test) is active (first
+        run with an unlocked screen 2026-11-15); then the helper brings it to the front through AXFrontmost.
+    #>
+    if (Wait-VerifyCondition -TimeoutSeconds 3 -Condition { (Get-FrontProcessId) -eq $Process.Id }) { return $true }
+    $null = Invoke-HelperExit $Context @('activate', "$($Process.Id)")
+    Wait-VerifyCondition -TimeoutSeconds 7 -Condition { (Get-FrontProcessId) -eq $Process.Id }
+}
+
 function Start-FakeGitHub {
     <#
     .SYNOPSIS
@@ -1266,13 +1327,15 @@ function Invoke-UpdateCheckClicks {
             $other = Start-HelperProcess $c @('front', "$($screen.visible.x + 16)", "$($screen.visible.y + 16)", '60') (Join-Path $c.RunFolder 'tmp' "front-$(New-ShortId).txt")
             try {
                 $otherName = 'the stand-in app'
-                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $other.Id })) {
+                if (-not (Wait-StandInFront $c $other)) {
                     # Finder may open a window over Settings: the check below tells.
                     if (-not (Invoke-FinderToFront)) { throw "neither the stand-in app nor Finder came to the front (front app $(Get-FrontAppText))" }
                     $otherName = 'Finder'
                 }
                 Start-Sleep -Seconds 1
-                $top = Get-VerifyTopWindow @((Invoke-Helper $c @('windowsat', "$($point[0])", "$($point[1])")) -join "`n" | ConvertFrom-Json)
+                $at = @((Invoke-Helper $c @('windowsat', "$($point[0])", "$($point[1])")) -join "`n" | ConvertFrom-Json)
+                $null = Save-VerifyEvidence -Context $c -Name 'b-windows-at-button.json' -Content (ConvertTo-VerifyJsonArray $at)
+                $top = Get-VerifyTopWindow $at
                 if (-not $top -or $top.pid -ne $appId) { throw "the button is covered by $(if ($top) { "$($top.owner) ($($top.pid)), window $($top.number)" } else { 'no window' }) at $($point -join ', ')" }
                 $script:frontAfterClick = $null
                 $verdict = & $press 'b-click-inactive' {
@@ -1553,6 +1616,9 @@ $checks = @(
                 $null = Save-VerifyEvidence -Context $c -Name 'disabled-items-help.txt' -Content $helps
 
                 # The camera items through menupress, from a printer state whose item title does not change (no progress).
+                # The scenario "offline" switches the printer off; only /_simulator/online switches it on again (a scenario
+                # alone leaves it offline: first real run 2026-11-15).
+                Set-SimulatorPrinter $simulator 'online'
                 Set-SimulatorScenario $simulator 'idle'
                 $tipProblem = & $waitState 'StateIdle'
                 if ($tipProblem) { $problems.Add("idle again: $tipProblem") }
@@ -1834,14 +1900,26 @@ $checks = @(
                     }
                     $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window $window
                     $app = Start-TestApp -Context $c -TestData $data
+                    # The usable area when the app places the window: its own Dock icon (a normal window) can make the
+                    # Dock smaller afterwards on a narrow display with a full Dock (the Screen Sharing display, 2026-11-15).
+                    $placedIn = @(Get-Screens $c | Where-Object uuid -CEQ $screen.uuid | ForEach-Object visible) | Select-Object -First 1
                     try {
                         Send-TestCommand $data "camera:$($script:PrinterId)"
                         $null = Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-CameraWindow $c $app.Id) }
                         Start-Sleep -Milliseconds 1500
                         $frame = Get-CameraWindow $c $app.Id
-                        $found = if ($frame) { @(Get-VerifyCornerProblems -Window ([pscustomobject]@{ X = $frame.x; Y = $frame.y; Width = $frame.width; Height = $frame.height }) -Area ([pscustomobject]@{ X = $screen.visible.x; Y = $screen.visible.y; Width = $screen.visible.width; Height = $screen.visible.height }) -Corner $corner) } else { @('no window') }
+                        # The usable area of that moment: the Dock gets smaller as more apps run on a narrow display (the
+                        # Screen Sharing display, 2026-11-15), so the area of the start of the check can be off by points.
+                        $visible = @(Get-Screens $c | Where-Object uuid -CEQ $screen.uuid | ForEach-Object visible) | Select-Object -First 1
+                        if (-not $visible) { $visible = $screen.visible }
+                        $judge = { param($Area) @(Get-VerifyCornerProblems -Window ([pscustomobject]@{ X = $frame.x; Y = $frame.y; Width = $frame.width; Height = $frame.height }) -Area ([pscustomobject]@{ X = $Area.x; Y = $Area.y; Width = $Area.width; Height = $Area.height }) -Corner $corner) }
+                        $found = if (-not $frame) { @('no window') } else { @(& $judge $visible) }
+                        if ($found.Count -gt 0 -and $placedIn -and "$($placedIn.y),$($placedIn.height)" -ne "$($visible.y),$($visible.height)" -and @(& $judge $placedIn).Count -eq 0) {
+                            $found = @()
+                            $visible = $placedIn
+                        }
                         foreach ($problem in $found) { $problems.Add("$($screen.name) $mode ${corner}: $problem") }
-                        $rows.Add([ordered]@{ Screen = $screen.name; Mode = $mode; Corner = $corner; Window = $frame; Problems = $found })
+                        $rows.Add([ordered]@{ Screen = $screen.name; Mode = $mode; Corner = $corner; Window = $frame; Visible = $visible; Problems = $found })
                     }
                     finally { $null = Stop-TestApp $data $app }
                 }
@@ -1966,7 +2044,7 @@ $checks = @(
             $otherApp = {
                 param([double] $X, [double] $Y)
                 $other = Start-HelperProcess $c @('front', "$X", "$Y", '300', 'regular') (Join-Path $c.RunFolder 'tmp' "front-$(New-ShortId).txt")
-                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $other.Id })) { throw "the stand-in app did not come to the front (front app $(Get-FrontAppText))" }
+                if (-not (Wait-StandInFront $c $other)) { throw "the stand-in app did not come to the front (front app $(Get-FrontAppText))" }
                 $other
             }
             $stopOther = { param($Other) if ($Other -and -not $Other.HasExited) { $Other.Kill(); $Other.WaitForExit() } }
@@ -2050,6 +2128,8 @@ $checks = @(
                 & $expectType $appId 'UIElement' '(1) the last window closed'
                 $notes.Add('(1) type Foreground with Settings or the camera window, UIElement without a window')
             }
+            # An error ends (1) to (4) but keeps the problems found so far and still runs (5).
+            catch { $problems.Add("(1)-(4) stopped: $($_.Exception.Message)") }
             finally {
                 & $stopOther $other
                 $null = Stop-TestApp $data $app
@@ -2110,7 +2190,7 @@ $checks = @(
             $app = if ($toasts) { Get-Process -Id (Start-TestAppViaOpen -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_TOASTS = '1' }) } else { Start-TestApp -Context $c -TestData $data }
             try {
                 $known = if ($toasts) { @(& $delivered | ForEach-Object identifier) } else { @() }
-                $normal = & $outage $data $app '(5)'
+                $normal = try { & $outage $data $app '(5)' } catch { $problems.Add("(5) stopped: $($_.Exception.Message)"); $null }
                 if ($normal) { $notes.Add("(5) the camera window closed $($normal.Close) s after the printer went offline and opened again $($normal.Open) s after it came back, at the same place ($(Format-VerifyBounds $normal.Window)), $($normal.Order) the window of the active app, which stayed in front") }
                 if ($toasts) {
                     $new = @(& $delivered | Where-Object { $known -notcontains $_.identifier })
@@ -2128,7 +2208,7 @@ $checks = @(
             $data = New-TestData -Context $c -Simulator $simulator -Camera $simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Mini' })
             $app = Start-TestApp -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_CAMERA_CLOSE_AFTER_MS = '3000'; LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS = '2000' }
             try {
-                $mini = & $outage $data $app '(5) mini preview:' -Mini
+                $mini = try { & $outage $data $app '(5) mini preview:' -Mini } catch { $problems.Add("(5) mini preview: stopped: $($_.Exception.Message)"); $null }
                 if ($mini) { $notes.Add("(5) the mini preview opened again on top of the active app at the same place without a Dock icon (UIElement)") }
             }
             finally { $null = Stop-TestApp $data $app }
@@ -2774,9 +2854,14 @@ $checks = @(
                     }
                     $null = Invoke-HelperExit $c @('panelcancel', "$appId")
                 }
+                # A panel left open (one the helper did not recognise) would take the Control-click below and show its
+                # own file menu (first run with an unlocked screen 2026-11-15): never read a menu over an open sheet.
+                $sheetOpen = { @(Get-AxNodes (Get-AxTree $c $appId) | Where-Object role -EQ 'AXSheet').Count -gt 0 }
+                if (& $sheetOpen) { $null = Invoke-Helper $c @('key', 'escape'); Start-Sleep -Milliseconds 800 }
                 # 2. The context menu of a text field (the printer name): Control-click, then its items in the AX tree.
                 $field = Get-AxElement $c $appId 'PrinterName'
-                if (-not $field) { $failures.Add('no text field PrinterName') }
+                if (& $sheetOpen) { $failures.Add('a sheet (the image panel) stayed open over Settings, the context menu of the text field was not read') }
+                elseif (-not $field) { $failures.Add('no text field PrinterName') }
                 else {
                     $point = Get-AxCenter $field
                     $before = @(Get-AxNodes (Get-AxTree $c $appId) | Where-Object role -EQ 'AXMenuItem' | ForEach-Object title)
@@ -2833,6 +2918,11 @@ $checks = @(
             $appId = $app.Id
             $browserFront = { $front = Get-FrontProcessId; $front -and (@(& $browserPids) -contains $front) }
             $logSince = { param([int] $Length) $log = Read-TestLog $data; if ($log.Length -ge $Length) { $log.Substring($Length) } else { $log } }
+            # The Debug test mode hands the addresses to opened-urls.txt instead of the browser (RecordingUrlLauncher, T-067;
+            # first run with an unlocked screen 2026-11-15): then /usr/bin/open and the browser are not exercised (a SKIP),
+            # and the check loads the recorded proxy address itself (never written anywhere: it carries the access token).
+            $skipped = [System.Collections.Generic.List[string]]::new()
+            $recordedUrls = { $file = Join-Path $data.Data 'opened-urls.txt'; if (Test-Path -LiteralPath $file) { @(Get-Content -LiteralPath $file | Where-Object { $_ }) } else { @() } }
             try {
                 # 1. About: the repository link opens the default browser; the licences open their window.
                 Send-TestCommand $data 'about'
@@ -2842,7 +2932,14 @@ $checks = @(
                 else {
                     $point = Get-AxCenter $script:link
                     $null = Invoke-Helper $c @('click', "$($point[0])", "$($point[1])")
-                    if (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { & $browserFront }) { $notes.Add("the repository link brought the default browser ($browser) to the front") }
+                    if (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (& $browserFront) -or (Test-VerifyUrlsRecorded (Read-TestLog $data)) }) {
+                        if (Test-VerifyUrlsRecorded (Read-TestLog $data)) {
+                            $github = @(& $recordedUrls | Where-Object { ([uri] $_).Host -ceq 'github.com' }).Count
+                            if ($github -eq 0) { $problems.Add('the repository link recorded no github.com address (opened-urls.txt)') }
+                            $skipped.Add("the repository link: the Debug test mode recorded the github.com address instead of opening the browser ($browser)")
+                        }
+                        else { $notes.Add("the repository link brought the default browser ($browser) to the front") }
+                    }
                     else { $problems.Add("the repository link did not bring the default browser ($browser) to the front (front app $(Get-FrontAppText))") }
                 }
                 Send-TestCommand $data 'about'
@@ -2867,6 +2964,13 @@ $checks = @(
                 if ($press.ExitCode -ne 0) { $problems.Add("menupress '$item': $($press.Output -join ' ')") }
                 else {
                     $script:answers = @()
+                    # The test mode: the check opens the recorded proxy address itself, as the browser would (one GET).
+                    $script:proxyUrl = $null
+                    if ((Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:proxyUrl = @(& $recordedUrls | Where-Object { ([uri] $_).Host -ceq '127.0.0.1' }) | Select-Object -Last 1; $script:proxyUrl -or (& $browserFront) }) -and $script:proxyUrl) {
+                        try { $null = Invoke-WebRequest -Uri $script:proxyUrl -TimeoutSec 15 -MaximumRedirection 5 -SkipHttpErrorCheck }
+                        catch { $problems.Add("the recorded address of the web proxy did not answer: $($_.Exception.GetType().Name)") }
+                        $skipped.Add('Open PrusaLink: the Debug test mode recorded the proxy address instead of opening the browser (the check loaded it itself)')
+                    }
                     $answered = Wait-VerifyCondition -TimeoutSeconds 30 -IntervalMilliseconds 500 -Condition { $script:answers = @(Get-VerifyProxyAnswers (& $logSince $logLength) | Where-Object { $_.Printer -ceq $script:PrinterId }); @($script:answers | Where-Object { $_.Status -eq 200 }).Count -gt 0 }
                     if (-not $answered) { $problems.Add("the web proxy answered no request with 200 within 30 s after Open PrusaLink (answers: $(@($script:answers | ForEach-Object { "$($_.Method) $($_.Path) $($_.Status)" }) -join ', '))") }
                     else { $notes.Add("Open PrusaLink: the browser loaded the simulator's web through the proxy ($(@($script:answers | Select-Object -First 3 | ForEach-Object { "$($_.Method) $($_.Path) $($_.Status)" }) -join ', '))") }
@@ -2885,6 +2989,7 @@ $checks = @(
                 }
             }
             if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s): $($problems -join '; ')" }
+            if ($skipped.Count -gt 0) { Skip-VerifyCheck "not judged: /usr/bin/open and the default browser ($($skipped -join '; '); a test mode that opens them is T-238). Done: $($notes -join '; ')." }
             New-VerifyResult PASS ($notes -join '; ')
         }
     }
@@ -3026,64 +3131,102 @@ $checks = @(
 
     New-VerifyCheck -Id 'mac.keys-czech-layout' -Needs Session, Accessibility -Kind Permission `
         -Permission 'Accessibility for the terminal (System Settings > Privacy & Security > Accessibility) to post real key events, and an unlocked screen; the Czech keyboard layout is selected for the check and the previous one always selected again' `
-        -Title 'T-100 question 1 with the software Czech layout (com.apple.keylayout.Czech): Cmd-Shift-] / Cmd-Shift-[ by their physical keys (right of P) switch the main tab of Settings and nothing else happens (no new window, the text field keeps its text); the previous input source is selected again' `
+        -Title 'T-100 question 1 with the software Czech layout (com.apple.keylayout.Czech), the US layout as the control: Cmd-Shift-] / Cmd-Shift-[ by their physical keys (right of P), from the name field and from a focused tab, switch the main tab of Settings and nothing else happens (no new window, the text field keeps its text); the previous input source is selected again' `
         -Closes 'T-100 (otázka 1 pro softwarové české rozložení: ⌘⇧] / ⌘⇧[ přepnou hlavní záložky Nastavení a nic jiného se nestane; vestavěná a Logitech klávesnice zůstávají ruční)', 'T-216 kritérium 7' -Action {
         param($c)
         if (-not (Request-Accessibility $c)) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility; it may need a restart of the terminal).' }
         Invoke-SessionCheck $c {
-            $layout = 'com.apple.keylayout.Czech'
+            # The Czech layout of the question, then the US layout as the control: a failure with both is no matter of
+            # the layout (first run with an unlocked screen 2026-11-15: Cmd-Shift-[ did not go back with the Czech one).
+            $layouts = 'com.apple.keylayout.Czech', 'com.apple.keylayout.US'
             $before = (Invoke-Helper $c @('inputsource')) -join "`n" | ConvertFrom-Json
             $simulator = Get-Simulator $c
             $data = New-TestData -Context $c -Simulator $simulator
             $problems = [System.Collections.Generic.List[string]]::new()
             $notes = [System.Collections.Generic.List[string]]::new()
+            $steps = [System.Collections.Generic.List[object]]::new()
             $app = Start-TestApp -Context $c -TestData $data
             $appId = $app.Id
             $source = $null
-            $sourceOut = Join-Path $c.RunFolder 'tmp' "inputsource-$(New-ShortId).txt"
-            try {
-                Send-TestCommand $data 'settings'
+            $sourceOut = $null
+            # The printer name only while the Printers tab shows it (on another tab the field is not in the tree at all).
+            $readName = {
+                param([string] $Evidence)
                 $field = Open-SettingsTab $c $appId @('SettingsTabPrinters') 'PrinterName'
-                if (-not $field) { throw 'Settings show no PrinterName' }
-                # The layout for at most 5 min; the helper selects the previous one again when it ends, also after an error here.
-                $source = Start-HelperProcess $c @('inputsource', $layout, '300') $sourceOut
-                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Test-Path -LiteralPath $sourceOut) -and (Select-String -LiteralPath $sourceOut -Pattern '"selected"' -Quiet) })) { throw "the Czech layout was not selected: $(Get-Content -LiteralPath $sourceOut -Raw -ErrorAction SilentlyContinue)" }
-                $selected = (Get-Content -LiteralPath $sourceOut | Select-Object -First 1) | ConvertFrom-Json
-                if ($selected.selected -cne $layout) { throw "the input source is '$($selected.selected)' after selecting $layout" }
-                $notes.Add("input source $($selected.previous) -> $layout$(if ($selected.enabledHere) { ' (enabled for the check)' })")
-                # The text field focused (a click), its text and the windows before the shortcuts.
-                $point = Get-AxCenter $field
+                if ($field) { return [string] $field.value }
+                $null = Save-VerifyEvidence -Context $c -Name "no-printer-name-$Evidence.json" -Content ((Get-AxTree $c $appId) | ConvertTo-Json -Depth 100)
+                $null
+            }
+            # The name field focused by a click (the shortcuts start from a text box, as when the user edits the name).
+            $focusName = {
+                $point = Get-AxCenter (Get-AxElement $c $appId 'PrinterName')
                 $null = Invoke-Helper $c @('click', "$($point[0])", "$($point[1])")
                 Start-Sleep -Milliseconds 500
-                $text = [string] (Get-AxElement $c $appId 'PrinterName').value
-                $windows = @(Get-AxWindows $c $appId).Count
-                $start = Get-AxSelectedTab $c $appId 'SettingsTabs'
-                $null = Invoke-Helper $c @('key', 'cmd+shift+]')
+            }
+            $step = {
+                param([string] $Layout, [string] $Combo, $From, [int] $Direction)
+                $null = Invoke-Helper $c @('key', $Combo)
                 Start-Sleep -Milliseconds 600
-                $next = Get-AxSelectedTab $c $appId 'SettingsTabs'
-                $problem = Get-VerifyTabMoveProblem -Tabs $start.Tabs -Before $start.Selected -After $next.Selected -Step 1
-                if ($problem) { $problems.Add("Cmd-Shift-] (the key right of P and the next): $problem") } else { $notes.Add("Cmd-Shift-] $($start.Selected) -> $($next.Selected)") }
-                $null = Invoke-Helper $c @('key', 'cmd+shift+[')
-                Start-Sleep -Milliseconds 600
-                $back = Get-AxSelectedTab $c $appId 'SettingsTabs'
-                $problem = Get-VerifyTabMoveProblem -Tabs $start.Tabs -Before $next.Selected -After $back.Selected -Step -1
-                if ($problem) { $problems.Add("Cmd-Shift-[: $problem") } else { $notes.Add("Cmd-Shift-[ $($next.Selected) -> $($back.Selected)") }
-                if (@(Get-AxWindows $c $appId).Count -ne $windows) { $problems.Add("the shortcuts changed the windows of the app ($windows -> $(@(Get-AxWindows $c $appId).Count))") }
-                $after = [string] (Get-AxElement $c $appId 'PrinterName').value
-                if ($after -cne $text) { $problems.Add("the shortcuts changed the printer name '$text' to '$after'") } else { $notes.Add('no new window, the printer name unchanged') }
+                $to = Get-AxSelectedTab $c $appId 'SettingsTabs'
+                $focused = Get-AxFocusedId $c $appId
+                $problem = Get-VerifyTabMoveProblem -Tabs $From.Tabs -Before $From.Selected -After $to.Selected -Step $Direction
+                $keyWindow = @(Get-AxWindows $c $appId | Where-Object focused | ForEach-Object title) -join ', '
+                $steps.Add([ordered]@{ Layout = $Layout; Keys = $Combo; Before = $From.Selected; After = $to.Selected; Focused = $focused; Front = Get-FrontAppText; KeyWindow = $keyWindow; Problem = $problem })
+                $short = $Layout -replace '^com\.apple\.keylayout\.', ''
+                if ($problem) { $problems.Add("${short}: $(($Combo -replace 'cmd\+shift\+', 'Cmd-Shift-')): $problem (focus afterwards: '$focused')") } else { $notes.Add("${short}: $(($Combo -replace 'cmd\+shift\+', 'Cmd-Shift-')) $($From.Selected) -> $($to.Selected)") }
+                $to
+            }
+            try {
+                Send-TestCommand $data 'settings'
+                if (-not (Open-SettingsTab $c $appId @('SettingsTabPrinters') 'PrinterName')) { throw 'Settings show no PrinterName' }
+                foreach ($layout in $layouts) {
+                    $short = $layout -replace '^com\.apple\.keylayout\.', ''
+                    # The layout for at most 2 min; the helper selects the previous one again when it ends, also after an error here.
+                    $sourceOut = Join-Path $c.RunFolder 'tmp' "inputsource-$(New-ShortId).txt"
+                    $source = Start-HelperProcess $c @('inputsource', $layout, '120') $sourceOut
+                    if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Test-Path -LiteralPath $sourceOut) -and (Select-String -LiteralPath $sourceOut -Pattern '"selected"' -Quiet) })) { throw "the layout $layout was not selected: $(Get-Content -LiteralPath $sourceOut -Raw -ErrorAction SilentlyContinue)" }
+                    $selected = (Get-Content -LiteralPath $sourceOut | Select-Object -First 1) | ConvertFrom-Json
+                    if ($selected.selected -cne $layout) { throw "the input source is '$($selected.selected)' after selecting $layout" }
+                    $notes.Add("input source $($selected.previous) -> $layout$(if ($selected.enabledHere) { ' (enabled for the check)' })")
+                    # The text field focused (a click), its text and the windows before the shortcuts.
+                    $text = & $readName "$short-before"
+                    if ($null -eq $text) { throw "${short}: Settings did not show the printer name (PrinterName; no-printer-name-$short-before.json)" }
+                    $windows = @(Get-AxWindows $c $appId).Count
+                    # ] then [ (the focus is on the tab item after the first), and [ then ] from the text box again: tells
+                    # a key that never arrives from one that only fails with the focus on a tab.
+                    & $focusName
+                    $start = Get-AxSelectedTab $c $appId 'SettingsTabs'
+                    $next = & $step $layout 'cmd+shift+]' $start 1
+                    $null = & $step $layout 'cmd+shift+[' $next -1
+                    if ($null -ne (& $readName "$short-middle")) {
+                        & $focusName
+                        $start = Get-AxSelectedTab $c $appId 'SettingsTabs'
+                        $previous = & $step $layout 'cmd+shift+[' $start -1
+                        $null = & $step $layout 'cmd+shift+]' $previous 1
+                    }
+                    if (@(Get-AxWindows $c $appId).Count -ne $windows) { $problems.Add("${short}: the shortcuts changed the windows of the app ($windows -> $(@(Get-AxWindows $c $appId).Count))") }
+                    $after = & $readName "$short-after"
+                    if ($null -eq $after) { $problems.Add("${short}: the printer name could not be read after the shortcuts (the Printers tab did not come back)") }
+                    elseif ($after -cne $text) { $problems.Add("${short}: the shortcuts changed the printer name '$text' to '$after'") }
+                    else { $notes.Add("${short}: no new window, the printer name unchanged") }
+                    # SIGTERM: the helper selects the previous input source again before it ends.
+                    if (-not $source.HasExited) { & /bin/kill -TERM $source.Id; $null = $source.WaitForExit(10000) }
+                    $null = Save-VerifyEvidence -Context $c -Name "inputsource-$short.jsonl" -Path $sourceOut
+                    $source = $null
+                }
                 $null = Invoke-Helper $c @('axpress', "$appId", 'SettingsCancel') -AllowFailure
             }
             finally {
-                # SIGTERM: the helper selects the previous input source again before it ends.
                 if ($source -and -not $source.HasExited) { & /bin/kill -TERM $source.Id; $null = $source.WaitForExit(10000) }
                 $null = Stop-TestApp $data $app
-                if (Test-Path -LiteralPath $sourceOut) { $null = Save-VerifyEvidence -Context $c -Name 'inputsource.jsonl' -Path $sourceOut }
+                $null = Save-VerifyEvidence -Context $c -Name 'steps.json' -Content (ConvertTo-VerifyJsonArray $steps)
+                if ($sourceOut -and (Test-Path -LiteralPath $sourceOut)) { $null = Save-VerifyEvidence -Context $c -Name 'inputsource-last.jsonl' -Path $sourceOut }
                 $current = ((Invoke-Helper $c @('inputsource')) -join "`n" | ConvertFrom-Json).current
                 if ($current -cne $before.current) { $problems.Add("the input source is '$current' after the check, before '$($before.current)' (select it again in the menu bar)") }
                 else { $notes.Add("input source $current again") }
             }
-            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s) (T-100 question 1: a new task): $($problems -join '; ')" }
-            New-VerifyResult PASS "T-100 question 1, software Czech layout: $($notes -join '; ')"
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) problem(s) (T-100 question 1: a new task; steps.json): $($problems -join '; ')" }
+            New-VerifyResult PASS "T-100 question 1, software Czech layout (US as the control): $($notes -join '; ')"
         }
     }
 
@@ -3250,10 +3393,27 @@ $checks = @(
                     $button = Find-AxElement $script:tree 'CameraRecordButton'
                     if (-not $button -or @($button.title, $button.description, $button.help) -cnotcontains $texts['RecordingStop']) { $problems.Add("${mode}: the record button (CameraRecordButton) is not '$($texts['RecordingStop'])'") }
                     $ended = Get-RecordingEventCount $data 'Ended'
+                    # At least 1 s of video for the decode below (a stop right after REC gave 0.92 s, 2026-11-15).
+                    Start-Sleep -Seconds 2
                     if ($mode -eq 'Mini') { $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'CameraRecordButton') }
                     else {
+                        # Full screen hides the menu bar of its display: the pointer at its top edge shows it, as the user
+                        # does (the status item's menu did not open otherwise, first run with an unlocked screen 2026-11-15).
+                        $reveal = {
+                            if ($mode -ne 'FullScreen') { return }
+                            $w = Get-CameraWindow $c $app.Id
+                            if ($w) { $null = Invoke-Helper $c @('move', "$($w.x + $w.width / 2)", "$($w.y + 1)"); Start-Sleep -Milliseconds 1200 }
+                        }
+                        & $reveal
                         $stop = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuStopRecording')"
-                        if ($stop.ExitCode -ne 0) { $problems.Add("${mode}: menupress '$(& $label 'MenuStopRecording')': $($stop.Output -join ' ')") }
+                        if ($stop.ExitCode -ne 0) { & $reveal; $stop = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuStopRecording')" }
+                        if ($stop.ExitCode -ne 0 -and $mode -eq 'FullScreen' -and ($stop.Output -join ' ') -match 'no status item|did not open') {
+                            # macOS gives the status items of a hidden full-screen menu bar to no one (not in AXExtrasMenuBar,
+                            # 2026-11-15): the window button stops it there, as in the mini preview; the menu is judged in Normal.
+                            $notes.Add("FullScreen: the status item is not reachable while the menu bar is hidden ($($stop.Output -join ' ')); stopped by the window button")
+                            $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'CameraRecordButton')
+                        }
+                        elseif ($stop.ExitCode -ne 0) { $problems.Add("${mode}: menupress '$(& $label 'MenuStopRecording')': $($stop.Output -join ' ')") }
                     }
                     if (-not (Wait-RecordingEvent $data 'Ended' $ended 30)) { $problems.Add("${mode}: the recording did not end within 30 s of $(if ($mode -eq 'Mini') { 'the window button' } else { 'the menu item' })") }
                     if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { -not (& $isRecording $app) })) { $problems.Add("${mode}: the tooltip still shows '$($texts['ToolTipRecording'])'") }
@@ -3262,6 +3422,14 @@ $checks = @(
                         # Play last recording: the test mode hands the file to opened-files.txt instead of QuickTime Player.
                         $last = @(Get-RecordingFiles $data.Recordings) | Select-Object -Last 1
                         $opened = Join-Path $data.Data 'opened-files.txt'
+                        # The item is enabled once the app knows the finished file; up to 10 s for the menu to show it.
+                        $script:playItem = $null
+                        $null = Wait-VerifyCondition -TimeoutSeconds 10 -IntervalMilliseconds 1000 -Condition {
+                            $menu = Get-StatusMenu $c $app.Id
+                            $script:playItem = Find-MenuEntry (@(Get-VerifyMenuEntries $menu.items)[0]).submenu (& $label 'MenuPlayLastRecording')
+                            $script:playItem -and $script:playItem.enabled
+                        }
+                        $null = Save-VerifyEvidence -Context $c -Name 'menu-after-stop.json' -Content ((Get-StatusMenu $c $app.Id) | ConvertTo-Json -Depth 30)
                         $play = Invoke-MenuPress $c $app.Id "$printer>$(& $label 'MenuPlayLastRecording')"
                         if ($play.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuPlayLastRecording')': $($play.Output -join ' ')") }
                         elseif (-not $last -or -not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Test-Path -LiteralPath $opened) -and (@(Get-Content -LiteralPath $opened) | ForEach-Object { & $plain $_ }) -ccontains (& $plain $last.FullName) })) {
@@ -3274,9 +3442,12 @@ $checks = @(
                         $script:finderWindow = $null
                         if ($folderPress.ExitCode -ne 0) { $problems.Add("menupress '$(& $label 'MenuOpenRecordingsFolder')': $($folderPress.Output -join ' ')") }
                         elseif (-not $finder -or -not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition {
-                                    $script:finderWindow = @((Invoke-Helper $c @('axwindows', "$finder")) -join "`n" | ConvertFrom-Json | Where-Object { $_.document -and (& $plain ([uri] $_.document).LocalPath) -ceq (& $plain $printerFolder) }) | Select-Object -First 1
+                                    # By AXDocument; Finder of macOS 27 gives its windows none, then by the title (the folder name).
+                                    $script:finderWindow = @((Invoke-Helper $c @('axwindows', "$finder")) -join "`n" | ConvertFrom-Json | Where-Object { if ($_.document) { (& $plain ([uri] $_.document).LocalPath) -ceq (& $plain $printerFolder) } else { $_.title -ceq (Split-Path -Leaf $printerFolder) } }) | Select-Object -First 1
                                     $null -ne $script:finderWindow })) {
-                            $problems.Add("'$(& $label 'MenuOpenRecordingsFolder')' showed no Finder window of the printer's folder within 15 s")
+                            # Evidence: what Finder showed instead (titles and documents of its windows) and the app's log.
+                            if ($finder) { $null = Save-VerifyEvidence -Context $c -Name 'finder-windows.json' -Content ((Invoke-Helper $c @('axwindows', "$finder") -AllowFailure) -join "`n") }
+                            $problems.Add("'$(& $label 'MenuOpenRecordingsFolder')' showed no Finder window of the printer's folder within 15 s (finder-windows.json; front app $(Get-FrontAppText))")
                         }
                         else {
                             $notes.Add("Finder showed the printer's folder ('$($script:finderWindow.title)')")
@@ -3313,8 +3484,7 @@ $checks = @(
                     # What Settings > Recording shows (open question 3 of T-210: the message appears after "Change…", T-213).
                     if (-not $app.HasExited) {
                         Send-TestCommand $locked 'settings'
-                        $null = Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsTabRecording') }
-                        $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabRecording') -AllowFailure
+                        $null = Select-SettingsTab $c $app.Id 'SettingsTabRecording'
                         Start-Sleep -Seconds 1
                         $tree = Get-AxTree $c $app.Id
                         $null = Save-VerifyEvidence -Context $c -Name 'locked-settings-ax.json' -Content ($tree | ConvertTo-Json -Depth 100)
@@ -3700,8 +3870,7 @@ $checks = @(
             $openRecordingTab = {
                 param([string] $Evidence)
                 Send-TestCommand $data 'settings'
-                $null = Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsTabRecording') }
-                $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabRecording') -AllowFailure
+                $null = Select-SettingsTab $c $app.Id 'SettingsTabRecording'
                 $script:layerTree = $null
                 $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $script:layerTree = Get-AxTree $c $app.Id; $null -ne (Find-AxElement $script:layerTree 'SettingsTimelapseTrigger') }
                 $null = Save-VerifyEvidence -Context $c -Name "settings-$Evidence.json" -Content ($script:layerTree | ConvertTo-Json -Depth 100)
@@ -3890,7 +4059,7 @@ $checks = @(
                     foreach ($problem in @(Get-VerifyNotificationProblems -Notification $failure -Expected ([ordered]@{ Title = $name; BodyLine = $text; Attachments = 0; LaunchArgument = 'settings=recording' }))) { $problems.Add("(b) '$text': $problem") }
                     # A click opens Settings on the Recording tab (from another tab when Settings is open already).
                     if ($null -ne (Get-AxElement $c $app.Id 'SettingsTabGeneral')) {
-                        $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabGeneral') -AllowFailure
+                        $null = Select-SettingsTab $c $app.Id 'SettingsTabGeneral'
                         $null = & $waitTab $app.Id 'SettingsTabGeneral'
                     }
                     if (& $ncpress '(b)' $text 'AXPress' $key) {
@@ -3924,7 +4093,7 @@ $checks = @(
                     elseif ($count -ne 1) { $problems.Add("(c) $count test notifications after the second one, expected 1 (replaced)") }
                     else { $notes.Add('the second test notification replaced the first') }
                     # A click brings Settings to the General tab.
-                    $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabRecording') -AllowFailure
+                    $null = Select-SettingsTab $c $app.Id 'SettingsTabRecording'
                     if (-not (& $waitTab $app.Id 'SettingsTabRecording')) { $problems.Add('(c) Settings did not switch to the Recording tab before the click'); continue }
                     if (& $ncpress '(c)' $texts['NotificationTestTitle'] 'AXPress' 'test-click') {
                         if (& $waitTab $app.Id 'SettingsTabGeneral') { $notes.Add('the click on the test notification opened Settings > General') }
@@ -3973,7 +4142,10 @@ $checks = @(
                 param([int] $AppId, [double] $Seconds)
                 $result = & $run @('panel', "$AppId", "$Seconds")
                 if ($result.ExitCode -ne 0) { throw "helper panel: $($result.Output -join ' ')" }
-                @($result.Output -join "`n" | ConvertFrom-Json -Depth 20)
+                $found = @($result.Output -join "`n" | ConvertFrom-Json -Depth 20)
+                # None found: the windows and sheets of the app as evidence (what the helper did not recognise as a panel).
+                if ($found.Count -eq 0) { $null = Save-VerifyEvidence -Context $c -Name "no-panel-$(New-ShortId).json" -Content ((Get-AxTree $c $AppId) | ConvertTo-Json -Depth 100) }
+                $found
             }
             # Chooses an item of the menu and waits for exactly one open panel; $null (and a problem) otherwise.
             $openPanel = {
@@ -4084,8 +4256,7 @@ $checks = @(
             $app = Start-TestApp -Context $c -TestData $data
             try {
                 Send-TestCommand $data 'settings'
-                if (-not (Wait-VerifyCondition -TimeoutSeconds 15 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsTabRecording') })) { throw 'no SettingsTabRecording in Settings within 15 s' }
-                $null = Invoke-Helper $c @('axpress', "$($app.Id)", 'SettingsTabRecording')
+                if (-not (Select-SettingsTab $c $app.Id 'SettingsTabRecording')) { throw 'Settings did not show the Recording tab (SettingsTabRecording) within 15 s' }
                 if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $null -ne (Get-AxElement $c $app.Id 'SettingsRecordingFolderChange') })) { throw 'no SettingsRecordingFolderChange on the Recording tab within 10 s' }
                 foreach ($step in 'locked', 'chosen') {
                     $folder = if ($step -eq 'locked') { $locked } else { $chosen }
@@ -4138,7 +4309,7 @@ $checks = @(
                 if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $null -ne (Get-CameraWindow $c $app.Id) })) { $problems.Add('(b) no camera window within 20 s') }
                 $screen = @(Get-Screens $c | Where-Object main)[0]
                 $other = Start-HelperProcess $c @('front', "$($screen.visible.x + 16)", "$($screen.visible.y + 16)", '600') (Join-Path $c.RunFolder 'tmp' "front-$(New-ShortId).txt")
-                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $other.Id })) { $problems.Add("(b) the stand-in app did not come to the front ($(Get-FrontAppText) in front)") }
+                if (-not (Wait-StandInFront $c $other)) { $problems.Add("(b) the stand-in app did not come to the front ($(Get-FrontAppText) in front)") }
 
                 # The panel: free-standing, in front over the other app, its title, the printer's folder, only .mp4.
                 $panel = & $openPanel $app.Id (& $exportTitle $files) 'b-open'
@@ -4274,6 +4445,11 @@ $checks = @(
                 }
 
                 # During a job the JPEG export panel opens once, a second click opens nothing; a cancel leaves no file.
+                # A slower job (200 ms per packet, minutes): the panel steps before the cancel take about a minute, the
+                # job at 20 ms ended before them (2026-11-15).
+                $null = Stop-TestApp $data $app
+                $app = & $startApp $data 200
+                if (-not (& $waitIdle $app $files.Name)) { throw "the tooltip did not show '$($files.Name)' ready within 60 s (cancel part)" }
                 if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Force }
                 $before = @(& $events $data | Where-Object Kind -CEQ 'NotMade').Count
                 if (& $openPanel $app.Id $create 'c-cancel') {

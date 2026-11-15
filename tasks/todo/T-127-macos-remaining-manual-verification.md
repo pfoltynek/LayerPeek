@@ -92,12 +92,17 @@ a kritérium.
       navrchu“ zůstávají na své ploše; po přepnutí náhledu na normální okno nebo na celou obrazovku (a zpět) i po vypnutí
       „vždy navrchu“ v nastavení se okno chová jako dřív (celá obrazovka ve vlastní ploše funguje). Když ne, nový úkol.
       **Zůstává ruční:** plochy (Spaces) a aplikace na celé obrazovce se skriptem spolehlivě řídit nedají.
-- [ ] **T-038** (otázka 2, oprava schválená podmíněně 2026-10-30; u kroku J5): z celé obrazovky rovnou do malého
+- [x] **T-038** (otázka 2, oprava schválená podmíněně 2026-10-30; u kroku J5): z celé obrazovky rovnou do malého
       náhledu (tlačítko náhledu, Esc u celé obrazovky otevřené z náhledu, „Použít“ v nastavení během celé obrazovky) –
       zapsat velikost, roh a rámeček náhledu po skončení animace. **Když náhled skončí ve velikosti normálního okna nebo
       jinde**, nahlásit výsledek J5: oprava je schválená (na macOS zopakovat umístění náhledu až po skončení animace, např.
       po první změně velikosti okna, nejpozději po 1 s) a založí se na ni nový úkol. Když je náhled v pořádku, nic.
       **Automatizace:** T-215 `mac.mini-after-fullscreen` (velikost, roh a rámeček po animaci).
+      Ověřeno 2026-11-15 (`artifacts/verify/20261115-155430/`, commit `24d73aa3`): `mac.mini-after-fullscreen` = `FAIL` s naměřenými hodnotami –
+      (a) tlačítko náhledu: 320 × 213 bodů, roh vpravo dole, bez rámečku (v pořádku); (b) **Esc: 320 × 241 bodů,
+      s titulkovým pruhem, spodní okraj −10 bodů** (chyba); (c) „Použít“ v tom běhu neměřeno (chyba kontroly se
+      záložkami), v opakování na větvi `feature/macos-verify-first-real-run` (`20261115-170737`) 320 × 213, bez rámečku
+      (v pořádku), (b) znovu 320 × 241 s pruhem. Schválená oprava → **T-237**.
 - [x] **T-038** (otázka 3, rozhodovací bod; u kroku J7): Nastavení na MacBooku 13" se systémovým písmem (San
       Francisco) – když se v některém jazyce něco uřízne nebo se objeví posuvník, rozhodnout: přizpůsobit texty /
       rozložení (ui-designer), nebo dodávat písmo Inter i na macOS (rozhodnutí produktu); výsledek a rozhodnutí zapsat
@@ -253,9 +258,12 @@ a kritérium.
 - [ ] **T-098** (krit. „V Docku a Finderu působí stejně velká jako systémové aplikace“): `mac.icons` (obrázek vedle
       systémových ikon) a pohled ve Finderu, Launchpadu a Nastavení systému (sezení 2.5).
       **Zůstává ruční** (vzhled).
-- [ ] **T-026** (krit. „Stream … ve všech režimech okna“, ruční část): `mac.camera-look` potvrzeno (normální okno, celá
+- [x] **T-026** (krit. „Stream … ve všech režimech okna“, ruční část): `mac.camera-look` potvrzeno (normální okno, celá
       obrazovka, malý náhled navrchu, překryv ve všech třech) (sezení 6.1); `mac.camera` = `PASS` je v T-115.
       **Automatizace:** T-215 `mac.camera-live` (živý obraz a překryv ve všech třech režimech).
+      Ověřeno 2026-11-15 (`artifacts/verify/20261115-155430/`, commit `24d73aa3`): `mac.camera-live` = `PASS` – „normal: live …, CameraOverlay with 20
+      text(s); full-screen: live …; mini: live …, CameraMiniSummary with 2 text(s); … 79 captures every ~100 ms, none
+      black …, the RTSP connection stayed the same“.
 - [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“, fyzická část): `mac.keyboard-physical`
       potvrzeno – vestavěná i Logitech klávesnice, české rozložení (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3); v Nastavení
       i v Diagnostice (výběr tiskárny, aspoň dvě tiskárny) ⌘. s otevřeným rozbalovacím seznamem zavře jen seznam (T-100
@@ -300,12 +308,14 @@ a kritérium.
       **Automatizace:** `mac.notifications` a `mac.display-sleep` v presetu `release` (T-208, předběžná podmínka:
       Sdílení obrazovky odpojené).
 
-- [ ] **T-151** (krit. „Automaticky otevřené okno nebere fokus aktivnímu oknu jiné aplikace“, část macOS): s **odemčenou**
+- [x] **T-151** (krit. „Automaticky otevřené okno nebere fokus aktivnímu oknu jiné aplikace“, část macOS): s **odemčenou**
       obrazovkou `LAYERPEEK_E2E=1 caffeinate -d -u dotnet test --project tests/LayerPeek.App.Tests -- --filter-class
       "*MacCameraWindowAutoCloseE2ETests"` = PASS, ne „vynecháno … the screen is locked“. Agent ho může spustit sám, test
       přepne do popředí Finder. 2026-11-03 prošlo zavření a znovuotevření, ale obrazovka byla zamčená, takže fokus test
       neověřil.
       **Automatizace:** T-216 `mac.camera-autoclose`.
+      Ověřeno 2026-11-15 (`artifacts/verify/20261115-155430/`, commit `24d73aa3`): `mac.camera-autoclose` = `PASS` – „total 1, passed 1 …: the window closed
+      while the printer was offline and opened again, Finder stayed the active app“.
 - [ ] **T-151** (ruční, Dock a ⌘Tab): simulátor s kamerou, okno kamery otevřené, `POST /_simulator/offline` → po 30 s okno
       zmizí (Dock ikona zmizí, pokud nebylo jiné okno), `POST /_simulator/online` → po 10 s se okno objeví na stejném místě.
       Aktivní zůstane předchozí aplikace (menu bar s jejím jménem), LayerPeek je v Docku a v ⌘Tab (T-102). Zapsat, jestli je
@@ -355,6 +365,10 @@ a kritérium.
       uklidnění velikosti zaostří na novou velikost, nic nebliká a nezčerná.
       **Automatizace:** T-215 `mac.camera-live` (žádné černé snímky, stream se nepřeruší). Ostrost a barvy okem
       zůstávají ruční.
+  - [x] Automatická část (nic nebliká a nezčerná, stream se nepřeruší při tažení úchytu, přepnutí režimů i přesunu mezi
+        monitory): `mac.camera-live` = `PASS` 2026-11-15 (`artifacts/verify/20261115-155430/`, commit `24d73aa3`); „79 captures every ~100 ms, none black,
+        the RTSP connection stayed the same“, přesun „iPad Remote (@2x) → Virtuální 16:10 (@2x)“ (monitor 1× v běhu
+        nebyl). Ostrost, barvy a monitor 1× zůstávají v bodu výše.
 
 ### 1f. Čas do dalšího pokusu kamery (z T-188 a T-194, implementováno na Macu 2026-11-11)
 - [ ] **T-188** (ruční, simulátor stačí; automaticky pokryto `CameraViewModelNextAttemptTests` a UiTests
@@ -727,6 +741,76 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
    „Latest“ je do 1.0.0 `v0.5.0`.
 
 ## Poznámky k implementaci
+- **2026-11-15, qa-reviewer – první běh `-Preset release` s odemčenou obrazovkou (oddíly 1i–1r):**
+  - Běh `artifacts/verify/20261115-155430/` (commit `24d73aa3` na `develop`, čistý strom), Mac mini Mac14,12,
+    macOS 27.2.1, Terminál se Zpřístupněním, **Sdílení obrazovky připojené** (hlavní displej „iPad Remote“ 1287 × 900
+    bodů + „Virtuální 16:10“), uživatel se možná Macu během běhu dotkl. Doba **40 min 24 s**; nejpomalejší
+    `mac.appkit-language` 414 s, `mac.test` 312 s, `mac.recording-files` 298 s. Výsledek `PASS 24, FAIL 15, SKIP 3`
+    (zadání uvádělo 27 / 12 / 3; `report.json` má 24 / 15 / 3). Podmínka `NoScreenSharing` nesplněna → bod 1i (T-208)
+    neodškrtnut.
+  - Odškrtnuto podle pravidla odškrtávání (`PASS` v tomto běhu): T-026 „Stream … ve všech režimech okna“
+    (`mac.camera-live`), automatická část bodu T-184 (podbod), T-151 „Automaticky otevřené okno nebere fokus …“
+    (`mac.camera-autoclose`) a T-038 otázka 2 (`FAIL` s naměřenými hodnotami → T-237, viz bod).
+    Neodškrtnuto, i když část prošla: 1m (`mac.timelapse` = `PASS`, `mac.timelapse-layers` = `FAIL`), 1p
+    (`mac.camera-live` = `PASS`, ostatní tři `FAIL`).
+  - Rozbor každého `FAIL` (opravy kontrol na větvi `feature/macos-verify-first-real-run`; opakování jednotlivých
+    kontrol z Terminálu na té větvi s necommitnutými opravami – běhy `20261115-165329`, `-165907`, `-170431`, `-170737`,
+    `-171053`, `-172032`, `-173957`, `-180323`; nejsou to běhy presetu, body neodškrtávají):
+    - `mac.menu-items` – **chyba kontroly**: scénář `offline` simulátoru tiskárnu vypne a scénář `idle` ji nezapne
+      (jen `/_simulator/online`), další kroky pak hledaly „… : Ready“. Opraveno; opakování `PASS`. AXHelp zakázaných
+      položek: 0 z 12 („help none“ – tip Avalonie do NSMenu nedojde; T-209 krit. 4).
+    - `mac.camera-placement` – **chyba helperu + prostředí**: `helper screens` bez `NSApplication` nehlásil u druhého
+      displeje lištu nabídek (`visibleFrame` = rám), aplikace ano (horní okraj 46 místo 16); na úzkém displeji Sdílení
+      obrazovky se Dock zmenší, když aplikace dostane ikonu (normální okno) → pracovní plocha se mezi umístěním a měřením
+      změní o 6 bodů. Opraveno (helper jako aplikace, plocha měřená při umístění i po něm); opakování `PASS` (20 / 20).
+    - `mac.dock-windows` – **chyba kontroly** (zástupná aplikace nešla dopředu: kooperativní aktivace macOS 14+,
+      teď `helper activate` přes AXFrontmost; `focusedmenubar` bez AXFocusedApplication → záloha přední aplikace; chyba
+      v (4) přebíjela problémy) a **chyba aplikace**: menu ikony v Docku nevypisuje okna → **T-241**. Opakování: jen (2).
+    - `mac.mini-after-fullscreen` – (c) **chyba kontroly** (záložky, viz níže; opakování v pořádku); (b) Esc
+      **chyba aplikace** → **T-237** (dvakrát stejně, ne zásah uživatele).
+    - `mac.camera-next-attempt`, `mac.camera-pin-ax`, `mac.detection-region`, `mac.timelapse-layers`,
+      `mac.file-dialogs` (a) – **chyba kontroly**: AXPress na záložku (`TabItem`) Avalonie záložku nevybere. Kontroly
+      teď vybírají záložku klikem (`Select-SettingsTab`, záloha AXPress a ⌃Tab / ⌘⌥→); celodisplejové okno Docku
+      (vrstva 20) klik propouští. Opakování: všechny `PASS` kromě `mac.file-dialogs`. Pro VoiceOver **T-239**.
+    - `mac.open-fake` – **chyba návrhu kontroly**: testovací režim Debug odkazy jen zapisuje (`RecordingUrlLauncher`),
+      prohlížeč se nikdy neotevře. Kontrola teď končí `SKIP` s důvodem a adresu proxy načte sama (proxy 200 ověřena);
+      přepínač testovacího režimu → **T-238** (otevřená otázka).
+    - `mac.hw-decoding-switch` – **chyba skriptu** (`[string]::Create` v `Get-Simulator -Fps`). Opraveno; opakování
+      `PASS` (videotoolbox ↔ software do 2,2 s, jeden `VTDecoderXPCService` pro dvě okna) → podklad pro T-205 (4) a (5).
+    - `mac.keys-czech-layout` – „jméno tiskárny změněno na ''“ = **chyba kontroly** (pole se četlo na skryté záložce
+      Widgety); jméno se **nemění**. ⌘⇧[ s českým rozložením ale záložku opravdu nepřepne (ani z pole, ani ze záložky),
+      s US ano → **chyba aplikace T-240**. Kontrola teď zkouší české i US rozložení a obě pořadí (`steps.json`).
+    - `mac.recording` – **chyba kontroly**: „Přehrát poslední nahrávku“ se povolí až chvíli po konci nahrávání (kontrola
+      teď počká), Finder macOS 27 nemá u oken AXDocument (teď podle titulku, i `helper axclose`), v celé obrazovce je
+      lišta nabídek skrytá (ukazatel k hornímu okraji), nahrávka 0,92 s < 1 s (teď 2 s). Opakování `PASS`; Nastavení ›
+      Nahrávání u složky bez zápisu nic neukáže (T-210 otázka 3: stačí).
+    - `mac.dashcam` – **chyba kontroly**: NSMenu dává AX titulek „Save the last 2 min“ s obyčejnou mezerou, zdroj má
+      nezlomitelnou (`&#160;`). Porovnání (PS i helper `menupress`) teď mezery sjednocuje. Opakování `PASS`; tip zakázané
+      položky: v menu „none“, v místní nabídce okna kamery „The last minutes are kept only during a print.“
+    - `mac.file-dialogs` – (a) záložky (viz výše); panel na macOS 27 (list `open-panel`) nemá AXDefaultButton /
+      AXCancelButton → helper `panel` nenašel nic (**chyba helperu**, opraveno: identifikátor + spodní řada tlačítek;
+      tlačítka „Otevřít“ / „Zrušit“ v jazyce systému); médium „pokračování po výpadku“ bylo omylem timelapse
+      (**chyba kontroly**: timelapse loguje „writes“ jako nahrávka); položky panelu byly z bočního panelu (helper teď
+      bere sloupcový prohlížeč místo bočního panelu, řádky sloupců ale ještě nečte). Úloha (c) „zrušit“ potřebuje
+      pomalejší úlohu (teď 200 ms na paket, nová instance). Opakování `20261115-173957`: (a) `PASS`, (c) počet snímků
+      v pořádku (10 snímků s částí po výpadku); zbývá (b) „notes.txt could be chosen in the panel“ (výběr přes ⌘⇧G
+      prošel, aplikace soubor odmítla `NotATimelapse`) → **T-243**, a (c) zrušení (opraveno pomalejší úlohou).
+      Opakování `20261115-180323`: jediný problém „(b) notes.txt could be chosen in the panel“ (T-243), (a) a (c)
+      včetně zrušení v pořádku.
+    - `mac.update-check` (b) – **chyba kontroly**: zástupná aplikace nešla dopředu a celodisplejové okno Docku se
+      bralo jako zakrývající. Opakování `PASS` (a, b, c).
+    - `mac.appkit-language` (`PASS` v presetu, ale **neplatné zjištění**: helper nepoznal otevřený panel, ⌃-klik pak
+      přečetl místní nabídku jeho seznamu souborů). Opakování: panel výběru obrázku „Otevřít“ / „Zrušit“ = **jazyk
+      systému (cs)**, místní nabídka textového pole „Cut“, „Copy“, „Paste“ = **angličtina** i při LayerPeeku v němčině
+      → **T-242**. Bod T-097 otázka 5 neodškrtnut (opakování není běh presetu); zjištění pro rozhodnutí uživatele.
+  - `SKIP`: `mac.notifications` a `mac.notifications-content` (oznámení „LayerPeek E2E“ `NotDetermined`: povolit jednou
+    interaktivně `pwsh tools/macos-verify.ps1 -Only mac.notifications`), `mac.display-sleep` (Sdílení obrazovky).
+  - Bod 1k (T-214 / T-223): strom AX běhu (`evidence/mac.timelapse-layers/settings-by-time.json`) má
+    `SettingsTabStartupUpdates` 196,5 a `SettingsTabRecording` 109 bodů (očekáváno 197 / 109 ± 1) → číselná část
+    sedí; pohled „záhlaví se nedotýkají“ zůstává ruční, bod neodškrtnut.
+  - Nové úkoly (ID volná v `develop` i `origin/develop` k 2026-11-15): T-237 (Esc → malý náhled s pruhem), T-238 (testovací režim a skutečný prohlížeč), T-239 (záložky
+    a AXPress / VoiceOver), T-240 (⌘⇧[ s českým rozložením), T-241 (menu Docku bez oken), T-242 (místní nabídka
+    textových polí anglicky), T-243 (filtr .mp4 panelu obejitelný přes ⌘⇧G).
 - **2026-11-13, architekt – příznak předběžného vydání (T-055), jen čtení:**
   - Skript: `Test-PrereleaseVersion` (`scripts/ReleaseTools/ReleaseTools.psm1`) vrací `true` pro `0.*` (Pester
     `ReleaseTools.Tests.ps1`). `release-upload.ps1` vytvoří koncept s `--prerelease` a `release-publish.ps1` zveřejní
