@@ -403,9 +403,13 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       nepřesouvá ani nemaže).
 
 ### 2v. Podepsaný feed aktualizací (z T-181, implementováno na Macu 2026-11-10)
-- [ ] **T-181** (krit. „E2E test aktualizace … s feedem podepsaným testovacím klíčem“, část Windows): `pwsh tools/run-e2e.ps1
+- [x] **T-181** (krit. „E2E test aktualizace … s feedem podepsaným testovacím klíčem“, část Windows): `pwsh tools/run-e2e.ps1
       -Class '*UpdateTests*'` PASS (feed podepsaný testovacím klíčem přijat, nepodepsaný odmítnut); notifikace o odmítnutí
       (toast) a kliknutí otevře záložku „Spuštění a aktualizace“.
+      Hotovo 2026-11-16 (Windows, bez instalace LayerPeeku, RDP): `run-e2e.ps1 -Class '*UpdateTests*'` (se systémovými
+      změnami, obnovené) – `InstalledOlderVersionUpdatesFromALocalFeedAfterAClick(Banner)` a
+      `ZipVersionOpensTheReleasePageFromTheBannerAndTheMenuItem` PASS; varianta `(MenuItem)` FAIL jen kvůli ukazateli
+      myši přes vzdálenou plochu (T-169) – zopakovat u konzole. Uživatel přijal jako splněné (B3, T-198).
 - [ ] **T-181** (rozhodnutí 2026-11-11, část Windows): toast „Je dostupná nová verze“ z dřívější platné kontroly zmizí
       z centra oznámení, jakmile se feed odmítne (`RemoveGroupedTagWithId`, tag `layerpeek-update-available`, i toast
       z dřívějšího běhu); v menu ikony je místo nabídky „Aktualizace odmítnuta…“ a otevře záložku „Spuštění a aktualizace“.
