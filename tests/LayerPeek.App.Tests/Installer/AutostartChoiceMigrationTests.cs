@@ -147,11 +147,14 @@ public sealed class AutostartChoiceMigrationTests
         string directory = TestDirectories.NewDirectoryPath();
         using JsonSettingsStore store = new(directory);
         NullLogger<AutostartChoiceMigration> logger = new();
-        AppEnvironment isolated = AppEnvironment.FromVariables(name => name == AppEnvironment.DataDirectoryVariable ? directory : null);
-        Assert.True(isolated.IsIsolated);
 
         Assert.Equal(OperatingSystem.IsWindows(), AppServices.CreateAutostartChoiceMigration(AppEnvironment.Production, windows: true, _autostart, store, logger) is not null);
+#if DEBUG
+        // The test mode (AppEnvironment.FromVariables) exists only in Debug builds.
+        AppEnvironment isolated = AppEnvironment.FromVariables(name => name == AppEnvironment.DataDirectoryVariable ? directory : null);
+        Assert.True(isolated.IsIsolated);
         Assert.Null(AppServices.CreateAutostartChoiceMigration(isolated, windows: true, _autostart, store, logger));
+#endif
         Assert.Null(AppServices.CreateAutostartChoiceMigration(AppEnvironment.Production, windows: false, _autostart, store, logger));
         // Not installed (.zip, development build) or a test host: no autostart.
         Assert.Null(AppServices.CreateAutostartChoiceMigration(AppEnvironment.Production, windows: true, autostart: null, store, logger));

@@ -322,4 +322,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-217 | macOS ověření – kontrola release bundlu z `.dmg` a `.tar.gz` (`mac.release-bundle`) (hotovo; odškrtnutí bodu T-026 v T-127 po běhu `-Preset release`) | macos | qa-reviewer | P3 | T-208 |
 | T-222 | Vzhled písma San Francisco v aplikaci na macOS proti nativním aplikacím (hotovo; rozhodnutí 2026-11-15: Inter na macOS v T-223, chybu nahlásit Avalonii; 12.1.6 změřena 2026-11-15, chyba trvá) | macos | ui-designer | P3 | T-214 |
 | T-223 | macOS – písmo Inter jako výchozí písmo aplikace (místo San Francisco, které Avalonia rozvrhuje úzce) (hotovo; šířky v běžící aplikaci v T-127; SystemFont ponechán 2026-11-15) | macos | ui-dev | P2 | T-222 |
-| T-231 | macOS – aktualizace nativních závislostí a nástrojů (FFmpeg ze zdrojů, Xcode, runner CI) | macos | qa-reviewer | P2 | – |
+| T-231 | macOS – aktualizace nativních závislostí a nástrojů (FFmpeg ze zdrojů, Xcode, runner CI) (rozpracováno; `mac.release-bundle` čeká na T-233) | macos | qa-reviewer | P2 | T-233 |
