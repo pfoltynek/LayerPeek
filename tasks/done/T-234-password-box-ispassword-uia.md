@@ -52,6 +52,9 @@ heslo neunikne.
 - Nahlásit chybějící `IsPassword` upstream do Avalonie (issue, případně PR)? Kdo a kdy?
   - **Rozhodnuto uživatelem 2026-11-15:** agent připraví text issue (anglicky, `docs/upstream/avalonia-ispassword-issue.md`),
     uživatel ho odešle ze svého účtu. Agent nic neodesílá.
+  - **Změna rozhodnutí uživatele 2026-11-15 (večer):** issue se **neodesílá, upstream hlášení zamítnuto**. Koncept
+    `docs/upstream/avalonia-ispassword-issue.md` byl smazán (zůstává v historii gitu, commit T-234). Zjištění zůstávají
+    zapsaná v Poznámkách; `IsPassword` = `False` se přijímá, dokud ho Avalonia sama neopraví.
 - Skrývat délku hesla vlastním peerem (prázdná / pevná hodnota `ValuePattern.Value`), nebo ji přijmout jako
   rovnocennou tomu, co je vidět na obrazovce?
   - **Rozhodnuto uživatelem 2026-11-15:** přijmout (je to totéž, co je vidět na obrazovce); vlastní peer se nedělá.

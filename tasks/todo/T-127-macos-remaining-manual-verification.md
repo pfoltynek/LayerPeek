@@ -602,8 +602,8 @@ po návratu se spojení obnoví a obraz se vrátí od dalšího klíčového sn�
       i do poznámek T-169.
 
 ### 1t. Pole hesla v přístupnosti macOS (z T-234, rozhodnutí uživatele 2026-11-15)
-Na Windows hlásí UI Automation u pole hesla `IsPassword` = `False` (chybí v Avalonii 12.1.6, koncept upstream issue
-`docs/upstream/avalonia-ispassword-issue.md`); heslo samo neunikne, `ValuePattern.Value` je maska (T-054). Délka hesla
+Na Windows hlásí UI Automation u pole hesla `IsPassword` = `False` (chybí v Avalonii 12.1.6; upstream se nehlásí, rozhodnutí
+uživatele 2026-11-15); heslo samo neunikne, `ValuePattern.Value` je maska (T-054). Délka hesla
 v masce je přijatá (rozhodnuto uživatelem 2026-11-15). Podle `libAvaloniaNative.dylib` 12.1.6 macOS podroli
 `AXSecureTextField` pravděpodobně nehlásí (neověřeno za běhu).
 - [ ] **T-234** (macOS – vlastnosti pole hesla přes Accessibility): Debug aplikace v testovacím režimu
