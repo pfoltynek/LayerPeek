@@ -38,6 +38,9 @@
     and in the app list of Settings > System > Notifications (T-068, accepted 2026-10-22; the run reports every trace it
     finds in system-state-end.txt of the results folder).
 
+    Over remote desktop (RDP) the run starts with a warning (T-169): the client moves the pointer back to where the user's
+    own mouse is, so the tests with the mouse are unreliable there; the run goes on. Run them on the local console.
+
     Screenshots of every checked state, the log of every started app and test-results.xml go to the results folder
     %TEMP%\LayerPeek.App.E2E.Results.<id>, which is printed at the end (replaced by the next run). When the run fails,
     the results folder of every failed pass (of every pass when only the restore afterwards failed) is first copied to
@@ -206,6 +209,13 @@ if ($RestoreOnly) {
 # Nothing inherited from the shell may confirm system changes without the warning below, switch the watchdog off or
 # make the tests act as a child / restore process (which skip the locks and the start cleanup).
 Remove-Item Env:LAYERPEEK_E2E_SYSTEM_CHANGES, Env:LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS, Env:LAYERPEEK_E2E_WATCHDOG, Env:LAYERPEEK_E2E_CHILD, Env:LAYERPEEK_E2E_RESTORE, Env:LAYERPEEK_E2E_RESTORE_REPORT -ErrorAction SilentlyContinue
+
+# T-169: over remote desktop the client moves the pointer, so the tests with the mouse are unreliable (warning only).
+Add-Type -Namespace LayerPeekE2E -Name SessionMetrics -MemberDefinition '[DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);'
+$remoteWarning = Get-RemoteSessionWarning -SessionName $env:SESSIONNAME -IsRemoteSession ([LayerPeekE2E.SessionMetrics]::GetSystemMetrics(0x1000) -ne 0)
+if ($remoteWarning) {
+    Write-Log $remoteWarning Yellow
+}
 
 dotnet build $app -c Debug
 if ($LASTEXITCODE -ne 0) { throw 'Building the Debug app failed.' }

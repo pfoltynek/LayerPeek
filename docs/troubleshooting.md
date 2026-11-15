@@ -108,6 +108,10 @@ Když přesto něco zůstane (např. restart počítače uprostřed běhu, nebo 
 
 Spuštění bez zásahů: `pwsh tools/run-e2e.ps1 -NoSystemChanges` (bez varování, testy se zásahy se přeskočí).
 
+**Vzdálená plocha (T-169):** E2E testy s myší (tažení úchytů, kliky) přes RDP spolehlivě nefungují: klient vzdálené
+plochy vrací ukazatel na místo, kde je vaše myš (i když je mimo jeho okno), a stisk pak dostane jiné okno. Skript na to
+na začátku běhu upozorní a pokračuje; spolehlivě je spouštějte na místní konzoli.
+
 **Stopy, které se neodstraňují (přijato 2026-10-22, T-068):** po testech toastů si Windows může dál pamatovat testovací
 aplikaci `LayerPeek.E2E.2` (i dřívější `LayerPeek.E2E`) v databázi oznámení `%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db`
 a v seznamu aplikací v Nastavení → Systém → Oznámení. Běh všechny nalezené stopy testovací aplikace (klíče a hodnoty pod

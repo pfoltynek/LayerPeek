@@ -1044,6 +1044,10 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     [LoggerMessage(Level = LogLevel.Error, Message = "Showing a camera image failed.")]
     private partial void LogPresentFailed(Exception exception);
 
+    /// <summary>The window could not set its size and position at once (T-169, Windows <c>SetWindowPos</c>); it sets them one after the other.</summary>
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Setting the camera window's size and position at once failed (error {ErrorCode}); they are set one after the other.")]
+    internal partial void LogWindowBoundsFailed(int errorCode);
+
     /// <summary>
     /// Receives statuses on the streaming thread and applies them on the UI thread, unless the run was stopped meanwhile
     /// (a paused or closed window shows nothing of the old connection). Statuses change rarely; posting each is fine.

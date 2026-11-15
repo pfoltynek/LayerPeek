@@ -577,6 +577,16 @@ po návratu se spojení obnoví a obraz se vrátí od dalšího klíčového sn�
 - [ ] **T-187** krit. 2 – při zamčení s probíhajícím nahráváním (dashcam nebo nahrávání tisku) a zapnutou detekcí spojení
       zůstane, nahrávka po odemčení nemá mezeru a detekce dál loguje vzorky.
 
+### 1s. Malý náhled – dopočet výšky bez mezistavu (z T-169, rozhodnutí uživatele 2026-11-15)
+- [ ] **T-169** (macOS beze změny): na Windows nastaví dopočet výšky malého náhledu velikost i polohu najednou (jedno
+      `SetWindowPos`). Na macOS zůstává `SetBounds` – poloha platí hned, velikost až v dalším průchodu rozvržení, takže
+      je možný krátký mezistav. Ověřit: malý náhled uprostřed obrazovky (`CameraPlacement` „Center“) rozšířit levým
+      úchytem o asi 160 px a pustit; okno musí po puštění skočit rovnou do konečné polohy a velikosti (roste na obě
+      strany), bez viditelného mezikroku „nová výška u staré horní hrany“. Totéž u rozbalení řádku názvu u spodního
+      okraje (okno roste nahoru, spodní hrana zůstává). Při pochybnosti nahrát obrazovku (QuickTime) a projít po
+      snímcích. Viditelný mezistav = nový úkol (oprava pro macOS, vzor `CameraWindow.SetBoundsAtOnce`); výsledek zapsat
+      i do poznámek T-169.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

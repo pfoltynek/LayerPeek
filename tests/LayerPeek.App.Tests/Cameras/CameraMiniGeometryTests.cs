@@ -317,6 +317,36 @@ public sealed class CameraMiniGeometryTests
     public void NoMovementKeepsTheWindow() =>
         Assert.Equal(Dragged, CameraMiniGeometry.Resized(Dragged, WindowEdge.NorthWest, 0, 0, 1.0, CameraMiniGeometry.MinWidth, 90));
 
+    /// <summary>T-169: the whole window rectangle for one <c>SetWindowPos</c> (size and position at once, no state in between).</summary>
+    [Theory]
+    [InlineData(580, 390, 480, 303, 1.0, 0, 0, 580, 390, 480, 303)]
+    [InlineData(-1500, 400, 320, 213, 1.5, 0, 0, -1500, 400, 480, 320)]
+    [InlineData(100, 50, 190.5, 140, 1.0, 16, 8, 100, 50, 207, 148)]
+    [InlineData(100, 50, 320, 213, 1.25, 20, 10, 100, 50, 420, 276)]
+    public void WindowRectIsTheClientSizeInPixelsPlusTheFrameAtThePosition(int x, int y, double width, double height, double scaling, int frameWidth, int frameHeight, int ex, int ey, int ewidth, int eheight)
+    {
+        PixelBounds rect = CameraMiniGeometry.WindowRect(new CameraWindowPlacement(x, y, width, height), scaling, frameWidth, frameHeight);
+
+        Assert.Equal(new PixelBounds(ex, ey, ewidth, eheight), rect);
+    }
+
+    [Fact]
+    public void WindowRectRoundsTheClientSizeLikeTheHeightCorrectionComparesIt()
+    {
+        // 190.5 DIP at 100 % is 191 px (away from zero), the size CorrectMiniSize then finds right and does not set again.
+        PixelBounds rect = CameraMiniGeometry.WindowRect(new CameraWindowPlacement(0, 0, 190.5, 106.5), 1.0, 0, 0);
+
+        Assert.Equal((191, 107), (rect.Width, rect.Height));
+    }
+
+    [Fact]
+    public void WindowRectIgnoresANegativeFrameAndKeepsAtLeastOnePixel()
+    {
+        PixelBounds rect = CameraMiniGeometry.WindowRect(new CameraWindowPlacement(10, 20, 0, 0), 1.0, -5, -5);
+
+        Assert.Equal(new PixelBounds(10, 20, 1, 1), rect);
+    }
+
     private static PixelBounds Pixels(CameraWindowPlacement window, double scaling) => new(
         window.X,
         window.Y,

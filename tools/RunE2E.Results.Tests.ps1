@@ -242,7 +242,30 @@ Describe 'Pruning of old copies' {
     }
 }
 
+Describe 'Get-RemoteSessionWarning' {
+    It 'warns in a remote desktop session named RDP-*' {
+        Get-RemoteSessionWarning -SessionName 'RDP-Tcp#0' -IsRemoteSession $false | Should -Match 'Remote desktop session \(RDP-Tcp#0\).*unreliable.*The run goes on\.'
+    }
+
+    It 'warns when Windows reports a remote session whatever the session name' {
+        Get-RemoteSessionWarning -SessionName '' -IsRemoteSession $true | Should -Match '^Remote desktop session: '
+    }
+
+    It 'says nothing on the local console' {
+        Get-RemoteSessionWarning -SessionName 'Console' -IsRemoteSession $false | Should -BeNullOrEmpty
+        Get-RemoteSessionWarning -SessionName '' -IsRemoteSession $false | Should -BeNullOrEmpty
+    }
+}
+
 Describe 'run-e2e.ps1' {
+    It 'prints the remote desktop warning before it builds and goes on' {
+        $script = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'run-e2e.ps1'))
+        $warning = $script.IndexOf('Get-RemoteSessionWarning -SessionName $env:SESSIONNAME', [StringComparison]::Ordinal)
+        $build = $script.IndexOf('dotnet build $app -c Debug', [StringComparison]::Ordinal)
+        $warning | Should -BeGreaterThan 0
+        $build | Should -BeGreaterThan $warning
+    }
+
     It 'keeps the results of a failed run after the restore and prints the kept copy in the summary' {
         $script = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'run-e2e.ps1'))
         $restore = $script.IndexOf("Invoke-SystemChangeRestore 'after the run'", [StringComparison]::Ordinal)
