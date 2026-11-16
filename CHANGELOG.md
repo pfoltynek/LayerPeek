@@ -8,6 +8,17 @@ older versions always load.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-16
+
+### Added
+
+- **Windows on ARM64:** every release now also offers a native version for Windows 11 on ARM64 (for example laptops
+  with a Snapdragon processor), next to the x64 one: the installer `LayerPeek-X.Y.Z-win-arm64-Setup.exe` and the ZIP
+  `LayerPeek-X.Y.Z-win-arm64.zip`, with the camera libraries included and its own update channel. **Settings → System
+  → About → System type** tells which one you need ("x64-based processor" or "ARM-based processor"). An installed x64
+  version does not switch by itself: uninstall it in **Settings → Apps**, then install the ARM64 version; your
+  settings and passwords stay.
+
 ## [1.0.0] - 2026-11-15
 
 The first stable release. The [user manual](https://github.com/pfoltynek/LayerPeek/blob/main/manuals/en/manual.md)
@@ -537,7 +548,8 @@ released, so the app does not migrate anything; developers who ran the old build
 - The PrusaLink web proxy rejects write requests from other origins.
 - Native libraries are loaded only from the application folder and the system folder.
 
-[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/pfoltynek/LayerPeek/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.1...v0.4.0

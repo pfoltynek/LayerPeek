@@ -223,18 +223,18 @@ Možnosti k e-mailům autorů (původní rozbor):
 
 ### 3.2 Co zkontrolovat na GitHubu (uživatel, agent to nevidí)
 Repozitář už je veřejný, takže jde o kontrolu toho, co je **už vidět** (ne o přípravu na zveřejnění).
-- [ ] Vzdálené větve a tagy: `git ls-remote origin` (smazat zapomenuté `feature/*`, které nemají být veřejné).
-- [ ] Veřejný obsah: text a soubory vydání `v0.1.0`–`v0.5.0` (koncepty smazat nebo zkontrolovat),
+- [x] Vzdálené větve a tagy: `git ls-remote origin` (smazat zapomenuté `feature/*`, které nemají být veřejné).
+- [x] Veřejný obsah: text a soubory vydání `v0.1.0`–`v0.5.0` (koncepty smazat nebo zkontrolovat),
       issues, PR, Discussions, popisy commitů v PR. **Opraveno 2026-11-13:** příznak předběžného vydání u 0.2.0–0.5.0
       byl změněn mimo skripty, „Latest“ je dnes `v0.5.0`; uživatel 2026-11-13 rozhodl nechat, jak je (1.0.0 bude Latest).
 - [x] Ponechat vydání 0.x veřejně? (otázka 6) → rozhodnuto 2026-11-11: vydání 0.1.0–0.5.0 zůstávají, jak jsou.
-- [ ] Nastavení repozitáře: popis, web, témata (topics), náhled pro sociální sítě, Discussions zapnuté (odkazuje na ně
+- [x] Nastavení repozitáře: popis, web, témata (topics), náhled pro sociální sítě, Discussions zapnuté (odkazuje na ně
       `CONTRIBUTING.md` a `.github/ISSUE_TEMPLATE/config.yml`), private vulnerability reporting (odkaz v `SECURITY.md`),
       wiki vypnutá, žádné webhooky, deploy klíče ani spolupracovníci navíc.
-- [ ] Rulesety 1–4 z T-180 ve stavu *Active*. Secret scanning, push protection a CodeQL jsou u veřejného
+- [x] Rulesety 1–4 z T-180 ve stavu *Active*. Secret scanning, push protection a CodeQL jsou u veřejného
       repozitáře zdarma, zkontrolovat, že jsou zapnuté. Upozornění secret scanningu (Security → Secret
       scanning) projít před 1.0.0: GitHub už historii skenoval.
-- [ ] Účet podle T-180 (2FA hardwarovým klíčem, záchranné kódy, úklid PAT / OAuth / SSH klíčů).
+- [x] Účet podle T-180 (2FA hardwarovým klíčem, záchranné kódy, úklid PAT / OAuth / SSH klíčů).
 
 ### 3.3 Texty v repozitáři
 - `CHANGELOG.md` (B6, **hotovo**): věta „Until 1.0.0, minor versions may contain breaking changes (settings format,
@@ -385,7 +385,9 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
 7. Doplnit výsledky do T-125 / T-126 / T-127 a do tohoto úkolu. Každá chyba = nový úkol (případně `hotfix/1.0.1`).
 
 ## Akceptační kritéria
-- [ ] B1 (T-125 2r), B2 (T-125 2w a automatické body 2n, 2p, 2u, 2x), B3 (T-125 2v bod 1) odškrtnuté na Windows
+- [x] B1 (T-125 2r), B2 (T-125 2w a automatické body 2n, 2p, 2u, 2x), B3 (T-125 2v bod 1) odškrtnuté na Windows
+      – 2026-11-15/16: B1 a B2 generálkou B4 (celé `dotnet test`, smoke test, `release-build.ps1`), B3 `UpdateTests`
+      2 z 3 PASS, varianta MenuItem selhala jen na myši přes RDP (přijato uživatelem 2026-11-16)
 - [x] B5 (T-127 1c bod 1) ověřený a odškrtnutý na Macu
       → T-127 1c bod 1 odškrtnutý 2026-11-13; znovu ověřeno 2026-11-15 generálkou B4 (celý `dotnet test` s verzí 1.0.0:
       11 093 prošlo, 0 selhalo)
@@ -401,7 +403,7 @@ Texty voleb „Nabízet předběžné verze“ v aplikaci a příručkách zůst
       README EN a CZ ve shodě
 - [x] B8: rozhodnutí o e-mailech autorů zapsané (otázka 1) a provedené; `user.email` nastavený na obou počítačích
       → Mac: nastavil hlavní agent 2026-11-11 (`git config user.email`); Windows → přesunuto do T-125 (2aa)
-- [ ] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný
+- [x] B9 / oddíl 3.2 zkontrolovaný uživatelem a zapsaný – potvrzeno uživatelem 2026-11-16 (vzdálené větve jen `main` a `develop`)
 - [x] B10: T-202 hotový (vlastní minimální LGPL build FFmpeg na Windows s D3D11VA, zdroj Windows u vydání bez BtbN)
       – hotovo 2026-11-15 (`tasks/done/T-202-…`); zbývající ruční body T-202 jsou v T-125 2ag
 - [x] B11: T-201 hotový (přeinstalace respektuje vypnutý autostart) – hotovo 2026-11-12 (`tasks/done/T-201-…`);
@@ -471,6 +473,14 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     provedeno; T-059 řádek po přijetí balíčku přepíše.
 
 ## Poznámky k implementaci
+- 2026-11-16 (Windows, hlavní agent): 1.0.0 zveřejněné (tag `v1.0.0` z Macu, soubory macOS z Macu, win-x64
+  sestavené a podepsané na Windows z tagu, bez win-arm64 – v tagu ještě `Uploadable = $false`). Uživatel potvrdil B9
+  a kontrolu aktualizace buildem 0.9.9. `main` = `v1.0.0` (b5a560eb); obsah je v `develop` (sloučení
+  `release/1.0.0` 786f0893). Odeslání do winget (T-059) zatím neproběhlo.
+- 2026-11-16 (Windows, hlavní agent): B3 – nainstalovaný LayerPeek 0.5.0 odinstalován (se souhlasem uživatele,
+  nastavení zůstalo), `UpdateTests` 2/3 PASS (viz T-125 2v). Rozhodnutí uživatele 2026-11-16: **win-arm64 se vydá
+  v 1.0.0 naplno** (mění rozhodnutí z 2026-11-12, T-226/T-227), README projít celé, ostré vydání hned po B3; B9
+  (kontrola veřejného repozitáře uživatelem) zůstává neodškrtnutý.
 - 2026-11-15 (Mac, hlavní agent, generálka B4 na Macu): samostatný worktree, místní větev `rehearsal/1.0.0`
   z `origin/develop` (db1fa919) s commitem `<Version>1.0.0</Version>` a sekcí `## [1.0.0] - 2026-11-15`
   (`ConvertTo-ReleaseChangelog`), čistý strom, LayerPeek neběžel. `caffeinate -d -i -u pwsh scripts/release-build.ps1

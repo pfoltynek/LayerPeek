@@ -1,6 +1,6 @@
 # Používateľská príručka LayerPeek
 
-*Pre LayerPeek 0.5 vo Windows 10/11 a v macOS (Apple Silicon).* · [Ďalšie jazyky](../README.md)
+*Pre LayerPeek 1.1 vo Windows 10/11 a v macOS (Apple Silicon).* · [Ďalšie jazyky](../README.md)
 
 LayerPeek sleduje vaše 3D tlačiarne Prusa cez lokálnu sieť a ich stav zobrazuje v oznamovacej oblasti Windows alebo
 na paneli s ponukami macOS. Nemá hlavné okno: všetko začína v ponuke ikony. Táto príručka popisuje oba systémy;
@@ -33,8 +33,8 @@ tam, kde sa Windows a macOS líšia, to text uvádza alebo ukazuje obe varianty.
 - **Tlačiareň Prusa s firmvérom Buddy 6.x a PrusaLinkom**: CORE One (otestovaná), MK4/MK4S, MK3.9/MK3.9S, MK3.5/MK3.5S,
   XL a MINI/MINI+. Original Prusa MK3/MK3S nemá vstavaný PrusaLink a nie je podporovaná.
 - **Počítač v rovnakej lokálnej sieti** ako tlačiareň:
-  - Windows 10 alebo 11, x64 (verzia pre Windows na ARM sa pripravuje),
-  - macOS na Apple Silicon (M1 alebo novší).
+  - Windows 10 alebo 11 (x64), Windows 11 (ARM64),
+  - macOS 14 a novší na Apple Silicon (M1 alebo novší).
 - **Kamera (voliteľné):** akákoľvek kamera so streamom **RTSP H.264**, ktorá je dostupná z vášho počítača, napríklad
   kamera Prusa Buddy3D. Aj bez kamery máte ikonu, upozornenia a diagnostiku.
 
@@ -58,14 +58,15 @@ Môžete si vybrať z dvoch balíkov:
 
 | Balík | Čo robí |
 |---|---|
-| **Inštalátor** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (odporúčané) | Nainštaluje LayerPeek iba pre vášho používateľa, bez práv správcu, do `%LOCALAPPDATA%\LayerPeek`, pridá ho do ponuky Štart, spúšťa ho po prihlásení a dokáže sa sám aktualizovať. |
-| **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Rozbaľte ho kamkoľvek a spustite `LayerPeek.exe`. Nespúšťa sa po prihlásení a sám sa neaktualizuje (namiesto toho otvorí stránku s vydaniami). |
+| **Inštalátor** `LayerPeek-X.Y.Z-win-x64-Setup.exe` / `LayerPeek-X.Y.Z-win-arm64-Setup.exe` (odporúčané) | Nainštaluje LayerPeek iba pre vášho používateľa, bez práv správcu, do `%LOCALAPPDATA%\LayerPeek`, pridá ho do ponuky Štart, spúšťa ho po prihlásení a dokáže sa sám aktualizovať. |
+| **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` / `LayerPeek-X.Y.Z-win-arm64.zip` | Rozbaľte ho kamkoľvek a spustite `LayerPeek.exe`. Nespúšťa sa po prihlásení a sám sa neaktualizuje (namiesto toho otvorí stránku s vydaniami). |
 
-Oba balíčky sú pre Windows na **x64** (procesory Intel a AMD): **Nastavenie → Systém → Informácie** pri položke **Typ
-systému** uvádza *x64*. Verzia pre Windows na **ARM** (pri položke **Typ systému** *ARM*, napríklad notebooky so
-Snapdragonom) sa pripravuje a zatiaľ nie je na stiahnutie. Keď bude, prejdite na ňu ručne: odinštalujte verziu x64
-(**Nastavenie → Aplikácie → Nainštalované aplikácie → LayerPeek → Odinštalovať**) a potom nainštalujte verziu ARM
-(`…-win-arm64-…`). Nastavenia aj heslá zostanú; inštalácia svoju architektúru sama nikdy nezmení.
+Každý balíček existuje vo verzii pre Windows na **x64** (`win-x64`, procesory Intel a AMD) aj pre Windows na **ARM64**
+(`win-arm64`, napríklad notebooky so Snapdragonom). Ktorý potrebujete, ukáže **Nastavenie → Systém → Informácie**
+pri položke **Typ systému**: *x64* znamená súbory `win-x64`, *ARM* súbory `win-arm64`. Z nainštalovanej verzie x64 na
+verziu ARM64 prejdete ručne: odinštalujte verziu x64 (**Nastavenie → Aplikácie → Nainštalované aplikácie → LayerPeek →
+Odinštalovať**) a potom nainštalujte verziu ARM64. Nastavenia aj heslá zostanú; inštalácia svoju architektúru sama
+nikdy nezmení.
 
 Pri prvom spustení zobrazí Windows SmartScreen hlásenie **„Systém Windows ochránil váš počítač“** s *neznámym
 vydavateľom*. Kliknite na **Ďalšie informácie** a potom na **Spustiť aj tak**.

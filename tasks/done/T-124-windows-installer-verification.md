@@ -1,7 +1,7 @@
 ---
 id: T-124
 title: Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace)
-status: todo
+status: done
 owner: qa-reviewer
 priority: P1
 platform: windows
@@ -43,7 +43,7 @@ Postup: [docs/windows-manual-testing.md](../../docs/windows-manual-testing.md), 
       `InstalledOlderVersionUpdatesFromALocalFeedAfterAClick(MenuItem|Banner)` (s instalací uživatele se přeskočí). → přesunuto do T-125 (blokuje T-133: upozornění testovací aplikace vypnutá ve Windows)
 
 ### Přeinstalace zachová vypnutý autostart (z T-201, implementováno 2026-11-12)
-- [ ] **T-201** (krit. „Ruční ověření na Windows: nainstalovat, vypnout autostart, spustit tentýž / novější
+- [x] **T-201** (krit. „Ruční ověření na Windows: nainstalovat, vypnout autostart, spustit tentýž / novější
       `Setup.exe --silent` (nebo `winget install --manifest` podruhé) → autostart zůstane vypnutý“): instalátor
       z `pwsh scripts/release-build.ps1`, `pwsh tools/windows-verify.ps1 -Only win.install`; v nainstalované aplikaci
       Nastavení → Spouštění a aktualizace → vypnout spouštění s Windows, Uložit (v `%APPDATA%\LayerPeek\settings.json`
@@ -51,6 +51,7 @@ Postup: [docs/windows-manual-testing.md](../../docs/windows-manual-testing.md), 
       spuštění (`shell:startup`) **není** `LayerPeek.lnk` a v logu Velopacku (`%LOCALAPPDATA%\velopack\velopack_LayerPeek.log`)
       je „the user switched autostart off in the settings; it stays off“. Pak spouštění zapnout, Uložit, znovu
       `Setup.exe --silent` → `LayerPeek.lnk` je zpět. Nakonec `pwsh tools/windows-verify.ps1 -Only win.uninstall`.
+      Hotovo 2026-11-16: ověřeno uživatelem při instalaci 1.0.0 (přeinstalace nechá vypnutý autostart vypnutý).
 
 ### Závěr
 - [x] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; ověřovací

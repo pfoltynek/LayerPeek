@@ -14,8 +14,8 @@
         another commit there, or HEAD is not contained in its main branch,
       - CHANGELOG.md has no dated, non-empty section for the version,
       - the build output is missing, from another commit or version, from a dirty tree, contains a runtime that must
-        not be uploaded (Uploadable = $false in the runtime table: win-arm64 until it is verified on an ARM64 device,
-        T-227; build for the upload with release-build.ps1 -Runtime win-x64, T-226), or does not match its checksum file,
+        not be uploaded (Uploadable = $false in the runtime table; none since win-arm64 became uploadable,
+        2026-11-16, T-226), or does not match its checksum file,
       - the update feed is not signed (T-181): a trial build of release-build.ps1 -SkipFeedSignature, a build without the
         signature status, or a releases.<rid>.json without its releases.<rid>.json.sig,
       - gh is missing or not logged in,

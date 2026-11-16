@@ -151,8 +151,8 @@ public sealed class SignedUpdateSourceTests : IDisposable
     [Fact]
     public async Task TheGitHubFeedOfAnArm64InstallationIsTheWinArm64FeedOfTheNewestReleaseThatHasIt()
     {
-        // T-226: until T-227 a release carries no win-arm64 files; an ARM64 installation then looks further back and never
-        // reads the feed of the x64 installations.
+        // T-226: a release without win-arm64 files (every release up to 1.0.0, or one published incomplete) is skipped by
+        // an ARM64 installation, which looks further back and never reads the feed of the x64 installations.
         FakeHttp http = new();
         http.Serve("v0.3.2/releases.win-arm64.json", Feed);
         http.Serve("v0.3.2/releases.win-arm64.json.sig", TestUpdateFeed.Sign(Feed, "win-arm64"));

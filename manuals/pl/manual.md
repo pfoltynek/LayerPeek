@@ -1,6 +1,6 @@
 # Instrukcja obsługi LayerPeek
 
-*Dla LayerPeek 0.5 w systemach Windows 10/11 i macOS (Apple Silicon).* · [Inne języki](../README.md)
+*Dla LayerPeek 1.1 w systemach Windows 10/11 i macOS (Apple Silicon).* · [Inne języki](../README.md)
 
 LayerPeek pilnuje Twoich drukarek 3D Prusa przez sieć lokalną i pokazuje ich stan w obszarze powiadomień systemu
 Windows lub na pasku menu macOS. Nie ma okna głównego: wszystko zaczyna się od menu ikony. Ta instrukcja opisuje oba
@@ -33,8 +33,8 @@ systemy; tam, gdzie Windows i macOS się różnią, tekst o tym wspomina albo po
 - **Drukarki Prusa z firmware Buddy 6.x i PrusaLink**: CORE One (przetestowana), MK4/MK4S, MK3.9/MK3.9S, MK3.5/MK3.5S,
   XL oraz MINI/MINI+. Original Prusa MK3/MK3S nie ma wbudowanego PrusaLink i nie jest obsługiwana.
 - **Komputera w tej samej sieci lokalnej** co drukarka:
-  - Windows 10 lub 11, x64 (wersja dla Windows na ARM jest w przygotowaniu),
-  - macOS na Apple Silicon (M1 lub nowszy).
+  - Windows 10 lub 11 (x64), Windows 11 (ARM64),
+  - macOS 14 lub nowszy na Apple Silicon (M1 lub nowszy).
 - **Kamery (opcjonalnie):** dowolnej kamery ze strumieniem **RTSP H.264** dostępnym z Twojego komputera, na przykład
   kamery Prusa Buddy3D. Bez kamery nadal masz ikonę, powiadomienia i diagnostykę.
 
@@ -58,14 +58,15 @@ Do wyboru masz dwa pakiety:
 
 | Pakiet | Co robi |
 |---|---|
-| **Instalator** `LayerPeek-X.Y.Z-win-x64-Setup.exe` (zalecany) | Instaluje LayerPeek tylko dla Twojego użytkownika, bez uprawnień administratora, do `%LOCALAPPDATA%\LayerPeek`, dodaje go do menu Start, uruchamia po zalogowaniu i potrafi się sam aktualizować. |
-| **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` | Rozpakuj go w dowolnym miejscu i uruchom `LayerPeek.exe`. Nie uruchamia się po zalogowaniu i nie aktualizuje się sam (zamiast tego otwiera stronę wydania). |
+| **Instalator** `LayerPeek-X.Y.Z-win-x64-Setup.exe` / `LayerPeek-X.Y.Z-win-arm64-Setup.exe` (zalecany) | Instaluje LayerPeek tylko dla Twojego użytkownika, bez uprawnień administratora, do `%LOCALAPPDATA%\LayerPeek`, dodaje go do menu Start, uruchamia po zalogowaniu i potrafi się sam aktualizować. |
+| **ZIP** `LayerPeek-X.Y.Z-win-x64.zip` / `LayerPeek-X.Y.Z-win-arm64.zip` | Rozpakuj go w dowolnym miejscu i uruchom `LayerPeek.exe`. Nie uruchamia się po zalogowaniu i nie aktualizuje się sam (zamiast tego otwiera stronę wydania). |
 
-Oba pakiety są dla Windows na **x64** (procesory Intel i AMD): **Ustawienia → System → Informacje** pokazuje *x64* przy
-**Typ systemu**. Wersja dla Windows na **ARM** (*ARM* przy **Typ systemu**, na przykład laptopy ze Snapdragonem) jest w
-przygotowaniu i nie można jej jeszcze pobrać. Gdy będzie, przejdź na nią ręcznie: odinstaluj wersję x64 (**Ustawienia →
-Aplikacje → Zainstalowane aplikacje → LayerPeek → Odinstaluj**), a potem zainstaluj wersję ARM (`…-win-arm64-…`).
-Ustawienia i hasła zostają; instalacja nigdy sama nie zmienia architektury.
+Każdy pakiet jest dostępny dla Windows na **x64** (`win-x64`, procesory Intel i AMD) i dla Windows na **ARM64**
+(`win-arm64`, na przykład laptopy ze Snapdragonem). Który jest Ci potrzebny, pokazuje **Ustawienia → System →
+Informacje** przy **Typ systemu**: *x64* oznacza pliki `win-x64`, *ARM* pliki `win-arm64`. Z zainstalowanej wersji x64
+na wersję ARM64 przejdź ręcznie: odinstaluj wersję x64 (**Ustawienia → Aplikacje → Zainstalowane aplikacje → LayerPeek
+→ Odinstaluj**), a potem zainstaluj wersję ARM64. Ustawienia i hasła zostają; instalacja nigdy sama nie zmienia
+architektury.
 
 Przy pierwszym uruchomieniu filtr Windows SmartScreen wyświetli komunikat **„System Windows ochronił ten komputer”**
 z informacją *Nieznany wydawca*. Kliknij **Więcej informacji**, a następnie **Uruchom mimo to**.
