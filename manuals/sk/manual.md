@@ -1,6 +1,6 @@
 # Používateľská príručka LayerPeek
 
-*Pre LayerPeek 1.0 vo Windows 10/11 a v macOS (Apple Silicon).* · [Ďalšie jazyky](../README.md)
+*Pre LayerPeek 1.1 vo Windows 10/11 a v macOS (Apple Silicon).* · [Ďalšie jazyky](../README.md)
 
 LayerPeek sleduje vaše 3D tlačiarne Prusa cez lokálnu sieť a ich stav zobrazuje v oznamovacej oblasti Windows alebo
 na paneli s ponukami macOS. Nemá hlavné okno: všetko začína v ponuke ikony. Táto príručka popisuje oba systémy;
