@@ -495,7 +495,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       zapíše a přečte `.tar.xz`, `git archive` bez převodu konců řádků i s `core.autocrlf=true`).
       Hotovo v T-228 (2026-11-12): plný `dotnet test` na Windows 2× bez chyb (11 056 testů, 0 selhání), uvedené testy
       proběhly (nepřeskočené).
-- [ ] **T-199 / T-202** (vydání, bez nahrání): `pwsh scripts/release-build.ps1 -SkipFeedSignature` (MSYS2 s MinGW-w64
+- [x] **T-199 / T-202** (vydání, bez nahrání): `pwsh scripts/release-build.ps1 -SkipFeedSignature` (MSYS2 s MinGW-w64
       nainstalovaný, `docs/prerequisites.md`) vytvoří `dist/ffmpeg-source-<verze>-windows.tar.xz` se třemi soubory:
       `ffmpeg-9.0.2.tar.xz` (stejný tarball jako macOS, SHA-256 `8c385028…e002e` z `build/FFmpeg.targets`, před buildem
       v `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg-source\`), `build-ffmpeg.sh` (= `build/windows/build-ffmpeg.sh`) a
@@ -503,6 +503,8 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       BtbN ani `git archive`). Kontrola verze `avcodec-63.dll` (`9.0.2`) projde, `SHA256SUMS-windows.txt` a
       `build-info.json` soubor uvádějí, v publish složce nejsou `swresample-7.dll` ani DLL MSYS2. Druhý běh nic nestahuje.
       Sbalení s reálným tarballem a reálnou publish složkou (bez celého `release-build.ps1`) ověřil T-202 2026-11-15.
+      Hotovo 2026-11-16: ostrým vydáním 1.0.0 (build z tagu); vydaný `ffmpeg-source-1.0.0-windows.tar.xz` má 3 soubory, tarball
+      s SHA-256 `8c385028…`, `build-ffmpeg.sh` shodný s tagem, `README.txt` s MSYS2 / MinGW-w64 a `--enable-d3d11va`, bez BtbN.
 
 ### 2ac. Nastavení > Kamera – Hardwarové dekódování (z T-204, implementováno na Macu 2026-11-12)
 - [x] **T-204** (snímky UI, sada Windows): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`
@@ -513,9 +515,10 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] **T-204** (automaticky, Segoe UI): `dotnet test` na Windows bez chyb, hlavně `SettingsWindowCameraTabUiTests`,
       `SettingsWindowLayoutTests.EverythingFitsWithoutScrollingInEveryState` (první stav má na záložce Kamera „Vypnuto“
       s poznámkou Windows) a `HardwareDecodingRuleTests.AutomaticUsesHardwareOnlyWhereTheRuleSelectsADevice`.
-- [ ] **T-204** (ruční, krátce): v nainstalované / spuštěné aplikaci Nastavení > Kamera ukazuje poznámku Windows;
+- [x] **T-204** (ruční, krátce): v nainstalované / spuštěné aplikaci Nastavení > Kamera ukazuje poznámku Windows;
       „Vypnuto“ uložit, v `%APPDATA%\LayerPeek\settings.json` je `"cameraHardwareDecoding": "Off"`, okno kamery dál
       ukazuje obraz; zpět „Automaticky“ hodnotu ze souboru odebere.
+      Hotovo 2026-11-16: ověřeno uživatelem v nainstalované 1.0.0 (Windows).
 
 ### 2ad. Avalonia 12.1.6 (z T-229, ověřeno na Macu 2026-11-15)
 - [ ] **T-229** (automaticky): `dotnet build` a `dotnet test` na Windows bez chyb a varování (snímky sady Windows se
@@ -564,9 +567,10 @@ dashcam, timelapse ani detekce; spojení se pak po 10 s zavře).
       selhávaly jen testy ukazatele a hlavního panelu (`CameraPinTests` 3, `CameraMiniOutlineTests` 2,
       `CameraTaskbarAndModeSwitchTests` 1 – pokaždé jiný; pod ukazatelem byl kurzor textového pole cizího okna, `QueryDisplayConfig`
       chyba 5 při zamčené ploše). Ověřit, že na klidné ploše projdou všechny; kdyby ne, porovnat s `develop` před T-202.
-- [ ] **T-202** (ruční, krátce): aplikace z `dotnet publish src/LayerPeek.App -c Release -r win-x64` se skutečnou kamerou
+- [x] **T-202** (ruční, krátce): aplikace z `dotnet publish src/LayerPeek.App -c Release -r win-x64` se skutečnou kamerou
       (Buddy3D) ukazuje živý obraz, nahrává a O aplikaci > Licence třetích stran ukazuje u FFmpeg odkazy na tarball
       ffmpeg.org a `build/windows/build-ffmpeg.sh` a položku „MinGW-w64 runtime“.
+      Hotovo 2026-11-16: ověřeno uživatelem ve vydané 1.0.0 se skutečnou kamerou (Windows).
 
 ### 2ah. Hardwarové dekódování D3D11VA – měření pro výchozí stav a robustnost (z T-206, implementováno na Windows 2026-11-15)
 Postup: [docs/hw-decoding.md](../../docs/hw-decoding.md), oddíl „Windows – měření pro přepnutí výchozího stavu“.
@@ -654,13 +658,14 @@ Build Tools 2026 18.12.0 (MSVC 14.52), Windows 11 SDK 10.0.26100, Edge 157.0.434
 - [ ] **T-017** (otevřená otázka SmartScreen): stažení `Setup.exe` z GitHub vydání v Edge – zapsat varování SmartScreen
       při stahování a doplnit ho do `docs/release.md` (spuštění se značkou Mark-of-the-Web ověřil T-056).
 
-- [ ] **T-181** / **T-198** (otázka 3, rozhodnutí uživatele 2026-11-11; uživatel, hned po zveřejnění 1.0.0, až po
+- [x] **T-181** / **T-198** (otázka 3, rozhodnutí uživatele 2026-11-11; uživatel, hned po zveřejnění 1.0.0, až po
       aktualizaci nainstalované 0.5.0 na 1.0.0): místní Release build **0.9.9** z tagu `v1.0.0` nainstalovaný přes
       `Setup.exe` se z GitHubu aktualizuje na 1.0.0 – ověří skutečné stažení a ověření `releases.win-x64.json.sig`.
       Postup `docs/release.md`, „Kontrola aktualizace z GitHubu buildem 0.9.9“ (dočasný worktree, verze jen v pracovním
       stromu, `release-build.ps1 -SkipFeedSignature`, odinstalace a instalace, kontrola, úklid). Očekáváno: nabídka
       „Je dostupná nová verze 1.0.0“, ne „Aktualizace odmítnuta…“, po aktualizaci O aplikaci 1.0.0, v logu žádné
       odmítnutí feedu. Výsledek zapsat do T-198.
+      Hotovo 2026-11-16: potvrzeno uživatelem (aktualizace buildem 0.9.9 na 1.0.0).
 
 ### 5. Závěr (z T-114, oddíl 6)
 - [ ] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; profil vrácený
