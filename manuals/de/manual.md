@@ -1,6 +1,6 @@
 # LayerPeek-Benutzerhandbuch
 
-*Für LayerPeek 1.0 unter Windows 10/11 und macOS (Apple Silicon).* · [Weitere Sprachen](../README.md)
+*Für LayerPeek 1.1 unter Windows 10/11 und macOS (Apple Silicon).* · [Weitere Sprachen](../README.md)
 
 LayerPeek überwacht Ihre Prusa-3D-Drucker über Ihr lokales Netzwerk und zeigt ihren Zustand im Infobereich von Windows
 oder in der Menüleiste von macOS an. Es gibt kein Hauptfenster: Alles beginnt im Menü des Symbols. Dieses Handbuch
