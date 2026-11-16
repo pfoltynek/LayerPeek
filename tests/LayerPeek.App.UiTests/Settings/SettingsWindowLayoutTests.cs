@@ -682,6 +682,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(Strings.SettingsTestNotification, test.Content);
             Ui.Click(macUi.Window, Ui.CentreOf(test, macUi.Window));
             macUi.Window.Settle();
+            // The request starts asynchronously; on a loaded CI runner one settle is not always enough.
+            await Ui.UntilAsync(() => mac.Requests == 1, "the macOS question of the test notification");
             Assert.Equal(1, mac.Requests);
             Assert.False(test.IsEffectivelyEnabled);
             problems.AddRange(SlotProblems(macUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationAsking, "SettingsTestNotification", $"{language} / macOS asks"));
@@ -720,8 +722,10 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(Strings.SettingsOpenNotificationSettingsHintWindows, AutomationProperties.GetHelpText(open));
             Assert.Equal(Strings.SettingsOpenNotificationSettingsHintWindows, ToolTip.GetTip(open));
             problems.AddRange(SlotProblems(winUi, "SettingsNotificationsTurnedOff", Strings.SettingsNotificationsTurnedOffWindows, "SettingsOpenNotificationSettings", $"{language} / Windows turned off"));
+            // The button is enabled once the refreshed state reaches its command (CI runner: not always after one settle).
+            await Ui.UntilAsync(() => open.IsEffectivelyEnabled, "the button to the notification settings is enabled");
             Ui.Click(winUi.Window, Ui.CentreOf(open, winUi.Window));
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            await Ui.UntilAsync(() => windows.Opened == 1, "the notification settings were opened");
             Assert.Equal(1, windows.Opened);
             winUi.Window.Close();
 
