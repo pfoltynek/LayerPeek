@@ -37,9 +37,11 @@ public sealed class CameraFrameRateLimitTests
     }
 
     [Theory]
-    // The profiles (5 and 10 fps) and custom limits, below, close to and above the camera's own rate (22 and 25 fps).
+    // The profiles (10 and 15 fps, T-249) and custom limits, below, close to and above the camera's own rate (22 and 25 fps).
+    [InlineData(25.0, 15)]
     [InlineData(25.0, 10)]
     [InlineData(25.0, 5)]
+    [InlineData(22.0, 15)]
     [InlineData(22.0, 10)]
     [InlineData(22.0, 5)]
     [InlineData(25.0, 1)]

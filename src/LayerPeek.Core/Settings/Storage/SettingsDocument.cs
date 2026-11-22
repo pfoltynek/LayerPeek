@@ -61,7 +61,7 @@ internal sealed class SettingsDocument
 
     /// <summary>
     /// The frame rate limit of the mini preview (T-185): whole frames per second 1–30, 0 = no limit; missing (older files,
-    /// the default) = 10 and not written while it is the default. Read as a number so that fractions and out-of-range values
+    /// the default) = 15 (T-249) and not written while it is the default. Read as a number so that fractions and out-of-range values
     /// fall back to the default with a warning.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

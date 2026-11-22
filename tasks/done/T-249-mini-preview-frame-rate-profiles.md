@@ -1,7 +1,7 @@
 ---
 id: T-249
 title: Malý náhled kamery – profily snímkové frekvence Úsporný 10 fps a Vyvážený 15 fps (dosud 5 / 10)
-status: todo
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -30,14 +30,26 @@ jsou zbytečně nízké. Nové hodnoty: **Úsporný 10 fps**, **Vyvážený 15 f
 - Snímky obrazovky v `docs/images/<lang>/`, pokud ukazují nápovědu profilu s čísly – přegenerovat.
 
 ## Akceptační kritéria
-- [ ] Úsporný = 10 fps, Vyvážený = 15 fps (výchozí), Plynulý a Vlastní beze změny
-- [ ] Soubor nastavení bez hodnoty načte 15 fps; uložená 5 fps se načte jako Vlastní 5 fps; uložených 10 fps jako Úsporný
-- [ ] Nápovědy profilů ve všech jazycích odpovídají novým hodnotám
-- [ ] Manuály všech jazyků, dokumentace a CHANGELOG aktualizované
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Úsporný = 10 fps, Vyvážený = 15 fps (výchozí), Plynulý a Vlastní beze změny
+- [x] Soubor nastavení bez hodnoty načte 15 fps; uložená 5 fps se načte jako Vlastní 5 fps; uložených 10 fps jako Úsporný
+- [x] Nápovědy profilů ve všech jazycích odpovídají novým hodnotám
+- [x] Manuály všech jazyků, dokumentace a CHANGELOG aktualizované
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (Windows; sada snímků macOS → přesunuto do T-127, oddíl 1x)
 
 ## Otevřené otázky
 - (žádné – výchozí profil a migrace rozhodnuty uživatelem 2026-11-22)
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- `MiniPreviewFrameRate.Economy` = 10, `Balanced` = 15 (= `Default`); bez migrace – `SettingsMapper` výchozí hodnotu
+  nezapisuje, takže soubor bez `miniPreviewFrameRate` načte 15 fps, uložená 5 fps zůstane (profil Vlastní) a uložených
+  10 fps je nově Úsporný (test `ALimitSavedBeforeT249IsLoadedUnchanged`).
+- Nápovědy `SettingsMiniFrameRateEconomyHint` / `SettingsMiniFrameRateBalancedHint` v 8 jazycích: Úsporný už není
+  „trhaný“, ale „pro malý obraz stále dost plynulé“; Vyvážený „plynulý pohyb“. Zachované NBSP (číslo–jednotka, fr před
+  dvojtečkou a středníkem).
+- Manuály (8 jazyků, oddíl o malém náhledu a 11.6), `README.md` / `README.cz.md`, `docs/architecture.md`, CHANGELOG
+  (Unreleased › Changed). Měření v `docs/hw-decoding.md` (výchozí 10 fps v době měření) jsou historický záznam, beze změny.
+- Testy: Core `MiniPreviewFrameRateSettingsTests`, `CameraFrameRateLimitTests` (profil 15 fps), App
+  `MiniFrameRateSettingsTests`, `CameraViewModelFrameRateTests`, UI `SettingsWindowCameraTabUiTests`.
+- Snímky: `docs/images/<lang>/` záložku Kamera s nápovědou profilu neukazují (jen podzáložku tiskárny), přegenerování
+  není potřeba. Referenční snímek `tests/LayerPeek.App.UiTests/Snapshots/settings-camera-tab.png` (Windows) přegenerován;
+  sada macOS → T-127 (oddíl 1x).

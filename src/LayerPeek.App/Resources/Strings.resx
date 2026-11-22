@@ -990,10 +990,10 @@
     <value>Custom</value>
   </data>
   <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
-    <value>5 fps: the lowest CPU load and the least image data copied; movement in the picture is choppier.</value>
+    <value>10 fps: the lowest CPU load and the least image data copied; still smooth enough for the small picture.</value>
   </data>
   <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
-    <value>10 fps (recommended): smooth enough for the small picture with a fraction of the CPU load and copied image data.</value>
+    <value>15 fps (recommended): smooth movement in the small picture with a fraction of the CPU load and copied image data.</value>
   </data>
   <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
     <value>Every frame of the camera, as in the normal window: the highest CPU load and the most image data copied.</value>

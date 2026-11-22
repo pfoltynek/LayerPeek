@@ -639,6 +639,12 @@ kvůli zakázaným oznámením „LayerPeek E2E“; části panelu prošly.
       → `PASS` s „(b) the list dims notes.txt, not the .mp4 files“ a „(b) notes.txt through Go to refused as
       NotATimelapse“. `FAIL` = nový úkol.
 
+### 1x. Profily snímkové frekvence malého náhledu (z T-249, implementováno na Windows 2026-11-22)
+- [ ] **T-249** (snímky UI, sada macOS): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests
+      -- --filter-method "*SettingsWindowSnapshotTests.CameraTab"` a zkontrolovat
+      `tests/LayerPeek.App.UiTests/Snapshots/macOS/settings-camera-tab.png` (Vyvážený, posuvník na 15 fps, nápověda
+      „15 fps (recommended): smooth movement…“). Pak celý `dotnet test` na Macu bez chyb.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

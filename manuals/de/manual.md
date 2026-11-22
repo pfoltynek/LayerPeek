@@ -226,7 +226,7 @@ Die Mini-Vorschau hat unter dem Bild eine Infoleiste (Fortschritt, Restzeit, Fer
 klappen weitere Zeilen aus: den **Drucknamen** und das **Temperaturdiagramm**. Was die Leiste zeigt, stellen Sie im
 Unterreiter **Kamerafenster** des Druckers ein (siehe [11.1](#111-drucker)).
 
-Um die CPU zu schonen, zeigt die Mini-Vorschau standardmäßig höchstens 10 Bilder pro Sekunde, was für das kleine Bild
+Um die CPU zu schonen, zeigt die Mini-Vorschau standardmäßig höchstens 15 Bilder pro Sekunde, was für das kleine Bild
 reicht; das normale Fenster und das Vollbild zeigen jedes Bild der Kamera. Die Grenze stellen Sie im Reiter **Kamera**
 der Einstellungen ein (siehe [11.6](#116-kamera)).
 
@@ -517,8 +517,8 @@ tragen das Abzeichen **Experimentell**.
 Einstellungen für alle Kameras (die Kamera eines Druckers richten Sie in seinem Unterreiter **Kamera** ein, siehe
 [11.1](#111-drucker)).
 
-- **Bildrate der Mini-Vorschau:** wie viele Bilder pro Sekunde die Mini-Vorschau zeigt. **Sparsam** (5 fps),
-  **Ausgewogen** (10 fps, Standard) oder **Flüssig** (jedes Bild der Kamera); mit dem Schieberegler stellen Sie eine
+- **Bildrate der Mini-Vorschau:** wie viele Bilder pro Sekunde die Mini-Vorschau zeigt. **Sparsam** (10 fps),
+  **Ausgewogen** (15 fps, Standard) oder **Flüssig** (jedes Bild der Kamera); mit dem Schieberegler stellen Sie eine
   andere Grenze von 1 bis 30 fps ein (**Benutzerdefiniert**). Weniger Bilder bedeuten weniger CPU-Last und weniger
   kopierte Bilddaten; die Kamera wird weiter vollständig gelesen, Aufnahmen, Zeitraffer und Druckfehlererkennung ändern
   sich nicht. Das normale Fenster und das Vollbild zeigen immer jedes Bild. Die Änderung gilt für eine offene

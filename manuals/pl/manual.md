@@ -221,7 +221,7 @@ Mały podgląd ma pod obrazem pasek informacji (postęp, pozostały czas, godzin
 kolejne wiersze: **nazwę wydruku** i **wykres temperatur**. To, co pokazuje pasek, ustawisz w podkarcie
 **Okno kamery** drukarki (zob. [11.1](#111-drukarki)).
 
-Aby oszczędzać procesor, mały podgląd domyślnie pokazuje najwyżej 10 klatek na sekundę, co małemu obrazowi wystarcza;
+Aby oszczędzać procesor, mały podgląd domyślnie pokazuje najwyżej 15 klatek na sekundę, co małemu obrazowi wystarcza;
 zwykłe okno i pełny ekran pokazują każdą klatkę kamery. Limit ustawisz na karcie **Kamera** w ustawieniach (zob.
 [11.6](#116-kamera)).
 
@@ -504,8 +504,8 @@ mają oznaczenie **Eksperymentalne**.
 
 Ustawienia wszystkich kamer (kamerę każdej drukarki ustawisz w jej podkarcie **Kamera**, zob. [11.1](#111-drukarki)).
 
-- **Liczba klatek małego podglądu:** ile klatek na sekundę pokazuje mały podgląd. **Oszczędny** (5 kl./s),
-  **Zrównoważony** (10 kl./s, domyślnie) lub **Płynny** (każda klatka kamery); suwakiem ustawisz inny limit od 1 do
+- **Liczba klatek małego podglądu:** ile klatek na sekundę pokazuje mały podgląd. **Oszczędny** (10 kl./s),
+  **Zrównoważony** (15 kl./s, domyślnie) lub **Płynny** (każda klatka kamery); suwakiem ustawisz inny limit od 1 do
   30 kl./s (**Własny**). Mniej klatek to mniejsze obciążenie procesora i mniej kopiowanych danych; kamera jest nadal
   odczytywana w całości, więc nagrania, timelapse i wykrywanie błędów druku się nie zmieniają. Zwykłe okno i pełny ekran
   zawsze pokazują każdą klatkę. Zmiana obowiązuje dla otwartego małego podglądu po **Zapisz**.

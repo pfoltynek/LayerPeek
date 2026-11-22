@@ -10,6 +10,9 @@ older versions always load.
 
 ### Changed
 
+- **Mini preview frame rate profiles:** **Economy** now shows 10 frames per second (was 5) and **Balanced**, the
+  default, 15 (was 10); **Smooth** and custom limits are unchanged. If you kept the default (Balanced), the mini preview
+  now shows 15 fps; a saved Economy 5 fps stays 5 fps and shows as a custom limit.
 - **Release scripts (maintainers):** `scripts/release.ps1 -Version X.Y.Z` now runs on both release machines (Windows
   and macOS, either one first). The first run creates the draft right after the tag push; the second machine fetches
   only the release tag, skips the Gitflow steps, uploads its files into the same draft and offers to publish it

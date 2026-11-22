@@ -949,10 +949,10 @@
     <value>Benutzerdefiniert</value>
   </data>
   <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
-    <value>5 fps: geringste CPU-Last und am wenigsten kopierte Bilddaten, Bewegungen im Bild ruckeln stärker.</value>
+    <value>10 fps: geringste CPU-Last und am wenigsten kopierte Bilddaten, für das kleine Bild noch flüssig genug.</value>
   </data>
   <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
-    <value>10 fps (empfohlen): flüssig genug für das kleine Bild bei einem Bruchteil der CPU-Last und der kopierten Bilddaten.</value>
+    <value>15 fps (empfohlen): flüssige Bewegung im kleinen Bild bei einem Bruchteil der CPU-Last und der kopierten Bilddaten.</value>
   </data>
   <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
     <value>Jedes Bild der Kamera wie im normalen Fenster: höchste CPU-Last und die meisten kopierten Bilddaten.</value>

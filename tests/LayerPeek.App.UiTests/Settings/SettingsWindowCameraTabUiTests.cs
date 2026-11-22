@@ -35,7 +35,7 @@ public sealed class SettingsWindowCameraTabUiTests(HeadlessSession session)
     }
 
     [Fact]
-    public Task TheTabShowsTheDefaultBalancedTenFps() =>
+    public Task TheTabShowsTheDefaultBalancedFifteenFps() =>
         session.RunAsync(static async scope =>
         {
             (SettingsWindowHarness ui, _) = await OpenAsync(scope);
@@ -47,9 +47,9 @@ public sealed class SettingsWindowCameraTabUiTests(HeadlessSession session)
             Assert.Equal(MiniPreviewFrameRateProfile.Balanced, Assert.IsType<MiniFrameRateProfileOption>(profile.SelectedItem).Value);
             Assert.Equal(Strings.SettingsMiniFrameRate, AutomationProperties.GetName(profile));
             Slider slider = ui.Find<Slider>("MiniFrameRateSlider");
-            Assert.Equal((1, 30, 10), (slider.Minimum, slider.Maximum, slider.Value));
+            Assert.Equal((1, 30, 15), (slider.Minimum, slider.Maximum, slider.Value));
             Assert.Equal(Strings.SettingsMiniFrameRateSlider, AutomationProperties.GetName(slider));
-            Assert.Equal("10 fps", ui.ShownText("MiniFrameRateValue"));
+            Assert.Equal("15 fps", ui.ShownText("MiniFrameRateValue"));
             Assert.Equal(Strings.SettingsMiniFrameRateBalancedHint, ui.ShownText("MiniFrameRateDescription"));
             Assert.Equal(Strings.SettingsMiniFrameRateBalancedHint, AutomationProperties.GetHelpText(slider));
         });
@@ -75,7 +75,7 @@ public sealed class SettingsWindowCameraTabUiTests(HeadlessSession session)
     public Task MovingTheSliderSelectsCustomAndIsSaved() =>
         session.RunAsync(static async scope =>
         {
-            (SettingsWindowHarness ui, FakeEditorStore store) = await OpenAsync(scope, rate: 5);
+            (SettingsWindowHarness ui, FakeEditorStore store) = await OpenAsync(scope, rate: 10);
             Assert.Equal(MiniPreviewFrameRateProfile.Economy, Assert.IsType<MiniFrameRateProfileOption>(ui.Find<ComboBox>("MiniFrameRateProfile").SelectedItem).Value);
 
             ui.Find<Slider>("MiniFrameRateSlider").Value = 17;
