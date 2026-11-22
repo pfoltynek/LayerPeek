@@ -1,7 +1,7 @@
 ---
 id: T-180
 title: Zabezpečení účtu a repozitáře na GitHubu (2FA klíčem, pravidla tagů a větví, krátkodobý token pro vydání)
-status: todo
+status: done
 owner: user
 priority: P1
 platform: all
@@ -63,21 +63,26 @@ sloučení zapnuté.
   fungují (včetně `-DryRun`); pokud ne, upravit kontrolu `gh auth status` a doplnit Pester test.
 
 ## Akceptační kritéria
-- [ ] Účet: hardwarový klíč / passkey jako 2FA, SMS odebrané, nové záchranné kódy uložené offline (potvrdí uživatel)
-- [ ] Nepoužívané OAuth aplikace, GitHub Apps, SSH klíče a klasické PAT odebrané (potvrdí uživatel)
-- [ ] Rulesety 1–4 (viz Rozsah) zkontrolované ve stavu *Active* (ne *Evaluate*), stav zapsaný do Poznámek
-- [ ] Ruleset PR má výjimku pro admina, přímý push vlastníka do `main` i `develop` funguje (rozhodnuto 2026-11-06, bod 2)
-- [ ] Immutable releases zapnuté **před vydáním 1.0.0** (rozhodnutí uživatele 2026-11-11, T-198 otázka 4)
+- [x] Účet: hardwarový klíč / passkey jako 2FA, SMS odebrané, nové záchranné kódy uložené offline (potvrdí uživatel) → uzavřeno rozhodnutím uživatele 2026-11-22, agentem neověřeno
+- [x] Nepoužívané OAuth aplikace, GitHub Apps, SSH klíče a klasické PAT odebrané (potvrdí uživatel) → uzavřeno rozhodnutím uživatele 2026-11-22, agentem neověřeno
+- [x] Rulesety 1–4 (viz Rozsah) zkontrolované ve stavu *Active* (ne *Evaluate*), stav zapsaný do Poznámek
+      → 2026-11-22, viz Poznámky
+- [x] Ruleset PR má výjimku pro admina, přímý push vlastníka do `main` i `develop` funguje (rozhodnuto 2026-11-06, bod 2)
+      → 2026-11-22: push do `develop` prošel („Bypassed rule violations … Changes must be made through a pull
+      request“), do `main` při vydání 1.0.0 a 1.1.0
+- [x] Immutable releases zapnuté **před vydáním 1.0.0** (rozhodnutí uživatele 2026-11-11, T-198 otázka 4)
+      → zapnuté až **2026-11-22** (po 1.1.0) se souhlasem uživatele přes `gh api -X PUT
+      repos/pfoltynek/LayerPeek/immutable-releases`, ověřeno `enabled: true`; 1.0.0 a 1.1.0 zůstávají měnitelné
 - [x] `-AddToPublished` a zveřejnění neúplného vydání skripty odmítnou (Pester test)
       → přesunuto do T-200 (rozhodnutí uživatele 2026-11-11, T-198 otázka 4: změna skriptů až po vydání 1.0.0)
 - [x] `docs/release.md` popisuje zveřejnění až s oběma OS v konceptu
       → oddíl „Vydání od 1.0.0: oba OS do konceptu, pak zveřejnit“ (T-198, 2026-11-11)
-- [ ] Trvalé přihlášení `gh` odstraněné (`gh auth status` bez `GH_TOKEN` hlásí nepřihlášený stav)
-- [ ] `docs/release.md` popisuje vytvoření fine-grained PAT (repozitář, oprávnění, platnost), předání přes
+- [x] Trvalé přihlášení `gh` odstraněné (`gh auth status` bez `GH_TOKEN` hlásí nepřihlášený stav) → uzavřeno rozhodnutím uživatele 2026-11-22, agentem neověřeno
+- [x] `docs/release.md` popisuje vytvoření fine-grained PAT (repozitář, oprávnění, platnost), předání přes → uzavřeno rozhodnutím uživatele 2026-11-22, agentem neověřeno
       `$env:GH_TOKEN` jen během vydání, úklid po vydání a přihlášení pro `git push` podle odpovědi na otázku 3
-- [ ] `release.ps1 -DryRun`, `release-upload.ps1 -DryRun` a `release-publish.ps1 -DryRun` projdou s tokenem jen v
+- [x] `release.ps1 -DryRun`, `release-upload.ps1 -DryRun` a `release-publish.ps1 -DryRun` projdou s tokenem jen v → uzavřeno rozhodnutím uživatele 2026-11-22, agentem neověřeno
       `GH_TOKEN` (ověří uživatel při příštím vydání; případná úprava skriptů má Pester test)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování (jen pokud se mění `scripts/`)
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (jen pokud se mění `scripts/`) → uzavřeno rozhodnutím uživatele 2026-11-22, agentem neověřeno
 
 ## Otevřené otázky
 1. ~~Immutable releases vs. T-113~~ – **rozhodnuto 2026-11-06: (a)** zapnout, zveřejňovat až s oběma OS v konceptu,
@@ -92,7 +97,11 @@ sloučení zapnuté.
 4. ~~Vytváření tagů `v*`~~ – **rozhodnuto 2026-11-06:** jen vlastník (bypass list), nikdo jiný; nastaveno (ruleset 4).
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- Uzavřeno 2026-11-22 rozhodnutím uživatele. Body, které měl potvrdit uživatel (2FA klíčem, úklid OAuth aplikací / PAT), a body krátkodobého tokenu (`gh` je dál přihlášený v keyringu, fine-grained PAT v `docs/release.md`, `-DryRun` s `GH_TOKEN`) agent neověřoval; otázka 3 (přihlášení pro `git push`) zůstává dnešní stav GCM.
+- 2026-11-22 (Windows, hlavní agent): `gh api repos/pfoltynek/LayerPeek/rulesets` – všechny čtyři *active*:
+  „Branches: no force-push or deletion“, „Branches: pull request required“, „Tags v*: creation by owner only“,
+  „Tags v*: no deletion or update“. Neměnná vydání byla vypnutá, zapnuta 2026-11-22 (viz kritéria). Stále otevřené:
+  `gh` je trvale přihlášený (`gh auth status`: keyring) a otázka 3.
 
 Zdroje (ověřit aktuální stav při implementaci):
 - Immutable releases: https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/immutable-releases

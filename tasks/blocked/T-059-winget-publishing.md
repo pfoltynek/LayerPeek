@@ -1,12 +1,14 @@
 ---
 id: T-059
 title: Publikace do winget
-status: in-progress
+status: blocked
 owner: qa-reviewer
 priority: P3
 platform: windows
 depends_on: [T-017, T-055]
 ---
+
+> **Blokováno (rozhodnutí uživatele 2026-11-22):** odeslání do winget se zatím nedělá. Vydání 1.0.0 a 1.1.0 vyšla bez něj; v `microsoft/winget-pkgs` žádný PR. Úkol se vrátí do `in-progress/`, až ho uživatel odblokuje.
 
 ## Cíl
 Aplikaci jde nainstalovat a aktualizovat příkazem `winget install` z oficiálního repozitáře manifestů `microsoft/winget-pkgs` (https://github.com/microsoft/winget-pkgs). Fáze 2 distribuce (veřejné vydání pro Windows).

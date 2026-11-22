@@ -1,7 +1,7 @@
 ---
 id: T-198
 title: Připravenost vydání 1.0.0 (blokery, první podepsané vydání, kontrola veřejného repozitáře, plán dne vydání)
-status: todo
+status: done
 owner: architect
 priority: P1
 platform: all
@@ -174,7 +174,8 @@ GitHubu ji pak ověří `-DryRun` a samotný upload 1.0.0, kde `release-publish.
 - [x] Generálka B4 na **obou** počítačích: médium s klíčem se musí dostat i k počítači s Windows. Na Windows ověřit
       písmeno jednotky (`-FeedSigningKey E:\layerpeek-feed-key.pem`) a to, že čtečka/USB funguje.
       Windows hotovo 2026-11-15: médium LP-KEY-2 (záloha) připojené jako `I:` (`-FeedSigningKey I:\layerpeek-feed-key.pem`), USB funguje; zbývá Mac.
-- [ ] Heslo klíče je dostupné ve správci hesel, ne u média. Při vydání se zadává **4×** (2× na každém OS).
+- [x] Heslo klíče je dostupné ve správci hesel, ne u média. Při vydání se zadává **4×** (2× na každém OS).
+      → potvrdil uživatel 2026-11-22
 - [x] Rozhodnout tok obou OS (otázka 4). S neměnnými vydáními nejde `-AllowIncomplete` + `-AddToPublished`.
       → rozhodnuto 2026-11-11: neměnná vydání před 1.0.0, oba OS do konceptu, pak zveřejnit (`docs/release.md`,
       „Vydání od 1.0.0“); změna skriptů T-200 po 1.0.0.
@@ -473,6 +474,11 @@ Nové otázky (2026-11-11, rozhodne uživatel; neblokují vydání):
     provedeno; T-059 řádek po přijetí balíčku přepíše.
 
 ## Poznámky k implementaci
+- 2026-11-22 (Windows, hlavní agent): úkol uzavřen. 1.0.0 (2026-11-15) i 1.1.0 (2026-11-16) jsou zveřejněné, poslední
+  bod (heslo klíče ve správci hesel) potvrdil uživatel. Při kontrole se ukázalo, že neměnná vydání (T-180, otázka 4)
+  na repozitáři **zapnutá nebyla** (`gh api repos/…/immutable-releases` → `enabled: false`, `v1.1.0` `isImmutable:
+  false`). Se souhlasem uživatele zapnuta 2026-11-22 přes `gh api -X PUT …/immutable-releases`. Platí až pro nová
+  vydání, 1.0.0 a 1.1.0 zůstávají měnitelná.
 - 2026-11-16 (Windows, hlavní agent): 1.0.0 zveřejněné (tag `v1.0.0` z Macu, soubory macOS z Macu, win-x64
   sestavené a podepsané na Windows z tagu, bez win-arm64 – v tagu ještě `Uploadable = $false`). Uživatel potvrdil B9
   a kontrolu aktualizace buildem 0.9.9. `main` = `v1.0.0` (b5a560eb); obsah je v `develop` (sloučení
