@@ -1,7 +1,7 @@
 ---
 id: T-248
 title: Dashcam – SteadyStateBufferingDoesNotAllocate naměřil v CI na Windows 4 120 B ve všech průchodech
-status: todo
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -23,12 +23,12 @@ bufferu, časovač, `Lock`, výjimka …) než šum. Ve třech předchozích bě
 - Ověřit ručním během CI (hlavní agent).
 
 ## Akceptační kritéria
-- [ ] Původce 4 120 B zjištěný a zapsaný; oprava v kódu nebo měření s odůvodněním, mez 0 B zůstává
-- [ ] Test opakovaně prochází lokálně pod zátěží a v CI (aspoň 3 běhy)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Původce 4 120 B zjištěný a zapsaný; oprava v kódu nebo měření s odůvodněním, mez 0 B zůstává → uzavřeno bez řešení, rozhodnutí uživatele 2026-11-22
+- [x] Test opakovaně prochází lokálně pod zátěží a v CI (aspoň 3 běhy) → uzavřeno bez řešení, rozhodnutí uživatele 2026-11-22
+- [x] `dotnet build` a `dotnet test` bez chyb a varování → uzavřeno bez řešení, rozhodnutí uživatele 2026-11-22
 
 ## Otevřené otázky
 - (žádné)
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- Uzavřeno 2026-11-22 rozhodnutím uživatele. Původce 4 120 B se nehledal, kód ani test se neměnily. Pokud se selhání v CI vrátí, vznikne nový úkol.
