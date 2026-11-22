@@ -12,7 +12,7 @@ public sealed class MiniFrameRateProfileOption(MiniPreviewFrameRateProfile value
 
 /// <summary>
 /// The frame rate of the mini preview on the Camera sub-tab (T-185, user decision 2026-11-11): one global value for every
-/// camera, so outside the fields of the printer. The profiles Economy / Balanced / Smooth (5 / 10 fps / no limit) and a
+/// camera, so outside the fields of the printer. The profiles Economy / Balanced / Smooth (10 / 15 fps / no limit, T-249) and a
 /// slider of 1–30 fps; moving the slider off a profile's value selects "Custom", choosing a profile moves the slider to its
 /// value ("Smooth", which has none, to the right end). Below them a short description of the selected profile's CPU and
 /// memory load. Applied to the open mini previews right after saving, like the other settings.
@@ -77,7 +77,7 @@ public sealed partial class SettingsViewModel
         }
     }
 
-    /// <summary>The limit right of the slider: "10 fps", or "No limit" for "Smooth".</summary>
+    /// <summary>The limit right of the slider: "15 fps", or "No limit" for "Smooth".</summary>
     public string MiniFrameRateText => _miniFrameRate is { } rate
         ? Format(Strings.SettingsMiniFrameRateValue, rate)
         : Strings.SettingsMiniFrameRateNoLimit;

@@ -8,7 +8,7 @@ using static LayerPeek.App.Tests.Settings.SettingsTestData;
 namespace LayerPeek.App.Tests.Settings;
 
 /// <summary>
-/// T-185: the frame rate of the mini preview in the settings: the profiles Economy / Balanced / Smooth (5 / 10 fps / no
+/// T-185: the frame rate of the mini preview in the settings: the profiles Economy / Balanced / Smooth (10 / 15 fps / no
 /// limit), the slider of 1–30 fps that selects "Custom" off a profile's value, the description of the selected profile,
 /// dirty tracking and saving (global, for every camera).
 /// </summary>
@@ -45,7 +45,7 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
         vm.MiniFrameRateProfiles.Single(option => option.Value == profile);
 
     [Fact]
-    public async Task TheDefaultIsBalancedTenFps()
+    public async Task TheDefaultIsBalancedFifteenFps()
     {
         SettingsViewModel vm = await LoadAsync();
 
@@ -54,15 +54,16 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
             vm.MiniFrameRateProfiles.Select(static option => option.Value));
         Assert.Equal(["Economy", "Balanced", "Smooth", "Custom"], vm.MiniFrameRateProfiles.Select(static option => option.Text));
         Assert.Equal(MiniPreviewFrameRateProfile.Balanced, vm.SelectedMiniFrameRateProfile!.Value);
-        Assert.Equal(10, vm.MiniFrameRateSlider);
-        Assert.Equal("10\u00A0fps", vm.MiniFrameRateText);
-        Assert.StartsWith("10\u00A0fps (recommended)", vm.MiniFrameRateDescription, StringComparison.Ordinal);
+        Assert.Equal(15, vm.MiniFrameRateSlider);
+        Assert.Equal("15\u00A0fps", vm.MiniFrameRateText);
+        Assert.StartsWith("15\u00A0fps (recommended)", vm.MiniFrameRateDescription, StringComparison.Ordinal);
         Assert.Equal((1.0, 30.0), (SettingsViewModel.MinMiniFrameRate, SettingsViewModel.MaxMiniFrameRate));
         Assert.False(vm.IsDirty);
     }
 
     [Theory]
-    [InlineData(5, MiniPreviewFrameRateProfile.Economy, 5, "5\u00A0fps")]
+    [InlineData(10, MiniPreviewFrameRateProfile.Economy, 10, "10\u00A0fps")]
+    [InlineData(5, MiniPreviewFrameRateProfile.Custom, 5, "5\u00A0fps")]
     [InlineData(null, MiniPreviewFrameRateProfile.Smooth, 30, "No limit")]
     [InlineData(17, MiniPreviewFrameRateProfile.Custom, 17, "17\u00A0fps")]
     [InlineData(30, MiniPreviewFrameRateProfile.Custom, 30, "30\u00A0fps")]
@@ -77,7 +78,7 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
     }
 
     [Theory]
-    [InlineData(MiniPreviewFrameRateProfile.Economy, 5, 5.0, "5\u00A0fps", "5\u00A0fps: the lowest CPU")]
+    [InlineData(MiniPreviewFrameRateProfile.Economy, 10, 10.0, "10\u00A0fps", "10\u00A0fps: the lowest CPU")]
     [InlineData(MiniPreviewFrameRateProfile.Smooth, null, 30.0, "No limit", "Every frame of the camera")]
     public async Task AProfileMovesTheSliderToItsLimitAndIsSaved(MiniPreviewFrameRateProfile profile, int? rate, double slider, string text, string description)
     {
@@ -108,10 +109,10 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
         Assert.StartsWith("Your own limit", vm.MiniFrameRateDescription, StringComparison.Ordinal);
         Assert.True(vm.IsDirty);
 
-        vm.MiniFrameRateSlider = 5;
+        vm.MiniFrameRateSlider = 10;
         Assert.Equal(MiniPreviewFrameRateProfile.Economy, vm.SelectedMiniFrameRateProfile!.Value);
 
-        vm.MiniFrameRateSlider = 10;
+        vm.MiniFrameRateSlider = 15;
         Assert.Equal(MiniPreviewFrameRateProfile.Balanced, vm.SelectedMiniFrameRateProfile!.Value);
         // Back to the saved value.
         Assert.False(vm.IsDirty);
@@ -147,7 +148,7 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
         vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
         vm.MiniFrameRateSlider = double.NaN;
-        vm.MiniFrameRateSlider = 10;
+        vm.MiniFrameRateSlider = 15;
         vm.SelectedMiniFrameRateProfile = null;
         vm.SelectedMiniFrameRateProfile = Profile(vm, MiniPreviewFrameRateProfile.Balanced);
 
@@ -163,8 +164,8 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
         vm.SelectedMiniFrameRateProfile = Profile(vm, MiniPreviewFrameRateProfile.Custom);
 
         Assert.Equal(MiniPreviewFrameRateProfile.Custom, vm.SelectedMiniFrameRateProfile!.Value);
-        Assert.Equal(10, vm.MiniFrameRateSlider);
-        Assert.Equal("10\u00A0fps", vm.MiniFrameRateText);
+        Assert.Equal(15, vm.MiniFrameRateSlider);
+        Assert.Equal("15\u00A0fps", vm.MiniFrameRateText);
         // The same limit as Balanced: nothing to save (and a reload shows Balanced again).
         Assert.False(vm.IsDirty);
     }

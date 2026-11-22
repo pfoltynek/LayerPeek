@@ -435,7 +435,7 @@ submenu.
 - **Widgets:** which overlay widgets are shown, their settings (e.g. the nozzle and bed cool-down thresholds of each
   printer), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
-- **Camera:** settings for all cameras: the frame rate of the mini preview (Economy 5 fps, Balanced 10 fps by default,
+- **Camera:** settings for all cameras: the frame rate of the mini preview (Economy 10 fps, Balanced 15 fps by default,
   Smooth with every frame, or a custom limit of 1–30 fps) and hardware decoding (**Automatic** by default, or **Off**;
   on Windows the processor decodes in both modes for now).
 - **Startup and updates:** start LayerPeek after you sign in to Windows (on by default: the installer switches it on;

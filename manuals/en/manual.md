@@ -218,7 +218,7 @@ The mini preview has an info strip below the picture (progress, time left, finis
 rows: the **print name** and the **temperature chart**. What the strip shows is set in the printer's **Camera window**
 sub-tab (see [11.1](#111-printers)).
 
-To save CPU, the mini preview shows at most 10 frames per second by default, which is plenty for the small picture; the
+To save CPU, the mini preview shows at most 15 frames per second by default, which is plenty for the small picture; the
 normal window and full screen show every frame of the camera. The limit is set on the **Camera** tab of the settings (see
 [11.6](#116-camera)).
 
@@ -491,8 +491,8 @@ an **Experimental** badge.
 
 Settings for all cameras (each printer's camera is set up on its **Camera** sub-tab, see [11.1](#111-printers)).
 
-- **Mini preview frame rate:** how many frames per second the mini preview shows. **Economy** (5 fps), **Balanced**
-  (10 fps, the default) or **Smooth** (every frame of the camera); the slider sets any other limit from 1 to 30 fps
+- **Mini preview frame rate:** how many frames per second the mini preview shows. **Economy** (10 fps), **Balanced**
+  (15 fps, the default) or **Smooth** (every frame of the camera); the slider sets any other limit from 1 to 30 fps
   (**Custom**). Fewer frames mean less CPU load and less image data copied; the camera is still read in full, so
   recordings, timelapses and print failure detection are not affected. The normal window and full screen always show
   every frame. The change applies to an open mini preview after **Save**.

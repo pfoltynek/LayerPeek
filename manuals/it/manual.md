@@ -227,7 +227,7 @@ L’anteprima mini ha una barra informativa sotto l’immagine (avanzamento, tem
 aprono altre righe: il **nome della stampa** e il **grafico delle temperature**. Cosa mostra la barra si imposta nella
 sottoscheda **Finestra della telecamera** della stampante (vedi [11.1](#111-stampanti)).
 
-Per risparmiare CPU, l’anteprima mini mostra per impostazione predefinita al massimo 10 fotogrammi al secondo, più che
+Per risparmiare CPU, l’anteprima mini mostra per impostazione predefinita al massimo 15 fotogrammi al secondo, più che
 sufficienti per l’immagine piccola; la finestra normale e lo schermo intero mostrano ogni fotogramma della telecamera. Il
 limite si imposta nella scheda **Telecamera** delle impostazioni (vedi [11.6](#116-telecamera)).
 
@@ -522,7 +522,7 @@ Impostazioni di tutte le telecamere (la telecamera di ogni stampante si imposta 
 vedi [11.1](#111-stampanti)).
 
 - **Frequenza fotogrammi dell’anteprima mini:** quanti fotogrammi al secondo mostra l’anteprima mini. **Risparmio**
-  (5 fps), **Bilanciato** (10 fps, predefinito) o **Fluido** (ogni fotogramma della telecamera); con il cursore imposti un
+  (10 fps), **Bilanciato** (15 fps, predefinito) o **Fluido** (ogni fotogramma della telecamera); con il cursore imposti un
   altro limite da 1 a 30 fps (**Personalizzato**). Meno fotogrammi significano meno carico di CPU e meno dati copiati; la
   telecamera viene comunque letta per intero, quindi registrazioni, timelapse e rilevamento degli errori di stampa non
   cambiano. La finestra normale e lo schermo intero mostrano sempre ogni fotogramma. La modifica vale per un’anteprima

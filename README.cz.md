@@ -427,8 +427,8 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 - **Widgety:** které widgety se ukazují přes obraz, jejich nastavení (např. prahy vychladnutí trysky a podložky
   u každé tiskárny), neprůhlednost karet a rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
-- **Kamera:** nastavení pro všechny kamery: snímková frekvence malého náhledu (Úsporný 5 fps, ve výchozím stavu Vyvážený
-  10 fps, Plynulý s každým snímkem, nebo vlastní omezení 1–30 fps) a hardwarové dekódování (ve výchozím stavu
+- **Kamera:** nastavení pro všechny kamery: snímková frekvence malého náhledu (Úsporný 10 fps, ve výchozím stavu Vyvážený
+  15 fps, Plynulý s každým snímkem, nebo vlastní omezení 1–30 fps) a hardwarové dekódování (ve výchozím stavu
   **Automaticky**, nebo **Vypnuto**; ve Windows zatím v obou režimech dekóduje procesor).
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu zapnuté – zapne ho instalátor;
   jen v nainstalované verzi). Na macOS: **Otevřít při přihlášení** (ve výchozím stavu vypnuté, jen pro LayerPeek.app

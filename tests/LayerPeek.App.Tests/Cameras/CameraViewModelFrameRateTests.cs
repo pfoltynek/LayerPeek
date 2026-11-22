@@ -14,7 +14,7 @@ using static LayerPeek.App.Tests.Tray.TestPrinters;
 namespace LayerPeek.App.Tests.Cameras;
 
 /// <summary>
-/// T-185: only the mini preview limits its frame rate (the setting's, 10 fps by default); the normal window and full screen
+/// T-185: only the mini preview limits its frame rate (the setting's, 15 fps by default); the normal window and full screen
 /// take every frame. A mode switch and saved settings change the limit of the running lease at once, without reconnecting.
 /// </summary>
 public sealed class CameraViewModelFrameRateTests : IAsyncDisposable
@@ -83,7 +83,7 @@ public sealed class CameraViewModelFrameRateTests : IAsyncDisposable
         Assert.Null(viewModel.RequestedFrameRate);
         viewModel.EscapeCommand.Execute(null);
         Assert.Equal(CameraWindowMode.Mini, viewModel.Mode);
-        Assert.Equal(10, viewModel.RequestedFrameRate);
+        Assert.Equal(MiniPreviewFrameRate.Default, viewModel.RequestedFrameRate);
 
         viewModel.ShowNormalCommand.Execute(null);
         Assert.Null(viewModel.RequestedFrameRate);
@@ -150,7 +150,7 @@ public sealed class CameraViewModelFrameRateTests : IAsyncDisposable
         Assert.Null(viewModel.RequestedFrameRate);
         viewModel.SetActive(true);
 
-        Assert.Equal(10, viewModel.RequestedFrameRate);
+        Assert.Equal(MiniPreviewFrameRate.Default, viewModel.RequestedFrameRate);
     }
 
     [Fact]

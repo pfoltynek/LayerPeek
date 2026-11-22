@@ -6,15 +6,15 @@ using static LayerPeek.Core.Tests.Settings.SettingsMapperCameraOverlayTests;
 namespace LayerPeek.Core.Tests.Settings;
 
 /// <summary>
-/// T-185: the frame rate limit of the mini preview, <see cref="AppSettings.MiniPreviewFrameRate"/> (global, 10 fps by
+/// T-185: the frame rate limit of the mini preview, <see cref="AppSettings.MiniPreviewFrameRate"/> (global, 15 fps by
 /// default, 1–30 fps or no limit), its profiles and <c>miniPreviewFrameRate</c> in the settings file (0 = no limit).
 /// </summary>
 public class MiniPreviewFrameRateSettingsTests
 {
     [Fact]
-    public void BalancedTenFpsIsTheDefaultAndPartOfEquality()
+    public void BalancedFifteenFpsIsTheDefaultAndPartOfEquality()
     {
-        Assert.Equal(10, AppSettings.Default.MiniPreviewFrameRate);
+        Assert.Equal(15, AppSettings.Default.MiniPreviewFrameRate);
         Assert.Equal(MiniPreviewFrameRateProfile.Balanced, MiniPreviewFrameRate.ProfileOf(AppSettings.Default.MiniPreviewFrameRate));
         Assert.NotEqual(new AppSettings(), new AppSettings { MiniPreviewFrameRate = null });
         Assert.Equal(new AppSettings { MiniPreviewFrameRate = 7 }, new AppSettings { MiniPreviewFrameRate = 7 });
@@ -29,10 +29,11 @@ public class MiniPreviewFrameRateSettingsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new AppSettings { MiniPreviewFrameRate = rate });
 
     [Theory]
-    [InlineData(5, MiniPreviewFrameRateProfile.Economy)]
-    [InlineData(10, MiniPreviewFrameRateProfile.Balanced)]
+    [InlineData(10, MiniPreviewFrameRateProfile.Economy)]
+    [InlineData(15, MiniPreviewFrameRateProfile.Balanced)]
     [InlineData(null, MiniPreviewFrameRateProfile.Smooth)]
     [InlineData(1, MiniPreviewFrameRateProfile.Custom)]
+    [InlineData(5, MiniPreviewFrameRateProfile.Custom)]
     [InlineData(6, MiniPreviewFrameRateProfile.Custom)]
     [InlineData(30, MiniPreviewFrameRateProfile.Custom)]
     public void EveryLimitBelongsToItsProfile(int? rate, MiniPreviewFrameRateProfile profile)
@@ -44,8 +45,8 @@ public class MiniPreviewFrameRateSettingsTests
     [Fact]
     public void TheProfilesHaveTheirLimits()
     {
-        Assert.Equal(5, MiniPreviewFrameRate.RateOf(MiniPreviewFrameRateProfile.Economy, custom: 17));
-        Assert.Equal(10, MiniPreviewFrameRate.RateOf(MiniPreviewFrameRateProfile.Balanced, custom: 17));
+        Assert.Equal(10, MiniPreviewFrameRate.RateOf(MiniPreviewFrameRateProfile.Economy, custom: 17));
+        Assert.Equal(15, MiniPreviewFrameRate.RateOf(MiniPreviewFrameRateProfile.Balanced, custom: 17));
         Assert.Null(MiniPreviewFrameRate.RateOf(MiniPreviewFrameRateProfile.Smooth, custom: 17));
         Assert.Equal(17, MiniPreviewFrameRate.RateOf(MiniPreviewFrameRateProfile.Custom, custom: 17));
     }
@@ -56,6 +57,7 @@ public class MiniPreviewFrameRateSettingsTests
 
     [Theory]
     [InlineData(5, "5")]
+    [InlineData(10, "10")]
     [InlineData(1, "1")]
     [InlineData(30, "30")]
     [InlineData(null, "0")]
@@ -80,6 +82,21 @@ public class MiniPreviewFrameRateSettingsTests
 
         Assert.Empty(warnings);
         Assert.Equal(MiniPreviewFrameRate.Default, settings.MiniPreviewFrameRate);
+    }
+
+    [Theory]
+    [InlineData(5, MiniPreviewFrameRateProfile.Custom)]
+    [InlineData(10, MiniPreviewFrameRateProfile.Economy)]
+    [InlineData(15, MiniPreviewFrameRateProfile.Balanced)]
+    public void ALimitSavedBeforeT249IsLoadedUnchanged(int rate, MiniPreviewFrameRateProfile profile)
+    {
+        // T-249 (user decision 2026-11-22): no migration. The former Economy 5 fps stays 5 fps (now "Custom"); 10 fps (never
+        // written before T-249, it was the default) is the new Economy.
+        AppSettings settings = Load($$"""{ "miniPreviewFrameRate": {{rate}} }""", out List<string> warnings, out _);
+
+        Assert.Empty(warnings);
+        Assert.Equal(rate, settings.MiniPreviewFrameRate);
+        Assert.Equal(profile, MiniPreviewFrameRate.ProfileOf(settings.MiniPreviewFrameRate));
     }
 
     [Theory]

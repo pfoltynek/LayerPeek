@@ -949,10 +949,10 @@
     <value>Własny</value>
   </data>
   <data name="SettingsMiniFrameRateEconomyHint" xml:space="preserve">
-    <value>5 kl./s: najmniejsze obciążenie procesora i najmniej kopiowanych danych obrazu, ruch jest mniej płynny.</value>
+    <value>10 kl./s: najmniejsze obciążenie procesora i najmniej kopiowanych danych obrazu, nadal wystarczająco płynnie dla małego obrazu.</value>
   </data>
   <data name="SettingsMiniFrameRateBalancedHint" xml:space="preserve">
-    <value>10 kl./s (zalecane): wystarczająco płynnie dla małego obrazu przy ułamku obciążenia procesora i kopiowanych danych.</value>
+    <value>15 kl./s (zalecane): płynny ruch w małym obrazie przy ułamku obciążenia procesora i kopiowanych danych.</value>
   </data>
   <data name="SettingsMiniFrameRateSmoothHint" xml:space="preserve">
     <value>Każda klatka kamery jak w zwykłym oknie: największe obciążenie procesora i najwięcej kopiowanych danych.</value>

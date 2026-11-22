@@ -29,10 +29,10 @@ public static class MiniPreviewFrameRate
     public const int Max = 30;
 
     /// <summary><see cref="MiniPreviewFrameRateProfile.Economy"/>.</summary>
-    public const int Economy = 5;
+    public const int Economy = 10;
 
     /// <summary><see cref="MiniPreviewFrameRateProfile.Balanced"/>, the default.</summary>
-    public const int Balanced = 10;
+    public const int Balanced = 15;
 
     public const int Default = Balanced;
 
