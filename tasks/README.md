@@ -235,7 +235,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-242 | Kontextové menu textových polí (Cut / Copy / Paste) je anglicky i v jiném jazyce aplikace (hotovo) | all | ui-dev | P3 | T-029 |
 | T-244 | Nestabilní test InstanceTransportTests – kontrola peera nestihne proběhnout pod zátěží (4 jádra) (hotovo) | all | qa-reviewer | P3 | – |
 | T-247 | CI – omezit počet souběžně běžících testovacích projektů (přetížený 4jádrový runner) (zrušeno) | all | qa-reviewer | P2 | T-245, T-246 |
-| T-248 | Dashcam – SteadyStateBufferingDoesNotAllocate naměřil v CI na Windows 4 120 B ve všech průchodech | all | core-dev | P2 | – |
+| T-248 | Dashcam – SteadyStateBufferingDoesNotAllocate naměřil v CI na Windows 4 120 B ve všech průchodech (hotovo) | all | core-dev | P2 | – |
 | T-245 | UI test EveryButtonIsAtLeast32DipHighInEveryState překračuje 30 s na runneru Windows (blokuje další UI testy) (hotovo) | all | qa-reviewer | P2 | – |
 | T-246 | CI Windows – Pester VerifyTools.Tests.ps1 překračuje 5 min (macos-verify -ListChecks 66 s na runneru) (hotovo) | windows | qa-reviewer | P2 | – |
 | T-249 | Malý náhled kamery – profily snímkové frekvence Úsporný 10 fps a Vyvážený 15 fps (dosud 5 / 10) | all | core-dev | P2 | T-185 |
