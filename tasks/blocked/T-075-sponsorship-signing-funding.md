@@ -1,12 +1,14 @@
 ---
 id: T-075
 title: Podpora projektu (GitHub Sponsors, Ko-fi) a financování podpisových certifikátů
-status: todo
+status: blocked
 owner: architect
 priority: P3
 platform: all
 depends_on: [T-074]
 ---
+
+> **Blokováno (rozhodnutí uživatele 2026-11-22):** podpora projektu (GitHub Sponsors, Ko-fi) se zatím nezakládá. Úkol se vrátí do `todo/`, až ho uživatel odblokuje.
 
 ## Cíl
 Umožnit uživatelům přispět na podpisové certifikáty, aby šla vydávat podepsaná sestavení a instalace přes Homebrew.

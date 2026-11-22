@@ -1,7 +1,7 @@
 ---
 id: T-218
 title: CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: all
@@ -72,13 +72,13 @@ po sloučení (viz sběrné úkoly T-125 / T-127). CI spustí totéž na obou OS
 ## Akceptační kritéria
 - [x] `.github/workflows/ci.yml`: `permissions: contents: read`, žádné `secrets`, všechny akce připnuté na SHA
       s komentářem verze, `concurrency` s `cancel-in-progress`, `timeout-minutes` u každého jobu
-- [ ] Zelený běh na GitHubu pro **macOS** i **Windows** (build Debug + Release, `dotnet test` bez E2E, AOT publish);
+- [x] Zelený běh na GitHubu pro **macOS** i **Windows** (build Debug + Release, `dotnet test` bez E2E, AOT publish); → uzavřeno jako vyřešené, rozhodnutí uživatele 2026-11-22
       odkazy na běhy v poznámkách – *čeká na první běh po pushi (ověří hlavní agent)*
 - [x] Druhý běh bez změny FFmpeg použije cache FFmpeg (v logu žádný build / stažení FFmpeg) na obou OS; změna
       `build/macos/build-ffmpeg.sh` dá na macOS nový klíč – *čeká na runner (lokálně ověřeno, viz poznámky)*
       – *ověřeno 2026-11-15 z logů, viz poznámky „Třetí kolo“*
-- [ ] Úmyslně rozbitý test v PR (jen na zkoušku, pak zahodit) skončí červeně a nahraje log testů – *čeká na runner*
-- [ ] Žádný E2E / interaktivní test v CI neběží (seznam přepínačů zapsaný); počet přeskočených testů zapsaný a zdůvodněný
+- [x] Úmyslně rozbitý test v PR (jen na zkoušku, pak zahodit) skončí červeně a nahraje log testů – *čeká na runner* → uzavřeno jako vyřešené, rozhodnutí uživatele 2026-11-22
+- [x] Žádný E2E / interaktivní test v CI neběží (seznam přepínačů zapsaný); počet přeskočených testů zapsaný a zdůvodněný → uzavřeno jako vyřešené, rozhodnutí uživatele 2026-11-22
       – *seznam přepínačů hotový (`docs/prerequisites.md`); počty z prvního běhu na runnerech zapsané v poznámkách,
       po zeleném běhu potvrdit*
 - [x] `docs/prerequisites.md` doplněné; vazba na T-202 zapsaná v T-202
@@ -178,6 +178,7 @@ založit, ověřit červený `CI result` a nahrané logy, pak zavřít bez merge
 `docs/prerequisites.md`, „CI (GitHub Actions)“). Relace na Macu na tom dál nepracuje.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-11-22 jako vyřešené (rozhodnutí uživatele). CI (`.github/workflows/ci.yml`) běží při každém pushi do `develop`, zelené běhy např. 2026-11-15 21:51 a 2026-11-16 17:54 UTC. Úmyslně rozbitý test v PR se nezkoušel; poslední běhy 2026-11-16 18:16 a 19:01 skončily `failure` a nebyly zkoumány (případná chyba = nový úkol).
 Stav 2026-11-13 (qa-reviewer, na Macu): workflow, Dependabot, test pravidel a dokumentace hotové a lokálně ověřené.
 Úkol zůstává v `in-progress/`: zelený běh na GitHubu, cache při druhém běhu, červený běh s rozbitým testem a počty
 přeskočených testů z runnerů ověří hlavní agent po pushi (nepřesouvá se do T-125 / T-127).

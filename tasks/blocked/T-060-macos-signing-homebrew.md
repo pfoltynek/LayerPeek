@@ -1,12 +1,14 @@
 ---
 id: T-060
 title: macOS – podpis Developer ID, notarizace a Homebrew tap
-status: todo
+status: blocked
 owner: ui-dev
 priority: P3
 platform: macos
 depends_on: [T-019]
 ---
+
+> **Blokováno (rozhodnutí uživatele 2026-11-22):** podpis Developer ID, notarizace a Homebrew tap se zatím nedělají. Úkol se vrátí do `todo/`, až ho uživatel odblokuje.
 
 ## Cíl
 Aplikaci pro macOS mohou instalovat i ostatní uživatelé bez ručního obcházení Gatekeeperu, včetně instalace přes Homebrew. Fáze 3 distribuce.

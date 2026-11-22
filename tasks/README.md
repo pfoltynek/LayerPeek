@@ -7,6 +7,7 @@ Každý úkol = jeden Markdown soubor `T-XXX-kratky-nazev.md`. Stav úkolu urču
 | `todo/` | připraveno k implementaci (nebo čeká na závislosti / odpovědi) |
 | `in-progress/` | rozpracováno, případně blokováno otevřenými otázkami |
 | `done/` | hotovo – build a testy procházejí, kritéria splněna |
+| `blocked/` | blokováno rozhodnutím uživatele (`status: blocked`, důvod pod frontmatterem); zpět do `in-progress/` / `todo/` po odblokování |
 
 Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `status` ve frontmatteru musí odpovídat složce.
 
@@ -197,13 +198,13 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-166 | Detekce chyb tisku – ladění citlivosti „Změna na podložce“ na více semínkách (hotovo) | all | core-dev | P2 | T-155, T-154 |
 | T-167 | Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste; hotovo, experimentální) | all | core-dev | P3 | T-155, T-166, T-154 |
 | T-168 | Tray menu na Windows zůstane otevřené po „Hide camera“ (E2E `TrayMenuTests`, nalezeno v T-125; hotovo) | windows | ui-dev | P2 | – |
-| T-169 | Občasné selhání E2E malého náhledu kamery (`CameraMiniPreviewTests`) | windows | qa-reviewer | P3 | – |
+| T-169 | Občasné selhání E2E malého náhledu kamery (`CameraMiniPreviewTests`) (hotovo) | windows | qa-reviewer | P3 | – |
 | T-170 | Ukončení podpory Prusa Connect (T-005 zamítnut; hotovo, macOS snímky v T-127) | all | core-dev | P2 | – |
 | T-171 | Uživatelská příručka ve všech jazycích aplikace (hotovo) | all | architect | P2 | – |
 | T-172 | Položka „Příručka“ v menu ikony (hotovo) | all | ui-dev | P2 | T-171 |
 | T-173 | Oříznutý text „dashcam“ na podzáložce Kamera v delších jazycích (hotovo) | all | ui-dev | P2 | – |
 | T-174 | Ruční ověření dalších modelů tiskáren (MK4/MK4S, MK3.9, MK3.5, XL, MINI) | all | qa-reviewer | P2 | – |
-| T-180 | Zabezpečení účtu a repozitáře na GitHubu (2FA klíčem, pravidla tagů a větví, krátkodobý token pro vydání) | all | user | P1 | – |
+| T-180 | Zabezpečení účtu a repozitáře na GitHubu (2FA klíčem, pravidla tagů a větví, krátkodobý token pro vydání) (hotovo) | all | user | P1 | – |
 | T-181 | Podepsaný feed aktualizací (podpis `releases.<RID>.json` offline klíčem, ověření v aplikaci) (hotovo; Windows v T-125, zkušební vydání v T-127) | all | core-dev | P2 | – |
 | T-182 | Varování u adresy `http://` mimo místní síť (heslo PrusaLink přes nedůvěryhodnou síť) (hotovo; Windows v T-125) | all | core-dev + ui-dev | P2 | – |
 | T-183 | Dokumentace – zabezpečení přístupu k PrusaLink (silné heslo, oddělená síť, HTTPS přes reverzní proxy) (hotovo; CA v úložišti OS v T-125 / T-127) | all | architect + qa-reviewer | P2 | – |
@@ -219,13 +220,13 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-190 | Automatické zobrazení okna kamery – nebudit UI vlákno, když se stav nezměnil (výkon) (zamítnuto 2026-11-11) | all | ui-dev | P3 | – |
 | T-191 | A/B měření nastavení GC a Native AOT (jen měření; změna buildu po souhlasu) (hotovo, build beze změny) | all | qa-reviewer | P3 | – |
 | T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) (hotovo; rozhodnuto 2026-11-12, implementace T-203 až T-206) | all | architect | P3 | T-184, T-185 |
-| T-198 | Připravenost vydání 1.0.0 (blokery, první podepsané vydání, kontrola veřejného repozitáře, plán dne vydání) | all | architect | P1 | – |
+| T-198 | Připravenost vydání 1.0.0 (blokery, první podepsané vydání, kontrola veřejného repozitáře, plán dne vydání) (hotovo) | all | architect | P1 | – |
 | T-199 | Vydání – zdrojový kód FFmpeg přiložený k vydání a věta o FFmpeg v okně O aplikaci (LGPL) (hotovo; ověření v T-125) | all | qa-reviewer | P1 | T-198 |
 | T-200 | Skripty vydání pro neměnná vydání – odmítnout `-AddToPublished` a `-AllowIncomplete` (až po vydání 1.0.0) | all | qa-reviewer | P2 | T-180 |
 | T-203 | Kamera – hardwarové dekódování H.264, sdílený základ a VideoToolbox (macOS) (hotovo; Windows D3D11VA v T-206) | all | core-dev | P2 | T-192 |
 | T-204 | Nastavení > Kamera – volba „Hardwarové dekódování“ (Automaticky / Vypnuto) (hotovo; sada snímků Windows v T-125) | all | ui-dev | P2 | T-203 |
 | T-207 | Kamera – dekodér si pamatuje poslední SPS/PPS pro nově otevřený kontext kodeku | all | core-dev | P3 | T-205 |
-| T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR | all | qa-reviewer | P2 | – |
+| T-218 | CI – GitHub Actions na Windows a macOS (build, testy bez E2E, Native AOT publish) při pushi do `develop` a v PR (hotovo) | all | qa-reviewer | P2 | – |
 | T-219 | Nestabilní test `CameraStreamHubKeyFrameTests.WithoutDueSubscribersNoKeyFrameIsWanted` při plném `dotnet test` | all | core-dev | P2 | – |
 | T-229 | Aktualizace Avalonia 12.1.4 → 12.1.6 (hotovo) | all | ui-dev | P2 | – |
 | T-230 | Aktualizace všech NuGet balíčků a .NET nástrojů na nejnovější stabilní verze (hotovo; Windows v T-125) | all | qa-reviewer | P2 | – |
@@ -240,6 +241,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-249 | Malý náhled kamery – profily snímkové frekvence Úsporný 10 fps a Vyvážený 15 fps (dosud 5 / 10) | all | core-dev | P2 | T-185 |
 | T-250 | Znovu posoudit napojení na Prusa Connect (cloud i Prusa Connect Local) – průzkum a návrh | all | architect | P2 | T-170 |
 | T-251 | Malý náhled kamery – štítek se skutečným a nastaveným fps v levém horním rohu (volitelný) | all | ui-dev | P2 | T-185 |
+| T-075 | Podpora projektu (GitHub Sponsors, Ko-fi) a financování podpisových certifikátů (blokováno 2026-11-22) | all | architect | P3 | – |
 
 ### Windows (`windows`)
 
@@ -253,7 +255,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
 | T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) (hotovo; nevydá, nález IsPassword v T-234) | windows | qa-reviewer | P3 | T-044 |
 | T-044 | End-to-end testy skutečné aplikace na Windows (UI Automation) (hotovo) | windows | qa-reviewer | P2 | T-040, T-041, T-042, T-043 |
-| T-059 | Publikace do winget (rozpracováno: skript, manifest a dokumentace hotové na macOS, zbývá ověření a odeslání na Windows po 1.0.0) | windows | qa-reviewer | P3 | T-017, T-055 |
+| T-059 | Publikace do winget (blokováno 2026-11-22; skript, manifest a dokumentace hotové, zbývá ověření a odeslání) | windows | qa-reviewer | P3 | T-017, T-055 |
 | T-061 | Připnutí tray ikony do viditelné části hlavního panelu (workaround přes `IsPromoted`) (hotovo) | windows | ui-dev | P2 | T-007 |
 | T-062 | Stabilizace E2E testu skutečného tray menu (TrayMenuTests) | windows | qa-reviewer | P3 | T-044 |
 | T-065 | E2E – infrastruktura zásahů do systému (varování, návrat i po pádu) a přehled pokrytí ručních kontrol | windows | qa-reviewer | P2 | T-044, T-064 |
@@ -305,7 +307,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-100 | macOS – klávesové zkratky podle zvyklostí Applu (hotovo; ověření v T-114 / T-115, ⌘. opraveno v T-141, fyzická klávesnice a otázky 1–2 v T-127) | macos | ui-dev | P2 | T-018, T-038 |
 | T-102 | macOS – ikona v Docku a ⌘Tab při otevřeném okně, „Zobrazit kameru“ v menu (od 2026-10-31 „Přenést kameru do popředí“; hotovo; ověření v T-114 / T-127) | macos | ui-dev | P1 | T-018, T-019, T-038 |
 | T-108 | macOS – hardened runtime v ad-hoc podpisu LayerPeek.app (bezpečnostní revize, N3) (hotovo) | macos | ui-dev | P2 | T-019, T-026 |
-| T-060 | macOS – podpis Developer ID, notarizace a Homebrew tap – **odloženo do rozhodnutí o Apple Developer (99 USD/rok)** | macos | ui-dev | P3 | T-019 |
+| T-060 | macOS – podpis Developer ID, notarizace a Homebrew tap – **odloženo do rozhodnutí o Apple Developer (99 USD/rok)** (blokováno 2026-11-22) | macos | ui-dev | P3 | T-019 |
 | T-115 | Ruční ověření na Macu (sběrný úkol: snímky, build a testy, `tools/macos-verify.ps1`, T-117 / T-118 / T-122; instalátor v T-126, zbytek v T-127) (hotovo 2026-11-02; zbytek v T-127) | macos | qa-reviewer | P1 | T-020, T-021, T-026, T-053, T-096, T-098, T-099, T-105, T-116–T-118, T-122 |
 | T-116 | macOS – obrázky tiskáren v menu v menu baru (hotovo; ruční ověření v T-115 / T-127) | macos | ui-dev | P3 | T-018, T-039, T-042 |
 | T-126 | macOS – ověření instalátoru (Gatekeeper, upozornění, Otevřít při přihlášení, odinstalace) (sběrný úkol, z T-115) | macos | qa-reviewer | P1 | T-019, T-020, T-115 |

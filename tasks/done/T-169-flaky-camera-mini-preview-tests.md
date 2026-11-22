@@ -1,7 +1,7 @@
 ---
 id: T-169
 title: Občasné selhání E2E malého náhledu kamery (CameraMiniPreviewTests)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P3
 platform: windows
@@ -28,7 +28,7 @@ Pozorováno 2026-11-05 (develop `7047eef5`–`21c66c63`, Windows 11 Pro 10.0.263
 
 ## Akceptační kritéria
 - [x] Příčina obou selhání zjištěná a zapsaná (test / aplikace)
-- [ ] `pwsh tools/run-e2e.ps1 -Class '*CameraMiniPreviewTests' -NoSystemChanges` 10× za sebou PASS na Windows
+- [x] `pwsh tools/run-e2e.ps1 -Class '*CameraMiniPreviewTests' -NoSystemChanges` 10× za sebou PASS na Windows → otestováno, potvrdil uživatel 2026-11-22
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -56,6 +56,7 @@ Pozorováno 2026-11-05 (develop `7047eef5`–`21c66c63`, Windows 11 Pro 10.0.263
   **Rozhodnutí uživatele 2026-11-15:** bod do T-127 (přidán jako oddíl 1s).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-11-22: uživatel potvrdil, že testy `CameraMiniPreviewTests` jsou otestované (rozhodnutí uživatele); opakovaný běh 10× agent v tomto sezení nespouštěl.
 - **Příčina 1 – `ResizeGripCorrectsTheHeight…` („The window kept changing after the correction“): chyba aplikace, opraveno.**
   Dopočet výšky (`CameraWindow.CorrectMiniSize` → `SetBounds`) nastavoval nejdřív velikost (`Width`/`Height` +
   `UpdateLayout`, první `SetWindowPos`) a pak polohu (`Position`, druhé `SetWindowPos`). Okno uprostřed roste od středu,

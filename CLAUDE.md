@@ -88,7 +88,7 @@ dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # Native AOT (on macO
 
 ## Task workflow
 
-Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (format in `tasks/README.md`).
+Tasks are Markdown files in `tasks/{todo,in-progress,done,blocked}/T-XXX-slug.md` (format in `tasks/README.md`; `blocked/` = parked by a user decision, not to be picked).
 **New task IDs:** several machines (Windows and Mac sessions) create tasks in parallel. Before creating a task, run `git fetch` and take the next ID that is free in **both** your local `develop` and `origin/develop` (check `tasks/**` and `tasks/README.md`); then commit the new task file on a branch, merge it into `develop` and push `develop` right away (this push is pre-approved), so the other machine sees the ID. If a collision still happens, the task pushed later is renumbered.
 
 1. Pick a task from `tasks/todo/` whose dependencies are in `done/` and whose `platform` is `all` or matches the current OS; `macos` tasks are implemented only on macOS.
