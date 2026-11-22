@@ -26,9 +26,9 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
         _culture.Dispose();
     }
 
-    private async Task<SettingsViewModel> LoadAsync(int? rate = MiniPreviewFrameRate.Default)
+    private async Task<SettingsViewModel> LoadAsync(int? rate = MiniPreviewFrameRate.Default, bool badge = true)
     {
-        _store.Data = new SettingsEditorData(new AppSettings { Printers = [LinkPrinter("a", "Alpha")], MiniPreviewFrameRate = rate }, SettingsLoadStatus.Loaded, [], Ids());
+        _store.Data = new SettingsEditorData(new AppSettings { Printers = [LinkPrinter("a", "Alpha")], MiniPreviewFrameRate = rate, ShowMiniPreviewFrameRate = badge }, SettingsLoadStatus.Loaded, [], Ids());
         SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported);
         _viewModel = vm;
         await vm.LoadAsync();
@@ -199,5 +199,39 @@ public sealed class MiniFrameRateSettingsTests : IDisposable
 
         Assert.Contains(nameof(SettingsViewModel.MiniFrameRateText), changed);
         Assert.Contains(nameof(SettingsViewModel.MiniFrameRateDescription), changed);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheFrameRateBadgeOptionIsShownChangedAndSaved(bool loaded)
+    {
+        // T-251: global, on by default; an unsaved change until saved, back to the loaded value is no change.
+        SettingsViewModel vm = await LoadAsync(badge: loaded);
+        List<string?> changed = [];
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        Assert.Equal(loaded, vm.ShowMiniFrameRateBadge);
+        Assert.False(vm.IsDirty);
+
+        vm.ShowMiniFrameRateBadge = !loaded;
+        Assert.True(vm.IsDirty);
+        Assert.Contains(nameof(SettingsViewModel.ShowMiniFrameRateBadge), changed);
+        vm.ShowMiniFrameRateBadge = loaded;
+        Assert.False(vm.IsDirty);
+        vm.ShowMiniFrameRateBadge = !loaded;
+
+        await vm.SaveCommand.ExecuteAsync(null);
+        AppSettings saved = Assert.Single(_store.Saves).Updated;
+        Assert.Equal(!loaded, saved.ShowMiniPreviewFrameRate);
+        Assert.Equal(MiniPreviewFrameRate.Default, saved.MiniPreviewFrameRate);
+    }
+
+    [Fact]
+    public async Task TheFrameRateBadgeIsOnByDefault()
+    {
+        SettingsViewModel vm = await LoadAsync();
+
+        Assert.True(vm.ShowMiniFrameRateBadge);
     }
 }

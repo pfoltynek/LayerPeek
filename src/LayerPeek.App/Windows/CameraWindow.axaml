@@ -187,6 +187,23 @@
       <Setter Property="Foreground" Value="White" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <!--
+      T-251: the frame rate badge of the mini preview fades out (like the window buttons) while the buttons need its room
+      (CameraWindow.FrameRateBadge.cs); one line that never wraps, tabular figures.
+    -->
+    <Style Selector="Border.fpsBadge">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.fpsBadge.cramped">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Border.fpsBadge TextBlock">
+      <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
     <!-- Cards of the overlay widgets (T-081): colours, icons, the card and its parts. -->
     <StyleInclude Source="avares://LayerPeek/Cameras/Overlay/OverlayStyles.axaml" />
     <!-- Resize grips of the borderless mini preview. -->
@@ -241,6 +258,33 @@
       <ov:OverlayAnchorItems Anchor="BottomCenter" AutomationProperties.AutomationId="CameraOverlayAnchorBottomCenter" ItemsSource="{Binding Overlay.BottomCenter}" />
       <ov:OverlayAnchorItems Anchor="BottomRight" AutomationProperties.AutomationId="CameraOverlayAnchorBottomRight" ItemsSource="{Binding Overlay.BottomRight}" />
     </ov:OverlayAnchorsPanel>
+
+    <!--
+      T-251 (design docs/design/mini-preview-fps-badge.md): the shown and the set frame rate of the mini preview in the top
+      left corner of the picture while it streams; 8 DIP from the edge (clear of the 6 DIP grips), centred on the row of
+      the window buttons. Not a pointer target (Border.overlay): dragging over it moves the window. A name for screen
+      readers but no live region. Below the status, the buttons, the grips and the outline.
+    -->
+    <Panel Margin="8,6,0,0"
+           Height="30"
+           HorizontalAlignment="Left"
+           VerticalAlignment="Top"
+           IsHitTestVisible="False"
+           IsVisible="{Binding IsFrameRateBadgeVisible}">
+      <Border x:Name="FrameRateBadge"
+              Classes="overlay fpsBadge"
+              AutomationProperties.AutomationId="CameraMiniFrameRateBadge"
+              AutomationProperties.Name="{Binding FrameRateBadgeName}"
+              Padding="5,2"
+              VerticalAlignment="Center">
+        <!-- The padded text is only drawn: screen readers get the badge's name. -->
+        <TextBlock Text="{Binding FrameRateBadgeText}"
+                   FontSize="11"
+                   FontWeight="SemiBold"
+                   FontFeatures="tnum"
+                   AutomationProperties.AccessibilityView="Raw" />
+      </Border>
+    </Panel>
 
     <!-- Connection state over the last image: connecting, no signal, error with its reason and the next attempt (T-188). -->
     <Border Classes="overlay"

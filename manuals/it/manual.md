@@ -231,6 +231,11 @@ Per risparmiare CPU, l’anteprima mini mostra per impostazione predefinita al m
 sufficienti per l’immagine piccola; la finestra normale e lo schermo intero mostrano ogni fotogramma della telecamera. Il
 limite si imposta nella scheda **Telecamera** delle impostazioni (vedi [11.6](#116-telecamera)).
 
+Nell’angolo in alto a sinistra dell’immagine l’anteprima mini mostra quanti fotogrammi al secondo mostra davvero e il
+suo limite, ad esempio «14 / 15 fps» («24 fps / senza limite» con **Fluido**). Dove i pulsanti della finestra hanno
+bisogno dello spazio, l’etichetta scompare finché i pulsanti non si nascondono di nuovo; si disattiva nella scheda
+**Telecamera**.
+
 La finestra smette anche di ricevere fotogrammi finché nessuno la vede: quando è ridotta a icona, mentre il computer è
 bloccato o lo schermo è spento, su Windows mentre la finestra è su un altro desktop virtuale (una finestra solo coperta
 da altre finestre continua) e su macOS mentre non se ne vede nessuna parte, ad esempio quando altre finestre la coprono
@@ -527,6 +532,9 @@ vedi [11.1](#111-stampanti)).
   telecamera viene comunque letta per intero, quindi registrazioni, timelapse e rilevamento degli errori di stampa non
   cambiano. La finestra normale e lo schermo intero mostrano sempre ogni fotogramma. La modifica vale per un’anteprima
   mini aperta dopo **Salva**.
+- **Mostra la frequenza fotogrammi nell’anteprima mini:** l’etichetta con la frequenza reale e il limite nell’angolo in
+  alto a sinistra dell’immagine dell’anteprima mini; attiva per impostazione predefinita. La modifica vale per
+  un’anteprima mini aperta dopo **Salva**.
 - **Decodifica hardware:** **Automatica** (predefinita) fa decodificare all’hardware grafico il video della finestra
   della telecamera e dell’anteprima mini quando possibile, altrimenti lo decodifica la CPU; così il carico di CPU
   diminuisce. **Disattivata** decodifica sempre con la CPU: meno memoria e nessun decoder di sistema, ma più carico di

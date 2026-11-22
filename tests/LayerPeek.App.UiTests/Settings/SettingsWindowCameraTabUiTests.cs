@@ -23,10 +23,11 @@ public sealed class SettingsWindowCameraTabUiTests(HeadlessSession session)
         UiTestScope scope,
         int? rate = MiniPreviewFrameRate.Default,
         CameraHardwareDecoding hardwareDecoding = CameraHardwareDecoding.Automatic,
-        bool softwareNote = false)
+        bool softwareNote = false,
+        bool badge = true)
     {
         FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
-        store.Data = store.Data with { Settings = store.Data.Settings with { MiniPreviewFrameRate = rate, CameraHardwareDecoding = hardwareDecoding } };
+        store.Data = store.Data with { Settings = store.Data.Settings with { MiniPreviewFrameRate = rate, CameraHardwareDecoding = hardwareDecoding, ShowMiniPreviewFrameRate = badge } };
         SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store, hardwareDecodingSoftwareNote: softwareNote);
         ui.Click("SettingsTabCamera");
         ui.Window.Settle();
@@ -86,6 +87,39 @@ public sealed class SettingsWindowCameraTabUiTests(HeadlessSession session)
             Assert.Equal(Strings.SettingsMiniFrameRateCustomHint, ui.ShownText("MiniFrameRateDescription"));
             await ui.SaveAsync();
             Assert.Equal(17, Assert.Single(store.Saves).Updated.MiniPreviewFrameRate);
+        });
+
+    [Fact]
+    public Task TheFrameRateBadgeOptionIsOnByDefaultAndIsSaved() =>
+        session.RunAsync(static async scope =>
+        {
+            // T-251: below the frame rate, with its hint.
+            (SettingsWindowHarness ui, FakeEditorStore store) = await OpenAsync(scope);
+            CheckBox option = ui.Find<CheckBox>("MiniFrameRateBadge");
+
+            Assert.True(ui.Window.IsShown<CheckBox>("MiniFrameRateBadge"));
+            Assert.True(option.IsChecked);
+            Assert.Equal(Strings.SettingsMiniFrameRateBadge, option.Content);
+            Assert.Equal(Strings.SettingsMiniFrameRateBadgeHint, AutomationProperties.GetHelpText(option));
+            Assert.Equal(Strings.SettingsMiniFrameRateBadgeHint, ui.ShownText("MiniFrameRateBadgeHint"));
+
+            ui.Window.Click(option);
+            ui.Window.Settle();
+            Assert.False(ui.ViewModel.ShowMiniFrameRateBadge);
+            Assert.True(ui.ViewModel.IsDirty);
+            await ui.SaveAsync();
+
+            Assert.False(Assert.Single(store.Saves).Updated.ShowMiniPreviewFrameRate);
+        });
+
+    [Fact]
+    public Task ASavedOffIsLoadedUnchecked() =>
+        session.RunAsync(static async scope =>
+        {
+            (SettingsWindowHarness ui, _) = await OpenAsync(scope, badge: false);
+
+            Assert.False(ui.Find<CheckBox>("MiniFrameRateBadge").IsChecked);
+            Assert.False(ui.ViewModel.IsDirty);
         });
 
     [Fact]

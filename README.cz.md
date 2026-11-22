@@ -428,8 +428,9 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
   u každé tiskárny), neprůhlednost karet a rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 - **Kamera:** nastavení pro všechny kamery: snímková frekvence malého náhledu (Úsporný 10 fps, ve výchozím stavu Vyvážený
-  15 fps, Plynulý s každým snímkem, nebo vlastní omezení 1–30 fps) a hardwarové dekódování (ve výchozím stavu
-  **Automaticky**, nebo **Vypnuto**; ve Windows zatím v obou režimech dekóduje procesor).
+  15 fps, Plynulý s každým snímkem, nebo vlastní omezení 1–30 fps), štítek se snímkovou frekvencí v malém náhledu (ve
+  výchozím stavu zapnutý) a hardwarové dekódování (ve výchozím stavu **Automaticky**, nebo **Vypnuto**; ve Windows
+  zatím v obou režimech dekóduje procesor).
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu zapnuté – zapne ho instalátor;
   jen v nainstalované verzi). Na macOS: **Otevřít při přihlášení** (ve výchozím stavu vypnuté, jen pro LayerPeek.app
   zkopírovanou z obrazu disku, např. do Aplikací). Pokud jsi LayerPeek vypnul v Nastavení systému → Obecné → Položky

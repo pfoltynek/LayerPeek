@@ -222,6 +222,10 @@ To save CPU, the mini preview shows at most 15 frames per second by default, whi
 normal window and full screen show every frame of the camera. The limit is set on the **Camera** tab of the settings (see
 [11.6](#116-camera)).
 
+In the top left corner of the picture the mini preview shows how many frames per second it really shows and its limit,
+for example "14 / 15 fps" ("24 fps / no limit" with **Smooth**). Where the window buttons need the room, it fades out
+until they hide again; it can be switched off on the **Camera** tab.
+
 The window also stops taking frames while nobody can see it: when it is minimised, while the computer is locked or the
 display is off, on Windows while the window is on another virtual desktop (a window merely covered by other windows
 keeps running), and on macOS while no part of it can be seen, such as when other windows cover it completely or it is on
@@ -496,6 +500,8 @@ Settings for all cameras (each printer's camera is set up on its **Camera** sub-
   (**Custom**). Fewer frames mean less CPU load and less image data copied; the camera is still read in full, so
   recordings, timelapses and print failure detection are not affected. The normal window and full screen always show
   every frame. The change applies to an open mini preview after **Save**.
+- **Show the frame rate in the mini preview:** the label with the frame rate the mini preview really shows and its limit
+  in the top left corner of the picture; on by default. The change applies to an open mini preview after **Save**.
 - **Hardware decoding:** **Automatic** (the default) lets the graphics hardware decode the video of the camera window
   and the mini preview when it can, otherwise the processor does it; this lowers the CPU load. **Off** always decodes on
   the processor: less memory and no system decoder, but a higher CPU load. Choose **Off** if the camera picture is

@@ -232,6 +232,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             hasRememberedMini: state.Mini is not null);
         _mode = plan.Mode;
         _miniFrameRate = printers.Current.MiniPreviewFrameRate;
+        _showFrameRateBadge = printers.Current.ShowMiniPreviewFrameRate;
         _normalPlacement = plan.UseRememberedNormal ? state.Normal : null;
         _miniPlacement = plan.UseRememberedMini ? state.Mini : null;
 
@@ -319,6 +320,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         Overlay.RefreshTexts();
         LayoutMode.RefreshTexts();
         MiniStrip.RefreshTexts();
+        RefreshFrameRateBadgeTexts();
     }
 
     public CameraWindowMode Mode
@@ -352,8 +354,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(NormalToolTip));
             OnPropertyChanged(nameof(IsTopmost));
             OnTopmostModeChanged();
-            // T-185: only the mini preview limits its frame rate.
+            // T-185: only the mini preview limits its frame rate; T-251: and shows it.
             ApplyFrameRate();
+            UpdateFrameRateBadge();
             // The mini preview draws no cards (T-081).
             Overlay.SetMode(value);
             ShowFullScreenCommand.NotifyCanExecuteChanged();
@@ -647,6 +650,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         MiniStrip.Dispose();
         StopStream();
         CancelNextAttemptRefresh();
+        // T-251: hides the badge and ends its timer.
+        UpdateFrameRateBadge();
         DisposeDisplaySize();
         AttachFrameSink(null);
         if (_stateStore.GetRemoveCount(PrinterId) != _stateRemoveCount)
@@ -784,6 +789,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         _lease = null;
         NextRun();
+        // T-251: no run, no frame rate (also when the hub ended it without a failure and the status stays).
+        UpdateFrameRateBadge();
         if (failure is not null && !_disposed)
         {
             // User decision (T-014): an unexpected internal error of an active window is retried after the reconnect delay,
@@ -907,6 +914,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             // T-184: the camera's size, not the scaled frame's: its rounding would change the ratio with the window size.
             long source = Interlocked.Read(ref _frameSource);
             OnFrameShown((int)(source >> 32), (int)(uint)source);
+            // T-251: the frames the mini preview really shows.
+            OnFrameShownForBadge();
             // A frame was shown: the next failure of a run is a new one (see LogRunFailure).
             Volatile.Write(ref _lastRunFailure, null);
         }
@@ -931,6 +940,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         if (wasVisible != IsStatusVisible)
         {
             OnPropertyChanged(nameof(IsStatusVisible));
+            // T-251: the frame rate only while the picture streams.
+            UpdateFrameRateBadge();
         }
 
         if (previousDetail != StatusDetail)
@@ -997,6 +1008,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         MiniStrip.ApplySettings(target.Printer.Camera.MiniStrip);
         // T-185: the frame rate of the mini preview, for the open one too.
         SetMiniFrameRate(state.MiniPreviewFrameRate);
+        // T-251: and whether the mini preview shows it.
+        SetShowFrameRateBadge(state.ShowMiniPreviewFrameRate);
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {

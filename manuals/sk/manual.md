@@ -224,6 +224,10 @@ Aby šetril procesor, ukazuje malý náhľad v predvolenom nastavení najviac 15
 normálne okno a celá obrazovka ukazujú každú snímku kamery. Obmedzenie sa nastavuje na karte **Kamera** v nastaveniach
 (pozrite [11.6](#116-kamera)).
 
+V ľavom hornom rohu obrazu malý náhľad ukazuje, koľko snímok za sekundu naozaj zobrazuje, a nastavené obmedzenie, napr.
+„14 / 15 fps“ (pri profile **Plynulý** „24 fps / bez limitu“). Kde potrebujú miesto tlačidlá okna, štítok zmizne, kým sa
+tlačidlá znova neskryjú; vypnúť ho možno na karte **Kamera**.
+
 Okno tiež prestane brať snímky, keď ho nikto nevidí: keď je minimalizované, pri zamknutom počítači alebo vypnutom
 displeji, na Windows aj na inej virtuálnej ploche (okno len zakryté inými oknami beží ďalej) a na macOS, keď z neho nie
 je vidieť nič, napríklad keď je celé zakryté inými oknami alebo na inej ploche (asi po dvoch sekundách). Chvíľu po
@@ -500,6 +504,8 @@ Nastavenia pre všetky kamery (kameru jednotlivej tlačiarne nastavíte na jej p
   (**Vlastný**). Menej snímok znamená menšiu záťaž procesora a menej kopírovaných dát; kamera sa ďalej číta celá, takže
   nahrávky, timelapse a detekcia chýb tlače sa nemenia. Normálne okno a celá obrazovka ukazujú vždy každú snímku. Zmena
   sa pri otvorenom malom náhľade prejaví po **Uložiť**.
+- **Zobrazovať snímkovú frekvenciu v malom náhľade:** štítok so skutočnou a nastavenou snímkovou frekvenciou v ľavom
+  hornom rohu obrazu malého náhľadu; predvolene zapnuté. Zmena sa pri otvorenom malom náhľade prejaví po **Uložiť**.
 - **Hardvérové dekódovanie:** **Automaticky** (predvolené) nechá video okna kamery a malého náhľadu dekódovať grafický
   hardvér, keď to ide, inak ho dekóduje procesor; to znižuje záťaž procesora. **Vypnuté** dekóduje vždy procesorom:
   menej pamäte a žiadny systémový dekodér, ale vyššia záťaž procesora. **Vypnuté** zvoľte, keď je obraz kamery

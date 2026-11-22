@@ -138,6 +138,26 @@ internal sealed class CameraHarness : IAsyncDisposable
         {
             Printers = [.. (current.Printers ?? []).Select(p => p.Camera.Enabled ? p with { Camera = p.Camera with { MiniStrip = miniStrip } } : p)],
             CameraOverlayOpacityPercent = current.CameraOverlayOpacityPercent,
+            MiniPreviewFrameRate = current.MiniPreviewFrameRate,
+            ShowMiniPreviewFrameRate = current.ShowMiniPreviewFrameRate,
+        };
+        ((IMonitoringObserver)Printers).ApplySettings(updated);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// The settings were saved with the frame rate <paramref name="rate"/> of the mini preview (T-185) and its badge on or
+    /// off (T-251): the monitored printers change like after Save, and the open windows apply it on the UI thread.
+    /// </summary>
+    public void SaveMiniFrameRate(int? rate, bool badge = true)
+    {
+        MonitoredPrintersState current = Printers.Current;
+        AppSettings updated = new()
+        {
+            Printers = [.. current.Printers ?? []],
+            CameraOverlayOpacityPercent = current.CameraOverlayOpacityPercent,
+            MiniPreviewFrameRate = rate,
+            ShowMiniPreviewFrameRate = badge,
         };
         ((IMonitoringObserver)Printers).ApplySettings(updated);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -225,7 +245,8 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <summary>
     /// Skips the fade of the window buttons (it runs on real time) for stable frames: each button fades on its own since
     /// T-117 (the pin stays dimmed while it is checked), so the transitions are removed from every button of the row. The
-    /// outline of the mini preview brightens with the same pointer over the window (T-118), so its fade is removed too.
+    /// outline of the mini preview brightens with the same pointer over the window (T-118), and the frame rate badge fades
+    /// out where the buttons need its room (T-251), so their fades are removed too.
     /// </summary>
     public static void SkipWindowButtonFade(CameraWindow window)
     {
@@ -236,6 +257,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "MiniOutline").Transitions = null;
+        window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "FrameRateBadge").Transitions = null;
     }
 
     /// <summary>

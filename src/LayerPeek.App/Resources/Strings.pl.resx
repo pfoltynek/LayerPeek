@@ -960,6 +960,30 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Własna wartość: mniej klatek na sekundę to mniejsze obciążenie procesora i mniej kopiowanych danych.</value>
   </data>
+  <data name="CameraMiniFrameRateBadge" xml:space="preserve">
+    <value>{0} / {1} kl./s</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNoLimit" xml:space="preserve">
+    <value>{0} kl./s, bez limitu</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeName" xml:space="preserve">
+    <value>Liczba klatek {0} z {1} kl./s</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameNoLimit" xml:space="preserve">
+    <value>Liczba klatek {0} kl./s, bez limitu</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuring" xml:space="preserve">
+    <value>Liczba klatek: trwa pomiar, limit {0} kl./s</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuringNoLimit" xml:space="preserve">
+    <value>Liczba klatek: trwa pomiar, bez limitu</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadge" xml:space="preserve">
+    <value>Pokazuj liczbę klatek w małym podglądzie</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadgeHint" xml:space="preserve">
+    <value>Rzeczywista i ustawiona wartość w lewym górnym rogu obrazu, gdy obraz jest przesyłany.</value>
+  </data>
   <data name="SettingsHardwareDecoding" xml:space="preserve">
     <value>Dekodowanie sprzętowe</value>
   </data>

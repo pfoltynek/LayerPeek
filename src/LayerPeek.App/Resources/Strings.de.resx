@@ -960,6 +960,30 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Eigener Wert: weniger Bilder pro Sekunde bedeuten weniger CPU-Last und weniger kopierte Bilddaten.</value>
   </data>
+  <data name="CameraMiniFrameRateBadge" xml:space="preserve">
+    <value>{0} / {1} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNoLimit" xml:space="preserve">
+    <value>{0} fps / ohne Limit</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeName" xml:space="preserve">
+    <value>Bildrate {0} von {1} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameNoLimit" xml:space="preserve">
+    <value>Bildrate {0} fps, ohne Limit</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuring" xml:space="preserve">
+    <value>Bildrate: wird gemessen, Limit {0} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuringNoLimit" xml:space="preserve">
+    <value>Bildrate: wird gemessen, ohne Limit</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadge" xml:space="preserve">
+    <value>Bildrate in der Mini-Vorschau anzeigen</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadgeHint" xml:space="preserve">
+    <value>Tatsächlicher und eingestellter Wert oben links im Bild, solange es läuft.</value>
+  </data>
   <data name="SettingsHardwareDecoding" xml:space="preserve">
     <value>Hardware-Dekodierung</value>
   </data>

@@ -8,6 +8,13 @@ older versions always load.
 
 ## [Unreleased]
 
+### Added
+
+- **Frame rate in the mini preview:** a small label in the top left corner of the picture shows how many frames per
+  second the mini preview really shows and its limit, for example "14 / 15 fps" ("24 fps / no limit" with **Smooth**),
+  refreshed once a second while the picture streams. It fades out while the window buttons need its room. **Settings →
+  Camera → Show the frame rate in the mini preview** switches it off (on by default).
+
 ### Changed
 
 - **Mini preview frame rate profiles:** **Economy** now shows 10 frames per second (was 5) and **Balanced**, the

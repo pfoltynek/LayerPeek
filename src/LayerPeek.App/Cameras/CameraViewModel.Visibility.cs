@@ -103,6 +103,8 @@ public sealed partial class CameraViewModel
 
         // T-194: the time to the next attempt only while visible (no timer while minimized, hidden or closed).
         RefreshNextAttempt();
+        // T-251: so is the frame rate of the mini preview.
+        UpdateFrameRateBadge();
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "The camera window did not follow the screen visibility because the UI is shutting down.")]

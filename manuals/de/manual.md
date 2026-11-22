@@ -230,6 +230,10 @@ Um die CPU zu schonen, zeigt die Mini-Vorschau standardmäßig höchstens 15 Bil
 reicht; das normale Fenster und das Vollbild zeigen jedes Bild der Kamera. Die Grenze stellen Sie im Reiter **Kamera**
 der Einstellungen ein (siehe [11.6](#116-kamera)).
 
+Oben links im Bild zeigt die Mini-Vorschau, wie viele Bilder pro Sekunde sie tatsächlich anzeigt, und die eingestellte
+Grenze, z. B. „14 / 15 fps“ (bei **Flüssig** „24 fps / ohne Limit“). Wo die Fensterschaltflächen den Platz brauchen,
+blendet sie die Anzeige aus, bis die Schaltflächen wieder verschwinden; abschalten lässt sie sich im Reiter **Kamera**.
+
 Das Fenster nimmt außerdem keine Bilder an, solange es niemand sieht: wenn es minimiert ist, solange der Computer
 gesperrt oder der Bildschirm aus ist, unter Windows auch, solange das Fenster auf einem anderen virtuellen Desktop liegt
 (ein Fenster, das nur von anderen Fenstern verdeckt ist, läuft weiter), und unter macOS, solange nichts davon zu sehen
@@ -523,6 +527,8 @@ Einstellungen für alle Kameras (die Kamera eines Druckers richten Sie in seinem
   kopierte Bilddaten; die Kamera wird weiter vollständig gelesen, Aufnahmen, Zeitraffer und Druckfehlererkennung ändern
   sich nicht. Das normale Fenster und das Vollbild zeigen immer jedes Bild. Die Änderung gilt für eine offene
   Mini-Vorschau nach **Speichern**.
+- **Bildrate in der Mini-Vorschau anzeigen:** die Anzeige der tatsächlichen und der eingestellten Bildrate oben links im
+  Bild der Mini-Vorschau; standardmäßig an. Die Änderung gilt für eine offene Mini-Vorschau nach **Speichern**.
 - **Hardware-Dekodierung:** **Automatisch** (Standard) lässt die Grafikhardware das Video des Kamerafensters und der
   Mini-Vorschau dekodieren, wenn möglich, sonst dekodiert der Prozessor; das senkt die CPU-Last. **Aus** dekodiert immer
   mit dem Prozessor: weniger Speicher und kein Systemdecoder, aber eine höhere CPU-Last. Wählen Sie **Aus**, wenn das

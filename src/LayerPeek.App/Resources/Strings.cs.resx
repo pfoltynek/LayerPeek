@@ -960,6 +960,30 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Vlastní hodnota: méně snímků za sekundu znamená menší zátěž procesoru a méně kopírovaných dat.</value>
   </data>
+  <data name="CameraMiniFrameRateBadge" xml:space="preserve">
+    <value>{0} / {1} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNoLimit" xml:space="preserve">
+    <value>{0} fps / bez limitu</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeName" xml:space="preserve">
+    <value>Snímková frekvence {0} z {1} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameNoLimit" xml:space="preserve">
+    <value>Snímková frekvence {0} fps, bez limitu</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuring" xml:space="preserve">
+    <value>Snímková frekvence: měří se, limit {0} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuringNoLimit" xml:space="preserve">
+    <value>Snímková frekvence: měří se, bez limitu</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadge" xml:space="preserve">
+    <value>Zobrazovat snímkovou frekvenci v malém náhledu</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadgeHint" xml:space="preserve">
+    <value>Skutečná a nastavená hodnota v levém horním rohu běžícího obrazu.</value>
+  </data>
   <data name="SettingsHardwareDecoding" xml:space="preserve">
     <value>Hardwarové dekódování</value>
   </data>

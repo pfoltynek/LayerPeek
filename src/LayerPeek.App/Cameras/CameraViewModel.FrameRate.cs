@@ -30,6 +30,8 @@ public sealed partial class CameraViewModel
         {
             _miniFrameRate = rate;
             ApplyFrameRate();
+            // T-251: the badge shows the new limit.
+            RefreshFrameRateBadgeTexts();
         }
     }
 }
