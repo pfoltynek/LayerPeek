@@ -1,12 +1,14 @@
 ---
 id: T-239
 title: macOS – záložky Nastavení nejdou přepnout přes Accessibility (AXPress, VoiceOver) (Avalonia 12.1.6)
-status: todo
+status: rejected
 owner: ui-dev
 priority: P3
 platform: macos
 depends_on: []
 ---
+
+> **Zamítnuto (rozhodnutí uživatele 2026-11-22):** přepínání záložek Nastavení přes Accessibility (AXPress, VoiceOver) se řešit nebude. Úkol se nebude implementovat.
 
 ## Cíl
 Záložky okna Nastavení (`TabItem`, v AX `AXRadioButton`: `SettingsTab*` i podzáložky tiskárny `PrinterTab*`) na
