@@ -45,7 +45,18 @@ $a = @($args)
 function Opt([string] $Name) { $i = [array]::IndexOf($a, $Name); if ($i -ge 0) { $a[$i + 1] } else { $null } }
 if ($a[0] -eq 'auth') { exit 0 }
 if ($a[0] -ne 'release') { [Console]::Error.WriteLine("fake gh: unsupported $($a -join ' ')"); exit 99 }
-$tag = $a[2]; $repo = Opt '--repo'
+$repo = Opt '--repo'
+if ($a[1] -eq 'list') {
+    # T-200: every release of the repository; a state with "duplicates": n lists n more drafts of its tag.
+    $items = @()
+    foreach ($file in @(Get-ChildItem -LiteralPath $env:LAYERPEEK_FAKE_GH_STATE -File -Filter "$($repo -replace '/', '_')_v*.json")) {
+        $r = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
+        $copies = 1 + $(if ($r.PSObject.Properties['duplicates']) { [int]$r.duplicates } else { 0 })
+        for ($i = 0; $i -lt $copies; $i++) { $items += [ordered]@{ tagName = $r.tagName; name = $r.name; isDraft = ($i -gt 0 -or $r.isDraft); createdAt = '2026-11-22T00:00:00Z' } }
+    }
+    ConvertTo-Json -InputObject @($items) -Depth 3; exit 0
+}
+$tag = $a[2]
 $state = if ($env:LAYERPEEK_FAKE_GH_STATE) { Join-Path $env:LAYERPEEK_FAKE_GH_STATE "$($repo -replace '/', '_')_$tag.json" } else { $null }
 function Files { $skip = @('--repo', '--title', '--notes-file', '--pattern', '--dir'); $out = @(); for ($i = 3; $i -lt $a.Count; $i++) { if ($skip -contains $a[$i]) { $i++; continue }; if ($a[$i] -like '--*') { continue }; $out += $a[$i] }; $out }
 function Asset([string] $Path) { [ordered]@{ name = (Split-Path -Leaf $Path); state = 'uploaded'; digest = "sha256:$((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant())" } }
@@ -98,6 +109,10 @@ switch ($a[1]) {
             '  echo release not found 1>&2'
             '  exit /b 1'
             ')'
+            'if "%~1"=="release" if "%~2"=="list" ('
+            '  echo []'
+            '  exit /b 0'
+            ')'
             'echo fake gh: unsupported %* 1>&2'
             'exit /b 99'
             ':impl'
@@ -114,6 +129,7 @@ switch ($a[1]) {
             'if [ "$1" = auth ]; then exit 0; fi'
             'if [ -z "$LAYERPEEK_FAKE_GH_STATE" ]; then'
             '  if [ "$1" = release ] && [ "$2" = view ]; then echo "release not found" >&2; exit 1; fi'
+            '  if [ "$1" = release ] && [ "$2" = list ]; then echo "[]"; exit 0; fi'
             '  echo "fake gh: unsupported $*" >&2; exit 99'
             'fi'
             "exec $pwshCommand -NoProfile -NonInteractive -File `"$impl`" `"`$@`""
@@ -486,7 +502,7 @@ Describe 'Plan and resume detection (pure)' {
             GhProblems = @(); Release = $null; ReleaseError = $null; BuildCurrent = $false; BuildProblems = @('No build output')
             UploadPlan = @(); ChecksumFile = 'SHA256SUMS-windows.txt'; ToolchainProblems = @(); GitVersion = [version]'2.56'
             ReleaseCheck = $null; BranchOnlyCommits = @(); DevelopIsAncestorOfRelease = $null; HasOrigin = $true; OriginRepository = 'o/r'; PushRepository = 'o/r'
-            DevelopFirstParentInRemote = $null; ToolchainSkipped = $false
+            DevelopFirstParentInRemote = $null; ToolchainSkipped = $false; TagReleases = @(); ExpectedOs = @('macos', 'windows')
         }
         # Everything of Gitflow done: tag and merges pushed, branch deleted.
         $script:GitDone = Copy-With $script:Fresh @{
@@ -503,8 +519,8 @@ Describe 'Plan and resume detection (pure)' {
     It 'plans every step of a fresh release without problems' {
         $plan = Plan $script:Fresh
         Assert-Problems $plan.Problems
-        States $plan | Should -BeExactly @('Branch=todo', 'MergeMain=todo', 'PushMain=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo')
-        @($plan.Steps | Where-Object Outward | ForEach-Object Id) | Should -BeExactly @('PushMain', 'PushDevelop', 'Upload')
+        States $plan | Should -BeExactly @('Branch=todo', 'MergeMain=todo', 'PushMain=todo', 'Draft=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo', 'Publish=todo')
+        @($plan.Steps | Where-Object Outward | ForEach-Object Id) | Should -BeExactly @('PushMain', 'Draft', 'PushDevelop', 'Upload', 'Publish')
         $plan.Published | Should -BeFalse
     }
     It 'reports every failed precondition of a fresh release at once' {
@@ -544,7 +560,7 @@ Describe 'Plan and resume detection (pure)' {
         $facts = Copy-With $script:Fresh @{ LocalBranchCommit = $script:Ids.Release; BranchVersion = '0.2.0'; ReleaseCommit = $script:Ids.Release; PropsChange = $null; Changelog = $null; ReleaseCheck = $script:GoodCheck; DevelopIsAncestorOfRelease = $true }
         $plan = Plan $facts
         Assert-Problems $plan.Problems
-        States $plan | Should -BeExactly @('Branch=done', 'MergeMain=todo', 'PushMain=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo')
+        States $plan | Should -BeExactly @('Branch=done', 'MergeMain=todo', 'PushMain=todo', 'Draft=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo', 'Publish=todo')
     }
     It 'checks an existing release branch like a new one: version, dated changelog, based on develop' {
         $branch = Copy-With $script:Fresh @{ LocalBranchCommit = $script:Ids.Release; ReleaseCommit = $script:Ids.Release; PropsChange = $null; Changelog = $null; DevelopIsAncestorOfRelease = $true }
@@ -608,7 +624,7 @@ Describe 'Plan and resume detection (pure)' {
         }
         $plan = Plan $facts
         Assert-Problems $plan.Problems
-        States $plan | Should -BeExactly @('Branch=done', 'MergeMain=done', 'PushMain=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo')
+        States $plan | Should -BeExactly @('Branch=done', 'MergeMain=done', 'PushMain=todo', 'Draft=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo', 'Publish=todo')
     }
     It 'moves only main to an existing local tag (tag made, main not moved yet)' {
         $facts = Copy-With $script:GitDone @{
@@ -629,7 +645,7 @@ Describe 'Plan and resume detection (pure)' {
         $facts = Copy-With $script:GitDone @{ RemoteDevelop = $script:Ids.Develop; DevelopRelation = 'ahead'; RemoteDevelopContainsRelease = $false; LocalBranchCommit = $script:Ids.Release }
         $plan = Plan $facts
         Assert-Problems $plan.Problems
-        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('PushDevelop', 'DeleteBranch', 'Build', 'Upload')
+        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Draft', 'PushDevelop', 'DeleteBranch', 'Build', 'Upload', 'Publish')
     }
     It 'refuses to push develop with other unpushed commits besides the merge' {
         $facts = Copy-With $script:GitDone @{ RemoteDevelop = $script:Ids.Develop; DevelopRelation = 'ahead'; RemoteDevelopContainsRelease = $false; DevelopFirstParent = $script:Ids.DevelopMerge; DevelopSecondParent = $null }
@@ -640,7 +656,7 @@ Describe 'Plan and resume detection (pure)' {
         Assert-Problems (Plan $facts).Problems 'origin/develop has moved since the merge back of release/0\.2\.0 .*git reset --keep origin/develop.*re-run'
     }
     It 'refuses a tag that is only on the remote, a moved tag and a tag that is not a release merge' {
-        Assert-Problems (Plan (Copy-With $script:GitDone @{ LocalTagCommit = $null })).Problems 'on origin but not in the local repository\. Run: git fetch origin --tags'
+        Assert-Problems (Plan (Copy-With $script:GitDone @{ LocalTagCommit = $null })).Problems 'on origin but not in the local repository \(the other machine has started this release\)\. A run without -DryRun fetches it itself; for a dry run first: git fetch --no-tags origin refs/tags/v0\.2\.0:refs/tags/v0\.2\.0'
         Assert-Problems (Plan (Copy-With $script:GitDone @{ RemoteTagCommit = $script:Ids.Other })).Problems 'on origin points to a{7}, the local tag to e{7}\. Tags are never moved automatically'
         Assert-Problems (Plan (Copy-With $script:GitDone @{ TagParentCount = 1; TagVersion = '0.1.0' })).Problems 'is not a merge commit of release/0\.2\.0', "props has version '0\.1\.0'"
     }
@@ -649,33 +665,87 @@ Describe 'Plan and resume detection (pure)' {
     }
     It 'builds and uploads after Gitflow is done, and checks the toolchain only while the build is pending' {
         $plan = Plan (Copy-With $script:GitDone @{ ToolchainProblems = @('The MSVC component x is not installed.') })
-        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Build', 'Upload')
+        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Draft', 'Build', 'Upload', 'Publish')
         Assert-Problems $plan.Problems 'MSVC'
         $built = Plan (Copy-With $script:GitDone @{ BuildCurrent = $true; ToolchainProblems = @('The MSVC component x is not installed.') })
         Assert-Problems $built.Problems
-        @($built.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Upload')
+        @($built.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Draft', 'Upload', 'Publish')
     }
-    It 'finishes when the draft holds every file of the local build' {
+    It 'leaves only the publish when the draft holds every file of the local build, and it waits for the other OS (T-200)' {
         $facts = Copy-With $script:GitDone @{ BuildCurrent = $true; Release = (Release); UploadPlan = @([pscustomobject]@{ Name = 'a.zip'; Action = 'Skip' }) }
-        @((Plan $facts).Steps | Where-Object { -not $_.Done }) | Should -BeNullOrEmpty
+        $plan = Plan $facts
+        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Publish')
+        $plan.Waiting | Should -BeExactly @('macOS')
+        $text = (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n"
+        $text | Should -Match '\[wait\] 10\. Publish v0\.2\.0'
+        $text | Should -Match 'waits for the macOS files'
+        $text | Should -Match 'GitHub: draft v0\.2\.0: macOS files missing, Windows files missing\.'
         $partial = Copy-With $facts @{ UploadPlan = @([pscustomobject]@{ Name = 'a.zip'; Action = 'Skip' }, [pscustomobject]@{ Name = 'b.zip'; Action = 'Upload' }) }
-        @((Plan $partial).Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Upload')
+        @((Plan $partial).Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Upload', 'Publish')
+    }
+    It 'publishes (does not wait) once the draft has the files of the other OS (T-200)' {
+        $assets = @([pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = 'sha256:x' })
+        $facts = Copy-With $script:GitDone @{ BuildCurrent = $true; Release = (Release -Assets $assets); UploadPlan = @([pscustomobject]@{ Name = 'a.zip'; Action = 'Upload' }) }
+        $plan = Plan $facts
+        Assert-Problems $plan.Problems
+        $plan.Waiting | Should -BeNullOrEmpty
+        $text = (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n"
+        $text | Should -Match '\[todo\] 10\. Publish v0\.2\.0 \(confirm by typing the version\)'
+        $text | Should -Match 'release-publish\.ps1 -DryRun .*immutable afterwards'
+        $text | Should -Match 'macOS files uploaded, Windows files missing'
+    }
+    It 'counts the Gitflow steps pushed by the other machine as done, without its local main and develop (T-200)' {
+        # The second machine: tag fetched, local main and develop still before the release, no release branch.
+        $facts = Copy-With $script:GitDone @{
+            LocalMain = $script:Ids.Main; MainRelation = 'behind'; LocalMainContainsTag = $false
+            LocalDevelop = $script:Ids.Develop; DevelopRelation = 'behind'; LocalDevelopContainsRelease = $false
+            HostOs = 'macos'; ChecksumFile = 'SHA256SUMS-macos.txt'; Release = (Release -Assets @([pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = 'sha256:x' }))
+        }
+        $plan = Plan $facts
+        Assert-Problems $plan.Problems
+        States $plan | Should -BeExactly @('Branch=done', 'MergeMain=done', 'PushMain=done', 'Draft=done', 'MergeDevelop=done', 'PushDevelop=done', 'DeleteBranch=done', 'Build=todo', 'Upload=todo', 'Publish=todo')
+        $plan.Waiting | Should -BeNullOrEmpty
+    }
+    It 'refuses two releases of one tag (two drafts of runs on both machines at the same moment, T-200)' {
+        $two = @([pscustomobject]@{ tagName = 'v0.2.0'; isDraft = $true }, [pscustomobject]@{ tagName = 'v0.2.0'; isDraft = $true })
+        Assert-Problems (Plan (Copy-With $script:GitDone @{ Release = (Release); TagReleases = $two })).Problems 'GitHub has 2 releases for v0\.2\.0 \(2 draft\(s\).*delete the other one'
+        Assert-Problems (Plan (Copy-With $script:GitDone @{ Release = (Release); TagReleases = @($two[0]) })).Problems
     }
     It 'refuses files in the draft with different content' {
         $facts = Copy-With $script:GitDone @{ BuildCurrent = $true; Release = (Release); UploadPlan = @([pscustomobject]@{ Name = 'a.zip'; Action = 'Conflict' }) }
         Assert-Problems (Plan $facts).Problems 'already has different files with the names a\.zip.*-Force'
     }
-    It 'does not rebuild into a draft that already has the files of this OS' {
-        $facts = Copy-With $script:GitDone @{ Release = (Release -Assets @([pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = 'sha256:x' })) }
-        Assert-Problems (Plan $facts).Problems 'already contains SHA256SUMS-windows\.txt, but there is no matching local build'
-        Assert-Problems (Plan (Copy-With $facts @{ Release = (Release -Assets @([pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = 'sha256:x' })) })).Problems
+    It 'does not rebuild or upload again when the draft already has the files of this OS, and still publishes (T-200)' {
+        $assets = @([pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = 'sha256:x' }, [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = 'sha256:y' })
+        $facts = Copy-With $script:GitDone @{ Release = (Release -Assets $assets); ToolchainProblems = @('The MSVC component x is not installed.') }
+        $plan = Plan $facts
+        Assert-Problems $plan.Problems
+        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Publish')
+        $plan.Notes -join ' ' | Should -Match 'already has the files of this OS \(SHA256SUMS-windows\.txt\), but this machine has no current build'
+        # Without the files of this OS in the draft the build stays to do.
+        $other = Plan (Copy-With $facts @{ Release = (Release -Assets @($assets[1])) })
+        @($other.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Build', 'Upload', 'Publish')
     }
-    It 'needs neither build nor upload for a published release' {
-        $plan = Plan (Copy-With $script:GitDone @{ Release = (Release $false); ToolchainProblems = @('The MSVC component x is not installed.') })
+    It 'waits on the second machine until the other machine has pushed develop, and never merges develop for it (T-200)' {
+        # Tag and main pushed by the other machine, origin/develop without the release, no release branch here.
+        $facts = Copy-With $script:GitDone @{
+            LocalMain = $script:Ids.Main; MainRelation = 'behind'; LocalMainContainsTag = $false
+            LocalDevelop = $script:Ids.Develop; RemoteDevelop = $script:Ids.Develop; DevelopRelation = 'equal'
+            LocalDevelopContainsRelease = $false; RemoteDevelopContainsRelease = $false; Release = (Release)
+        }
+        $plan = Plan $facts
+        Assert-Problems $plan.Problems "The other machine has pushed main and v0\.2\.0, but not develop yet .*finish that run on the other machine \(pwsh scripts/release\.ps1 -Version 0\.2\.0 there\), then re-run here"
+        # The machine of the release (its release branch is still there) merges and pushes develop as before.
+        Assert-Problems (Plan (Copy-With $facts @{ LocalBranchCommit = $script:Ids.Release })).Problems
+    }
+    It 'needs nothing for a release published with the files of this OS' {
+        $assets = @([pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = 'sha256:x' }, [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = 'sha256:y' })
+        $facts = Copy-With $script:GitDone @{ Release = (Release $false -Assets $assets); ToolchainProblems = @('The MSVC component x is not installed.') }
+        $plan = Plan $facts
         $plan.Published | Should -BeTrue
         Assert-Problems $plan.Problems
         @($plan.Steps | Where-Object { -not $_.Done }) | Should -BeNullOrEmpty
-        (Format-ReleaseFlowPlan -Plan $plan -Facts $script:GitDone) -join "`n" | Should -Match 'already published'
+        (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n" | Should -Match 'GitHub: published release v0\.2\.0: macOS files uploaded, Windows files uploaded\.'
     }
     It 'prints the overwritten date of an already dated version section' {
         $redated = [pscustomobject]@{ Change = 'Redated'; OldHeading = '## [0.2.0] - 2026-10-30'; NewHeading = '## [0.2.0] - 2026-11-02'; Problem = $null }
@@ -691,17 +761,29 @@ Describe 'Plan and resume detection (pure)' {
         $text | Should -Match 'release-upload\.ps1 -Repo o/trial -DryRun'
         $text | Should -Match 'then back to develop: git switch develop'
     }
-    It 'names the OS that went first and how the other one follows (T-113, <HostOs>)' -ForEach @(
-        @{ HostOs = 'macos'; This = 'macOS'; Other = 'Windows'; Build = 'release-build\.ps1 -FeedSigningKey <key file>' }
-        @{ HostOs = 'windows'; This = 'Windows'; Other = 'macOS'; Build = 'release-build\.ps1 -FeedSigningKey <key file>' }
+    It 'tells the other machine to run the same command, with the key and caffeinate on the Mac (T-200, <HostOs> first)' -ForEach @(
+        @{ HostOs = 'macos'; Other = 'Windows'; Command = 'pwsh scripts/release\.ps1 -Version 0\.2\.0'; Key = 'E:\\layerpeek-feed-key\.pem' }
+        @{ HostOs = 'windows'; Other = 'macOS'; Command = 'caffeinate -d -i -u pwsh scripts/release\.ps1 -Version 0\.2\.0'; Key = '/Volumes/LP-KEY/layerpeek-feed-key\.pem' }
     ) {
-        $text = (Get-ReleaseNextSteps -Version '0.2.0' -HostOs $HostOs) -join "`n"
-        $text | Should -Match "release-publish\.ps1 -AllowIncomplete   # only the $This files so far"
-        $text | Should -Match "The $Other files follow on a $Other machine"
-        # T-226: the default build is the build for the upload on both OSes (win-arm64 uploadable, user decision 2026-11-16).
-        $text | Should -Match "git fetch origin --tags; git switch --detach v0\.2\.0; pwsh scripts/$Build"
-        $text | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
-        $text | Should -Not -Match 'Windows only|T-019'
+        $text = (Get-ReleaseNextSteps -Version '0.2.0' -HostOs $HostOs -Situation OtherOs) -join "`n"
+        $text | Should -Match "^NEXT STEP: on the $Other machine \(the $Other files are missing in the draft v0\.2\.0\), the same command:"
+        $text | Should -Match "(?m)^  $Command$"
+        $text | Should -Match "LAYERPEEK_FEED_SIGNING_KEY = '<key file, e\.g\. $Key>'"
+        $text | Should -Match "uploads the $Other files into this draft and then offers to publish"
+        $text | Should -Match "Do not publish before: published releases are immutable"
+        $text | Should -Not -Match 'AllowIncomplete|AddToPublished|release-upload|release-build'
+    }
+    It 'prints the next step of every situation without the retired switches (T-200)' {
+        foreach ($situation in 'OtherOs', 'Publish', 'Run', 'Published') {
+            foreach ($os in 'windows', 'macos') {
+                (Get-ReleaseNextSteps -Version '0.2.0' -Repository 'o/trial' -HostOs $os -Situation $situation) -join "`n" | Should -Not -Match 'AllowIncomplete|AddToPublished'
+            }
+        }
+        $publish = (Get-ReleaseNextSteps -Version '0.2.0' -Repository 'o/trial' -HostOs 'macos' -Situation Publish) -join "`n"
+        $publish | Should -Match 'NEXT STEP: the draft v0\.2\.0 has the files of every OS but is not published'
+        $publish | Should -Match 'caffeinate -d -i -u pwsh scripts/release\.ps1 -Version 0\.2\.0 -Repo o/trial'
+        (Get-ReleaseNextSteps -Version '0.2.0' -HostOs 'windows' -Situation Run) -join "`n" | Should -Match '(?m)^  pwsh scripts/release\.ps1 -Version 0\.2\.0$'
+        (Get-ReleaseNextSteps -Version '0.2.0' -HostOs 'windows' -Situation Published) -join "`n" | Should -Match 'Nothing left to do'
     }
     It 'plans the default build, which has every uploadable RID, without -Runtime (T-226, win-arm64 uploadable since 2026-11-16)' {
         $windows = Plan $script:GitDone
@@ -709,27 +791,21 @@ Describe 'Plan and resume detection (pure)' {
         $mac = Plan (Copy-With $script:GitDone @{ HostOs = 'macos'; Runtimes = @('osx-arm64'); ChecksumFile = 'SHA256SUMS-macos.txt' })
         ($mac.Steps | Where-Object Id -EQ 'Build').Detail | Should -Match 'pwsh scripts/release-build\.ps1 \(signing key'
     }
-    It 'tells how to add this OS to a release that the other OS published without it (T-113)' {
+    It 'refuses a release that the other OS published without the files of this OS: immutable, the version is lost (T-200)' {
         $facts = Copy-With $script:GitDone @{ ChecksumFile = 'SHA256SUMS-windows.txt'; Release = (Release $false -Assets @([pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = 'sha256:x' })) }
         $plan = Plan $facts
-        Assert-Problems $plan.Problems
-        $text = (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n"
-        $text | Should -Match 'already published'
-        $text | Should -Match 'It has no SHA256SUMS-windows\.txt yet'
-        $text | Should -Match 'pwsh scripts/release-build\.ps1 -FeedSigningKey <key file>; pwsh scripts/release-upload\.ps1 -AddToPublished'
-        $with = Copy-With $facts @{ ChecksumFile = 'SHA256SUMS-macos.txt' }
-        (Format-ReleaseFlowPlan -Plan (Plan $with) -Facts $with) -join "`n" | Should -Not -Match 'AddToPublished'
+        Assert-Problems $plan.Problems 'already published without the Windows files \(SHA256SUMS-windows\.txt\)\. Published releases are immutable \(T-180\): they can never be added\..*release the next version from both machines'
+        (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n" | Should -Not -Match 'AddToPublished|AllowIncomplete'
+        $mac = Copy-With $facts @{ HostOs = 'macos'; ChecksumFile = 'SHA256SUMS-macos.txt' }
+        Assert-Problems (Plan $mac).Problems
     }
-    It 'prints the manual publish commands with -AllowIncomplete and never publishes itself' {
-        $text = (Get-ReleaseNextSteps -Version '0.2.0' -Repository 'o/trial' -HostOs 'windows' -Remote 'trial') -join "`n"
-        $text | Should -Match 'git switch --detach v0\.2\.0'
-        $text | Should -Match 'release-publish\.ps1 -Repo o/trial -DryRun'
-        $text | Should -Match 'release-publish\.ps1 -Repo o/trial -AllowIncomplete'
-        $text | Should -Not -Match 'T-019'
+    It 'publishes only through release-publish.ps1 after a typed confirmation, never forces and never deletes (T-200)' {
         $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release.ps1'))
-        $script | Should -Not -Match "release-publish\.ps1'"
-        $script | Should -Not -Match 'gh release (edit|create|upload|delete)'
+        $script | Should -Match ([regex]::Escape("Invoke-ReleaseScript 'release-publish.ps1' (@('-DryRun') + `$repoArguments)"))
+        $script | Should -Match ([regex]::Escape('Type $Version to PUBLISH $tag now'))
+        $script | Should -Not -Match 'gh release (edit|upload|delete)'
         $script | Should -Not -Match '--force|push -f|tag -d|--delete'
+        $script | Should -Not -Match 'AllowIncomplete|AddToPublished'
     }
 }
 
@@ -754,7 +830,7 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
         $facts.SourceVersion | Should -BeExactly '0.1.0'
         $plan = Get-ReleaseFlowPlan -Facts $facts
         Assert-Problems (Select-NonToolchain $plan.Problems)
-        States $plan | Should -BeExactly @('Branch=todo', 'MergeMain=todo', 'PushMain=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo')
+        States $plan | Should -BeExactly @('Branch=todo', 'MergeMain=todo', 'PushMain=todo', 'Draft=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo', 'Publish=todo')
     }
     It 'refuses a push URL of another repository' {
         $null = G $script:Work config remote.origin.pushurl 'https://github.com/test-owner/elsewhere.git'
@@ -819,7 +895,7 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
         $facts.ReleaseCheck.Date | Should -BeExactly '2026-11-02'
         $plan = Get-ReleaseFlowPlan -Facts $facts
         Assert-Problems (Select-NonToolchain $plan.Problems)
-        States $plan | Should -BeExactly @('Branch=done', 'MergeMain=todo', 'PushMain=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo')
+        States $plan | Should -BeExactly @('Branch=done', 'MergeMain=todo', 'PushMain=todo', 'Draft=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo', 'Publish=todo')
     }
     It 'step 2a: when moving main fails after the tag was made, main stays and a re-run only moves main' {
         $facts = Facts
@@ -843,7 +919,7 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
         Get-RemoteRef main | Should -BeExactly $originMain
         Get-RemoteRef v0.2.0 | Should -BeNullOrEmpty
         @(G $script:Work status --porcelain --untracked-files=all) | Should -BeNullOrEmpty
-        States (Get-ReleaseFlowPlan -Facts (Facts)) | Should -BeExactly @('Branch=done', 'MergeMain=done', 'PushMain=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo')
+        States (Get-ReleaseFlowPlan -Facts (Facts)) | Should -BeExactly @('Branch=done', 'MergeMain=done', 'PushMain=todo', 'Draft=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo', 'Publish=todo')
     }
     It 'refuses to push a ref that moved after the confirmation' {
         Assert-ThrowsMatching { Invoke-ReleasePush -RepoRoot $script:Work -Remote origin -Branches @{ main = ('a' * 40) } 6>$null } 'refs/heads/main is \w{40}, but a{40} was confirmed.*nothing was pushed'
@@ -875,7 +951,7 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
         Get-RemoteRef main | Should -BeExactly $merge
         Get-RemoteRef 'v0.2.0^{commit}' | Should -BeExactly $merge
         G $script:R.Origin cat-file -t v0.2.0 | Should -BeExactly 'tag'
-        States (Get-ReleaseFlowPlan -Facts (Facts)) | Should -BeExactly @('Branch=done', 'MergeMain=done', 'PushMain=done', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo')
+        States (Get-ReleaseFlowPlan -Facts (Facts)) | Should -BeExactly @('Branch=done', 'MergeMain=done', 'PushMain=done', 'Draft=todo', 'MergeDevelop=todo', 'PushDevelop=todo', 'DeleteBranch=todo', 'Build=todo', 'Upload=todo', 'Publish=todo')
     }
     It 'refuses the merge back unless develop is checked out and still where it was' {
         $facts = Facts
@@ -898,7 +974,7 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
 
         $plan = Get-ReleaseFlowPlan -Facts (Facts)
         Assert-Problems (Select-NonToolchain $plan.Problems)
-        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('PushDevelop', 'DeleteBranch', 'Build', 'Upload')
+        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Draft', 'PushDevelop', 'DeleteBranch', 'Build', 'Upload', 'Publish')
     }
     It 'refuses to push develop while it has another unpushed commit' {
         [System.IO.File]::WriteAllText((Join-Path $script:Work 'late.txt'), 'x')
@@ -910,13 +986,13 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
     It 'step 2d and 2e push develop and delete the local release branch' {
         Invoke-ReleasePush -RepoRoot $script:Work -Remote origin -Branches @{ develop = (Get-LocalRef develop) } 6>$null
         Get-RemoteRef develop | Should -BeExactly (Get-LocalRef develop)
-        @((Get-ReleaseFlowPlan -Facts (Facts)).Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('DeleteBranch', 'Build', 'Upload')
+        @((Get-ReleaseFlowPlan -Facts (Facts)).Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Draft', 'DeleteBranch', 'Build', 'Upload', 'Publish')
         $null = G $script:Work branch --delete release/0.2.0
         $plan = Get-ReleaseFlowPlan -Facts (Facts)
         Assert-Problems (Select-NonToolchain $plan.Problems)
-        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Build', 'Upload')
+        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Draft', 'Build', 'Upload', 'Publish')
     }
-    It 'detects a current build of the tag and leaves only the upload' {
+    It 'detects a current build of the tag and leaves the draft, the upload and the publish' {
         $tagCommit = G $script:Work rev-parse 'v0.2.0^{commit}' | Select-Object -First 1
         $dist = Join-Path $script:Work 'artifacts' 'release' '0.2.0' 'dist'
         $null = New-Item -ItemType Directory -Path $dist
@@ -937,14 +1013,14 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
         $facts.BuildCurrent | Should -BeTrue
         $plan = Get-ReleaseFlowPlan -Facts $facts
         Assert-Problems $plan.Problems
-        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Upload')
+        @($plan.Steps | Where-Object { -not $_.Done } | ForEach-Object Id) | Should -BeExactly @('Draft', 'Upload', 'Publish')
         [System.IO.File]::AppendAllText((Join-Path $dist 'LayerPeek-0.2.0-win-x64.zip'), 'changed')
         (Facts).BuildCurrent | Should -BeFalse
     }
     It 'calls gh only for auth status and release view' {
         $calls = @(Get-Content -LiteralPath $script:FakeGhLog | Where-Object { $_ })
         $calls.Count | Should -BeGreaterThan 0
-        @($calls | Where-Object { $_ -notmatch '^(auth status|release view v0\.(2\.0|0\.9) --repo test-owner/gf(-trial)? --json )' }) | Should -BeNullOrEmpty
+        @($calls | Where-Object { $_ -notmatch '^(auth status|release (view v0\.(2\.0|0\.9)|list) --repo test-owner/gf(-trial)? (--json|--limit) )' }) | Should -BeNullOrEmpty
     }
     It 'refuses a conflicting merge without changing anything' {
         $repo = Join-Path $script:TempRoot 'gf-conflict'
@@ -968,6 +1044,10 @@ Describe 'Gitflow steps and resume detection (throw-away repositories)' {
 Describe 'scripts/release.ps1 (throw-away clone)' {
     BeforeAll {
         $null = Use-GhLog 'rs'
+        # A fake GitHub: the draft is created right after the tag push (T-200).
+        $script:RsState = Join-Path $script:TempRoot 'gh-state-rs'
+        $null = New-Item -ItemType Directory -Path $script:RsState
+        $env:LAYERPEEK_FAKE_GH_STATE = $script:RsState
         $script:S = New-ReleaseTestRepository -Name 'rs' -WithScripts
         $script:Script = Join-Path $script:S.Work 'scripts' 'release.ps1'
         function Invoke-Release([string[]] $Arguments) {
@@ -982,7 +1062,10 @@ Describe 'scripts/release.ps1 (throw-away clone)' {
         function Snapshot { "$(Get-AllRefs $script:S.Work)`n--`n$(Get-AllRefs $script:S.Origin)`n--`n$((G $script:S.Work status --porcelain --untracked-files=all) -join "`n")" }
         function Get-TempLeftover { @(Get-ChildItem -LiteralPath ([System.IO.Path]::GetTempPath()) -Filter 'layerpeek-release-*' -Force -ErrorAction SilentlyContinue) }
         $script:LeftoversBefore = @(Get-TempLeftover).Count
+        $script:HostName = if ($IsWindows) { 'Windows' } else { 'macOS' }
+        $script:OtherName = if ($IsWindows) { 'macOS' } else { 'Windows' }
     }
+    AfterAll { $env:LAYERPEEK_FAKE_GH_STATE = $null }
 
     It 'prints the full plan in a dry run and changes nothing' {
         $before = Snapshot
@@ -990,10 +1073,14 @@ Describe 'scripts/release.ps1 (throw-away clone)' {
         $result.ExitCode | Should -Be 0 -Because $result.Output
         $result.Output | Should -Match "Release 0\.2\.0 \(dry run\) of test-owner/rs \(git remote origin\)"
         $result.Output | Should -Match "\[todo\] 1\. Create release/0\.2\.0"
-        $result.Output | Should -Match "\[todo\] 8\. Create or fill the draft release"
+        $result.Output | Should -Match "\[todo\] 4\. Create the draft release v0\.2\.0 on GitHub"
+        $result.Output | Should -Match "\[todo\] 9\. Upload the $($script:HostName) files into the draft"
+        $result.Output | Should -Match "\[wait\] 10\. Publish v0\.2\.0 .*\r?\n.*waits for the $($script:OtherName) files"
+        $result.Output | Should -Match 'GitHub: no release v0\.2\.0 yet\.'
         $result.Output | Should -Match 'Dry run: nothing was changed'
         $result.Output | Should -Match 'TEST MODE: toolchain check skipped'
-        $result.Output | Should -Match 'release-publish\.ps1 -AllowIncomplete'
+        $result.Output | Should -Match 'NEXT STEP: the real run on this machine does the steps marked \[todo\]'
+        $result.Output | Should -Not -Match 'AllowIncomplete|AddToPublished'
         Snapshot | Should -BeExactly $before
         @(Get-TempLeftover).Count | Should -Be $script:LeftoversBefore
     }
@@ -1042,8 +1129,9 @@ Describe 'scripts/release.ps1 (throw-away clone)' {
         $result = Invoke-ReleaseAnswering @('0.2.0', 'y') @('-Version', '0.2.0')
         $result.ExitCode | Should -Be 1
         $result.Output | Should -Match 'simulated build failure'
+        $result.Output | Should -Match "Tag v0\.2\.0, develop and the draft are on GitHub: the $($script:OtherName) machine may start its run now"
         $result.Output | Should -Match 'Release FAILED: scripts/release-build\.ps1 failed'
-        $result.Output | Should -Match 're-run: pwsh scripts/release\.ps1 -Version 0\.2\.0'
+        $result.Output | Should -Match 'NEXT STEP: fix the cause and re-run on this machine: pwsh scripts/release\.ps1 -Version 0\.2\.0'
         # Gitflow is complete on the remote: tag on main, release merged into develop, local release branch deleted.
         $tagCommit = G $script:S.Work rev-parse 'v0.2.0^{commit}' | Select-Object -First 1
         G $script:S.Origin rev-parse 'v0.2.0^{commit}' | Should -BeExactly $tagCommit
@@ -1058,9 +1146,15 @@ Describe 'scripts/release.ps1 (throw-away clone)' {
 
         $again = Invoke-Release @('-Version', '0.2.0', '-DryRun')
         $again.ExitCode | Should -Be 0 -Because $again.Output
-        foreach ($n in 1..6) { $again.Output | Should -Match "\[done\] $n\. " }
-        $again.Output | Should -Match '\[todo\] 7\. Build'
-        $again.Output | Should -Match '\[todo\] 8\. Create or fill the draft release'
+        foreach ($n in 1..7) { $again.Output | Should -Match "\[done\] $n\. " }
+        $again.Output | Should -Match '\[todo\] 8\. Build'
+        $again.Output | Should -Match '\[todo\] 9\. Upload'
+        $again.Output | Should -Match "GitHub: draft v0\.2\.0: macOS files missing, Windows files missing\."
+        # The draft: empty, with the text of the tag's changelog section (T-200).
+        $draft = Get-Content -LiteralPath (Join-Path $script:RsState 'test-owner_rs_v0.2.0.json') -Raw | ConvertFrom-Json
+        $draft.isDraft | Should -BeTrue
+        @($draft.assets) | Should -BeNullOrEmpty
+        $draft.body | Should -Match '- Second thing\.'
     }
     It 'fetches origin in a real run but not in a dry run' {
         # Someone pushes to develop on origin after the last fetch of the clone.
@@ -1092,7 +1186,8 @@ Describe 'scripts/release.ps1 (throw-away clone)' {
         G $script:S.Work symbolic-ref --short HEAD | Should -BeExactly 'develop'
     }
     It 'never calls gh for anything but reading' {
-        @(Get-Content -LiteralPath $script:FakeGhLog | Where-Object { $_ -and $_ -notmatch '^(auth status|release view )' }) | Should -BeNullOrEmpty
+        # Reads, and the one draft right after the tag push (T-200).
+        @(Get-Content -LiteralPath $script:FakeGhLog | Where-Object { $_ -and $_ -notmatch '^(auth status|release (view|list) |release create v0\.2\.0 --repo test-owner/rs --draft --verify-tag )' }) | Should -BeNullOrEmpty
     }
 }
 
@@ -1188,7 +1283,7 @@ Describe 'Existing release branch and the check before the tag (throw-away repos
         finally { Remove-ReleaseBranch }
     }
     It 'reads gh only' {
-        @(Get-GhCall | Where-Object { $_ -notmatch '^(auth status|release view )' }) | Should -BeNullOrEmpty
+        @(Get-GhCall | Where-Object { $_ -notmatch '^(auth status|release (view|list) )' }) | Should -BeNullOrEmpty
     }
 }
 
@@ -1233,20 +1328,19 @@ exit 0
     }
     AfterAll { $env:LAYERPEEK_FAKE_GH_STATE = $null }
 
-    It 'releases up to the draft after the three confirmations, ends on develop, and a re-run finds every step done' {
+    It 'releases up to the files of this OS in the draft after the three confirmations, tells what the other machine runs, and a re-run finds every step done' {
         $result = Invoke-E @('-Version', '0.2.0') @('0.2.0', 'y', 'y')
         $result.ExitCode | Should -Be 0 -Because $result.Output
         $result.Output | Should -Match 'stand-in build done'
         # T-226: the default build is the build for the upload (win-arm64 uploadable, user decision 2026-11-16).
         $result.Output | Should -Match "==> pwsh scripts/release-build\.ps1\r?\n"
         $result.Output | Should -Match "stand-in build arguments: \r?\n"
-        $result.Output | Should -Match 'Draft release v0\.2\.0 is ready: https://example\.invalid/test-owner/ok/releases/tag/v0\.2\.0'
-        $result.Output | Should -Match 'release-publish\.ps1 -AllowIncomplete'
-        # T-113: the next steps name the OS of this machine (either OS can go first) and how the other one follows.
+        # T-200: the draft right after the tag push, the files of this OS, then the next step for the other machine.
         $this, $other = if ($IsWindows) { 'Windows', 'macOS' } else { 'macOS', 'Windows' }
-        $result.Output | Should -Match "only the $this files so far"
-        $result.Output | Should -Match "The $other files follow on a $other machine"
-        $result.Output | Should -Match 'release-upload\.ps1 -AddToPublished'
+        $result.Output | Should -Match "Tag v0\.2\.0, develop and the draft are on GitHub: the $other machine may start its run now"
+        $result.Output | Should -Match "Draft release v0\.2\.0 has the files of this machine; it waits for the $other files\."
+        $result.Output | Should -Match "NEXT STEP: on the $other machine \(the $other files are missing in the draft v0\.2\.0\), the same command:"
+        $result.Output | Should -Not -Match 'AllowIncomplete|AddToPublished'
         G $script:E.Work symbolic-ref --short HEAD | Should -BeExactly 'develop'
         @(G $script:E.Work status --porcelain --untracked-files=all) | Should -BeNullOrEmpty
 
@@ -1265,21 +1359,244 @@ exit 0
 
         $dry = Invoke-E @('-Version', '0.2.0', '-DryRun')
         $dry.ExitCode | Should -Be 0 -Because $dry.Output
-        foreach ($n in 1..8) { $dry.Output | Should -Match "\[done\] $n\. " }
+        foreach ($n in 1..9) { $dry.Output | Should -Match "\[done\] $n\. " }
+        $dry.Output | Should -Match "\[wait\] 10\. Publish v0\.2\.0"
         $dry.Output | Should -Not -Match '\[todo\]'
 
         $originRefs = Get-AllRefs $script:E.Origin
         $callCount = @(Get-GhCall).Count
         $again = Invoke-E @('-Version', '0.2.0')
         $again.ExitCode | Should -Be 0 -Because $again.Output
-        $again.Output | Should -Match 'Draft release v0\.2\.0 is ready'
+        $again.Output | Should -Match "it waits for the $other files"
         Get-AllRefs $script:E.Origin | Should -BeExactly $originRefs
-        @(Get-GhCall | Select-Object -Skip $callCount | Where-Object { $_ -notmatch '^(auth status|release view )' }) | Should -BeNullOrEmpty
+        @(Get-GhCall | Select-Object -Skip $callCount | Where-Object { $_ -notmatch '^(auth status|release (view|list) )' }) | Should -BeNullOrEmpty
         G $script:E.Work symbolic-ref --short HEAD | Should -BeExactly 'develop'
     }
 }
 
-Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (stand-in builds, fake GitHub, T-113)' {
+Describe 'scripts/release.ps1 on two machines, either OS first (stand-in builds, fake GitHub, T-200)' {
+    BeforeAll {
+        $null = Use-GhLog 'machines'
+        # A stand-in build of the OS that Get-HostOs reports (LAYERPEEK_RELEASE_TEST_HOST_OS plays the other machine):
+        # every uploadable RID of that OS with its archive, its Velopack feed and the feed signature, the checksum file and
+        # the build marker, so that release-publish.ps1 accepts the complete draft.
+        $build = @'
+$ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Force
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
+$version = Get-SourceVersion (Join-Path $root 'Directory.Build.props')
+$os = Get-HostOs
+$rids = @(Get-UploadableReleaseRuntimes -HostOs $os)
+$releaseDir = Join-Path $root 'artifacts' 'release' $version
+if (Test-Path -LiteralPath $releaseDir) { Remove-Item -LiteralPath $releaseDir -Recurse -Force }
+$dist = Join-Path $releaseDir 'dist'
+$null = New-Item -ItemType Directory -Path $dist
+$files = @()
+foreach ($rid in $rids) {
+    foreach ($name in @((Get-ArchiveFileName -Version $version -Runtime $rid), (Get-UpdateFeedFileName $rid), (Get-UpdateFeedSignatureFileName $rid))) {
+        [System.IO.File]::WriteAllText((Join-Path $dist $name), "stand-in $os $name")
+        $files += [ordered]@{ Name = $name; Runtime = $rid; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $dist $name)) }
+    }
+}
+$sums = Get-ChecksumFileName $os
+$null = Write-Sha256Sums -Directory $dist -FileName $sums -Files @($files | ForEach-Object Name)
+[ordered]@{ Version = $version; Commit = (Get-GitHead $root); Dirty = $false; Os = $os; Runtimes = $rids; ChecksumFile = $sums
+    Files = $files; FeedSignature = [ordered]@{ Status = 'signed'; PublicKeySha256 = ('0' * 64) } } |
+    ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
+Write-Host "stand-in $os build done"
+exit 0
+'@
+        $script:Machines = @{}
+        $script:MachineCount = 0
+        function New-TwoMachines([string] $Name) {
+            # One origin, two clones on develop: the "first" and the "second" machine.
+            $script:MachineCount++
+            $state = Join-Path $script:TempRoot "gh-state-$Name"
+            $null = New-Item -ItemType Directory -Path $state
+            $repo = New-ReleaseTestRepository -Name $Name -WithScripts -BuildScript $build
+            $second = Join-Path (Split-Path -Parent $repo.Work) 'w2'
+            $null = & git clone --quiet --branch develop $repo.Url $second 2>&1
+            if ($LASTEXITCODE -ne 0) { throw 'git clone failed' }
+            [pscustomobject]@{ Repo = $repo; First = $repo.Work; Second = $second; State = $state; Release = (Join-Path $state "test-owner_$($Name)_v0.2.0.json") }
+        }
+        function Invoke-Machine([string] $Work, [string] $Os, [string] $State, [string[]] $Arguments, [string[]] $Answers) {
+            # release.ps1 of that clone, as the machine of that OS (test-only switch, honoured inside the Pester temp folder).
+            $env:LAYERPEEK_RELEASE_TEST_HOST_OS = $Os
+            $env:LAYERPEEK_FAKE_GH_STATE = $State
+            try {
+                $script = Join-Path $Work 'scripts' 'release.ps1'
+                $output = if ($Answers) { $Answers | Invoke-Pwsh -NoProfile -File $script @Arguments 2>&1 | Out-String }
+                else { Invoke-Pwsh -NoProfile -NonInteractive -File $script @Arguments 2>&1 | Out-String }
+                [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+            }
+            finally { $env:LAYERPEEK_RELEASE_TEST_HOST_OS = $null; $env:LAYERPEEK_FAKE_GH_STATE = $null }
+        }
+        function Get-MachineRelease($M) { Get-Content -LiteralPath $M.Release -Raw | ConvertFrom-Json }
+        $script:Names = @{ windows = 'Windows'; macos = 'macOS' }
+    }
+    AfterAll { $env:LAYERPEEK_RELEASE_TEST_HOST_OS = $null; $env:LAYERPEEK_FAKE_GH_STATE = $null }
+
+    It 'the test switch of the host OS applies only to scripts inside the Pester temp folder' {
+        $env:LAYERPEEK_RELEASE_TEST_HOST_OS = if ($IsWindows) { 'macos' } else { 'windows' }
+        try {
+            # This module lies in the real repository, outside LAYERPEEK_PESTER_TESTS_TEMP: the switch is ignored.
+            Get-HostOs | Should -BeExactly $(if ($IsWindows) { 'windows' } else { 'macos' })
+        }
+        finally { $env:LAYERPEEK_RELEASE_TEST_HOST_OS = $null }
+    }
+
+    It '<First> first, then <Second>: the same command on both machines, published by the <PublishOn> machine' -ForEach @(
+        @{ First = 'windows'; Second = 'macos'; PublishOn = 'second'; Name = 'm1' }
+        @{ First = 'macos'; Second = 'windows'; PublishOn = 'first'; Name = 'm2' }
+    ) {
+        $m = New-TwoMachines $Name
+        $firstName = $script:Names[$First]; $secondName = $script:Names[$Second]
+        Use-GhLog $Name | Out-Null
+
+        # First machine: Gitflow, the draft, the files of its OS; then it says what the other machine runs.
+        $one = Invoke-Machine $m.First $First $m.State @('-Version', '0.2.0') @('0.2.0', 'y', 'y')
+        $one.ExitCode | Should -Be 0 -Because $one.Output
+        $one.Output | Should -Match "stand-in $First build done"
+        $one.Output | Should -Match "GitHub v0\.2\.0 .*: (macOS files (uploaded|missing), Windows files (uploaded|missing))\."
+        $one.Output | Should -Match "NEXT STEP: on the $secondName machine \(the $secondName files are missing in the draft v0\.2\.0\), the same command:"
+        $one.Output | Should -Match ([regex]::Escape($(if ($Second -eq 'macos') { 'caffeinate -d -i -u pwsh scripts/release.ps1 -Version 0.2.0' } else { '  pwsh scripts/release.ps1 -Version 0.2.0' })))
+        (Get-MachineRelease $m).isDraft | Should -BeTrue
+
+        # Second machine, dry run: the tag is on origin but not fetched yet; it says how (a real run does it itself).
+        # The clone has develop only (no local main), as a second machine may.
+        function LocalRefs([string] $Work) { @(G $Work for-each-ref --format='%(refname) %(objectname)' refs/heads) -join "`n" }
+        $secondBranches = LocalRefs $m.Second
+        $dry = Invoke-Machine $m.Second $Second $m.State @('-Version', '0.2.0', '-DryRun')
+        $dry.ExitCode | Should -Be 1 -Because $dry.Output
+        $dry.Output | Should -Match 'Tag v0\.2\.0 is on origin but not in the local repository \(the other machine has started this release\)\. A run without -DryRun fetches it itself'
+        (Invoke-Git $m.Second @('rev-parse', '--verify', '--quiet', 'refs/tags/v0.2.0')).ExitCode | Should -Not -Be 0
+
+        # Second machine, real run: fetches the tag only, skips Gitflow, uploads its files, then publishes or not.
+        $answers = if ($PublishOn -eq 'second') { @('y', '0.2.0') } else { @('y', 'no') }
+        $two = Invoke-Machine $m.Second $Second $m.State @('-Version', '0.2.0') $answers
+        $two.Output | Should -Match '==> git fetch --no-tags origin refs/tags/v0\.2\.0:refs/tags/v0\.2\.0'
+        foreach ($n in 1..7) { $two.Output | Should -Match "\[done\] $n\. " }
+        $two.Output | Should -Match "stand-in $Second build done"
+        $two.Output | Should -Match '==> pwsh scripts/release-publish\.ps1 -DryRun'
+        $two.Output | Should -Match 'Would publish v0\.2\.0'
+        $two.Output | Should -Not -Match 'AllowIncomplete|AddToPublished'
+        # Its local main and develop are not touched (the Gitflow steps were done on origin).
+        LocalRefs $m.Second | Should -BeExactly $secondBranches
+        G $m.Second symbolic-ref --short HEAD | Should -BeExactly 'develop'
+        @(G $m.Second status --porcelain --untracked-files=all) | Should -BeNullOrEmpty
+
+        if ($PublishOn -eq 'first') {
+            $two.ExitCode | Should -Be 1 -Because $two.Output
+            $two.Output | Should -Match 'Not published: the draft v0\.2\.0 stays complete and private\.'
+            $two.Output | Should -Match 'NEXT STEP: the draft v0\.2\.0 has the files of every OS but is not published\. To publish, on either machine:'
+            (Get-MachineRelease $m).isDraft | Should -BeTrue
+            # The first machine publishes: every other step is done there.
+            $three = Invoke-Machine $m.First $First $m.State @('-Version', '0.2.0') @('0.2.0')
+            $three.ExitCode | Should -Be 0 -Because $three.Output
+            foreach ($n in 1..9) { $three.Output | Should -Match "\[done\] $n\. " }
+            $three.Output | Should -Match '\[todo\] 10\. Publish v0\.2\.0'
+            $three.Output | Should -Match 'Release v0\.2\.0 is published'
+        }
+        else {
+            $two.ExitCode | Should -Be 0 -Because $two.Output
+            $two.Output | Should -Match 'Release v0\.2\.0 is published'
+        }
+        $two.Output | Should -Match 'winget: 0\.2\.0 is a pre-release|NEXT STEP: the draft'
+
+        # GitHub (fake): one release, published, with the files of both OS.
+        $release = Get-MachineRelease $m
+        $release.isDraft | Should -BeFalse
+        @($release.assets.name) | Should -Contain 'SHA256SUMS-windows.txt'
+        @($release.assets.name) | Should -Contain 'SHA256SUMS-macos.txt'
+        @($release.assets.name) | Should -Contain 'releases.win-arm64.json.sig'
+        @($release.assets.name) | Should -Contain 'releases.osx-arm64.json'
+        $calls = Get-GhCall
+        @($calls | Where-Object { $_ -match '^release create ' }).Count | Should -Be 1
+        @($calls | Where-Object { $_ -match '^release edit v0\.2\.0 --repo test-owner/[^ ]+ --draft=false --prerelease=true' }).Count | Should -Be 1
+        @($calls | Where-Object { $_ -match '^release delete' }) | Should -BeNullOrEmpty
+
+        # Afterwards both machines find the release complete: nothing left to do.
+        foreach ($machine in @(@{ Work = $m.First; Os = $First }, @{ Work = $m.Second; Os = $Second })) {
+            $done = Invoke-Machine $machine.Work $machine.Os $m.State @('-Version', '0.2.0')
+            $done.ExitCode | Should -Be 0 -Because $done.Output
+            $done.Output | Should -Match 'Release v0\.2\.0 is published with the files of every OS\. Nothing left to do'
+        }
+    }
+
+    It 'the second machine may start once the tag and the draft are on GitHub, also before the first one uploaded (T-200)' {
+        $m = New-TwoMachines 'm3'
+        $null = Use-GhLog 'm3'
+        $first = if ($IsWindows) { 'windows' } else { 'macos' }
+        $second = if ($IsWindows) { 'macos' } else { 'windows' }
+        # First machine stops before its upload (as if its build were still running).
+        $one = Invoke-Machine $m.First $first $m.State @('-Version', '0.2.0') @('0.2.0', 'y', 'n')
+        $one.ExitCode | Should -Be 1 -Because $one.Output
+        $one.Output | Should -Match 'Stopped before: Upload'
+        $one.Output | Should -Match "NEXT STEP: re-run on this machine: $([regex]::Escape((Get-ReleaseRunCommand -Version '0.2.0' -Os $first)))"
+        @((Get-MachineRelease $m).assets) | Should -BeNullOrEmpty
+        # The second machine uploads first and waits for the first machine's files.
+        $two = Invoke-Machine $m.Second $second $m.State @('-Version', '0.2.0') @('y')
+        $two.ExitCode | Should -Be 0 -Because $two.Output
+        $two.Output | Should -Match "it waits for the $($script:Names[$first]) files"
+        $two.Output | Should -Match "NEXT STEP: on the $($script:Names[$first]) machine"
+        # The first machine finishes: upload, then publish.
+        $three = Invoke-Machine $m.First $first $m.State @('-Version', '0.2.0') @('y', '0.2.0')
+        $three.ExitCode | Should -Be 0 -Because $three.Output
+        $three.Output | Should -Match 'Release v0\.2\.0 is published'
+        (Get-MachineRelease $m).isDraft | Should -BeFalse
+        @(Get-GhCall | Where-Object { $_ -match '^release create ' }).Count | Should -Be 1
+    }
+
+    It 'the second machine waits while the first one has not pushed develop yet; the draft already exists (T-200)' {
+        $m = New-TwoMachines 'm5'
+        $null = Use-GhLog 'm5'
+        $first = if ($IsWindows) { 'windows' } else { 'macos' }
+        $second = if ($IsWindows) { 'macos' } else { 'windows' }
+        # The first machine pushes main and the tag (and creates the draft), then the develop push is not confirmed.
+        $one = Invoke-Machine $m.First $first $m.State @('-Version', '0.2.0') @('0.2.0', 'n')
+        $one.ExitCode | Should -Be 1 -Because $one.Output
+        $one.Output | Should -Match 'Stopped before: Push develop'
+        $one.Output | Should -Not -Match 'may start its run now'
+        (Get-MachineRelease $m).isDraft | Should -BeTrue
+        $developBefore = G $m.Repo.Origin rev-parse develop | Select-Object -First 1
+        # The second machine refuses to merge develop for it and says where to finish.
+        $two = Invoke-Machine $m.Second $second $m.State @('-Version', '0.2.0') @('y', 'y', '0.2.0')
+        $two.ExitCode | Should -Be 1 -Because $two.Output
+        $two.Output | Should -Match 'The other machine has pushed main and v0\.2\.0, but not develop yet'
+        $two.Output | Should -Match 'NEXT STEP: fix the problems above as they say, then re-run on this machine'
+        G $m.Repo.Origin rev-parse develop | Should -BeExactly $developBefore
+        @(G $m.Second log --format=%s develop) | Should -Not -Contain "Merge branch 'release/0.2.0' into develop"
+        # The first machine finishes its Gitflow and upload; then the second machine uploads and publishes.
+        $three = Invoke-Machine $m.First $first $m.State @('-Version', '0.2.0') @('y', 'y')
+        $three.ExitCode | Should -Be 0 -Because $three.Output
+        $three.Output | Should -Match 'may start its run now'
+        $four = Invoke-Machine $m.Second $second $m.State @('-Version', '0.2.0') @('y', '0.2.0')
+        $four.ExitCode | Should -Be 0 -Because $four.Output
+        $four.Output | Should -Match 'Release v0\.2\.0 is published'
+        # The first machine's local develop is the pushed one: the next release starts clean there.
+        G $m.First rev-parse develop | Should -BeExactly (G $m.Repo.Origin rev-parse develop | Select-Object -First 1)
+    }
+
+    It 'refuses to go on when GitHub has two drafts of the tag, and publishes nothing (T-200)' {
+        $m = New-TwoMachines 'm4'
+        $null = Use-GhLog 'm4'
+        $first = if ($IsWindows) { 'windows' } else { 'macos' }
+        $second = if ($IsWindows) { 'macos' } else { 'windows' }
+        $one = Invoke-Machine $m.First $first $m.State @('-Version', '0.2.0') @('0.2.0', 'y', 'y')
+        $one.ExitCode | Should -Be 0 -Because $one.Output
+        # Both machines created a draft at the same moment (the fake lists one more draft of the tag).
+        $release = Get-Content -LiteralPath $m.Release -Raw | ConvertFrom-Json -AsHashtable
+        $release.duplicates = 1
+        $release | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $m.Release
+        $two = Invoke-Machine $m.Second $second $m.State @('-Version', '0.2.0') @('y', '0.2.0')
+        $two.ExitCode | Should -Be 1 -Because $two.Output
+        $two.Output | Should -Match 'GitHub has 2 releases for v0\.2\.0 \(2 draft\(s\); probably both machines created a draft at the same moment\)'
+        (Get-MachineRelease $m).isDraft | Should -BeTrue
+        @(Get-GhCall | Where-Object { $_ -match '^release (edit|upload v0\.2\.0 --repo test-owner/m4 .*SHA256SUMS-' + $second + ')' }) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'release-upload.ps1 and release-publish.ps1 with immutable releases (stand-in builds, fake GitHub, T-200)' {
     BeforeAll {
         $null = Use-GhLog 'two'
         $script:TwoState = Join-Path $script:TempRoot 'gh-state-two'
@@ -1329,14 +1646,32 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
             $release | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $script:TwoRelease
         }
         function Get-NewGhCall([int] $Skip) { @(Get-GhCall | Select-Object -Skip $Skip) }
+        function Assert-RetiredSwitches([string] $State) {
+            # Every form of both retired switches: exit code 1, the flow "both OS into the draft", no gh call at all.
+            $before = if (Test-Path -LiteralPath $script:TwoRelease) { [System.IO.File]::ReadAllText($script:TwoRelease) } else { $null }
+            $calls = @(Get-GhCall).Count
+            foreach ($case in @(
+                    @{ Script = 'release-upload.ps1'; Arguments = @('-AddToPublished'); Switch = 'AddToPublished' }
+                    @{ Script = 'release-upload.ps1'; Arguments = @('-AddToPublished', '-DryRun'); Switch = 'AddToPublished' }
+                    @{ Script = 'release-upload.ps1'; Arguments = @('-AddToPublished', '-Force'); Switch = 'AddToPublished' }
+                    @{ Script = 'release-upload.ps1'; Arguments = @('-AddToPublished', '-Repo', 'test-owner/trial'); Switch = 'AddToPublished' }
+                    @{ Script = 'release-publish.ps1'; Arguments = @('-AllowIncomplete'); Switch = 'AllowIncomplete' }
+                    @{ Script = 'release-publish.ps1'; Arguments = @('-AllowIncomplete', '-DryRun'); Switch = 'AllowIncomplete' }
+                    @{ Script = 'release-publish.ps1'; Arguments = @('-AllowIncomplete', '-Repo', 'test-owner/trial'); Switch = 'AllowIncomplete' })) {
+                $result = Invoke-T $case.Script $case.Arguments
+                $result.ExitCode | Should -Be 1 -Because "$State, $($case.Script) $($case.Arguments -join ' '): $($result.Output)"
+                $result.Output | Should -Match "-$($case.Switch) is no longer supported \(T-200\).*releases are immutable since 1\.0\.0 \(T-180\).*Upload the files of both OS into the draft first, then publish: run pwsh scripts/release\.ps1 -Version X\.Y\.Z on the Windows machine and on the Mac"
+            }
+            @(Get-NewGhCall $calls) | Should -BeNullOrEmpty -Because 'the refusal comes before any check on GitHub'
+            $after = if (Test-Path -LiteralPath $script:TwoRelease) { [System.IO.File]::ReadAllText($script:TwoRelease) } else { $null }
+            $after | Should -BeExactly $before
+        }
     }
     AfterAll { $env:LAYERPEEK_FAKE_GH_STATE = $null }
 
-    It 'refuses -AddToPublished before anything is uploaded (no release yet)' {
+    It 'refuses -AddToPublished and -AllowIncomplete before anything is uploaded' {
         $null = Write-StandInBuild 'macos'
-        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
-        $result.ExitCode | Should -Be 1 -Because $result.Output
-        $result.Output | Should -Match 'There is no release for v0\.1\.0\. -AddToPublished only adds files to a published release'
+        Assert-RetiredSwitches 'no release'
         Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
     }
     It 'refuses a trial build of release-build.ps1 -SkipFeedSignature before anything is uploaded (T-181)' {
@@ -1365,12 +1700,13 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
         @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit)' }) | Should -BeNullOrEmpty
     }
-    It 'first machine: uploads its OS into a new draft, refuses -AddToPublished into the draft and publishes with -AllowIncomplete' {
-        $macFiles = Write-StandInBuild 'macos'
+    It 'first OS: uploads into a new draft (empty draft, packages, then checksum file and feed); publishing refuses the draft without the other OS' {
+        $script:MacFiles = Write-StandInBuild 'macos'
         $calls = @(Get-GhCall).Count
         $upload = Invoke-T 'release-upload.ps1'
         $upload.ExitCode | Should -Be 0 -Because $upload.Output
-        $upload.Output | Should -Match 'add the other OS later with -AddToPublished'
+        $upload.Output | Should -Match 'Still missing: the Windows files\. Upload them into this draft on that machine \(pwsh scripts/release\.ps1 -Version 0\.1\.0\), then publish; never publish before'
+        $upload.Output | Should -Not -Match 'AllowIncomplete|AddToPublished'
         # T-181: an empty draft, then the packages with the feed signature, then the checksum file and the feed.
         $new = @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload)' })
         $new.Count | Should -Be 3 -Because ($new -join ' / ')
@@ -1387,158 +1723,77 @@ Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (s
         $body | Should -Match 'licensed under the LGPLv3 or later and its source can be downloaded here'
         $body | Should -Match ([regex]::Escape('(https://github.com/test-owner/two/releases/download/v0.1.0/ffmpeg-source-0.1.0-macos.tar.xz)'))
 
-        # T-181: publishing refuses a feed without its signature, also with -AllowIncomplete.
+        # T-181: publishing refuses a feed without its signature.
         $uploaded = [System.IO.File]::ReadAllText($script:TwoRelease)
         Set-TwoRelease { param($r) $r.assets = @($r.assets | Where-Object { $_.name -cne 'releases.osx-arm64.json.sig' }) }
-        $unsigned = Invoke-T 'release-publish.ps1' @('-AllowIncomplete')
+        $unsigned = Invoke-T 'release-publish.ps1' @('-DryRun')
         $unsigned.ExitCode | Should -Be 1 -Because $unsigned.Output
         $unsigned.Output | Should -Match 'has releases\.osx-arm64\.json but no releases\.osx-arm64\.json\.sig'
-        (Get-TwoRelease).isDraft | Should -BeTrue
         [System.IO.File]::WriteAllText($script:TwoRelease, $uploaded)
 
-        $draft = Invoke-T 'release-upload.ps1' @('-AddToPublished')
-        $draft.ExitCode | Should -Be 1 -Because $draft.Output
-        $draft.Output | Should -Match 'Release v0\.1\.0 is still a draft\. Upload into the draft without -AddToPublished'
-
+        # T-200: never published without the other OS; the refusal says where to upload it.
         $complete = Invoke-T 'release-publish.ps1'
         $complete.ExitCode | Should -Be 1 -Because $complete.Output
-        $complete.Output | Should -Match 'has no SHA256SUMS-windows\.txt'
-        $publish = Invoke-T 'release-publish.ps1' @('-AllowIncomplete')
+        $complete.Output | Should -Match 'has no SHA256SUMS-windows\.txt: the windows build is not uploaded yet\. Upload it on the windows machine first \(pwsh scripts/release\.ps1 -Version 0\.1\.0\); published releases are immutable'
+        (Get-TwoRelease).isDraft | Should -BeTrue
+        Assert-RetiredSwitches 'draft with the macOS files'
+    }
+    It 'second OS: uploads into the same draft, then publishing publishes the complete draft' {
+        $windowsFiles = Write-StandInBuild 'windows'
+        $upload = Invoke-T 'release-upload.ps1'
+        $upload.ExitCode | Should -Be 0 -Because $upload.Output
+        $upload.Output | Should -Match 'Will upload into the existing draft release v0\.1\.0'
+        $upload.Output | Should -Match 'The draft has the files of every OS\. Publish: pwsh scripts/release-publish\.ps1 \(release\.ps1 offers it\)\.'
+        $dry = Invoke-T 'release-publish.ps1' @('-DryRun')
+        $dry.ExitCode | Should -Be 0 -Because $dry.Output
+        $publish = Invoke-T 'release-publish.ps1'
         $publish.ExitCode | Should -Be 0 -Because $publish.Output
+        $publish.Output | Should -Match 'Release v0\.1\.0 published\.'
         $publish.Output | Should -Match 'winget: 0\.1\.0 is a pre-release, it is not submitted'
         $release = Get-TwoRelease
         $release.isDraft | Should -BeFalse
         $release.isPrerelease | Should -BeTrue
-        @($release.assets.name | Sort-Object) | Should -BeExactly @($macFiles | Sort-Object)
-        $script:PublishedBody = $release.body
-        $script:PublishedBody | Should -Match 'First release'
+        @($release.assets.name | Sort-Object) | Should -BeExactly @(@($script:MacFiles) + @($windowsFiles) | Sort-Object)
     }
-    It 'second machine: without -AddToPublished the upload into the published release is refused as before, with a hint' {
+    It 'refuses to upload into the published release (immutable) and says whether this OS is there' {
+        $calls = @(Get-GhCall).Count
         $null = Write-StandInBuild 'windows'
-        $before = [System.IO.File]::ReadAllText($script:TwoRelease)
-        $calls = @(Get-GhCall).Count
-        $result = Invoke-T 'release-upload.ps1'
-        $result.ExitCode | Should -Be 1 -Because $result.Output
-        $result.Output | Should -Match 'Release v0\.1\.0 is already published \(https://example\.invalid/test-owner/two/releases/tag/v0\.1\.0\)\. Files are uploaded only into a draft release\.'
-        $result.Output | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
-        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
-        @(Get-NewGhCall $calls | Where-Object { $_ -notmatch '^(auth status|release view )' }) | Should -BeNullOrEmpty
+        $windows = Invoke-T 'release-upload.ps1'
+        $windows.ExitCode | Should -Be 1 -Because $windows.Output
+        $windows.Output | Should -Match 'Release v0\.1\.0 is already published \(https://example\.invalid/test-owner/two/releases/tag/v0\.1\.0\)\. Files are uploaded only into a draft\. It already has the windows files\.'
+        $windows.Output | Should -Not -Match 'AddToPublished'
+        # A release published without an OS (before T-200): its files can never be added; the version is lost for it.
+        Set-TwoRelease { param($r) $r.assets = @($r.assets | Where-Object { $_.name -notmatch 'win-|windows' }) }
+        $missing = Invoke-T 'release-upload.ps1'
+        $missing.ExitCode | Should -Be 1 -Because $missing.Output
+        $missing.Output | Should -Match 'It has no windows files, and published releases are immutable \(T-180\): they can never be added\. This version stays without them; release the next version from both machines\.'
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit|delete)' }) | Should -BeNullOrEmpty
+        Assert-RetiredSwitches 'published release'
     }
-    It 'refuses -AddToPublished together with -Force without asking GitHub' {
-        $calls = @(Get-GhCall).Count
-        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished', '-Force')
-        $result.ExitCode | Should -Be 1 -Because $result.Output
-        $result.Output | Should -Match 'cannot be combined with -Force'
-        @(Get-NewGhCall $calls) | Should -BeNullOrEmpty
-    }
-    It 'keeps every other check: a dirty tree is refused with -AddToPublished too' {
-        $extra = Join-Path $script:T.Work 'extra.txt'
-        [System.IO.File]::WriteAllText($extra, 'x')
-        try {
-            $calls = @(Get-GhCall).Count
-            $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
-            $result.ExitCode | Should -Be 1 -Because $result.Output
-            $result.Output | Should -Match 'not clean'
-            @(Get-NewGhCall $calls | Where-Object { $_ -match '^release upload' }) | Should -BeNullOrEmpty
-        }
-        finally { Remove-Item -LiteralPath $extra }
-    }
-    It 'dry run: lists the files of the missing OS and changes nothing' {
-        $before = [System.IO.File]::ReadAllText($script:TwoRelease)
-        $calls = @(Get-GhCall).Count
-        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished', '-DryRun')
-        $result.ExitCode | Should -Be 0 -Because $result.Output
-        $result.Output | Should -Match 'Would add the windows files to the published release v0\.1\.0'
-        $result.Output | Should -Match 'SHA256SUMS-windows\.txt\s+upload'
-        $result.Output | Should -Match 'Dry run: nothing was changed on GitHub'
-        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
-        @(Get-NewGhCall $calls | Where-Object { $_ -notmatch '^(auth status|release view )' }) | Should -BeNullOrEmpty
-    }
-    It 'adds the missing OS: packages first, checksum file and feed last, text and flags unchanged, and checks the whole release' {
-        $winFiles = Write-StandInBuild 'windows'
-        $macNames = @((Get-TwoRelease).assets.name)
-        $calls = @(Get-GhCall).Count
-        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
-        $result.ExitCode | Should -Be 0 -Because $result.Output
-        $result.Output | Should -Match 'The windows files are added to the published release v0\.1\.0; the release is complete'
-        # T-059: the winget offer runs after the check; a 0.x release is never offered (no question, no gh call for it).
-        $result.Output | Should -Match 'winget: 0\.1\.0 is a pre-release, it is not submitted'
-
-        $release = Get-TwoRelease
-        $release.isDraft | Should -BeFalse
-        $release.isPrerelease | Should -BeTrue
-        $release.name | Should -BeExactly 'LayerPeek 0.1.0'
-        $release.body | Should -BeExactly $script:PublishedBody
-        @($release.assets.name | Sort-Object) | Should -BeExactly @(@($macNames) + @($winFiles) | Sort-Object)
-
-        $new = @(Get-NewGhCall $calls | Where-Object { $_ -notmatch '^(auth status|release view |release download )' })
-        $new.Count | Should -Be 2 -Because ($new -join ' / ')
-        $new[0] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
-        $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64\.zip'
-        $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64-full\.nupkg'
-        # T-181: the feed signature goes with the packages, before the feed.
-        $new[0] | Should -Match 'releases\.win-x64\.json\.sig'
-        # T-226: the win-arm64 files go with the same build (uploadable since 2026-11-16).
-        foreach ($package in 'LayerPeek-0.1.0-win-arm64.zip', 'LayerPeek-0.1.0-win-arm64-Setup.exe', 'LayerPeek-0.1.0-win-arm64-full.nupkg', 'releases.win-arm64.json.sig') { $new[0] | Should -Match ([regex]::Escape($package)) }
-        $new[0] | Should -Not -Match 'SHA256SUMS|releases\.win-(x64|arm64)\.json(?!\.sig)|assets\.win-|RELEASES-win-'
-        $new[1] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
-        foreach ($marker in 'SHA256SUMS-windows.txt', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64', 'releases.win-arm64.json', 'assets.win-arm64.json', 'RELEASES-win-arm64') { $new[1] | Should -Match ([regex]::Escape($marker)) }
-        $new[1] | Should -Not -Match 'win-x64\.zip|full\.nupkg|Setup\.exe|\.sig'
-        @(Get-GhCall | Where-Object { $_ -match '--clobber' }) | Should -BeNullOrEmpty
-    }
-    It 'refuses the OS whose checksum file is already in the release and changes nothing' {
-        $before = [System.IO.File]::ReadAllText($script:TwoRelease)
-        $calls = @(Get-GhCall).Count
-        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
-        $result.ExitCode | Should -Be 1 -Because $result.Output
-        $result.Output | Should -Match 'Published release v0\.1\.0 already contains SHA256SUMS-windows\.txt'
-        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
-        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release upload' }) | Should -BeNullOrEmpty
-
-        # The first OS as well: its checksum file is there from the start.
+    It 'refuses upload and publish when GitHub has two releases for the tag (T-200)' {
+        # A new draft of v0.1.0 in another repository state: two drafts of the tag (the fake lists one more).
+        Remove-Item -LiteralPath $script:TwoRelease
         $null = Write-StandInBuild 'macos'
-        $mac = Invoke-T 'release-upload.ps1' @('-AddToPublished')
-        $mac.ExitCode | Should -Be 1 -Because $mac.Output
-        $mac.Output | Should -Match 'already contains SHA256SUMS-macos\.txt'
-        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
-    }
-    It 'resumes an interrupted upload: identical files are skipped, only the missing ones are uploaded' {
-        $null = Write-StandInBuild 'windows'
-        Set-TwoRelease { param($r) $r.assets = @($r.assets | Where-Object { $_.name -notin 'SHA256SUMS-windows.txt', 'releases.win-x64.json' }) }
+        $first = Invoke-T 'release-upload.ps1'
+        $first.ExitCode | Should -Be 0 -Because $first.Output
+        Set-TwoRelease { param($r) $r.duplicates = 1 }
         $calls = @(Get-GhCall).Count
-        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
-        $result.ExitCode | Should -Be 0 -Because $result.Output
-        $result.Output | Should -Match 'LayerPeek-0\.1\.0-win-x64\.zip\s+skip, identical file already uploaded'
-        $new = @(Get-NewGhCall $calls | Where-Object { $_ -match '^release upload' })
-        $new.Count | Should -Be 1 -Because ($new -join ' / ')
-        $new[0] | Should -Match 'SHA256SUMS-windows\.txt'
-        $new[0] | Should -Match 'releases\.win-x64\.json'
-        $new[0] | Should -Not -Match 'win-x64\.zip|assets\.win-x64\.json'
-    }
-    It 'never overwrites a file with other content or an unfinished upload, and says what to do' -ForEach @(
-        @{ Case = 'other content'; Change = { param($a) $a.digest = "sha256:$('0' * 64)" }; Pattern = 'LayerPeek-0\.1\.0-win-x64\.zip is in release v0\.1\.0 with different content.*Nothing is overwritten' }
-        @{ Case = 'unfinished'; Change = { param($a) $a.state = 'starter'; $a.Remove('digest') }; Pattern = 'LayerPeek-0\.1\.0-win-x64\.zip is in release v0\.1\.0, but its upload did not finish \(state starter, no SHA256\)\. Nothing is overwritten' }
-    ) {
         $null = Write-StandInBuild 'windows'
-        $assetChange = $Change
-        Set-TwoRelease { param($r)
-            $r.assets = @($r.assets | Where-Object { $_.name -cne 'SHA256SUMS-windows.txt' })
-            foreach ($asset in @($r.assets | Where-Object { $_.name -ceq 'LayerPeek-0.1.0-win-x64.zip' })) { & $assetChange $asset }
-        }
-        $before = [System.IO.File]::ReadAllText($script:TwoRelease)
-        $calls = @(Get-GhCall).Count
-        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
-        $result.ExitCode | Should -Be 1 -Because $result.Output
-        $result.Output | Should -Match $Pattern
-        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
-        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release upload' }) | Should -BeNullOrEmpty
+        $upload = Invoke-T 'release-upload.ps1'
+        $upload.ExitCode | Should -Be 1 -Because $upload.Output
+        $upload.Output | Should -Match 'GitHub has 2 releases for v0\.1\.0'
+        $publish = Invoke-T 'release-publish.ps1'
+        $publish.ExitCode | Should -Be 1 -Because $publish.Output
+        $publish.Output | Should -Match 'GitHub has 2 releases for v0\.1\.0'
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release (create|upload|edit|delete)' }) | Should -BeNullOrEmpty
+        (Get-TwoRelease).isDraft | Should -BeTrue
     }
 }
 
 Describe 'Script help of release.ps1' {
     It 'Get-Help reads the synopsis and the parameters' {
         $help = Get-Help (Join-Path $script:RepoRoot 'scripts' 'release.ps1')
-        "$($help.Synopsis)" | Should -Match 'DRAFT'
+        "$($help.Synopsis)" | Should -Match 'both machines'
         @($help.parameters.parameter | ForEach-Object Name) | Should -Contain 'DryRun'
     }
 }

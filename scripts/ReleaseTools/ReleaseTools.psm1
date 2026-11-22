@@ -37,7 +37,16 @@ function Get-ReleaseRuntimeConfig {
 }
 
 function Get-HostOs {
-    <# .SYNOPSIS 'windows' or 'macos'; throws on other operating systems. #>
+    <#
+    .SYNOPSIS
+        'windows' or 'macos'; throws on other operating systems.
+    .NOTES
+        Test-only (T-200): LAYERPEEK_RELEASE_TEST_HOST_OS=windows|macos plays the other machine of a release on two
+        machines, but only while this module lies inside LAYERPEEK_PESTER_TESTS_TEMP (the Pester tests copy the scripts
+        into throw-away repositories there), so that it never applies to the scripts of a real repository.
+    #>
+    $override = $env:LAYERPEEK_RELEASE_TEST_HOST_OS
+    if ($override -and $override -cin 'windows', 'macos' -and (Test-ReleaseTestPath $PSScriptRoot)) { return $override }
     if ($IsWindows) { return 'windows' }
     if ($IsMacOS) { return 'macos' }
     throw 'Releases are built only on Windows or macOS.'
@@ -722,61 +731,136 @@ function Test-ReleaseMarkerFileName {
     <#
     .SYNOPSIS
         True for the files that make an OS visible in a release: its checksum file (GitHubReleaseChecker of the app, T-113)
-        and the Velopack feed files (releases.<rid>.json, assets.<rid>.json, RELEASES-<rid>; Velopack, T-058). Added to a
-        published release (release-upload.ps1 -AddToPublished) they are uploaded only after every other file, so that no
+        and the Velopack feed files (releases.<rid>.json, assets.<rid>.json, RELEASES-<rid>; Velopack, T-058). They are
+        uploaded only after every other file, so that no
         app is offered a release whose packages are not there yet. The feed signature (releases.<rid>.json.sig, T-181) is
-        no marker: it goes with the packages, before its feed (Get-UploadBatches).
+        no marker: it goes with the packages, before its feed (Get-UploadBatches). Since T-200 the order matters for the
+        draft: an OS counts as uploaded (Get-ReleaseOsStatus) only once its checksum file is there.
     #>
     param([Parameter(Mandatory)] [string] $Name)
     [bool]($Name -cmatch '^(SHA256SUMS-[a-z]+\.txt|releases\.[^/\\]+\.json|assets\.[^/\\]+\.json|RELEASES-[^/\\]+)$')
 }
 
-function Get-AddToPublishedProblems {
+function Get-RetiredSwitchProblem {
     <#
     .SYNOPSIS
-        Pure check of release-upload.ps1 -AddToPublished (T-113): the release exists and is published, it has no checksum
-        file of the OS of the build yet (the files of an OS are added once, never replaced), and no file of the build is
-        in the release with other content or unfinished (state 'starter', no digest). Files with the same SHA256 are
-        skipped by the plan (a re-run after an interrupted upload). Returns problem messages.
-    .PARAMETER Release
-        Release as returned by Get-GitHubRelease ($null = no release).
-    .PARAMETER ChecksumFile
-        Checksum file of the build (SHA256SUMS-<os>.txt).
-    .PARAMETER Plan
-        Get-UploadPlan of the build against the assets of the release, without -Force.
+        Pure (T-200): the refusal of a switch of the T-113 flow "one OS publishes, the other adds its files later".
+        Releases are immutable since 1.0.0 (T-180): the files of a published release can never be changed or added, so
+        the switches stay only to explain that (user decision 2026-11-12, question 1) and always refuse, also for a
+        trial repository (question 2), without asking GitHub (question 3).
+    #>
+    param([Parameter(Mandatory)] [ValidateSet('AddToPublished', 'AllowIncomplete')] [string] $Switch, [string] $Version)
+    $command = if ($Version) { "pwsh scripts/release.ps1 -Version $Version" } else { 'pwsh scripts/release.ps1 -Version X.Y.Z' }
+    $what = if ($Switch -eq 'AddToPublished') { 'adds files to a published release' } else { 'publishes a release without the files of one OS' }
+    "-$Switch is no longer supported (T-200): it $what, but releases are immutable since 1.0.0 (T-180), so the files of a published release can never be added or changed. Upload the files of both OS into the draft first, then publish: run $command on the Windows machine and on the Mac, in either order; the run that completes the draft offers to publish (docs/release.md, release on two machines)."
+}
+
+function Get-GitHubTagReleases {
+    <#
+    .SYNOPSIS
+        Every GitHub release (drafts included) whose tag is Tag, from gh release list (reads only). Normally none or one;
+        two drafts of one tag appear when two runs create the draft at the same moment (Get-DuplicateReleaseProblems).
+        Throws on a gh failure.
+    #>
+    param([Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Tag)
+    $all = & gh release list --repo $Repository --limit 1000 --json 'tagName,name,isDraft,createdAt' 2>&1
+    $exitCode = $LASTEXITCODE
+    $stdout = @($all | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join "`n"
+    if ($exitCode -ne 0) {
+        $stderr = (@($all | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join ' ').Trim()
+        throw "gh release list failed (exit code $exitCode): $stderr"
+    }
+    if (-not $stdout.Trim()) { return @() }
+    @($stdout | ConvertFrom-Json | Where-Object { $_.tagName -ceq $Tag })
+}
+
+function Get-DuplicateReleaseProblems {
+    <#
+    .SYNOPSIS
+        Pure (T-200): more than one GitHub release for one tag (two drafts made by runs on both machines at the same
+        moment) is refused by release.ps1, release-upload.ps1 and release-publish.ps1: gh picks one of them by the tag,
+        so files could land in one draft and the other one be published. Returns problem messages.
+    .PARAMETER Releases
+        The releases of the tag (Get-GitHubTagReleases).
+    #>
+    param([Parameter(Mandatory)] [string] $Tag, [AllowNull()] [AllowEmptyCollection()] [object[]] $Releases)
+    $list = @($Releases | Where-Object { $_ })
+    if ($list.Count -le 1) { return @() }
+    $drafts = @($list | Where-Object isDraft).Count
+    @("GitHub has $($list.Count) releases for $Tag ($drafts draft(s); probably both machines created a draft at the same moment). The scripts find a release by its tag, so this is not safe. On GitHub (Releases) open the drafts of $Tag, keep the one with the files and delete the other one (Edit, Delete; gh release delete cannot tell them apart), then re-run.")
+}
+
+function Get-ReleaseOsStatus {
+    <#
+    .SYNOPSIS
+        Pure (T-200): which OS of a release are uploaded, by their checksum files in the release assets. Returns one
+        object per expected OS (Os, Name, ChecksumFile, Uploaded). An OS counts as uploaded only with its checksum file,
+        which is uploaded after the other files of the OS (Get-UploadBatches).
+    #>
+    param([AllowNull()] $Release, [string[]] $ExpectedOs = @(Get-ExpectedReleaseOs))
+    $names = @{ windows = 'Windows'; macos = 'macOS' }
+    $assets = if ($Release -and $Release.PSObject.Properties['assets']) { @($Release.assets) } else { @() }
+    foreach ($os in $ExpectedOs) {
+        $sums = Get-ChecksumFileName $os
+        [pscustomobject]@{ Os = $os; Name = $names[$os]; ChecksumFile = $sums; Uploaded = [bool](@($assets | Where-Object { $_.name -ceq $sums }).Count -gt 0) }
+    }
+}
+
+function Get-ExpectedReleaseOs {
+    <# .SYNOPSIS The OS whose files every release must have: those of the uploadable RIDs (macos, windows). #>
+    param($Config = $script:ReleaseRuntimes)
+    @($Config.Values | Where-Object Uploadable | ForEach-Object Os | Sort-Object -Unique)
+}
+
+function New-ReleaseDraft {
+    <#
+    .SYNOPSIS
+        Creates the empty draft release of the tag vX.Y.Z (gh release create --draft --verify-tag: the tag must be on
+        GitHub) with the given notes and the title "LayerPeek X.Y.Z", a pre-release for 0.x. Then checks that GitHub has
+        exactly one release for the tag (Get-DuplicateReleaseProblems) and throws otherwise. Used by release.ps1 right
+        after the tag push (T-200, so that the other machine finds the draft) and by release-upload.ps1 without a draft.
     #>
     param(
-        $Release,
-        [Parameter(Mandatory)] [string] $Tag,
-        [Parameter(Mandatory)] [string] $ChecksumFile,
-        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Plan
+        [Parameter(Mandatory)] [string] $Repository,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $Notes
     )
-    $problems = [System.Collections.Generic.List[string]]::new()
-    if ($null -eq $Release) {
-        $problems.Add("There is no release for $Tag. -AddToPublished only adds files to a published release; upload the first OS without it (docs/release.md).")
-        return $problems.ToArray()
+    $tag = ConvertTo-ReleaseTag $Version
+    $notesFile = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-release-notes-$([guid]::NewGuid().ToString('N')).md"
+    try {
+        [System.IO.File]::WriteAllText($notesFile, $Notes + "`n", [System.Text.UTF8Encoding]::new($false))
+        $arguments = @('release', 'create', $tag, '--repo', $Repository, '--draft', '--verify-tag', '--title', "LayerPeek $Version", '--notes-file', $notesFile)
+        if (Test-PrereleaseVersion $Version) { $arguments += '--prerelease' }
+        & gh @arguments
+        if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE. Re-run: an existing draft is found and used." }
     }
-    if ($Release.isDraft) {
-        $problems.Add("Release $Tag is still a draft. Upload into the draft without -AddToPublished, then publish it (scripts/release-publish.ps1).")
-        return $problems.ToArray()
+    finally {
+        if (Test-Path -LiteralPath $notesFile) { Remove-Item -LiteralPath $notesFile -Force -ErrorAction SilentlyContinue }
     }
-    $assets = @($Release.assets)
-    if (@($assets | Where-Object { $_.name -ceq $ChecksumFile }).Count -gt 0) {
-        $problems.Add("Published release $Tag already contains $($ChecksumFile): the files of this OS are already there. -AddToPublished only adds the files of an OS that is missing and never replaces anything.")
-        return $problems.ToArray()
-    }
-    foreach ($item in @($Plan | Where-Object Action -In 'Conflict', 'Replace')) {
-        $asset = @($assets | Where-Object { $_.name -ceq $item.Name }) | Select-Object -First 1
-        $state = if ($asset -and $asset.PSObject.Properties['state']) { $asset.state } else { $null }
-        $digest = if ($asset -and $asset.PSObject.Properties['digest']) { $asset.digest } else { $null }
-        if (($state -and $state -cne 'uploaded') -or -not $digest) {
-            $problems.Add("$($item.Name) is in release $Tag, but its upload did not finish (state $($state ?? '?'), no SHA256). Nothing is overwritten: delete that file on the release page on GitHub (Edit), then re-run.")
-        }
-        else {
-            $problems.Add("$($item.Name) is in release $Tag with different content (another build?). Nothing is overwritten: check which build is right, delete the wrong file on the release page on GitHub (Edit) or rebuild, then re-run.")
-        }
-    }
-    $problems.ToArray()
+    $duplicates = @(Get-DuplicateReleaseProblems -Tag $tag -Releases @(Get-GitHubTagReleases -Repository $Repository -Tag $tag))
+    if ($duplicates.Count -gt 0) { throw $duplicates[0] }
+}
+
+function Get-ReleaseNotesAtCommit {
+    <#
+    .SYNOPSIS
+        The text of the GitHub release (Get-ReleaseNotes) from CHANGELOG.md of Commit (byte-exact from git, checked with
+        Get-ChangelogSection on a copy inside TempDirectory). Throws when the section is missing, undated or empty.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $RepoRoot,
+        [Parameter(Mandatory)] [string] $Commit,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $Repository,
+        [Parameter(Mandatory)] [string] $TempDirectory
+    )
+    $source = Read-GitBlobText $RepoRoot "$($Commit):CHANGELOG.md"
+    if (-not $source) { throw "CHANGELOG.md not found in $Commit." }
+    $copy = Join-Path $TempDirectory "CHANGELOG-$([guid]::NewGuid().ToString('N')).md"
+    Write-ReleaseTextFile $copy $source.Text $source.Bom
+    try { $section = Get-ChangelogSection -Path $copy -Version $Version }
+    finally { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
+    Get-ReleaseNotes -ChangelogSection $section -Repository $Repository -Version $Version
 }
 
 function Get-ReleaseChecksums {
@@ -846,37 +930,32 @@ function Get-PublishProblems {
         Release as returned by Get-GitHubRelease ($null = no release).
     .PARAMETER Checksums
         Dictionary checksum file name -> (dictionary file name -> sha256) of the downloaded checksum files.
-    .PARAMETER Published
-        The release is expected to be published already (the check after release-upload.ps1 -AddToPublished, T-113)
-        instead of a draft; every other check is the same.
     #>
     param(
         $Release,
         [Parameter(Mandatory)] [string] $Tag,
         [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $ExpectedOs,
         [Parameter(Mandatory)] [System.Collections.IDictionary] $Checksums,
-        $Config = $script:ReleaseRuntimes,
-        [switch] $Published
+        $Config = $script:ReleaseRuntimes
     )
     $problems = [System.Collections.Generic.List[string]]::new()
     if ($null -eq $Release) {
         $problems.Add("There is no release for $Tag. Upload the build first (scripts/release-upload.ps1).")
         return $problems.ToArray()
     }
-    if ($Published) { if ($Release.isDraft) { $problems.Add("Release $Tag is a draft, not published.") } }
-    elseif (-not $Release.isDraft) { $problems.Add("Release $Tag is already published.") }
+    if (-not $Release.isDraft) { $problems.Add("Release $Tag is already published.") }
     $assets = @($Release.assets)
     if ($assets.Count -eq 0) { $problems.Add("Release $Tag has no files.") }
     foreach ($os in $ExpectedOs) {
         $sums = Get-ChecksumFileName $os
-        if (-not (@($assets | Where-Object { $_.name -ceq $sums }))) { $problems.Add("Release $Tag has no $($sums): the $os build is not uploaded yet."); continue }
+        if (-not (@($assets | Where-Object { $_.name -ceq $sums }))) { $problems.Add("Release $Tag has no $($sums): the $os build is not uploaded yet. Upload it on the $os machine first (pwsh scripts/release.ps1 -Version $($Tag.TrimStart('v'))); published releases are immutable (T-180), it could not be added afterwards."); continue }
         # T-017 / T-058: without its feed an installation of the RID never finds the release (Windows and macOS update through Velopack).
         foreach ($rid in @($Config.Keys | Where-Object { $Config[$_].Uploadable -and $Config[$_].Os -eq $os })) {
             $feed = "releases.$rid.json"
             if (-not (@($assets | Where-Object { $_.name -ceq $feed }))) { $problems.Add("Release $Tag has no $($feed): installations of $rid would not find the update.") }
         }
     }
-    # T-181: also with -AllowIncomplete (no expected OS), every feed that is there must be signed.
+    # T-181: every feed that is there must be signed.
     foreach ($feed in @($assets | ForEach-Object name | Where-Object { $_ -cmatch '^releases\.[^/\\]+\.json$' })) {
         if (-not (@($assets | Where-Object { $_.name -ceq "$feed.sig" }))) { $problems.Add("Release $Tag has $feed but no $($feed).sig: installed apps that verify the update feed would refuse the update. Rebuild with the signing key and upload.") }
     }
@@ -3325,8 +3404,21 @@ function Test-ReleaseTestToolchainSkip {
         repository.
     #>
     param([Parameter(Mandatory)] [string] $RepoRoot)
+    if ($env:LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN -ne '1') { return $false }
+    Test-ReleaseTestPath $RepoRoot
+}
+
+function Test-ReleaseTestPath {
+    <#
+    .SYNOPSIS
+        Test-only guard: true when Path lies inside LAYERPEEK_PESTER_TESTS_TEMP (the folder of a Pester run of
+        scripts/ReleaseTools). The test switches (Test-ReleaseTestToolchainSkip, LAYERPEEK_RELEASE_TEST_HOST_OS) apply only
+        there, never to a real repository.
+    #>
+    param([AllowNull()] [AllowEmptyString()] [string] $Path)
     $base = $env:LAYERPEEK_PESTER_TESTS_TEMP
-    if (-not $base -or $env:LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN -ne '1') { return $false }
+    if (-not $base -or -not $Path) { return $false }
+    $RepoRoot = $Path
     $separators = [char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
     # Both physical: the scripts resolve their repository root (Resolve-PhysicalPath), the temp folder may lie below a link.
     $root = (Resolve-PhysicalPath $RepoRoot -AllowMissing).TrimEnd($separators)
@@ -3501,8 +3593,13 @@ function Get-ReleaseFlowFacts {
     $ghProblems = @(Get-GhProblems)
     $release = $null
     $releaseError = $null
+    $tagReleases = @()
     if ($ghProblems.Count -eq 0 -and $target.Repository -and -not $target.Problem) {
-        try { $release = Get-GitHubRelease -Repository $target.Repository -Tag $tag }
+        try {
+            $release = Get-GitHubRelease -Repository $target.Repository -Tag $tag
+            # T-200: two drafts of one tag (both machines created one at the same moment) are refused.
+            $tagReleases = @(Get-GitHubTagReleases -Repository $target.Repository -Tag $tag)
+        }
         catch { $releaseError = $_.Exception.Message }
     }
 
@@ -3581,6 +3678,8 @@ function Get-ReleaseFlowFacts {
         GhProblems                   = $ghProblems
         Release                      = $release
         ReleaseError                 = $releaseError
+        TagReleases                  = $tagReleases
+        ExpectedOs                   = @(Get-ExpectedReleaseOs)
         BuildCurrent                 = $buildCurrent
         BuildProblems                = if ($build) { @($build.Problems) } else { @() }
         UploadPlan                   = $uploadPlan
@@ -3597,8 +3696,15 @@ function Get-ReleaseFlowPlan {
         Pure decision of scripts/release.ps1 from Get-ReleaseFlowFacts: the steps with Done (detected from the state, so
         that a re-run continues where the last run stopped), every problem that blocks the remaining steps (all at once)
         and notes (information that blocks nothing, e.g. stabilization commits of the release branch).
+        Release on two machines (T-200): the machine that goes first does every step up to its files in the draft; the
+        other machine runs the same command later (or in parallel, once the tag and the draft are on GitHub): the
+        Gitflow steps done on the remote count as done there too, it builds the tag, uploads into the same draft and,
+        with the files of both OS in the draft, publishes (confirmed by typing the version). A published release is
+        immutable (T-180): published without the files of this OS is a problem, they can never be added.
     .OUTPUTS
-        Steps (Id, Title, Detail, Outward, Done), Problems, Notes, Published (the GitHub release is already published).
+        Steps (Id, Title, Detail, Outward, Done), Problems, Notes, Published (the GitHub release is already published),
+        OsStatus (Get-ReleaseOsStatus of the release), Waiting (names of the other OS whose files the publish waits
+        for; empty when it does not wait).
     #>
     param([Parameter(Mandatory)] $Facts)
     $f = $Facts
@@ -3646,9 +3752,12 @@ function Get-ReleaseFlowPlan {
     $tagLocal = $f.LocalTagCommit
     $tagRemote = $f.RemoteTagCommit
     $tagged = [bool]($tagLocal -or $tagRemote)
-    if ($tagRemote -and -not $tagLocal) { Add "Tag $tag is on $r but not in the local repository. Run: git fetch $r --tags" }
+    if ($tagRemote -and -not $tagLocal) {
+        # A real run fetches exactly this tag first (T-200, the second machine); only a dry run gets here.
+        Add "Tag $tag is on $r but not in the local repository (the other machine has started this release). A run without -DryRun fetches it itself; for a dry run first: git fetch --no-tags $r refs/tags/$($tag):refs/tags/$tag"
+    }
     if ($tagRemote -and $tagLocal -and $tagRemote -ne $tagLocal) {
-        Add "Tag $tag on $r points to $(Short $tagRemote), the local tag to $(Short $tagLocal). Tags are never moved automatically: resolve it by hand (docs/release.md)."
+        Add "Tag $tag on $r points to $(Short $tagRemote), the local tag to $(Short $tagLocal). Tags are never moved automatically. If both machines started this release at once, the other one won: while the local tag is not on $r, drop the local release (git tag -d $tag; git branch -f main $r/main; git branch -D $branch) and re-run, it continues as the second machine. Otherwise resolve it by hand (docs/release.md)."
     }
     if ($tagLocal -and $f.TagParentCount -ne 2) {
         Add "Tag $tag ($(Short $tagLocal)) is not a merge commit of $branch into main. Finish this release by hand (docs/release.md)."
@@ -3663,21 +3772,34 @@ function Get-ReleaseFlowPlan {
 
     $release = $f.Release
     $published = [bool]($release -and -not $release.isDraft)
+    $expectedOs = @(if ($f.PSObject.Properties['ExpectedOs'] -and $f.ExpectedOs) { $f.ExpectedOs } else { Get-ExpectedReleaseOs })
+    $osStatus = @(Get-ReleaseOsStatus -Release $release -ExpectedOs $expectedOs)
+    $hostStatus = @($osStatus | Where-Object Os -EQ $f.HostOs) | Select-Object -First 1
+    # The publish waits for the files of every other OS; the files of this OS come with this run.
+    $waiting = @($osStatus | Where-Object { $_.Os -ne $f.HostOs -and -not $_.Uploaded } | ForEach-Object Name)
     $assets = if ($release) { @($release.assets) } else { @() }
     $hostSumsUploaded = [bool](@($assets | Where-Object { $_.name -ceq $f.ChecksumFile }).Count -gt 0)
     $pending = @(@($f.UploadPlan) | Where-Object { $_.Action -ne 'Skip' })
     $branchExists = [bool]$f.LocalBranchCommit
     $redate = (-not $tagged -and $branchExists -and $check -and $check.Redate -and -not $check.ChangelogProblem -and -not $check.VersionProblem)
 
+    # T-200: what the other machine (or an earlier run) has pushed counts as done here too, so that the second machine
+    # neither needs nor moves its local main and develop.
+    $pushedMain = [bool]$tagLocal -and $tagRemote -eq $tagLocal -and $f.RemoteMainContainsTag -eq $true
     $done = [ordered]@{
         Branch       = $tagged -or ($branchExists -and -not $redate)
-        MergeMain    = [bool]$tagLocal -and $f.LocalMainContainsTag -eq $true
-        PushMain     = [bool]$tagLocal -and $tagRemote -eq $tagLocal -and $f.RemoteMainContainsTag -eq $true
-        MergeDevelop = $f.LocalDevelopContainsRelease -eq $true
+        MergeMain    = $pushedMain -or ([bool]$tagLocal -and $f.LocalMainContainsTag -eq $true)
+        PushMain     = $pushedMain
+        Draft        = [bool]$release
+        MergeDevelop = $f.LocalDevelopContainsRelease -eq $true -or $f.RemoteDevelopContainsRelease -eq $true
         PushDevelop  = $f.RemoteDevelopContainsRelease -eq $true
         DeleteBranch = $tagged -and -not $branchExists
-        Build        = $published -or $f.BuildCurrent
-        Upload       = $published -or ([bool]$release -and $f.BuildCurrent -and $pending.Count -eq 0)
+        # The files of this OS already in the draft (uploaded by an earlier run, maybe on another machine with the same
+        # OS) count as built and uploaded when this machine has no current build: a new build would differ, and
+        # release-publish.ps1 checks every file against the checksum files anyway.
+        Build        = $published -or $f.BuildCurrent -or ([bool]$release -and $hostSumsUploaded)
+        Upload       = $published -or ([bool]$release -and $f.BuildCurrent -and $pending.Count -eq 0) -or ([bool]$release -and $hostSumsUploaded -and -not $f.BuildCurrent)
+        Publish      = $published
     }
 
     if ($gitTooOld -and ((-not $done.MergeMain -and -not $tagLocal) -or -not $done.MergeDevelop)) {
@@ -3724,8 +3846,15 @@ function Get-ReleaseFlowPlan {
     elseif (-not $done.PushMain -and $f.LocalMain -ne $tagLocal) {
         Add "Local main ($(Short $f.LocalMain)) has commits after the release merge of tag $tag ($(Short $tagLocal)). Only the tagged merge would be pushed, so main must be exactly at the tag: move those commits elsewhere (e.g. a branch) and run git branch -f main $tag, then re-run."
     }
+    # The other machine made the tag (no release branch here, local develop without the release commit). Until it has
+    # pushed develop, this machine waits: merging develop here would make the push of the other machine fail and leave
+    # its local develop diverged (T-200).
+    $otherMachine = -not $branchExists -and $f.LocalDevelopContainsRelease -ne $true
     if (-not $done.MergeDevelop) {
-        if ($branchExists -or $tagged) { Add $developProblem }
+        if ($pushedMain -and $otherMachine) {
+            Add "The other machine has pushed main and $tag, but not develop yet (its run waits at 'Push develop' or stopped before it). This machine never merges develop for it: finish that run on the other machine (pwsh scripts/release.ps1 -Version $($f.Version) there), then re-run here."
+        }
+        elseif ($branchExists -or $tagged) { Add $developProblem }
     }
     elseif (-not $done.PushDevelop) {
         $onlyMerge = $f.DevelopRelation -eq 'ahead' -and $f.DevelopFirstParent -eq $f.RemoteDevelop -and $f.DevelopSecondParent -eq $f.ReleaseCommit
@@ -3747,10 +3876,15 @@ function Get-ReleaseFlowPlan {
     }
     if (-not $done.Build) {
         foreach ($problem in @($f.ToolchainProblems)) { Add $problem }
-        if ($release -and $hostSumsUploaded) {
-            Add "The draft $tag already contains $($f.ChecksumFile), but there is no matching local build of the tag (a new build would differ). Check the draft (release-publish.ps1 -DryRun) and finish by hand (docs/release.md)."
-        }
     }
+    if (-not $published -and $release -and $hostSumsUploaded -and -not $f.BuildCurrent) {
+        $notes.Add("The draft $tag already has the files of this OS ($($f.ChecksumFile)), but this machine has no current build of the tag: they are not built or uploaded again (release-publish.ps1 checks them).")
+    }
+    if ($published -and $hostStatus -and -not $hostStatus.Uploaded) {
+        Add "Release $tag is already published without the $($hostStatus.Name) files ($($hostStatus.ChecksumFile)). Published releases are immutable (T-180): they can never be added. This version stays without $($hostStatus.Name); fix the cause and release the next version from both machines (docs/release.md)."
+    }
+    $tagReleases = @(if ($f.PSObject.Properties['TagReleases']) { $f.TagReleases })
+    foreach ($problem in @(Get-DuplicateReleaseProblems -Tag $tag -Releases $tagReleases)) { Add $problem }
     $conflicts = @($pending | Where-Object Action -EQ 'Conflict')
     if (-not $published -and $conflicts.Count -gt 0) {
         Add "The draft $tag already has different files with the names $($conflicts.Name -join ', '). Check them and replace them by hand (release-upload.ps1 -Force)."
@@ -3774,6 +3908,8 @@ function Get-ReleaseFlowPlan {
             Detail = "merge --no-ff into main ($(Short $base)), annotated tag $tag 'Release $($f.Version)' (local only)" }
         [pscustomobject]@{ Id = 'PushMain'; Outward = $true; Title = "Push main and $tag (confirm by typing the version)"
             Detail = "git push --atomic $r <merge>:refs/heads/main refs/tags/$tag" }
+        [pscustomobject]@{ Id = 'Draft'; Outward = $true; Title = "Create the draft release $tag on GitHub"
+            Detail = "empty draft with the text of CHANGELOG.md of $tag, right after the tag push, so that the other machine finds it (only maintainers see a draft)" }
         [pscustomobject]@{ Id = 'MergeDevelop'; Outward = $false; Title = "Merge $branch back into develop"
             Detail = "merge --no-ff into develop (local only)" }
         [pscustomobject]@{ Id = 'PushDevelop'; Outward = $true; Title = 'Push develop (confirm y/N)'
@@ -3782,38 +3918,41 @@ function Get-ReleaseFlowPlan {
             Detail = "git branch -d $branch" }
         [pscustomobject]@{ Id = 'Build'; Outward = $false; Title = "Build $($f.Runtimes -join ', ') from the tag"
             Detail = "git switch --detach $tag; pwsh $((@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $f.HostOs)) -join ' ') (signing key: `$env:LAYERPEEK_FEED_SIGNING_KEY, password asked)" }
-        [pscustomobject]@{ Id = 'Upload'; Outward = $true; Title = 'Create or fill the draft release (confirm y/N)'
-            Detail = "pwsh scripts/release-upload.ps1$repoArgument -DryRun, then pwsh scripts/release-upload.ps1$repoArgument; never published here" }
+        [pscustomobject]@{ Id = 'Upload'; Outward = $true; Title = "Upload the $($hostStatus ? $hostStatus.Name : $f.HostOs) files into the draft (confirm y/N)"
+            Detail = "pwsh scripts/release-upload.ps1$repoArgument -DryRun, then pwsh scripts/release-upload.ps1$repoArgument" }
+        [pscustomobject]@{ Id = 'Publish'; Outward = $true; Title = "Publish $tag (confirm by typing the version)"
+            Detail = $(if ($waiting.Count -gt 0) { "waits for the $($waiting -join ' and ') files: the run of the same command on that machine publishes" }
+                else { "pwsh scripts/release-publish.ps1$repoArgument -DryRun (complete draft?), then pwsh scripts/release-publish.ps1$repoArgument; immutable afterwards (T-180)" }) }
     )
     foreach ($step in $steps) { $step | Add-Member -NotePropertyName Done -NotePropertyValue ([bool]$done[$step.Id]) }
 
-    [pscustomobject]@{ Steps = $steps; Problems = $problems.ToArray(); Notes = $notes.ToArray(); Published = $published }
+    [pscustomobject]@{ Steps = $steps; Problems = $problems.ToArray(); Notes = $notes.ToArray(); Published = $published; OsStatus = $osStatus; Waiting = $waiting }
 }
 
 function Format-ReleaseFlowPlan {
-    <# .SYNOPSIS Pure: the lines that describe a plan of Get-ReleaseFlowPlan. #>
+    <#
+    .SYNOPSIS
+        Pure: the lines that describe a plan of Get-ReleaseFlowPlan: every step ([done], [todo], or [wait] for a publish
+        that waits for the files of another OS) and the files of each OS in the release on GitHub.
+    #>
     param([Parameter(Mandatory)] $Plan, [Parameter(Mandatory)] $Facts)
+    $waiting = @(if ($Plan.PSObject.Properties['Waiting']) { $Plan.Waiting })
     $number = 0
     foreach ($step in $Plan.Steps) {
         $number++
-        $state = if ($step.Done) { 'done' } else { 'todo' }
+        $state = if ($step.Done) { 'done' } elseif ($step.Id -eq 'Publish' -and $waiting.Count -gt 0) { 'wait' } else { 'todo' }
         "  [$state] $number. $($step.Title)"
         if (-not $step.Done) { "           $($step.Detail)" }
     }
-    if (-not $Plan.Published -and @($Plan.Steps | Where-Object { $_.Id -in 'Build', 'Upload' -and -not $_.Done }).Count -gt 0) {
+    if (-not $Plan.Published -and @($Plan.Steps | Where-Object { $_.Id -in 'Build', 'Upload', 'Publish' -and -not $_.Done }).Count -gt 0) {
         '           then back to develop: git switch develop'
     }
-    if ($Plan.Published) {
-        "  Release $($Facts.Tag) is already published on GitHub."
-        $release = $Facts.Release
-        $assets = if ($release -and $release.PSObject.Properties['assets']) { @($release.assets) } else { @() }
-        if ($release -and $Facts.ChecksumFile -and @($assets | Where-Object { $_.name -ceq $Facts.ChecksumFile }).Count -eq 0) {
-            # T-113: the other OS went first; this one is added to the published release, not by release.ps1.
-            $repoArgument = if ($Facts.RepositoryArgument) { " -Repo $($Facts.RepositoryArgument)" } else { '' }
-            "  It has no $($Facts.ChecksumFile) yet. Add the files of this OS (docs/release.md, release on two machines):"
-            $build = (@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $Facts.HostOs)) -join ' '
-            "    git switch --detach $($Facts.Tag); pwsh $build -FeedSigningKey <key file>; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
-        }
+    $osStatus = @(if ($Plan.PSObject.Properties['OsStatus']) { $Plan.OsStatus })
+    if (-not $Facts.Release) { "  GitHub: no release $($Facts.Tag) yet." }
+    else {
+        $kind = if ($Plan.Published) { 'published release' } else { 'draft' }
+        $files = @($osStatus | ForEach-Object { "$($_.Name) files $(if ($_.Uploaded) { 'uploaded' } else { 'missing' })" }) -join ', '
+        "  GitHub: $kind $($Facts.Tag): $files."
     }
     if ($Facts.PSObject.Properties['ToolchainSkipped'] -and $Facts.ToolchainSkipped) {
         '  TEST MODE: toolchain check skipped (LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN=1, repository inside LAYERPEEK_PESTER_TESTS_TEMP). Not for a real release.'
@@ -3821,38 +3960,70 @@ function Format-ReleaseFlowPlan {
     foreach ($note in @($Plan.Notes)) { "  Note: $note" }
 }
 
+function Get-ReleaseRunCommand {
+    <#
+    .SYNOPSIS
+        Pure (T-200): the command line of scripts/release.ps1 on a machine of the given OS. On macOS under
+        caffeinate -d -i -u (the Mac sleeps after 10 minutes and the build takes about 20, docs/release.md).
+    #>
+    param([Parameter(Mandatory)] [string] $Version, [string] $Repository, [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $Os, [switch] $DryRun)
+    $command = "pwsh scripts/release.ps1 -Version $Version$(if ($Repository) { " -Repo $Repository" })$(if ($DryRun) { ' -DryRun' })"
+    if ($Os -eq 'macos' -and -not $DryRun) { "caffeinate -d -i -u $command" } else { $command }
+}
+
 function Get-ReleaseNextSteps {
     <#
     .SYNOPSIS
-        Pure: the manual commands after the draft of the first OS is ready (T-113: either OS can go first). Publishing
-        always stays a separate manual step; the other OS follows in the draft or, after an incomplete publish, in the
-        published release (release-upload.ps1 -AddToPublished, docs/release.md).
+        Pure (T-200): the block "NEXT STEP" that release.ps1 prints at its end, for a person or an agent, with the exact
+        commands and the machine to run them on. Situation:
+          OtherOs   the draft waits for the files of the other OS: run the same command on that machine (it uploads them
+                    and offers to publish). Publishing before would lose that OS for this version (immutable, T-180).
+          Publish   the draft is complete but not published (the publish was not confirmed): re-run on either machine.
+          Run       a dry run: the real run of this machine.
+          Published the release is published and complete: nothing left.
     #>
     param(
         [Parameter(Mandatory)] [string] $Version,
         [string] $Repository,
         [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $HostOs,
-        [string] $Remote = 'origin'
+        [Parameter(Mandatory)] [ValidateSet('OtherOs', 'Publish', 'Run', 'Published')] [string] $Situation,
+        [string[]] $WaitingFor = @()
     )
     $tag = ConvertTo-ReleaseTag $Version
-    $repoArgument = if ($Repository) { " -Repo $Repository" } else { '' }
     $names = @{ windows = 'Windows'; macos = 'macOS' }
-    $this = $names[$HostOs]
     $otherOs = if ($HostOs -eq 'windows') { 'macos' } else { 'windows' }
-    $other = $names[$otherOs]
-    # T-226: the build of the other OS for the upload (the default build while all its default RIDs are uploadable).
-    $otherBuild = (@('scripts/release-build.ps1') + @(Get-ReleaseBuildRuntimeArguments -Os $otherOs)) -join ' '
-    @(
-        "Publishing is a separate manual step. Check the draft $tag on GitHub (text, files), then:"
-        "  git switch --detach $tag"
-        "  pwsh scripts/release-publish.ps1$repoArgument -DryRun"
-        "  pwsh scripts/release-publish.ps1$repoArgument -AllowIncomplete   # only the $this files so far"
-        '  git switch develop'
-        "The $other files follow on a $other machine (docs/release.md, release on two machines), without release.ps1:"
-        "  git fetch $Remote --tags; git switch --detach $tag; pwsh $otherBuild -FeedSigningKey <key file>"
-        "  pwsh scripts/release-upload.ps1$repoArgument -AddToPublished   # after the publish above"
-        "  (or before publishing: pwsh scripts/release-upload.ps1$repoArgument into the draft, then publish without -AllowIncomplete)"
-    )
+    $keyExample = @{ windows = 'E:\layerpeek-feed-key.pem'; macos = '/Volumes/LP-KEY/layerpeek-feed-key.pem' }
+    switch ($Situation) {
+        'OtherOs' {
+            $other = $names[$otherOs]
+            $waiting = if ($WaitingFor.Count -gt 0) { $WaitingFor -join ' and ' } else { $other }
+            @(
+                "NEXT STEP: on the $other machine (the $waiting files are missing in the draft $tag), the same command:"
+                '  git switch develop'
+                '  git pull --ff-only'
+                "  `$env:LAYERPEEK_FEED_SIGNING_KEY = '<key file, e.g. $($keyExample[$otherOs])>'   # keep the key medium connected until the build ends; password asked twice"
+                "  $(Get-ReleaseRunCommand -Version $Version -Repository $Repository -Os $otherOs)"
+                '  Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY'
+                "It skips the Gitflow steps (done on GitHub), builds $tag, uploads the $other files into this draft and then offers to publish."
+                "Do not publish before: published releases are immutable (T-180), the $other files could never be added (docs/release.md, release on two machines)."
+            )
+        }
+        'Publish' {
+            @(
+                "NEXT STEP: the draft $tag has the files of every OS but is not published. To publish, on either machine:"
+                '  git switch develop'
+                "  $(Get-ReleaseRunCommand -Version $Version -Repository $Repository -Os $HostOs)"
+                'It finds every other step done, checks the draft (release-publish.ps1 -DryRun) and asks to publish (type the version).'
+            )
+        }
+        'Run' {
+            @(
+                'NEXT STEP: the real run on this machine does the steps marked [todo] and asks before every step that goes out:'
+                "  $(Get-ReleaseRunCommand -Version $Version -Repository $Repository -Os $HostOs)"
+            )
+        }
+        'Published' { @("Release $tag is published with the files of every OS. Nothing left to do for this version.") }
+    }
 }
 
 function New-ReleaseTreeCommit {
@@ -4368,7 +4539,7 @@ function Format-RegistryTreeState {
 
 # winget (T-059). Decided by the user 2026-11-11: package identifier 3DPrint.LayerPeek, publisher "Petr Foltýnek" (the
 # same as --packAuthors, which Velopack writes as Publisher of the Apps & features entry), stable versions from 1.0.0 on,
-# the submission an optional step after publishing (release-publish.ps1, release-upload.ps1 -AddToPublished) or
+# the submission an optional step after publishing (release-publish.ps1, also when release.ps1 publishes) or
 # scripts/release-winget.ps1 on its own. The first version is submitted from the reviewed manifest templates in
 # build/winget (wingetcreate submit), every later one with wingetcreate update. The token comes from gh auth token at run
 # time and reaches wingetcreate only through WINGET_CREATE_GITHUB_TOKEN of this process while it runs (never as an
@@ -4547,7 +4718,7 @@ function Get-WingetReleaseProblems {
     if ($null -eq $Release) { return @("There is no release $tag on GitHub. winget gets a version only after it is published (scripts/release-publish.ps1).") }
     if ($Release.isDraft) { return @("Release $tag is still a draft. Publish it first (scripts/release-publish.ps1); winget downloads the installer from the published release.") }
     $asset = @($Release.assets | Where-Object { $_.name -ceq $setup }) | Select-Object -First 1
-    if ($null -eq $asset) { return @("Release $tag has no $setup yet. Add the Windows files first (on Windows: pwsh scripts/release-upload.ps1 -AddToPublished).") }
+    if ($null -eq $asset) { return @("Release $tag has no $setup. Published releases are immutable (T-180), so it can never be added: winget gets this version only if the release has the Windows installer.") }
     # T-226: the arm64 installer is optional, but when the release has it, it goes into the manifest and must be complete too.
     $setups = @($setup)
     if (Test-WingetArm64Installer -Release $Release -Version $Version) { $setups += Get-WingetInstallerFileName -Version $Version -Runtime $script:Winget.Arm64Runtime }
@@ -4893,7 +5064,7 @@ function Get-WingetOpenPullRequests {
 function Get-WingetOffer {
     <#
     .SYNOPSIS
-        Pure: what release-publish.ps1 and release-upload.ps1 -AddToPublished say about winget once a release is published
+        Pure: what release-publish.ps1 (also run by release.ps1) says about winget once a release is published
         (T-059). Ask = $true only when the submission can run now: a stable version of the package repository on Windows
         whose release has the Windows installer. Otherwise Lines say why not, or how to submit later on Windows.
     #>
@@ -4912,7 +5083,7 @@ function Get-WingetOffer {
     }
     $setup = Get-WingetInstallerFileName -Version $Version
     if ($AssetNames -cnotcontains $setup) {
-        return [pscustomobject]@{ Ask = $false; Lines = @("winget: the release has no $setup yet. Once the Windows files are added (on Windows: pwsh scripts/release-upload.ps1 -AddToPublished), that step offers the winget submission.") }
+        return [pscustomobject]@{ Ask = $false; Lines = @("winget: the release has no $setup, so this version is not submitted to winget (published releases are immutable, T-180).") }
     }
     if ($HostOs -ne 'windows') {
         return [pscustomobject]@{ Ask = $false; Lines = @("winget: submit $Version on a Windows machine (wingetcreate is a Windows tool): $command (docs/release.md, ""Publikace do winget"").") }
@@ -4923,7 +5094,7 @@ function Get-WingetOffer {
 function Invoke-WingetReleaseOffer {
     <#
     .SYNOPSIS
-        The optional winget step at the end of release-publish.ps1 and release-upload.ps1 -AddToPublished: prints the
+        The optional winget step at the end of release-publish.ps1 (also when release.ps1 publishes): prints the
         offer and, when it can run and the user answers y, runs the submission (Invoke-WingetRelease, which prints the plan
         and asks once more before the pull request is opened). Never throws: a
         failed submission is reported with the command to re-run it, the release itself stays published.
@@ -5097,7 +5268,7 @@ function Invoke-WingetRelease {
             # The reverse: a release without the arm64 installer after one with it gives one URL for two installers.
             $hint = if ($mode -ne 'update') { '' }
             elseif ($arm64) { " The release has the arm64 installer: if the previous version in $($settings.PackagesRepository) has no arm64 installer yet (the first release with win-arm64), wingetcreate update refuses two URLs for one installer. Write the manifests with -OutputDirectory, check them with winget validate and submit that folder by hand with wingetcreate submit (docs/release.md, ""Publikace do winget"")." }
-            else { " The release has no $(Get-WingetInstallerFileName -Version $Version -Runtime $settings.Arm64Runtime): if the previous version in $($settings.PackagesRepository) has an arm64 installer, wingetcreate update refuses one URL for two installers. Add the win-arm64 files to the release (release-upload.ps1 -AddToPublished), or write the x64-only manifests with -OutputDirectory, check them with winget validate and submit that folder by hand with wingetcreate submit (docs/release.md, ""Publikace do winget"")." }
+            else { " The release has no $(Get-WingetInstallerFileName -Version $Version -Runtime $settings.Arm64Runtime): if the previous version in $($settings.PackagesRepository) has an arm64 installer, wingetcreate update refuses one URL for two installers. The release cannot get the win-arm64 files any more (immutable, T-180): write the x64-only manifests with -OutputDirectory, check them with winget validate and submit that folder by hand with wingetcreate submit (docs/release.md, ""Publikace do winget"")." }
             Write-Problems -Problems @("wingetcreate failed with exit code $exitCode. Check the pull requests of $($settings.PackagesRepository) before a re-run (one pull request per version).$hint") -Action 'winget'
             return $false
         }

@@ -528,10 +528,11 @@ Vydání se sestavují lokálně skripty v PowerShellu 7.2+ ve složce `scripts/
 archivy, kontrolní součty SHA-256, vydání na GitHubu). Verze je v `<Version>` v `Directory.Build.props`, poznámky
 k vydání v [CHANGELOG.md](CHANGELOG.md). Jeden příkaz, `pwsh scripts/release.ps1 -Version X.Y.Z` (nejdřív s `-DryRun`),
 provede vydání podle Gitflow (větev release, sloučení do `main` s tagem `vX.Y.Z`, sloučení zpět do `develop`), sestaví
-tag a nahraje ho do konceptu vydání na GitHubu; před každým pushem a nahráním se zeptá. Zveřejnění konceptu zůstává
-samostatný ruční krok (`scripts/release-publish.ps1`). Spouští se na Windows nebo na macOS, podle toho, který OS
-jde první; druhý OS může své soubory doplnit později, i do už zveřejněného vydání
-(`scripts/release-upload.ps1 -AddToPublished`). Celý postup je v [docs/release.md](docs/release.md).
+tag a nahraje ho do konceptu vydání na GitHubu, který vytvoří hned po pushi tagu; před každým pushem a nahráním se
+zeptá. Stejný příkaz se spouští na Windows i na Macu, v libovolném pořadí: druhý počítač přeskočí kroky Gitflow, nahraje
+své soubory do stejného konceptu a nabídne jeho zveřejnění (potvrzení napsáním verze). Vydání na GitHubu jsou neměnná,
+proto se zveřejňuje jen se soubory obou OS. Každý běh skončí přesným dalším krokem a počítačem, kde ho spustit. Celý
+postup je v [docs/release.md](docs/release.md).
 Kontroly na Macu, které může udělat jen člověk (Gatekeeper, oprávnění macOS, otevření při přihlášení, monitory, uspaný
 displej), jsou v jednom postupu v [docs/macos-manual-testing.md](docs/macos-manual-testing.md).
 

@@ -735,6 +735,8 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       Ověřeno ostře (rozhodnuto uživatelem 2026-11-13): `gh release view` 2026-11-13 ukazuje u `v0.3.1`, `v0.4.0` i
       `v0.5.0` soubory obou OS (`SHA256SUMS-macos.txt`, `SHA256SUMS-windows.txt`, `.dmg`, `.tar.gz`, `Setup.exe`,
       `.zip`, balíčky a feedy Velopacku). Zkušební vydání odpadá (T-198 otázka 3).
+      Poznámka T-200 (2026-11-22): tok „Mac zveřejní, Windows doplní“ s neměnnými vydáními už nejde,
+      `-AddToPublished` a `-AllowIncomplete` skripty vždy odmítnou; oba OS jdou do konceptu přes `release.ps1`.
 - [x] **T-055** (krit. „Vydání verze `0.x` je na GitHubu označené jako předběžné“): po příštím vydání
       `gh release view vX.Y.Z --json isPrerelease` = `true`. Pozor: stav 2026-10-30 – `v0.1.0` a `v0.3.0` jsou
       předběžné, **`v0.2.0` ne** (označené „Latest“); **rozhodnuto 2026-10-30 (uživatel): `v0.2.0` nechat beze změny**; bod se týká jen nových vydání.

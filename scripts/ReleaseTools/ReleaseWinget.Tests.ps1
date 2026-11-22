@@ -313,7 +313,7 @@ Describe 'Decisions (pure)' {
     It 'needs a published release with the completely uploaded installer and its SHA256' {
         @(Get-WingetReleaseProblems -Release $null -Version '1.0.0') | Should -Match 'no release v1\.0\.0'
         @(Get-WingetReleaseProblems -Release (New-FakeRelease -Draft) -Version '1.0.0') | Should -Match 'still a draft'
-        @(Get-WingetReleaseProblems -Release (New-FakeRelease -NoSetup) -Version '1.0.0') | Should -Match 'no LayerPeek-1\.0\.0-win-x64-Setup\.exe yet.*-AddToPublished'
+        @(Get-WingetReleaseProblems -Release (New-FakeRelease -NoSetup) -Version '1.0.0') | Should -Match 'no LayerPeek-1\.0\.0-win-x64-Setup\.exe\. Published releases are immutable \(T-180\), so it can never be added'
         @(Get-WingetReleaseProblems -Release (New-FakeRelease -State 'starter') -Version '1.0.0') | Should -Match 'not completely uploaded'
         @(Get-WingetReleaseProblems -Release (New-FakeRelease -Digest '') -Version '1.0.0') | Should -Match 'no SHA256'
         @(Get-WingetReleaseProblems -Release (New-FakeRelease) -Version '1.0.0') | Should -BeNullOrEmpty
@@ -329,7 +329,7 @@ Describe 'Decisions (pure)' {
         @(Get-WingetReleaseProblems -Release (New-FakeRelease -Arm64 -Arm64State 'starter') -Version '1.0.0') | Should -Match 'LayerPeek-1\.0\.0-win-arm64-Setup\.exe in release v1\.0\.0 is not completely uploaded'
         @(Get-WingetReleaseProblems -Release (New-FakeRelease -Arm64 -Arm64Digest '') -Version '1.0.0') | Should -Match 'no SHA256 for LayerPeek-1\.0\.0-win-arm64-Setup\.exe'
         # The x64 installer stays required: an arm64 one alone is no winget release.
-        @(Get-WingetReleaseProblems -Release (New-FakeRelease -Arm64 -NoSetup) -Version '1.0.0') | Should -Match 'no LayerPeek-1\.0\.0-win-x64-Setup\.exe yet'
+        @(Get-WingetReleaseProblems -Release (New-FakeRelease -Arm64 -NoSetup) -Version '1.0.0') | Should -Match 'no LayerPeek-1\.0\.0-win-x64-Setup\.exe\. Published releases are immutable'
     }
     It 'takes the release date from publishedAt (UTC), or the fallback' {
         Get-WingetReleaseDate -Release (New-FakeRelease) -Fallback '2000-01-01' | Should -BeExactly '2026-11-12'
@@ -466,7 +466,8 @@ Describe 'Decisions (pure)' {
         $trial.Lines | Should -Match 'nothing is submitted'
         $macOnly = Get-WingetOffer -Version '1.0.0' -HostOs 'macos' -AssetNames @('LayerPeek-1.0.0-osx-arm64.dmg')
         $macOnly.Ask | Should -BeFalse
-        $macOnly.Lines | Should -Match 'no LayerPeek-1\.0\.0-win-x64-Setup\.exe yet.*-AddToPublished'
+        $macOnly.Lines | Should -Match 'the release has no LayerPeek-1\.0\.0-win-x64-Setup\.exe, so this version is not submitted to winget \(published releases are immutable, T-180\)'
+        $macOnly.Lines | Should -Not -Match 'AddToPublished'
         $onMac = Get-WingetOffer -Version '1.0.0' -HostOs 'macos' -AssetNames $setup
         $onMac.Ask | Should -BeFalse
         $onMac.Lines | Should -Match 'on a Windows machine.*pwsh scripts/release-winget\.ps1 -Version 1\.0\.0'
@@ -610,7 +611,7 @@ Describe 'Invoke-WingetRelease against fake gh, wingetcreate and winget' {
         $x64 = (Invoke-Step @{}).Output
         $x64 | Should -Not -Match 'first release with win-arm64'
         # The reverse case: the previous manifest may have arm64 while this release has none.
-        $x64 | Should -Match 'has no LayerPeek-1\.0\.0-win-arm64-Setup\.exe: if the previous version .* has an arm64 installer.*-AddToPublished.*wingetcreate submit'
+        $x64 | Should -Match 'has no LayerPeek-1\.0\.0-win-arm64-Setup\.exe: if the previous version .* has an arm64 installer.*cannot get the win-arm64 files any more \(immutable, T-180\).*wingetcreate submit'
     }
     It 'refuses an arm64 installer that is in the release but not completely uploaded, before asking (T-226)' {
         Set-FakeRelease (New-FakeRelease -Arm64 -Arm64State 'starter')
@@ -679,7 +680,7 @@ Describe 'Invoke-WingetRelease against fake gh, wingetcreate and winget' {
     }
     It 'refuses a release without the installer, a draft and a pre-release' {
         Set-FakeRelease (New-FakeRelease -NoSetup)
-        (Invoke-Step @{}).Output | Should -Match 'no LayerPeek-1\.0\.0-win-x64-Setup\.exe yet'
+        (Invoke-Step @{}).Output | Should -Match 'no LayerPeek-1\.0\.0-win-x64-Setup\.exe\. Published releases are immutable'
         Set-FakeRelease (New-FakeRelease -Draft)
         (Invoke-Step @{}).Output | Should -Match 'still a draft'
         $pre = @(Invoke-WingetRelease -RepoRoot $script:RepoRoot -Version '0.6.0' -HostOs 'windows' -Confirm { 'y' } *>&1)

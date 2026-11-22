@@ -1,16 +1,17 @@
 <#
 .SYNOPSIS
-    Publishes the draft GitHub release of the tag vX.Y.Z after the Windows and macOS files (or, with -AllowIncomplete, the
-    files of one OS) are uploaded.
+    Publishes the draft GitHub release of the tag vX.Y.Z after the Windows and macOS files are uploaded.
 
 .DESCRIPTION
-    The separate, explicit last step of a release (docs/release.md). Runs the same git checks as
+    The last step of a release (docs/release.md); scripts/release.ps1 runs it (confirmed by typing the version) on the
+    machine whose upload completes the draft (T-200). Releases are immutable since 1.0.0 (T-180): once published, no file
+    can be changed or added, so only a complete draft is published. Runs the same git checks as
     scripts/release-upload.ps1 (clean tree, HEAD tagged vX.Y.Z matching Directory.Build.props, tag on origin or the -Repo remote, HEAD
     contained in its main branch) and refuses unless:
-      - the release exists and is still a draft,
+      - the release exists and is still a draft, and it is the only release of the tag (two drafts, T-200),
       - the checksum file of every OS (SHA256SUMS-windows.txt, SHA256SUMS-macos.txt) is uploaded,
-      - every Velopack feed (releases.<rid>.json) has its signature releases.<rid>.json.sig (T-181; also with
-        -AllowIncomplete),
+      - every Velopack feed (releases.<rid>.json) and the feed of every released RID is there with its signature
+        releases.<rid>.json.sig (T-181),
       - every file listed in the checksum files is uploaded with the listed SHA256 and no other file is,
       - no file of a runtime that must not be released (Uploadable = $false in the runtime table; none since
         win-arm64 became uploadable, 2026-11-16) is uploaded; no feed is expected for such a runtime.
@@ -29,14 +30,14 @@
     Runs every check and prints what would be published; changes nothing on GitHub.
 
 .PARAMETER AllowIncomplete
-    Publishes even when the files of an OS are missing (e.g. the other OS follows later on another machine). Every
-    uploaded file is still checked. The files of the missing OS are added to the published release later with
-    scripts/release-upload.ps1 -AddToPublished (T-113, docs/release.md).
+    No longer supported (T-200): always refused with exit code 1 and the flow "both OS into the draft, then publish";
+    releases are immutable since 1.0.0 (T-180), the missing OS could never be added. Kept so that an old command gets
+    the explanation.
 
 .EXAMPLE
     pwsh scripts/release-publish.ps1 -DryRun
     pwsh scripts/release-publish.ps1
-    pwsh scripts/release-publish.ps1 -Repo pfoltynek/LayerPeek-release-trial -AllowIncomplete
+    pwsh scripts/release-publish.ps1 -Repo pfoltynek/LayerPeek-release-trial -DryRun
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
@@ -54,6 +55,11 @@ $repoRoot = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..')
 $downloadDir = $null
 
 try {
+    if ($AllowIncomplete) {
+        # T-200: refused before anything is checked or asked on GitHub.
+        Write-Problems -Problems @(Get-RetiredSwitchProblem -Switch 'AllowIncomplete') -Action 'Publish'
+        exit 1
+    }
     $preflight = Get-ReleasePreflight -RepoRoot $repoRoot -Repository $Repo
     $tag = $preflight.Tag
     Write-Host "Release $tag of $($preflight.Repository ?? '?') (git remote $($preflight.Remote ?? '?')), HEAD $($preflight.GitState.Head)"
@@ -67,10 +73,10 @@ try {
     $downloadDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-release-sums-$([guid]::NewGuid().ToString('N'))"
     $checksums = Get-ReleaseChecksums -Release $release -Repository $preflight.Repository -Tag $tag -Directory $downloadDir
 
-    # @(...) around the whole if: an if whose branch outputs an empty array yields $null, which -ExpectedOs refuses.
-    $expectedOs = @(if (-not $AllowIncomplete) { $config.Values | Where-Object Uploadable | ForEach-Object Os | Sort-Object -Unique })
+    $expectedOs = @(Get-ExpectedReleaseOs -Config $config)
     $problems = [System.Collections.Generic.List[string]]::new()
     foreach ($problem in @(Get-PublishProblems -Release $release -Tag $tag -ExpectedOs $expectedOs -Checksums $checksums -Config $config)) { $problems.Add($problem) }
+    foreach ($problem in @(Get-DuplicateReleaseProblems -Tag $tag -Releases @(Get-GitHubTagReleases -Repository $preflight.Repository -Tag $tag))) { $problems.Add($problem) }
     if ($problems.Count -gt 0) {
         Write-Problems -Problems $problems -Action 'Publish'
         exit 1
