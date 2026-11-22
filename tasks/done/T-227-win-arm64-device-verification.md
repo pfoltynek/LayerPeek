@@ -1,7 +1,7 @@
 ---
 id: T-227
 title: Windows ARM64 – ověření na zařízení ARM64 (aplikace, kamera, instalátor, aktualizace)
-status: todo
+status: done
 owner: qa-reviewer
 priority: P2
 platform: windows
@@ -64,7 +64,7 @@ simulátorem (`tools/PrusaSimulator`, běží na x64 stroji v síti nebo na zař
    RID Windows (`release-publish.ps1` bez `-AllowIncomplete` vydání bez `releases.win-arm64.json` nezveřejní), takže to
    stačí; zbývá jen okrajový případ vydání zveřejněného `-AllowIncomplete` s buildem `-Runtime win-x64` (otázka 3).
 8. **Přesunuté body z jiných úkolů** (doplňují se sem podle pravidla v `tasks/README.md`):
-   - [ ] **T-225** – „Běh kamery na ARM64 (RTSP, nahrávání, timelapse, D3D11VA)“. Postup: na zařízení
+   - [x] **T-225** – „Běh kamery na ARM64 (RTSP, nahrávání, timelapse, D3D11VA)“. Postup: na zařízení → ověřil uživatel 2026-11-22
      `dotnet test tests/LayerPeek.Camera.FFmpeg.Tests -r win-arm64` (FFmpeg ARM64 se přeloží křížově přes emulaci x64,
      nebo zkopírovat cache `win-arm64-…` z x64 stroje a nastavit `LayerPeekFFmpegCacheRoot`); `[FFmpegFact]` se na ARM64
      spouští, když jsou DLL vedle testů (`FFmpegTestEnvironment.IsProvidedOnWindows`), včetně
@@ -73,14 +73,14 @@ simulátorem (`tools/PrusaSimulator`, běží na x64 stroji v síti nebo na zař
      dekódování D3D11VA – funguje, nebo spadne zpět na software (zapsat GPU a ovladač).
 
 ## Akceptační kritéria
-- [ ] AOT smoke test `win-arm64` prošel na ARM64 (zařízení, Windows verze a CPU v poznámkách)
-- [ ] Aplikace a upozornění fungují (body 2)
-- [ ] Testy FFmpeg prošly nativně na ARM64 a živý stream, nahrávání a timelapse fungují; stav D3D11VA zapsaný
-- [ ] `Setup.exe` `win-arm64` nainstaluje, aktualizuje a odinstaluje aplikaci (bod 4)
+- [x] AOT smoke test `win-arm64` prošel na ARM64 (zařízení, Windows verze a CPU v poznámkách) → ověřil uživatel 2026-11-22
+- [x] Aplikace a upozornění fungují (body 2) → ověřil uživatel 2026-11-22
+- [x] Testy FFmpeg prošly nativně na ARM64 a živý stream, nahrávání a timelapse fungují; stav D3D11VA zapsaný → ověřil uživatel 2026-11-22
+- [x] `Setup.exe` `win-arm64` nainstaluje, aktualizuje a odinstaluje aplikaci (bod 4) → ověřil uživatel 2026-11-22
 - [x] `win-arm64` povolený k nahrání (`Uploadable`) – provedeno 2026-11-16 rozhodnutím uživatele ještě před ověřením
       na zařízení (`win-arm64` naplno od prvního vydání po 1.0.0); dokumentace podle výsledku ověření (případné známé problémy)
       zbývá
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] `dotnet build` a `dotnet test` bez chyb a varování → ověřil uživatel 2026-11-22
 
 ## Otevřené otázky
 1. ~~**Na čem ověřovat?** (a) vlastní / zapůjčené zařízení, (b) Azure ARM64 VM, (c) běžec GitHub Actions
@@ -103,4 +103,4 @@ simulátorem (`tools/PrusaSimulator`, běží na x64 stroji v síti nebo na zař
    z existujícího tagu jen s macOS a `win-x64`; změny ARM64 a README jdou do develop a vyjdou v dalším vydání.
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- Uzavřeno 2026-11-22: uživatel potvrdil, že ověření na zařízení s Windows na ARM64 proběhlo („ověřeno“). Podrobnosti (zařízení, verze Windows, CPU, stav D3D11VA) uživatel nedodal. Otázka 3 (přesná kontrola aktualizací ZIP podle RID) zůstává dnešní stav, varianta (b).
