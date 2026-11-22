@@ -631,7 +631,7 @@ Build Tools 2026 18.12.0 (MSVC 14.52), Windows 11 SDK 10.0.26100, Edge 157.0.434
       v poli dál fungují. Headless UI testy (`TextBoxContextMenuUiTests`) prošly na Macu.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
-- [x] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny → → uzavřeno bez ověření, rozhodnutí uživatele 2026-11-22
+- [x] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny → → ověřil uživatel 2026-11-22
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
       chyba kvůli Service Workeru nebo hlavičkám proxy.
 
@@ -679,7 +679,7 @@ Build Tools 2026 18.12.0 (MSVC 14.52), Windows 11 SDK 10.0.26100, Edge 157.0.434
   nebo samostatně?~~ Vyřešeno: ověřeno samostatně na ostré instalaci (2026-11-03).
 
 ## Poznámky k implementaci
-- **Uzavřeno 2026-11-22 rozhodnutím uživatele.** Ruční kontroly bez tiskárny (oddíl 2, se simulátorem) prošel uživatel. Automatické běhy (`dotnet test`, AOT smoke, `release-build.ps1`, plné E2E, `windows-verify.ps1`), měření CPU / D3D11VA, kontrola se skutečnou tiskárnou (oddíl 3) a body vydání (oddíl 4, T-055 neaktuální po zapnutí neměnných vydání, T-017 SmartScreen) se neprováděly a jsou označené „uzavřeno bez ověření“. Chyba nalezená později = nový úkol.
+- **Uzavřeno 2026-11-22 rozhodnutím uživatele.** Ruční kontroly bez tiskárny (oddíl 2, se simulátorem) a kontrolu se skutečnou tiskárnou (oddíl 3, T-107) prošel uživatel. Automatické běhy (`dotnet test`, AOT smoke, `release-build.ps1`, plné E2E, `windows-verify.ps1`), měření CPU / D3D11VA, a body vydání (oddíl 4, T-055 neaktuální po zapnutí neměnných vydání, T-017 SmartScreen) se neprováděly a jsou označené „uzavřeno bez ověření“. Chyba nalezená později = nový úkol.
 ### T-058 – ostrá aktualizace (uživatel, 2026-11-03, Windows 11 Pro 10.0.26300)
 - Nainstalovaná 0.3.1 (instalátor Velopack) se po vydání 0.4.0 aktualizovala z GitHub Releases bez tokenu.
 - Spuštěno klikem na položku „Je dostupná nová verze 0.4.0“ v menu v tray; klik na banner toastu se ručně nezkoušel
