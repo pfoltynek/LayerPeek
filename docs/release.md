@@ -1,19 +1,18 @@
 # Vydání (release)
 
-Vydání se dělá lokálně bez CI (GitHub Actions se nepoužívají, T-016 zamítnut 2026-11-01). Windows soubory se sestaví na Windows, macOS soubory na Macu (Native AOT nejde kompilovat napříč OS). Oba běhy nahrávají do **stejného konceptu** (draft) vydání pro tag `vX.Y.Z` na GitHubu. Zveřejnění je samostatný poslední krok, takže nikdo nevidí vydání s polovinou souborů. Od T-113 jde vydání pod jednou verzí rozdělit i v čase: jeden OS zveřejní (`-AllowIncomplete`) a druhý OS později na jiném počítači své soubory **doplní do zveřejněného vydání** (`release-upload.ps1 -AddToPublished`, viz „Vydání na dvou počítačích“).
+Vydání se dělá lokálně bez CI (GitHub Actions se nepoužívají, T-016 zamítnut 2026-11-01). Windows soubory se sestaví na Windows, macOS soubory na Macu (Native AOT nejde kompilovat napříč OS). Oba běhy nahrávají do **stejného konceptu** (draft) vydání pro tag `vX.Y.Z` na GitHubu. Zveřejnění je poslední krok, až má koncept soubory obou OS, takže nikdo nevidí vydání s polovinou souborů. Od T-200 se na obou počítačích spouští stejný příkaz `release.ps1` v libovolném pořadí a zveřejní ten běh, který koncept doplní (viz „Vydání ze dvou počítačů“).
 
 > **Od 1.0.0 jsou zapnutá neměnná vydání** (immutable releases, T-180; rozhodnutí uživatele 2026-11-11, T-198 otázka 4):
-> soubory zveřejněného vydání už nejde změnit ani doplnit. Vydání se proto zveřejňuje **až se soubory obou OS v
-> konceptu** (viz „Vydání od 1.0.0: oba OS do konceptu, pak zveřejnit“). Tok „jeden OS zveřejní s `-AllowIncomplete`,
-> druhý doplní přes `-AddToPublished`“ (T-113) se od 1.0.0 nepoužívá. Skripty ho zatím neodmítají a výpis na konci
-> `release.ps1` ho dál nabízí; to změní až T-200 (po vydání 1.0.0).
+> soubory zveřejněného vydání už nejde změnit ani doplnit. Vydání se proto zveřejňuje **jen se soubory obou OS v
+> konceptu**. Přepínače `-AllowIncomplete` a `-AddToPublished` (tok T-113) skripty od T-200 vždy odmítnou s kódem 1
+> a s postupem „Vydání ze dvou počítačů“.
 
 | Skript | Co dělá | Mění GitHub? |
 |---|---|---|
-| `scripts/release.ps1` | **jeden příkaz** pro kroky 1–3 níže: větev `release/X.Y.Z`, sloučení do `main` + tag, sloučení zpět do `develop`, sestavení tagu a nahrání do konceptu; nikdy nezveřejňuje (viz „Vydání jedním příkazem“) | ano, jen push a koncept po potvrzení (kromě `-DryRun`) |
+| `scripts/release.ps1` | **jeden příkaz na obou počítačích** (T-200): větev `release/X.Y.Z`, sloučení do `main` + tag, koncept hned po pushi tagu, sloučení zpět do `develop`, sestavení tagu, nahrání do konceptu a – když má koncept soubory obou OS – zveřejnění; na druhém počítači jen tag, build, nahrání a zveřejnění (viz „Vydání jedním příkazem“ a „Vydání ze dvou počítačů“) | ano, push, koncept, nahrání a zveřejnění po potvrzení (kromě `-DryRun`) |
 | `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, na Windows instalátor Velopack (T-017), na macOS `LayerPeek.app` od `vpk` + `.dmg` + `.tar.gz` + balíček a feed Velopacku (T-019, T-058), podpis feedu offline klíčem (T-181, viz „Podpis feedu aktualizací“), `SHA256SUMS-<os>.txt` | ne |
-| `scripts/release-upload.ps1` | kontroly, vytvoření konceptu vydání (první běh) nebo nahrání do existujícího konceptu (druhý OS); s `-AddToPublished` doplnění chybějícího OS do zveřejněného vydání (T-113) | ano (kromě `-DryRun`) |
-| `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění; potom nabídne odeslání do winget (T-059) | ano (kromě `-DryRun`) |
+| `scripts/release-upload.ps1` | kontroly a nahrání do konceptu (bez konceptu ho vytvoří); spouští ho `release.ps1`; `-AddToPublished` od T-200 jen odmítne | ano (kromě `-DryRun`) |
+| `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění; potom nabídne odeslání do winget (T-059); spouští ho `release.ps1` po napsání verze; `-AllowIncomplete` od T-200 jen odmítne | ano (kromě `-DryRun`) |
 | `scripts/release-winget.ps1` | odeslání zveřejněného vydání do winget (`microsoft/winget-pkgs`), jen Windows, s potvrzením; s `-OutputDirectory` jen zapíše manifest (viz „Publikace do winget“) | ano, PR do `microsoft/winget-pkgs` po potvrzení (kromě `-DryRun` a `-OutputDirectory`) |
 | `scripts/ReleaseTools/ReleaseTools.Tests.ps1` | Pester testy logiky skriptů bez sítě (spouští je i `dotnet test`, viz níže; winget v `ReleaseWinget.Tests.ps1`) | ne |
 
@@ -28,48 +27,53 @@ Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.
 - Poznámky k vydání jsou sekce verze z `CHANGELOG.md` (formát [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), anglicky podle `CLAUDE.md`).
 - Bez placeného podpisu: Windows soubory jsou nepodepsané, macOS má jen ad-hoc podpis bez notarizace (T-019, viz „Balení pro macOS“).
 - Feed aktualizací `releases.<RID>.json` je od T-181 podepsaný offline klíčem (ECDSA P-256) a aplikace aktualizaci bez platného podpisu odmítne (rozhodnuto 2026-11-06, viz „Podpis feedu aktualizací“).
-- Neměnná vydání (T-180) se zapnou před 1.0.0 a od 1.0.0 se zveřejňuje jen se soubory obou OS v konceptu (rozhodnutí uživatele 2026-11-11, T-198 otázka 4). Odmítnutí `-AddToPublished` a `-AllowIncomplete` ve skriptech přijde až po 1.0.0 (T-200).
+- Neměnná vydání (T-180) se zapnou před 1.0.0 a od 1.0.0 se zveřejňuje jen se soubory obou OS v konceptu (rozhodnutí uživatele 2026-11-11, T-198 otázka 4; na repozitáři zapnuta 2026-11-22). Od T-200 (2026-11-22) skripty `-AddToPublished` a `-AllowIncomplete` odmítnou; `release.ps1` se spouští na obou počítačích, koncept vzniká hned po pushi tagu a zveřejnění nabídne běh, který koncept doplní (potvrzení napsáním verze).
 - Po zveřejnění 1.0.0 se skutečné stažení a ověření podepsaného feedu z GitHubu zkontroluje místním Release buildem s verzí 0.9.9 na obou OS (rozhodnutí uživatele 2026-11-11, T-198 otázka 3; viz „Kontrola aktualizace z GitHubu buildem 0.9.9“). Zkušební vydání v testovacím repozitáři před 1.0.0 se nedělá.
 - winget (T-059, rozhodnuto 2026-11-11): balíček `3DPrint.LayerPeek`, vydavatel `Petr Foltýnek`, jen stabilní verze od 1.0.0, odeslání jako volitelný krok po zveřejnění (viz „Publikace do winget“).
 
 ## Vydání jedním příkazem (`scripts/release.ps1`, T-055)
 
-Rozhodnutí uživatele (2026-10-24): jeden skript provede celé vydání až po **koncept** na GitHubu. Spouští ho ten OS, který jde první – Windows i macOS (T-113, rozhodnuto 2026-10-30); druhý OS už `release.ps1` nespouští (viz „Vydání na dvou počítačích“). Zveřejnění zůstává vždy samostatný ruční krok. Vše se spouští lokálně ručně, bez CI.
+Rozhodnutí uživatele (2026-10-24): jeden skript provede celé vydání. Od T-200 (rozhodnutí uživatele 2026-11-22) ho spouští **oba počítače** stejným příkazem, v libovolném pořadí; na druhém počítači přeskočí Gitflow hotový na `origin` a po nahrání druhého OS nabídne zveřejnění (viz „Vydání ze dvou počítačů“). Vše se spouští lokálně ručně, bez CI.
 
 ```powershell
 git switch develop
 git pull --ff-only                                 # develop musí být stejný jako origin/develop
 pwsh scripts/release.ps1 -Version X.Y.Z -DryRun    # kontroly a plán, nic nezmění ani nestáhne (případně požádá o git fetch origin)
-pwsh scripts/release.ps1 -Version X.Y.Z            # nejdřív sám git fetch --no-tags origin, pak provedení s potvrzením před každým krokem ven
+pwsh scripts/release.ps1 -Version X.Y.Z            # nejdřív sám git fetch --no-tags origin (a tag vX.Y.Z, když je jen na origin), pak provedení s potvrzením před každým krokem ven
 ```
 
-Kroky (odpovídají ručním krokům 1–3 v „Postup“ níže, které zůstávají jako reference):
+Kroky (odpovídají ručním krokům v „Postup“ níže, které zůstávají jako reference):
 
 | # | Krok | Ven? |
 |---|---|---|
 | 1 | `release/X.Y.Z` z `develop` s commitem `Release X.Y.Z`: `<Version>` v `Directory.Build.props` a datum vydání v `CHANGELOG.md`. Existuje-li větev už (dřívější běh, ručně), zkontroluje se (viz níže) a případně dostane commit s dnešním datem | ne |
 | 2 | `merge --no-ff` do `main`, kontrola sloučených souborů (verze, datovaná sekce `CHANGELOG.md`) a anotovaný tag `vX.Y.Z` („Release X.Y.Z“), jen lokálně | ne |
-| 3 | `git push --atomic origin <sloučení>:refs/heads/main refs/tags/vX.Y.Z` – **potvrzení napsáním verze** | ano |
-| 4 | `merge --no-ff` zpět do `develop`, jen lokálně | ne |
-| 5 | `git push --atomic origin <sloučení>:refs/heads/develop` – potvrzení `y/N` | ano |
-| 6 | `git branch -d release/X.Y.Z` | ne |
-| 7 | `git switch --detach vX.Y.Z` (čistý strom) a `release-build.ps1` | ne |
-| 8 | `release-upload.ps1 -DryRun` (výpis souborů), potvrzení `y/N`, pak `release-upload.ps1` → koncept | ano |
+| 3 | `git push --atomic origin <sloučení>:refs/heads/main refs/tags/vX.Y.Z` – **potvrzení napsáním verze** (otázka zmíní i koncept) | ano |
+| 4 | prázdný **koncept** vydání s textem ze sekce `CHANGELOG.md` tagu (`gh release create --draft --verify-tag`), hned po pushi tagu, aby ho druhý počítač našel (T-200); bez kroku 3 v témže běhu potvrzení `y/N` | ano |
+| 5 | `merge --no-ff` zpět do `develop`, jen lokálně | ne |
+| 6 | `git push --atomic origin <sloučení>:refs/heads/develop` – potvrzení `y/N` | ano |
+| 7 | `git branch -d release/X.Y.Z` | ne |
+| 8 | `git switch --detach vX.Y.Z` (čistý strom) a `release-build.ps1` | ne |
+| 9 | `release-upload.ps1 -DryRun` (výpis souborů), potvrzení `y/N`, pak `release-upload.ps1` → soubory tohoto OS v konceptu | ano |
+| 10 | jen když má koncept soubory obou OS: `release-publish.ps1 -DryRun`, **potvrzení napsáním verze**, `release-publish.ps1` (neměnné vydání; na Windows pak nabídka winget). Jinak `[wait]` a blok `NEXT STEP` pro druhý počítač | ano |
 
-Na konci (i po chybě) se skript vrátí na `develop` a vypíše adresu konceptu a přesné další příkazy podle OS, na kterém běžel (příklad pro Mac):
+Na druhém počítači jsou kroky 1–7 hotové na `origin` (viz „Vydání ze dvou počítačů“). Na konci (i po chybě) se skript vrátí na `develop`, vypíše stav souborů na GitHubu a blok `NEXT STEP` s přesnými příkazy a počítačem (příklad prvního běhu na Windows):
 
 ```text
-git switch --detach vX.Y.Z
-pwsh scripts/release-publish.ps1 -DryRun
-pwsh scripts/release-publish.ps1 -AllowIncomplete   # only the macOS files so far
-git switch develop
-The Windows files follow on a Windows machine (docs/release.md, release on two machines), without release.ps1:
-  git fetch origin --tags; git switch --detach vX.Y.Z; pwsh scripts/release-build.ps1 -FeedSigningKey <key file>
-  pwsh scripts/release-upload.ps1 -AddToPublished   # after the publish above
-  (or before publishing: pwsh scripts/release-upload.ps1 into the draft, then publish without -AllowIncomplete)
+GitHub vX.Y.Z (<URL of the draft>): macOS files missing, Windows files uploaded.
+Draft release vX.Y.Z has the files of this machine; it waits for the macOS files.
+
+NEXT STEP: on the macOS machine (the macOS files are missing in the draft vX.Y.Z), the same command:
+  git switch develop
+  git pull --ff-only
+  $env:LAYERPEEK_FEED_SIGNING_KEY = '<key file, e.g. /Volumes/LP-KEY/layerpeek-feed-key.pem>'   # keep the key medium connected until the build ends; password asked twice
+  caffeinate -d -i -u pwsh scripts/release.ps1 -Version X.Y.Z
+  Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY
+It skips the Gitflow steps (done on GitHub), builds vX.Y.Z, uploads the macOS files into this draft and then offers to publish.
+Do not publish before: published releases are immutable (T-180), the macOS files could never be added (docs/release.md, release on two machines).
 ```
 
-- **Druhý OS:** od 1.0.0 jen do konceptu (krok 4 v „Postup“) a zveřejnit bez `-AllowIncomplete` (neměnná vydání, viz „Vydání od 1.0.0“). Do 1.0.0 buď ještě do konceptu, nebo zveřejnit první OS s `-AllowIncomplete` a druhý OS doplnit později do zveřejněného vydání (viz „Vydání na dvou počítačích“). Spustí-li se `release.ps1` omylem na druhém OS po zveřejnění, všechny kroky jsou hotové a plán jen vypíše, jak soubory tohoto OS doplnit (`It has no SHA256SUMS-<os>.txt yet …`).
+- **Druhý OS:** stejný příkaz na druhém počítači (viz „Vydání ze dvou počítačů“). Zveřejněné vydání bez souborů tohoto OS plán odmítne (`Release vX.Y.Z is already published without the <OS> files …`): soubory nejde doplnit, verze pro ten OS propadá.
 - **`CHANGELOG.md`:**
   - Existuje-li sekce `## [X.Y.Z]` (s `- unreleased`, jiným zástupným textem, jiným datem, i s pomlčkou `–`/`—` místo `-`), dostane nadpis `## [X.Y.Z] - <den vydání>`; `## [Unreleased]` musí být prázdná. Položky v obou sekcích najednou skript odmítne (spoj je ručně, rozhodnuto 2026-10-24).
   - Jinak se položky z `## [Unreleased]` přesunou do nové sekce `## [X.Y.Z] - <den vydání>` pod ní a nahoře zůstane `## [Unreleased]`. Prázdné podnadpisy šablony (např. `### Fixed` bez položek) a úvod bez položek (jen komentář) zůstanou pod `[Unreleased]`, přesunou se jen podsekce s položkami. **Úvodní odstavec s textem** před prvním `###` se počítá jako položka a přesune se s nimi: stane se úvodem textu vydání. Tak je připravený úvod textu vydání 1.0.0 (T-198 otázka 7, ověřeno `ConvertTo-ReleaseChangelog` nad skutečným `CHANGELOG.md` 2026-11-11). Sekce `## [X.Y.Z] - unreleased` předem proto není potřeba.
@@ -81,8 +85,8 @@ The Windows files follow on a Windows machine (docs/release.md, release on two m
 - **Soubory z gitu, ne z pracovního stromu:** obsah commitu kroku 1 se bere bajt po bajtu z commitu `develop` (`git cat-file blob`), změny v pracovním stromu se do něj nedostanou.
 - **Bez zásahu do pracovního stromu:** commit kroku 1 a obě sloučení vznikají bez checkoutu (vlastní dočasný index, `git merge-tree --write-tree`, proto git 2.38+). Při chybě tak nezůstane rozpracované sloučení. `main` se posouvá jen porovnáním a záměnou (`update-ref` se starou hodnotou), `develop` jen rychle vpřed (`merge --ff-only`) a jen když je `develop` vybraný a stále na očekávaném commitu. Konflikt při sloučení skript odmítne a nic nezmění.
 - **Push podle SHA:** `main`, tag a `develop` se pushují jako přesné commity potvrzené v tomto běhu (při navázání z faktů). Těsně před pushem se lokální refy porovnají s potvrzenými SHA; když se mezitím pohnuly, push se neprovede. `--atomic`: buď projdou všechny refy, nebo žádný.
-- **Nikdy:** force-push, smazání nebo přesunutí tagu, `gh release edit/delete`, zveřejnění. Mimo repozitář mění jen vlastní dočasnou složku (`%TEMP%\layerpeek-release-*`), kterou smaže i po chybě.
-- **Stažení (rozhodnuto 2026-10-24):** ostrý běh na začátku, ještě před kontrolami, spustí `git fetch --no-tags origin` (s `-Repo` remote toho repozitáře). Mění jen sledovací větve `origin/*`; žádná lokální větev ani tag se nevytvoří ani neposune. `develop` musí být dál stejný jako `origin/develop`, jinak skript požádá o `git pull --ff-only`.
+- **Nikdy:** force-push, smazání nebo přesunutí tagu, `gh release delete`, zveřejnění bez napsání verze a bez souborů všech OS (zveřejňuje jen `release-publish.ps1`). Mimo repozitář mění jen vlastní dočasnou složku (`%TEMP%\layerpeek-release-*`), kterou smaže i po chybě.
+- **Stažení (rozhodnuto 2026-10-24, tag od T-200):** ostrý běh na začátku, ještě před kontrolami, spustí `git fetch --no-tags origin` (s `-Repo` remote toho repozitáře). Mění jen sledovací větve `origin/*`; žádná lokální větev se nevytvoří ani neposune. Je-li tag `vX.Y.Z` na `origin` a lokálně chybí (druhý počítač), stáhne **jen tento tag** (`git fetch --no-tags origin refs/tags/vX.Y.Z:refs/tags/vX.Y.Z`, bez `+`: existující lokální tag se nikdy nepřepíše, jiný ohlásí plán). Na prvním počítači musí být `develop` stejný jako `origin/develop`, jinak skript požádá o `git pull --ff-only`.
 - **`-DryRun`:** nic nezmění v gitu ani na GitHubu a nic nestahuje, jen čte (`git ls-remote`, `gh auth status`, `gh release view`) a vypíše plán. Nestažený `origin/main` / `origin/develop` ohlásí s příkazem `git fetch origin`. Změnu `CHANGELOG.md` ověří na kopii v dočasné složce.
 - **`-Repo owner/název`:** jako u uploadu a publish (zkušební vydání); push `main`, tagu a `develop` pak jde na remote tohoto repozitáře a kontroly se dělají proti němu. **Jen v samostatném dočasném klonu bez `origin`** (viz „Zkušební vydání“): klon, jehož `origin` je jiný repozitář, skript odmítne, aby jeho `main` a `develop` nedostaly sloučení cizího vydání.
 - **Podpis feedu (T-181):** krok 7 spouští `release-build.ps1` bez parametrů, klíč proto bere z proměnné prostředí. Před spuštěním připoj médium s klíčem a nastav `$env:LAYERPEEK_FEED_SIGNING_KEY = '<cesta ke klíči>'` ve stejném terminálu; build se zeptá na heslo dvakrát (před buildem a při podpisu na konci) a médium musí zůstat připojené až do konce buildu (viz „Podpis feedu aktualizací“). Že stačí proměnná prostředí a `release.ps1` vlastní parametr `-FeedSigningKey` nemá, rozhodl uživatel 2026-11-11 (otázka 20 v T-181). Bez proměnné krok 7 skončí chybou a další běh `release.ps1` začne znovu buildem. Když selže až podpis na konci buildu (médium odpojené a `abort`, 3× špatné heslo), nespouštěj celý build znovu: v čistém checkoutu tagu `git switch --detach vX.Y.Z`, `pwsh scripts/release-build.ps1 -SignOnly`, pak `git switch develop` a znovu `release.ps1 -Version X.Y.Z`; krok 7 už najde hotový podepsaný build a pokračuje nahráním (viz „Jen podepsat hotový `dist/`“, T-197).
@@ -105,6 +109,9 @@ Všechny problémy vypíše najednou spolu s plánem a skončí s kódem 1:
 | existující `release/X.Y.Z`: jiná verze / sekce bez data, prázdná nebo chybí / není založená na aktuálním `develop` | `release/X.Y.Z exists, but its Directory.Build.props has version …` / `release/X.Y.Z: Section [X.Y.Z] … has no release date` / `… is not based on the current develop` |
 | existující tag: sekce `CHANGELOG.md` neprojde kontrolou uploadu | `Tag vX.Y.Z: … The tag is never changed automatically` |
 | na GitHubu už je vydání pro tag, který ještě neexistuje | `A GitHub release for vX.Y.Z already exists … although the tag does not` |
+| víc vydání pro tag (dva koncepty, T-200) | `GitHub has N releases for vX.Y.Z …` |
+| vydání je zveřejněné bez souborů tohoto OS (T-200) | `Release vX.Y.Z is already published without the <OS> files …` |
+| tag je jen na `origin` (jen `-DryRun` na druhém počítači; ostrý běh ho stáhne) | `Tag vX.Y.Z is on origin but not in the local repository (the other machine has started this release) …` |
 | `-Repo` v klonu, jehož `origin` je jiný repozitář | `This clone's origin is …, not -Repo …` |
 | push URL remote ukazuje jinam než fetch URL (`pushurl`, `pushInsteadOf`) | `Remote origin fetches from … but pushes to …` |
 | `main` nebo `release/X.Y.Z` je otevřená v jiném worktree | `Branch main is checked out in another worktree` |
@@ -119,12 +126,14 @@ Opakované spuštění **se stejnou verzí** zjistí, co je hotové, a pokračuj
 | Krok je hotový, když… |
 |---|
 | 1: existuje lokální `release/X.Y.Z`, která projde kontrolou (verze, datovaná sekce, založená na `develop`) a má datum dne vydání (jinak dostane commit s dnešním datem), nebo už tag |
-| 2: existuje lokální tag `vX.Y.Z` (sloučení `release/X.Y.Z` do `main`, verze a sekce `CHANGELOG.md` sedí) a lokální `main` ho obsahuje; když tag existuje a `main` ještě ne (selhalo posunutí `main`), posune se jen `main` |
+| 2: existuje lokální tag `vX.Y.Z` (sloučení `release/X.Y.Z` do `main`, verze a sekce `CHANGELOG.md` sedí) a lokální `main` ho obsahuje, nebo je hotový krok 3; když tag existuje a `main` ještě ne (selhalo posunutí `main`), posune se jen `main` |
 | 3: tag je na `origin` na stejném commitu a `origin/main` ho obsahuje |
-| 4 / 5: lokální / `origin/develop` obsahuje commit vydání |
-| 6: lokální `release/X.Y.Z` už neexistuje |
-| 7: `artifacts/release/X.Y.Z/build-info.json` je z commitu tagu, z čistého stromu, s podepsaným feedem (ne `-SkipFeedSignature` ani nedokončený podpis `pending`, T-181, T-197) a soubory sedí se součty |
-| 8: koncept obsahuje všechny soubory místního buildu se stejným SHA256 (nebo je vydání už zveřejněné) |
+| 4: na GitHubu je vydání pro tag (koncept nebo zveřejněné) |
+| 5 / 6: lokální nebo `origin/develop` / `origin/develop` obsahuje commit vydání |
+| 7: lokální `release/X.Y.Z` už neexistuje |
+| 8: `artifacts/release/X.Y.Z/build-info.json` je z commitu tagu, z čistého stromu, s podepsaným feedem (ne `-SkipFeedSignature` ani nedokončený podpis `pending`, T-181, T-197) a soubory sedí se součty |
+| 9: koncept obsahuje všechny soubory místního buildu se stejným SHA256 (nebo je vydání už zveřejněné) |
+| 10: vydání je zveřejněné |
 
 | Situace | Co dělat |
 |---|---|
@@ -141,110 +150,104 @@ Opakované spuštění **se stejnou verzí** zjistí, co je hotové, a pokračuj
 | „Local develop and origin/develop have diverged after the merge back“ | lokální `develop` má kromě sloučení i další commity, které na `origin` nejsou: vyřeš ručně (rada s resetem by je zahodila) |
 | „Local main … has commits after the release merge of tag …“ | lokální `main` má po tagovaném sloučení další commity; pushnulo by se jen sloučení, proto skript odmítne. Přesuň ty commity jinam (větev) a `git branch -f main vX.Y.Z`, pak spusť znovu |
 | „Local develop has other commits besides the merge“ | na `develop` přibyl lokální commit po sloučení: pushni nebo odstraň ho ručně, pak spusť znovu |
-| „The draft … already contains SHA256SUMS-windows.txt, but there is no matching local build“ | soubory Windows už jsou v konceptu, ale místní build chybí (jiný stroj, smazané `artifacts/`). Nový build by se lišil: zkontroluj koncept (`release-publish.ps1 -DryRun`) a dokonči ručně, případně `release-upload.ps1 -Force` |
+| poznámka „The draft … already has the files of this OS …, but this machine has no current build“ | soubory tohoto OS už jsou v konceptu (jiný stroj se stejným OS, smazané `artifacts/`). Build ani nahrání se neopakují (nový build by se lišil), běh pokračuje zveřejněním; `release-publish.ps1` soubory zkontroluje proti součtům |
+| „The other machine has pushed main and vX.Y.Z, but not develop yet …“ | druhý počítač začal, než první pushnul `develop` (první čeká na „Push develop“ nebo skončil před ním). Dokonči běh na prvním počítači a pak spusť znovu tady; druhý počítač `develop` nikdy neslučuje sám (lokální `develop` prvního by se rozešel s `origin`) |
+| „Tag vX.Y.Z on origin points to …“ po souběžném startu obou počítačů | druhý počítač vyhrál. Dokud lokální tag není na `origin`: `git tag -d vX.Y.Z`, `git branch -f main origin/main`, `git branch -D release/X.Y.Z` a spusť znovu – pokračuje jako druhý počítač |
 | úplně zrušit vydání, dokud tag není na `origin` | `git switch develop`, `git tag -d vX.Y.Z`, `git branch -f main origin/main`, `git branch -D release/X.Y.Z` |
 
-## Vydání od 1.0.0: oba OS do konceptu, pak zveřejnit
+## Vydání ze dvou počítačů (Windows a Mac, T-200)
 
-Rozhodnutí uživatele 2026-11-11 (T-198 otázka 4): neměnná vydání (T-180) jsou zapnutá ještě před 1.0.0, proto se
-vydání zveřejní, **až jsou v konceptu soubory obou OS**. Skripty se pro to nemění (zveřejnění bez `-AllowIncomplete`
-úplnost vynutí samo); jen se nepoužívá `-AllowIncomplete` ani `-AddToPublished`. Pořadí OS je libovolné, typicky jde
-Mac první:
+Rozhodnutí uživatele 2026-11-22 (T-200): na **obou počítačích se spouští stejný příkaz**
+`pwsh scripts/release.ps1 -Version X.Y.Z`, v libovolném pořadí. Prvním počítačem může být jednou Windows, jindy Mac.
+Co je hotové, skript pozná ze stavu (tag na `origin`, soubory v konceptu), ne ze záznamu minulého běhu, a udělá jen
+zbytek. Neměnná vydání (T-180, od 1.0.0) nedovolí soubory zveřejněného vydání změnit ani doplnit, proto se zveřejňuje
+jen koncept se soubory obou OS. Tok T-113 (jeden OS zveřejní s `-AllowIncomplete`, druhý doplní `-AddToPublished`)
+skončil. Oba přepínače zůstaly jen kvůli vysvětlení: skripty je vždy odmítnou s kódem 1 a tímto postupem, i pro `-Repo`,
+a GitHubu se přitom na nic neptají (rozhodnutí uživatele 2026-11-12, T-200 otázky 1–3).
 
-1. **Mac** (`release.ps1`, Gitflow, build, koncept). Klíč a token podle „Podpis feedu (T-181)“ a T-180:
+| | První počítač | Druhý počítač |
+|---|---|---|
+| Gitflow (větev, `main` + tag, `develop`) | provede, s potvrzením | přeskočí: je hotový na `origin`, lokální `main` a `develop` se nemění |
+| tag `vX.Y.Z` | vytvoří a pushne | ostrý běh stáhne jen tento tag (`git fetch --no-tags origin refs/tags/vX.Y.Z:refs/tags/vX.Y.Z`, bez `+`, takže existující lokální tag nepřepíše) |
+| koncept | vytvoří **hned po pushi tagu** (prázdný, text ze sekce `CHANGELOG.md` tagu) a vypíše, že druhý počítač může začít | najde ho |
+| build a nahrání | soubory svého OS | soubory svého OS |
+| zveřejnění | `[wait]`: čeká na soubory druhého OS, běh skončí blokem `NEXT STEP` pro druhý počítač | koncept je úplný: `release-publish.ps1 -DryRun`, potvrzení **napsáním verze**, `release-publish.ps1` (na Windows pak nabídka winget) |
 
-   ```powershell
-   git switch develop
-   git pull --ff-only
-   pwsh scripts/release.ps1 -Version X.Y.Z -DryRun
-   $env:LAYERPEEK_FEED_SIGNING_KEY = '/Volumes/LP-KEY/layerpeek-feed-key.pem'   # médium připojené až do konce buildu
-   caffeinate -d -i -u pwsh scripts/release.ps1 -Version X.Y.Z                   # potvrzení pushů, heslo 2×, upload do konceptu
-   Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY
-   ```
+Zveřejňuje ten počítač, který nahraje poslední. Když uživatel zveřejnění odmítne, koncept zůstane úplný a soukromý.
+Zveřejnit ho jde později na **kterémkoli** počítači stejným příkazem: ostatní kroky najde hotové. Druhý počítač smí
+začít hned, jak první vypíše `Tag vX.Y.Z, develop and the draft are on GitHub` (po pushi `develop`), tedy i souběžně
+s buildem prvního. Kdyby začal dřív, odmítne pokračovat, dokud první `develop` nepushne. Když
+nahraje dřív, čeká se na soubory prvního počítače a zveřejní ten.
 
-   Výpis na konci nabízí i `release-publish.ps1 -AllowIncomplete` a `-AddToPublished`: **nepoužívat** (T-200 výpis
-   upraví). Vydání zůstává konceptem.
+### Postup na každém počítači
 
-2. **Windows** (bez Gitflow, `release.ps1` se tu nespouští), s médiem s klíčem:
-
-   ```powershell
-   git fetch origin --tags
-   git switch --detach vX.Y.Z
-   pwsh scripts/release-build.ps1 -FeedSigningKey E:\layerpeek-feed-key.pem   # heslo 2×
-   pwsh scripts/release-upload.ps1 -DryRun
-   pwsh scripts/release-upload.ps1                                            # do konceptu, bez -AddToPublished
-   ```
-
-3. **Kontrola konceptu** na GitHubu (*Releases*, koncept vidí jen správce): text = sekce `[X.Y.Z]` z `CHANGELOG.md`,
-   od 1.0.0 **ne** předběžné, soubory obou OS včetně `releases.win-x64.json.sig`, `releases.win-arm64.json.sig` (od prvního
-   vydání po 1.0.0) a `releases.osx-arm64.json.sig`.
-
-4. **Zveřejnění** na kterémkoli počítači v čistém checkoutu tagu (na Windows rovnou z kroku 2, nabídne i winget):
-
-   ```powershell
-   git switch --detach vX.Y.Z                # na Macu: release.ps1 se na konci vrátil na develop
-   pwsh scripts/release-publish.ps1 -DryRun
-   pwsh scripts/release-publish.ps1          # bez -AllowIncomplete: odmítne koncept bez souborů některého OS
-   git switch develop
-   ```
-
-5. Jen u **1.0.0**: hned po zveřejnění kontrola aktualizace z GitHubu buildem 0.9.9 na obou OS (viz „Kontrola
-   aktualizace z GitHubu buildem 0.9.9“).
-
-Když se soubory druhého OS nepodaří sestavit kvůli chybě v kódu tagu, vydání se nezveřejní. Tag `vX.Y.Z` smazat ani
-přesunout nejde (ruleset „Tags v*“ z T-180 bez bypassu), verze tedy propadne: koncept smazat (`gh release delete
-vX.Y.Z`), chybu opravit v `develop` a vydat další verzi. Proto generálka podepsaného buildu na obou OS předem (T-198 B4).
-
-## Vydání na dvou počítačích (OS 1 zveřejní, OS 2 doplní, T-113)
-
-> **Od 1.0.0 se nepoužívá:** s neměnnými vydáními (T-180) nejde do zveřejněného vydání nic doplnit. Platí „Vydání od
-> 1.0.0: oba OS do konceptu, pak zveřejnit“. Oddíl zůstává jako popis přepínačů, dokud je T-200 neodstraní nebo
-> neomezí.
-
-Rozhodnutí uživatele (2026-10-30): pod jednou verzí `vX.Y.Z` se smí nejdřív zveřejnit soubory jednoho OS (typicky macOS) a soubory druhého OS doplnit později, na jiném počítači a v jinou dobu. Text vydání se při částečném zveřejnění **nemění** (žádná dočasná věta; skripty text vydání nikdy neupravují) a příznak předběžného vydání zůstane, jak byl.
-
-**Počítač s prvním OS** (Gitflow, build, koncept, zveřejnění):
-
-```bash
-git switch develop && git pull --ff-only
-pwsh scripts/release.ps1 -Version X.Y.Z -DryRun
-pwsh scripts/release.ps1 -Version X.Y.Z            # kroky 1–8: větev, main + tag, develop, build tagu, koncept
-git switch --detach vX.Y.Z
-pwsh scripts/release-publish.ps1 -DryRun            # odmítne chybějící SHA256SUMS druhého OS – to je v pořádku
-pwsh scripts/release-publish.ps1 -AllowIncomplete   # zveřejní vydání jen se soubory tohoto OS
-git switch develop
-```
-
-**Počítač s druhým OS** (později; žádný Gitflow, `release.ps1` se tu nespouští):
+Windows (PowerShell):
 
 ```powershell
-git fetch origin --tags
-git switch --detach vX.Y.Z                         # čistý strom, tag z origin
-pwsh scripts/release-build.ps1 -FeedSigningKey <cesta ke klíči>   # build tohoto OS z tagu, podpis feedu (T-181)
-pwsh scripts/release-upload.ps1 -AddToPublished -DryRun
-pwsh scripts/release-upload.ps1 -AddToPublished    # doplní soubory tohoto OS do zveřejněného vydání
 git switch develop
+git pull --ff-only
+pwsh scripts/release.ps1 -Version X.Y.Z -DryRun                 # plán, stav na GitHubu a NEXT STEP; nic nemění ani nestahuje
+$env:LAYERPEEK_FEED_SIGNING_KEY = 'E:\layerpeek-feed-key.pem'    # médium připojené až do konce buildu
+pwsh scripts/release.ps1 -Version X.Y.Z                         # potvrzení, heslo ke klíči 2×
+Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY
 ```
 
-Co `-AddToPublished` dělá a hlídá:
+Mac (`pwsh` v Terminálu, ve fyzické cestě k repozitáři, přes SSH v `tmux`):
 
-- Platí všechny kontroly uploadu (tag na `HEAD` = `<Version>`, tag na `origin`, `HEAD` v `origin/main`, čistý strom, značka sestavení, součty).
-- Vydání musí existovat a být **zveřejněné** (koncept: nahraj bez přepínače a zveřejni) a nesmí ještě obsahovat `SHA256SUMS-<os>.txt` tohoto OS. Soubory jednoho OS se doplní jen jednou; OS, jehož součty už ve vydání jsou, skript odmítne.
-- **Nikdy nic nepřepíše** (s `-Force` se nekombinuje). Soubory se stejným SHA256 přeskočí (navázání po přerušení: stačí spustit znovu). Nedokončený soubor (GitHub ho hlásí ve stavu `starter`, bez `digest`) nebo soubor s jiným obsahem odmítne s návodem: soubor smaž ručně na stránce vydání (*Edit*) a spusť znovu.
-- Feed tohoto OS musí mít podpis `.sig` (T-181), takže doplnit OS do vydání zveřejněného **před** T-181 nejde; přijato uživatelem 2026-11-11 (otázka 21 v T-181; T-180 má `-AddToPublished` stejně zrušit).
-- Nejdřív nahraje balíčky (`.zip`, `Setup.exe`, `.nupkg`, `.dmg`, `.tar.gz`) a podpisy feedu (`releases.<RID>.json.sig`, T-181) a **až potom** soubory, podle kterých aplikace OS ve vydání pozná: `SHA256SUMS-<os>.txt` a feed Velopacku (`releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`). Během nahrávání tak žádná aplikace nedostane nabídku vydání, jehož balíčky tam ještě nejsou.
-- Na konci zkontroluje celé zveřejněné vydání stejně jako `release-publish.ps1`: součty obou OS, feed každého vydávaného RID, každý soubor ze součtů se stejným SHA256, nic navíc. Při problému skončí s kódem 1 a vypíše ho (soubory už jsou nahrané, oprav ručně).
-- Po úspěšné kontrole nabídne odeslání do winget stejně jako `release-publish.ps1` (T-059, viz „Publikace do winget“): typicky právě tady, když Mac zveřejnil vydání s `-AllowIncomplete` a Windows soubory přišly až teď.
-- Bez přepínače se chování nemění: nahrání do zveřejněného vydání skript odmítne (`Release vX.Y.Z is already published …`) a nově jen poradí `-AddToPublished`.
+```powershell
+git switch develop
+git pull --ff-only
+pwsh scripts/release.ps1 -Version X.Y.Z -DryRun
+$env:LAYERPEEK_FEED_SIGNING_KEY = '/Volumes/LP-KEY/layerpeek-feed-key.pem'
+caffeinate -d -i -u pwsh scripts/release.ps1 -Version X.Y.Z    # Mac by během asi 20 minut buildu usnul
+Remove-Item Env:LAYERPEEK_FEED_SIGNING_KEY
+```
 
-Co mezitím vidí aplikace:
+`-DryRun` na druhém počítači před stažením tagu skončí hláškou `Tag vX.Y.Z is on origin but not in the local
+repository (the other machine has started this release)`. To je v pořádku: ostrý běh tag stáhne sám (pro další
+`-DryRun` stačí vypsaný příkaz `git fetch --no-tags origin refs/tags/vX.Y.Z:refs/tags/vX.Y.Z`).
 
-- **Instalace přes Velopack** (Windows `Setup.exe`, macOS v Aplikacích) hledá vydání podle feedu `releases.<RID>.json`; vydání bez feedu svého RID přeskočí (ověřeno ve zdroji Velopack 1.2.161, `GitBase.GetReleaseFeed`).
-- **Aplikace mimo Velopack** (`.zip` na Windows, `.app` mimo Aplikace) se ptá GitHubu přímo (`GitHubReleaseChecker`, T-058) a od T-113 nabídne jen vydání, které má úplně nahraný (`state` = `uploaded`) soubor `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt` OS, na kterém běží. Vydání bez souborů tohoto OS přeskočí stejně jako koncept.
+### Co běh vypíše na konci (návod pro člověka i agenta)
+
+Plán ukazuje u každého kroku `[done]`, `[todo]` nebo `[wait]` a pod ním stav na GitHubu, např.
+`GitHub: draft vX.Y.Z: macOS files uploaded, Windows files missing.`. OS se počítá jako nahraný až se svým
+`SHA256SUMS-<os>.txt`, který se nahrává poslední. Každý běh (i po chybě a odmítnutí) končí blokem s přesným dalším
+krokem a počítačem, kde ho spustit:
+
+| Konec běhu | Kód | Poslední blok |
+|---|---|---|
+| koncept čeká na druhý OS | 0 | `NEXT STEP: on the <OS> machine (the <OS> files are missing in the draft vX.Y.Z), the same command:` + `git switch develop`, `git pull --ff-only`, nastavení klíče, příkaz (na Macu s `caffeinate`) a `Do not publish before: published releases are immutable …` |
+| zveřejnění odmítnuto | 1 | `NEXT STEP: the draft vX.Y.Z has the files of every OS but is not published. To publish, on either machine:` |
+| odmítnuté potvrzení jiného kroku | 1 | `Stopped before: <krok> (not confirmed) …` a `NEXT STEP: re-run on this machine: …` |
+| chyba | 1 | `Release FAILED: …` a `NEXT STEP: fix the cause and re-run on this machine: …` |
+| problém v plánu (kontroly předem) | 1 | výpis problémů a `NEXT STEP: fix the problems above as they say, then re-run on this machine: …` |
+| zveřejněno, nebo už zveřejněné se soubory všech OS | 0 | `Release vX.Y.Z is published with the files of every OS. Nothing left to do for this version.` |
+| `-DryRun` | 0 / 1 | `NEXT STEP: the real run on this machine does the steps marked [todo] …`, nebo blok pro druhý počítač, když tu nic nezbývá |
+
+Agent může spustit `-DryRun` a podle bloku `NEXT STEP` říct, co a na kterém počítači spustit. Heslo ke klíči feedu čte
+skript z terminálu (T-181) a zadává ho vždy člověk. Potvrzení kroků ven (napsání verze, `y/N`) jsou otázky na uživatele.
+
+### Když se něco pokazí
+
+| Situace | Co dělat |
+|---|---|
+| `GitHub has 2 releases for vX.Y.Z …` | oba počítače vytvořily koncept ve stejném okamžiku (koncept vzniká hned po pushi tagu, okno je pár sekund). Skripty pak nic nenahrají ani nezveřejní. Na GitHubu (*Releases*) nech koncept se soubory, druhý smaž (*Edit* → *Delete*; `gh release delete` je podle tagu nerozliší) a spusť znovu |
+| `Release vX.Y.Z is already published without the <OS> files …` | vydání je zveřejněné bez tohoto OS (např. 1.0.0 bez `win-arm64`, nebo zveřejněné ručně). Soubory už nejde doplnit, verze pro tento OS propadá: vydej další verzi z obou počítačů |
+| druhý OS nejde sestavit kvůli chybě v kódu tagu | vydání nezveřejňuj. Tag `vX.Y.Z` smazat ani přesunout nejde (ruleset „Tags v*“ z T-180 bez bypassu), verze propadá: koncept smaž (`gh release delete vX.Y.Z`, dokud je jediný), chybu oprav v `develop` a vydej další verzi. Proto generálka podepsaného buildu na obou OS předem (T-198 B4) |
+| `The other machine has pushed main and vX.Y.Z, but not develop yet …` | první počítač ještě nepushnul `develop`: dokonči jeho běh, pak spusť znovu tady |
+| druhý počítač má zastaralý `develop` (skripty bez T-200) | `git switch develop`, `git pull --ff-only` a spusť znovu (`release.ps1` běží z `develop`, build a nahrání ze skriptů tagu) |
+
+### Historie: doplnění do zveřejněného vydání (T-113, do 1.0.0)
+
+Do 1.0.0 šlo vydání zveřejnit jen se soubory jednoho OS (`release-publish.ps1 -AllowIncomplete`) a soubory druhého OS
+doplnit později do zveřejněného vydání (`release-upload.ps1 -AddToPublished`). Tak vyšly 0.3.1 až 0.5.0. S neměnnými
+vydáními (T-180) to nejde a od T-200 oba přepínače jen vypíšou postup výše a skončí s kódem 1. Aplikace mimo Velopack
+dál nabízí jen vydání s úplně nahraným `SHA256SUMS-<os>.txt` svého OS (`GitHubReleaseChecker`, T-113) a instalace přes
+Velopack vydání bez feedu svého RID přeskočí (ověřeno ve zdroji Velopack 1.2.161, `GitBase.GetReleaseFeed`).
 
 ## Postup
 
-Ruční postup (reference; `scripts/release.ps1` dělá kroky 1–3 sám). Kroky 3 a 4 jdou v libovolném pořadí – první je ten OS, na kterém běží `release.ps1`. Druhý OS může jít ještě do konceptu (kroky 3/4) nebo až po zveřejnění (`-AddToPublished`, viz „Vydání na dvou počítačích“).
+Ruční postup (reference; `scripts/release.ps1` dělá všechny kroky sám, na obou počítačích). Kroky 3 a 4 jdou v libovolném pořadí. Zveřejňuje se (krok 5) jen se soubory obou OS v konceptu: zveřejněné vydání je neměnné (T-180).
 
 ### 1. Větev release (Gitflow)
 
@@ -291,7 +294,7 @@ Výchozí build sestaví `win-x64` i `win-arm64` (nahrávají se oba, rozhodnut�
 
 ### 4. Běh na Macu
 
-Stejné příkazy na Macu (Apple Silicon), **až když běh prvního OS úspěšně skončil** (souběžné běhy nejsou ošetřené; jde-li Mac první, je to naopak a krok 3 přijde po něm). Terminál musí být ve fyzické cestě k repozitáři (`echo $PWD` = `pwd -P`, viz [prerequisites.md](prerequisites.md)). Build spouštěj pod `caffeinate -d -i -u` (Mac jinak během asi 20 minut buildu usne), přes SSH v `tmux`.
+Stejné příkazy na Macu (Apple Silicon), **až když běh prvního OS úspěšně skončil** (ruční `release-upload.ps1` bez konceptu vytvoří koncept sám, souběžné ruční běhy proto ne; `release.ps1` souběh zvládá, viz „Vydání ze dvou počítačů“; jde-li Mac první, je to naopak a krok 3 přijde po něm). Terminál musí být ve fyzické cestě k repozitáři (`echo $PWD` = `pwd -P`, viz [prerequisites.md](prerequisites.md)). Build spouštěj pod `caffeinate -d -i -u` (Mac jinak během asi 20 minut buildu usne), přes SSH v `tmux`.
 
 ```bash
 git switch --detach vX.Y.Z
@@ -302,7 +305,7 @@ pwsh scripts/release-upload.ps1                 # přidá soubory macOS do konce
 
 Ruční ověření macOS buildu (Gatekeeper, oprávnění, menu bar, monitory, přihlášení, uspaný displej) je souhrnně v [macos-manual-testing.md](macos-manual-testing.md).
 
-Vznikne `LayerPeek-X.Y.Z-osx-arm64.dmg`, `LayerPeek-X.Y.Z-osx-arm64.tar.gz`, od T-058 i `LayerPeek-X.Y.Z-osx-arm64-full.nupkg`, `releases.osx-arm64.json`, `assets.osx-arm64.json`, `RELEASES-osx-arm64` (aktualizace přes Velopack) a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu (postup sestavení viz „Balení pro macOS“ níže). Archiv se na macOS balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, takže neobsahuje položky AppleDouble `._*` (ověřeno v T-019 výpisem `tar -tzf`). Po běhu na Macu se zveřejňuje bez `-AllowIncomplete`.
+Vznikne `LayerPeek-X.Y.Z-osx-arm64.dmg`, `LayerPeek-X.Y.Z-osx-arm64.tar.gz`, od T-058 i `LayerPeek-X.Y.Z-osx-arm64-full.nupkg`, `releases.osx-arm64.json`, `assets.osx-arm64.json`, `RELEASES-osx-arm64` (aktualizace přes Velopack) a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu (postup sestavení viz „Balení pro macOS“ níže). Archiv se na macOS balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, takže neobsahuje položky AppleDouble `._*` (ověřeno v T-019 výpisem `tar -tzf`). Zveřejňuje se, až má koncept soubory obou OS.
 
 ### 5. Kontrola a zveřejnění
 
@@ -316,7 +319,7 @@ pwsh scripts/release-publish.ps1
 
 Po zveřejnění skript nabídne odeslání do winget (jen Windows, stabilní verze se souborem `Setup.exe`; jinak jen vypíše, proč ne nebo jak to udělat později), viz „Publikace do winget“.
 
-`release-publish.ps1` zveřejní koncept jen tehdy, když obsahuje `SHA256SUMS-windows.txt` i `SHA256SUMS-macos.txt`, všechny soubory z nich jsou nahrané se stejným SHA256 (podle `digest`, který hlásí GitHub), žádný jiný soubor tam není a není tam soubor RID, který se nahrávat nesmí (`Uploadable = $false`, dnes žádný). Přepínač `-AllowIncomplete` dovolí zveřejnit vydání bez souborů některého OS (např. jen macOS); nahrané soubory se kontrolují i tak. Soubory chybějícího OS se pak doplní `release-upload.ps1 -AddToPublished` (viz „Vydání na dvou počítačích“). (Do T-113 `-AllowIncomplete` skončil chybou `Cannot bind argument to parameter 'ExpectedOs' it is null`; opraveno.)
+`release-publish.ps1` zveřejní koncept jen tehdy, když je jediným vydáním tagu, obsahuje `SHA256SUMS-windows.txt` i `SHA256SUMS-macos.txt`, všechny soubory z nich jsou nahrané se stejným SHA256 (podle `digest`, který hlásí GitHub), žádný jiný soubor tam není a není tam soubor RID, který se nahrávat nesmí (`Uploadable = $false`, dnes žádný). `-AllowIncomplete` od T-200 jen odmítne (neměnná vydání).
 
 ### 6. Ověření staženého souboru
 
@@ -460,22 +463,21 @@ Navíc jen `release-upload.ps1`:
 | `build-info.json` bez stavu podpisu (build starší než T-181) | `Build output has no update feed signature (made before T-181?) …` |
 | `releases.<RID>.json` bez `releases.<RID>.json.sig` ve výstupu | `Build output has releases.<RID>.json without its signature …` |
 | v `dist/` je soubor navíc, chybí nebo nesedí SHA256 | `dist contains files not produced by the build` / `… does not match its SHA256` |
-| vydání už je zveřejněné (bez `-AddToPublished`) | `Release vX.Y.Z is already published … To add the files of an OS … -AddToPublished` |
+| vydání už je zveřejněné (neměnné) | `Release vX.Y.Z is already published … Files are uploaded only into a draft. It already has the <os> files.` / `It has no <os> files, and published releases are immutable (T-180): they can never be added …` |
+| víc vydání pro tag (dva koncepty, T-200) | `GitHub has N releases for vX.Y.Z …` |
 | soubor se stejným názvem, ale jiným obsahem už je nahraný | `Already uploaded with different content … Re-run with -Force` |
-| `-AddToPublished` s `-Force` | `-AddToPublished never replaces a file, so it cannot be combined with -Force` |
-| `-AddToPublished`: vydání neexistuje / je koncept | `There is no release for vX.Y.Z. -AddToPublished only adds files to a published release` / `Release vX.Y.Z is still a draft` |
-| `-AddToPublished`: součty tohoto OS už ve vydání jsou | `Published release vX.Y.Z already contains SHA256SUMS-<os>.txt` |
-| `-AddToPublished`: soubor s jiným obsahem / nedokončený | `… is in release vX.Y.Z with different content … Nothing is overwritten` / `… its upload did not finish (state starter, no SHA256)` |
-| `-AddToPublished`: kontrola celého vydání po nahrání | `Check of the published release vX.Y.Z REFUSED …` |
+| `-AddToPublished` (s čímkoli, i `-Repo`; před všemi kontrolami, bez volání `gh`) | `-AddToPublished is no longer supported (T-200) … Upload the files of both OS into the draft first, then publish …` |
 
-Navíc jen `release-publish.ps1` (a kontrola po `release-upload.ps1 -AddToPublished`):
+Navíc jen `release-publish.ps1`:
 
 | Kontrola | Hláška (začátek) |
 |---|---|
 | vydání neexistuje / už je zveřejněné | `There is no release for vX.Y.Z` / `Release vX.Y.Z is already published` |
-| chybí `SHA256SUMS-<os>.txt` některého OS (bez `-AllowIncomplete`) | `Release vX.Y.Z has no SHA256SUMS-<os>.txt` |
+| víc vydání pro tag (dva koncepty, T-200) | `GitHub has N releases for vX.Y.Z …` |
+| chybí `SHA256SUMS-<os>.txt` některého OS | `Release vX.Y.Z has no SHA256SUMS-<os>.txt: the <os> build is not uploaded yet. Upload it on the <os> machine first …` |
 | chybí feed `releases.<RID>.json` vydávaného RID | `Release vX.Y.Z has no releases.<RID>.json: installations of …` |
-| feed `releases.<RID>.json` bez podpisu `releases.<RID>.json.sig` (T-181, i s `-AllowIncomplete`) | `Release vX.Y.Z has releases.<RID>.json but no releases.<RID>.json.sig …` |
+| feed `releases.<RID>.json` bez podpisu `releases.<RID>.json.sig` (T-181) | `Release vX.Y.Z has releases.<RID>.json but no releases.<RID>.json.sig …` |
+| `-AllowIncomplete` (s čímkoli; před všemi kontrolami, bez volání `gh`) | `-AllowIncomplete is no longer supported (T-200) …` |
 | soubor chybí, nesedí SHA256 nebo není v žádném souboru součtů | `… is listed in … but not uploaded` / `Uploaded … does not match its SHA256` / `… is uploaded but not listed in any checksum file` |
 
 Skripty `origin` jen čtou jedním `git ls-remote`, nic nestahují ani nepushují (lokální refy se nemění). `gh auth status` se volá bez výpisu.
@@ -487,7 +489,7 @@ Skripty `origin` jen čtou jedním `git ls-remote`, nic nestahují ani nepushuj�
 | nahrání spadlo uprostřed (síť) | spusť `release-upload.ps1` znovu: soubory se stejným obsahem přeskočí, zbytek nahraje |
 | po novém buildu stejného commitu hlásí „different content“ | AOT build nemusí být bajtově stejný. Buď nahraj původní výstup, nebo spusť s `-Force` (přepíše soubory v konceptu, `--clobber`) |
 | v tagovaném commitu je chyba | koncept smaž (`gh release delete vX.Y.Z`), tag smaž (`git push origin :refs/tags/vX.Y.Z`, `git tag -d vX.Y.Z`), oprav to v `release/X.Y.Z` nebo `hotfix/X.Y.Z` a začni krokem 2. Už zveřejněné vydání neměň, vydej novou verzi |
-| druhý OS spustil `release-upload.ps1` dřív, než první doběhl | nedělej to: druhý OS spouštěj až po úspěšném konci prvního běhu. Souběžné vytvoření konceptu ze dvou strojů není ošetřené ani ověřené (viz zkušební vydání). Když se to stane, zkontroluj na GitHubu, že vznikl jen jeden koncept (případný druhý smaž), a spusť upload znovu |
+| oba počítače běží souběžně | od T-200 v pořádku: koncept vzniká hned po pushi tagu a druhý počítač ho najde. Kdyby přesto vznikly dva koncepty (oba ve stejném okamžiku), skripty nic nenahrají ani nezveřejní a vypíšou `GitHub has 2 releases for vX.Y.Z …`: druhý koncept smaž na GitHubu a spusť znovu (viz „Vydání ze dvou počítačů“) |
 | nahrání bylo přerušené (pád, Ctrl+C) | spusť `release-upload.ps1` znovu. Nedokončený soubor může na GitHubu zůstat ve stavu `starter` bez `digest`: skript ho bere jako „jiný obsah“ a bez `-Force` ho odmítne, s `-Force` ho přepíše. Chování ověřit při zkušebním vydání |
 | `release-build.ps1` hlásí chybějící komponentu MSVC | viz [prerequisites.md](prerequisites.md) |
 | `release-build.ps1` hlásí chybu klíče feedu (`No update feed signing key`, `… does not exist. Is the key medium connected?`, `… trusts no key yet`, `… is not trusted by …`, `cannot be decrypted`) | viz „Podpis feedu aktualizací“ níže (tabulka „Co `release-build.ps1` odmítne“) |
@@ -508,7 +510,7 @@ Velopack ověřuje stažený balíček jen proti SHA256 ve feedu `releases.<RID>
 - **Prázdný `UpdateFeedKeys.Production`** (např. omyl při rotaci) build bez `-SkipFeedSignature` odmítne (otázka 8 v T-181): nevznikne vydání, jehož aplikace by už žádnou další aktualizaci nepřijala. Produkční klíč je v seznamu od 2026-11-11 (otisk veřejného klíče `4cb047d19a472427db721e607c76c15ba0fad96e59d564114a62a7e5e7b91e26`).
 - **Zkušební build** `-SkipFeedSignature` klíč nepotřebuje; `build-info.json` ho označí (`Status` `skipped`) a `release-upload.ps1` ho odmítne. Hodí se pro místní ověření balení (`macos-verify.ps1`, `windows-verify.ps1`, E2E test instalátoru).
 - **`release-upload.ps1`** nahraje `.sig` spolu s balíčky v prvním volání `gh release upload` a feed až v druhém (nový koncept nejdřív vytvoří prázdný). Feed tak na GitHubu nikdy není bez svého podpisu.
-- **`release-publish.ps1`** (i kontrola po `-AddToPublished`) odmítne vydání, kde u některého `releases.<RID>.json` chybí `.sig`, i s `-AllowIncomplete`.
+- **`release-publish.ps1`** odmítne vydání, kde u některého `releases.<RID>.json` chybí `.sig`.
 
 Co `release-build.ps1` odmítne (před buildem, kód 1):
 
@@ -712,8 +714,8 @@ stažením): `release-upload.ps1` při vytvoření konceptu připojí za sekci `
 s odkazy na oba archivy vydání (`Get-ReleaseNotes`, `Get-FFmpegSourceNotice`; adresy
 `https://github.com/<repozitář>/releases/download/v<verze>/ffmpeg-source-<verze>-windows.tar.xz` a `…-macos.tar.xz`,
 repozitář podle `-Repo`). `-DryRun` celý text vypíše. Do balíčku Velopack jde dál jen sekce `CHANGELOG.md`; manifest
-winget větu nedostává. README (EN i CZ) má stejnou větu v oddílu stažení. Vydání jen s jedním OS (`-AllowIncomplete`,
-do 1.0.0) má odkaz druhého OS do doplnění jeho souborů nefunkční.
+winget větu nedostává. README (EN i CZ) má stejnou větu v oddílu stažení. Vydání zveřejněná jen s jedním OS (`-AllowIncomplete`,
+do 1.0.0) mají odkaz druhého OS nefunkční; od T-200 se jen s jedním OS nezveřejňuje.
 
 **Nová verze FFmpeg:** `build/update-ffmpeg.ps1 -Update` připne nový tarball, který je zároveň zdrojem vydání; nic
 dalšího se nepřipíná (postup v `docs/prerequisites.md`, „Nová verze FFmpeg“).
@@ -866,11 +868,11 @@ Tři revidované šablony (UTF-8 bez BOM), ze kterých skript vytvoří manifest
 
 Další verze se posílají `wingetcreate update`: vezme manifest předchozí verze z winget-pkgs a změní jen verzi, URL, SHA256, `ReleaseNotesUrl` a `ReleaseDate`. Ostatní pole (i `LicenseUrl` s tagem 1.0.0) zůstanou z předchozí verze; změna šablon se proto do winget dostane jen ručně (PR s celým manifestem nebo `wingetcreate update --interactive`).
 
-**Windows ARM64 ve winget (T-226):** vydání se souborem `…-win-arm64-Setup.exe` dostane `wingetcreate update` se dvěma URL (x64 a arm64, architekturu bere `wingetcreate` z URL), vydání bez něj s jednou. Protože `update` potřebuje stejný počet URL jako uzlů předchozího manifestu, **první vydání s `win-arm64`** (první vydání po 1.0.0; předchozí verze ve winget-pkgs, 1.0.0, má jen `x64`) projde jen ručně: `pwsh scripts/release-winget.ps1 -Version X.Y.Z -OutputDirectory <složka>` (manifest z šablon s uzly `x64` a `arm64`), `winget validate --manifest <složka>` a odeslání té složky `wingetcreate submit <složka>` (token jako v části [Token](#token)). Když automatické `update` v té situaci selže, skript to v chybě vypíše. Totéž obráceně: vydání bez `…-win-arm64-Setup.exe` po vydání s ním (předchozí manifest má dva uzly) `update` s jednou URL odmítne; skript poradí doplnit soubory `win-arm64` (`release-upload.ps1 -AddToPublished`) nebo ruční odeslání manifestu jen `x64`. Obě varianty šablony prošly 2026-11-15 `winget validate` (winget 1.30, schéma 1.28.0); `winget install --manifest` na ARM64 je v T-227.
+**Windows ARM64 ve winget (T-226):** vydání se souborem `…-win-arm64-Setup.exe` dostane `wingetcreate update` se dvěma URL (x64 a arm64, architekturu bere `wingetcreate` z URL), vydání bez něj s jednou. Protože `update` potřebuje stejný počet URL jako uzlů předchozího manifestu, **první vydání s `win-arm64`** (první vydání po 1.0.0; předchozí verze ve winget-pkgs, 1.0.0, má jen `x64`) projde jen ručně: `pwsh scripts/release-winget.ps1 -Version X.Y.Z -OutputDirectory <složka>` (manifest z šablon s uzly `x64` a `arm64`), `winget validate --manifest <složka>` a odeslání té složky `wingetcreate submit <složka>` (token jako v části [Token](#token)). Když automatické `update` v té situaci selže, skript to v chybě vypíše. Totéž obráceně: vydání bez `…-win-arm64-Setup.exe` po vydání s ním (předchozí manifest má dva uzly) `update` s jednou URL odmítne; skript poradí ruční odeslání manifestu jen `x64` (soubory `win-arm64` do zveřejněného vydání doplnit nejde, T-180). Obě varianty šablony prošly 2026-11-15 `winget validate` (winget 1.30, schéma 1.28.0); `winget install --manifest` na ARM64 je v T-227.
 
 ### Postup: první verze 1.0.0 (Windows)
 
-Po zveřejnění 1.0.0 včetně souborů Windows (`release-publish.ps1`, nebo `release-upload.ps1 -AddToPublished` po zveřejnění z Macu), v čistém checkoutu tagu:
+Po zveřejnění 1.0.0 včetně souborů Windows (`release-publish.ps1`), v čistém checkoutu tagu:
 
 ```powershell
 git switch --detach v1.0.0
@@ -894,17 +896,17 @@ Skript vytvoří manifest v dočasné složce (po odeslání ji smaže), spustí
 
 ### Postup: další verze (volitelný krok vydání)
 
-`release-publish.ps1` po zveřejnění a `release-upload.ps1 -AddToPublished` po doplnění souborů vypíšou řádek `winget: …`:
+`release-publish.ps1` po zveřejnění (i spuštěný z `release.ps1`) vypíše řádek `winget: …`:
 
 | Situace | Co se stane |
 |---|---|
 | verze `0.x` | `winget: 0.x is a pre-release, it is not submitted` – nic dalšího |
 | vydání jiného repozitáře (`-Repo`, zkušební vydání) | nic se neodesílá |
-| vydání ještě nemá `Setup.exe` (zveřejněno z Macu s `-AllowIncomplete`) | odkaz na `release-upload.ps1 -AddToPublished` na Windows, který odeslání nabídne |
+| vydání nemá `Setup.exe` (zveřejněné bez Windows před T-200) | `winget: the release has no …-Setup.exe, so this version is not submitted to winget` (soubor už nejde doplnit) |
 | běží na macOS | příkaz `pwsh scripts/release-winget.ps1 -Version X.Y.Z` pro Windows |
 | Windows, stabilní verze, `Setup.exe` ve vydání | otázka `Submit LayerPeek X.Y.Z to winget (microsoft/winget-pkgs) now? [y/N]`; po `y` stejný postup jako `release-winget.ps1`: výpis plánu a druhé potvrzení před otevřením PR |
 
-Selhání odeslání vydání nerozbije (zveřejnění i doplnění skončí s kódem 0), skript vypíše chybu a příkaz pro opakování. Samostatně (např. později): `pwsh scripts/release-winget.ps1 -Version X.Y.Z [-DryRun]`. Balíček už ve winget-pkgs je, takže se volá `wingetcreate update 3DPrint.LayerPeek --version X.Y.Z --urls <Setup.exe> --release-notes-url <vydání> --release-date <datum> --prtitle "Update: 3DPrint.LayerPeek to X.Y.Z" --submit`.
+Selhání odeslání vydání nerozbije (zveřejnění skončí s kódem 0), skript vypíše chybu a příkaz pro opakování. Samostatně (např. později): `pwsh scripts/release-winget.ps1 -Version X.Y.Z [-DryRun]`. Balíček už ve winget-pkgs je, takže se volá `wingetcreate update 3DPrint.LayerPeek --version X.Y.Z --urls <Setup.exe> --release-notes-url <vydání> --release-date <datum> --prtitle "Update: 3DPrint.LayerPeek to X.Y.Z" --submit`.
 
 ### Token
 
@@ -917,7 +919,7 @@ Selhání odeslání vydání nerozbije (zveřejnění i doplnění skončí s k
   Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue      # jen když se používá GH_TOKEN (T-180); stejně GITHUB_TOKEN
   gh auth login --hostname github.com --web --git-protocol https
   # OAuth v prohlížeči (jednorázový kód); na „Authenticate Git with your GitHub credentials?“ odpovědět No
-  pwsh scripts/release-winget.ps1 -Version X.Y.Z               # nebo nabídka v release-publish.ps1 / -AddToPublished
+  pwsh scripts/release-winget.ps1 -Version X.Y.Z               # nebo nabídka po zveřejnění (release-publish.ps1 / release.ps1)
   gh auth logout --hostname github.com
   $env:GH_TOKEN = Read-Host -MaskInput 'GH_TOKEN'               # obvyklé přihlášení podle T-180, jen když se dál vydává
   ```
@@ -973,7 +975,7 @@ Ověřeno ve zdroji Velopacku 1.2.161 ([install.rs](https://github.com/velopack/
 ## Navazující úkoly
 
 - **T-058 (kontrola aktualizací):** vydání `0.x` jsou předběžná (`--prerelease`), od 1.0.0 ne a `release-publish.ps1` to při zveřejnění zachová, takže je `GET /releases/latest` nevrátí. Koncepty nejsou bez přihlášení vidět vůbec.
-- **T-059 (winget):** odeslání navazuje na zveřejnění (`release-publish.ps1`, `release-upload.ps1 -AddToPublished`), viz „Publikace do winget“. Ověření na Windows (první odeslání, `winget install`/`uninstall`) zbývá v T-059.
+- **T-059 (winget):** odeslání navazuje na zveřejnění (`release-publish.ps1`, i z `release.ps1`), viz „Publikace do winget“. Ověření na Windows (první odeslání, `winget install`/`uninstall`) zbývá v T-059.
 
 ## Konfigurace RID
 
@@ -1004,11 +1006,11 @@ Podpis feedu (T-181) ověří `ReleaseTools.Tests.ps1`: sdílený testovací vek
 
 Jen podepsat hotový `dist/` (T-197): `ReleaseTools.Tests.ps1` ověří čistou funkcí `Get-SignOnlyProblems` každé odmítnutí záznamu (chybějící, neúplný, podepsaný, zkušební a neznámý stav, jiná verze / commit / OS, špinavý strom, RID, otisk klíče, `.sig` nebo soubor dvakrát v záznamu, chybějící feed, změněný, chybějící a přidaný soubor), stav `pending` v kontrole uploadu, `Get-ReleaseGitState -LocalOnly` (bez dotazu na remote), důvěru podle otisku a text výzvy na heslo. `ReleaseOrchestrator.Tests.ps1` spustí skutečný `release-build.ps1 -SignOnly` v dočasném repozitáři (otagovaný commit `v0.1.0`, `UpdateFeedKeys.cs` s testovacím klíčem, zástupný `dist/` se záznamem `pending`, testovací klíč z `tests/Shared/Fixtures/UpdateFeed`): podpis projde, zabalené soubory se nezmění, `.sig` ověří testovací veřejný klíč, součty a `build-info.json` (`signed`) jsou jako po buildu, skutečný `release-upload.ps1 -DryRun` (falešné `gh`) je přijme a druhé `-SignOnly` odmítne. Odmítnutí s „nic nepodepsáno“ (bez `.sig` a součtů, záznam dál `pending`): změněný, přidaný a chybějící soubor, jiný commit, commit bez tagu, špinavý strom, chybějící záznam, zkušební build, záznam ze špinavého stromu, nedovolené přepínače, bez klíče, prázdný seznam a nedůvěryhodný klíč (bez dotazu na heslo), nešifrovaný klíč, jiný klíč se stejným heslem, špatné a chybějící heslo. Ve výpisech ani v `artifacts/` se nesmí objevit heslo ani řádek soukromého klíče.
 
-Odeslání do winget (T-059) ověří `ReleaseWinget.Tests.ps1` bez sítě: šablony v `build/winget` (tři soubory, UTF-8 bez BOM, záhlaví schématu 1.28.0, `Publisher`/`PackageName`/`ProductCode` shodné s nastavením Velopacku, tichá instalace `--silent`, `Scope: user`, jen `x64`, URL dané verze, licence, moniker, nejvýš 16 tagů), čisté funkce (kontroly verze, repozitáře a OS, vydání bez `Setup.exe` / koncept / bez SHA256, datum vydání, otevřené PR, argumenty `wingetcreate` bez tokenu, odmítnutí fine-grained tokenu, maskování výstupu, nabídka po zveřejnění) a `Invoke-WingetRelease` proti falešným `gh`, `wingetcreate` a `winget` na `PATH`: aktualizace (`wingetcreate update`), první verze (`winget validate` a `wingetcreate submit` se složkou manifestu, která se pak smaže), bez potvrzení se token nečte, `-DryRun`, `-OutputDirectory` i na macOS, selhání `gh api` (žádný druhý „New package“), selhání `wingetcreate` a `winget validate`. Falešný `wingetcreate` vypíše token, který dostal, na stdout i stderr; testy ověří, že výstup obsahuje jen `***`, že token není v argumentech žádného volání, že ho `wingetcreate` dostal v `WINGET_CREATE_GITHUB_TOKEN` a že se pak vrátila předchozí hodnota proměnné. `ReleaseOrchestrator.Tests.ps1` ověří, že `release-publish.ps1` a `release-upload.ps1 -AddToPublished` u `0.x` vypíšou jen poznámku. Skutečné `wingetcreate`, `winget` ani GitHub testy nevolají.
+Odeslání do winget (T-059) ověří `ReleaseWinget.Tests.ps1` bez sítě: šablony v `build/winget` (tři soubory, UTF-8 bez BOM, záhlaví schématu 1.28.0, `Publisher`/`PackageName`/`ProductCode` shodné s nastavením Velopacku, tichá instalace `--silent`, `Scope: user`, jen `x64`, URL dané verze, licence, moniker, nejvýš 16 tagů), čisté funkce (kontroly verze, repozitáře a OS, vydání bez `Setup.exe` / koncept / bez SHA256, datum vydání, otevřené PR, argumenty `wingetcreate` bez tokenu, odmítnutí fine-grained tokenu, maskování výstupu, nabídka po zveřejnění) a `Invoke-WingetRelease` proti falešným `gh`, `wingetcreate` a `winget` na `PATH`: aktualizace (`wingetcreate update`), první verze (`winget validate` a `wingetcreate submit` se složkou manifestu, která se pak smaže), bez potvrzení se token nečte, `-DryRun`, `-OutputDirectory` i na macOS, selhání `gh api` (žádný druhý „New package“), selhání `wingetcreate` a `winget validate`. Falešný `wingetcreate` vypíše token, který dostal, na stdout i stderr; testy ověří, že výstup obsahuje jen `***`, že token není v argumentech žádného volání, že ho `wingetcreate` dostal v `WINGET_CREATE_GITHUB_TOKEN` a že se pak vrátila předchozí hodnota proměnné. `ReleaseOrchestrator.Tests.ps1` ověří, že `release-publish.ps1` (i spuštěný z `release.ps1`) u `0.x` vypíše jen poznámku. Skutečné `wingetcreate`, `winget` ani GitHub testy nevolají.
 
-Doplnění OS do zveřejněného vydání (T-113) ověří `ReleaseTools.Tests.ps1` čistými funkcemi (`Get-AddToPublishedProblems`: chybějící vydání, koncept, součty OS už ve vydání, stejné soubory přeskočit, jiný obsah a stav `starter` odmítnout; `Test-ReleaseMarkerFileName`; `Get-PublishProblems -Published`) a `ReleaseOrchestrator.Tests.ps1` skutečnými skripty `release-upload.ps1` a `release-publish.ps1` proti falešnému `gh` (stav vydání v dočasné složce, i `release download` a `release edit`): první OS → koncept → `-AllowIncomplete`, druhý OS bez přepínače odmítnut, s `-Force` odmítnut, špinavý strom odmítnut, `-DryRun` nic nezmění, doplnění ve dvou voláních `gh release upload` (balíčky, pak součty a feed), text a příznaky beze změny, opakování odmítnuto, navázání po přerušení, jiný obsah a nedokončený soubor odmítnuty.
+Vydání ze dvou počítačů a neměnná vydání (T-200) ověří `ReleaseTools.Tests.ps1` čistými funkcemi (`Get-RetiredSwitchProblem`, `Get-DuplicateReleaseProblems`, `Get-ReleaseOsStatus`, `Get-ReleaseRunCommand`, `Get-PublishProblems` s radou, kde nahrát chybějící OS; `Test-ReleaseMarkerFileName`) a `ReleaseOrchestrator.Tests.ps1`: plán (krok konceptu a zveřejnění, `[wait]` na druhý OS, Gitflow hotový na `origin` bez lokálního `main`/`develop`, dva koncepty, zveřejněné vydání bez tohoto OS, `NEXT STEP` každé situace bez `-AllowIncomplete`/`-AddToPublished`), skutečné `release-upload.ps1` a `release-publish.ps1` proti falešnému `gh` (stav vydání v dočasné složce, i `release list`, `release download` a `release edit`): oba přepínače v každém stavu a s `-DryRun`, `-Force`, `-Repo` odmítnuté s kódem 1 bez jediného volání `gh`, první OS do nového konceptu (prázdný koncept, balíčky, pak součty a feed), zveřejnění odmítne koncept bez druhého OS, druhý OS do stejného konceptu a zveřejnění, nahrání do zveřejněného vydání odmítnuté, dva koncepty odmítnuté. **Celý tok na dvou počítačích:** dva klony jednoho `origin`, `release.ps1` jako Windows i Mac (testovací přepínač `LAYERPEEK_RELEASE_TEST_HOST_OS`, platí jen pro skripty uvnitř `LAYERPEEK_PESTER_TESTS_TEMP`), v obou pořadích OS: první počítač skončí `NEXT STEP` pro druhý, `-DryRun` druhého ohlásí nestažený tag, ostrý běh stáhne jen tag, přeskočí Gitflow (lokální větve beze změny), nahraje a zveřejní (nebo po odmítnutí zveřejní první počítač), pak oba počítače hlásí „Nothing left to do“; druhý počítač nahraje dřív než první; dva koncepty zastaví zveřejnění.
 
-Testy `release.ps1` (`ReleaseOrchestrator.Tests.ps1`) ověří bez sítě: kontrolu verze proti tagům, změnu `<Version>` a `CHANGELOG.md` (datum `- unreleased`, přesun z `[Unreleased]`, šablona prázdných podnadpisů, odkazy, smíšené konce řádků, pomlčky `–`/`—`, odmítnutí), plán a navázání pro každý mezistav (čistě z připravených faktů) a skutečné kroky Gitflow v dočasných repozitářích: bare „origin“ je dostupný přes adresu `https://github.com/test-owner/…` přepsanou `url.<base>.insteadOf` a konfigurace gitu je izolovaná. `gh` je falešný skript na `PATH`: `auth status` projde, `release view` vrátí „release not found“, nebo – s `LAYERPEEK_FAKE_GH_STATE` – koncept, který vytvořil `release create` (soubory s `digest`); každé volání zapíše a testy ověří, co se volalo. Mimo jiné: větev release ručně bez data, s jinou verzí, zastaralá, se stabilizačními commity a s dřívějším datem (nový commit s datem), kontrola sloučení před tagem, selhané posunutí `main` po tagu a navázání, push odmítnutý kvůli posunutému `origin/main` (atomicky, bez tagu), ref posunutý po potvrzení, sloučení zpět bez vybraného `develop`, `-Repo` v klonu s cizím `origin`, push URL jiného repozitáře. Skript `release.ps1` se spouští i celý: `-DryRun` nic nezmění ani nestáhne, ostrý běh stáhne (`--no-tags`), bez potvrzení se nic nepushne, selhání zástupného buildu vrátí strom na `develop` a další běh začne buildem, a úspěšný běh se zástupným buildem a skutečným `release-upload.ps1` skončí konceptem (falešný `gh`), na `develop` s čistým stromem, a další běh najde všech 8 kroků hotových. Testy-only přepínač `LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN=1` vypne kontrolu MSVC / Xcode / `vpk`, aby testy nezávisely na stroji. Platí jen spolu s `LAYERPEEK_PESTER_TESTS_TEMP` a jen pro repozitář uvnitř této složky (proměnné, které zůstanou v interaktivním `pwsh` po přerušeném `Invoke-Pester`, tak skutečný repozitář neovlivní); když platí, plán vypíše řádek `TEST MODE: toolchain check skipped`. Falešný `gh` odpovídá na čtení přímo ze shimu (`gh.cmd` / `gh`) a `pwsh` spouští jen pro stavový koncept, takže testy běží rychleji (≈ 1 min 20 s). xUnit má pro tento soubor časový limit 15 min (ostatní soubory 5 min). Skutečný build a nahrání na GitHub testy nedělají.
+Testy `release.ps1` (`ReleaseOrchestrator.Tests.ps1`) ověří bez sítě: kontrolu verze proti tagům, změnu `<Version>` a `CHANGELOG.md` (datum `- unreleased`, přesun z `[Unreleased]`, šablona prázdných podnadpisů, odkazy, smíšené konce řádků, pomlčky `–`/`—`, odmítnutí), plán a navázání pro každý mezistav (čistě z připravených faktů) a skutečné kroky Gitflow v dočasných repozitářích: bare „origin“ je dostupný přes adresu `https://github.com/test-owner/…` přepsanou `url.<base>.insteadOf` a konfigurace gitu je izolovaná. `gh` je falešný skript na `PATH`: `auth status` projde, `release view` vrátí „release not found“, nebo – s `LAYERPEEK_FAKE_GH_STATE` – koncept, který vytvořil `release create` (soubory s `digest`); každé volání zapíše a testy ověří, co se volalo. Mimo jiné: větev release ručně bez data, s jinou verzí, zastaralá, se stabilizačními commity a s dřívějším datem (nový commit s datem), kontrola sloučení před tagem, selhané posunutí `main` po tagu a navázání, push odmítnutý kvůli posunutému `origin/main` (atomicky, bez tagu), ref posunutý po potvrzení, sloučení zpět bez vybraného `develop`, `-Repo` v klonu s cizím `origin`, push URL jiného repozitáře. Skript `release.ps1` se spouští i celý: `-DryRun` nic nezmění ani nestáhne, ostrý běh stáhne (`--no-tags`), bez potvrzení se nic nepushne, selhání zástupného buildu vrátí strom na `develop` a další běh začne buildem, a úspěšný běh se zástupným buildem a skutečným `release-upload.ps1` skončí konceptem (falešný `gh`), na `develop` s čistým stromem, a další běh najde kroky 1–9 hotové a zveřejnění `[wait]` na druhý OS. Testy-only přepínač `LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN=1` vypne kontrolu MSVC / Xcode / `vpk`, aby testy nezávisely na stroji. Platí jen spolu s `LAYERPEEK_PESTER_TESTS_TEMP` a jen pro repozitář uvnitř této složky (proměnné, které zůstanou v interaktivním `pwsh` po přerušeném `Invoke-Pester`, tak skutečný repozitář neovlivní); když platí, plán vypíše řádek `TEST MODE: toolchain check skipped`. Falešný `gh` odpovídá na čtení přímo ze shimu (`gh.cmd` / `gh`) a `pwsh` spouští jen pro stavový koncept, takže testy běží rychleji (≈ 1 min 20 s). xUnit má pro tento soubor časový limit 15 min (ostatní soubory 5 min). Skutečný build a nahrání na GitHub testy nedělají.
 
 ## Zkušební vydání (testovací repozitář)
 
@@ -1047,13 +1049,13 @@ Postup (`<owner>` = tvůj účet, název např. `LayerPeek-release-trial`):
 
    Build pro nahrání musí mít podepsaný feed (T-181): **i zkušební vydání se podepisuje produkčním klíčem** (rozhodnuto uživatelem 2026-11-11, otázka 19 v T-181), tedy `release-build.ps1 -FeedSigningKey <klíč>` s offline produkčním klíčem, jehož veřejný klíč je v `UpdateFeedKeys.Production` zkoušeného commitu (testovací klíč z `tests/Shared/Fixtures` v `Production` být nesmí). Platí stejný postup jako při vydání: médium připojené až do konce buildu, heslo dvakrát. Zkušební build `-SkipFeedSignature` upload odmítne (to je potřeba ověřit také). Přijetí aktualizace aplikací ve zkušebním repozitáři ověřit **nejde**: Release build má adresu repozitáře napevno (`AppUpdates.RepositoryUrl`) a testovací zdroj `LAYERPEEK_TEST_UPDATE_SOURCE` (jen Debug) důvěřuje jen testovacímu klíči. Přijetí podepsaného feedu ze skutečného GitHubu ověří build 0.9.9 po vydání 1.0.0 (viz „Kontrola aktualizace z GitHubu buildem 0.9.9“), odmítnutí nepodepsaného nebo změněného feedu E2E testy `UpdateTests` (T-181, T-125 2v). Před 1.0.0 se zkušební vydání nedělá (rozhodnutí uživatele 2026-11-11, T-198 otázka 3): skriptovou část pokrývají Pester testy, generálka podepsaného buildu bez GitHubu (T-198 B4) a `-DryRun` v den vydání.
 
-4. Opakování: druhé spuštění `release-upload.ps1` musí soubory přeskočit („skip, identical file already uploaded“). Po novém `release-build.ps1` musí nahrání odmítnout jiný obsah a s `-Force` ho přepsat. Přidání souborů druhého OS se ověří během na Macu (T-019) stejným postupem.
+4. Opakování: druhé spuštění `release-upload.ps1` musí soubory přeskočit („skip, identical file already uploaded“). Po novém `release-build.ps1` musí nahrání odmítnout jiný obsah a s `-Force` ho přepsat. Soubory druhého OS do stejného konceptu nahraje `release.ps1 -Repo …` na druhém počítači (viz zkouška níže).
 
    Ověřit také hraniční případy, které zatím ověřené nejsou:
    - **přerušené nahrání:** během uploadu ukonči skript (Ctrl+C). Zjisti, v jakém stavu soubor na GitHubu zůstal (`gh release view v0.1.0 --repo … --json assets` – `state`, `digest`), že ho další běh bez `-Force` odmítne a s `-Force` přepíše, a že `release-publish.ps1` nedokončený soubor nezveřejní;
-   - **souběžné vytvoření:** dva běhy `release-upload.ps1` spuštěné současně (např. dva klony s různým RID, nebo Windows a Mac) – vznikne jeden koncept, nebo dva? Výsledek zapsat sem a do T-055.
+   - **souběžné vytvoření:** dva běhy `release-upload.ps1` spuštěné současně (např. dva klony s různým RID, nebo Windows a Mac) – vznikne jeden koncept, nebo dva? Od T-200 vzniká koncept už v `release.ps1` hned po pushi tagu a dva koncepty skripty odmítnou (`GitHub has 2 releases …`). Výsledek zapsat sem a do T-055.
 
-5. Zveřejnění: `pwsh scripts/release-publish.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun` bez `-AllowIncomplete` musí odmítnout chybějící `SHA256SUMS-macos.txt`. Pak `pwsh scripts/release-publish.ps1 -Repo <owner>/LayerPeek-release-trial -AllowIncomplete` a kontrola na GitHubu (zveřejněné, stále předběžné).
+5. Zveřejnění: `pwsh scripts/release-publish.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun` musí odmítnout chybějící `SHA256SUMS-macos.txt` a `-AllowIncomplete` musí skončit kódem 1 (T-200). Zveřejní se až po nahrání druhého OS (zkouška druhého počítače níže); kontrola na GitHubu (zveřejněné, stále předběžné).
 
    **Zkouška `release.ps1`** (místo ručních kroků 2–3, v novém testovacím repozitáři nebo po úklidu tagu a vydání z předchozí zkoušky). Testovací repozitář potřebuje `main` a `develop`, klon musí být na `develop` s `release.ps1` a **nesmí mít `origin`** (jinak ho `release.ps1 -Repo` odmítne, aby se sloučení zkoušky nedostala k `main` a `develop` hlavního repozitáře):
 
@@ -1066,21 +1068,20 @@ Postup (`<owner>` = tvůj účet, název např. `LayerPeek-release-trial`):
    pwsh scripts/release.ps1 -Version 0.1.0 -Repo <owner>/LayerPeek-release-trial
    ```
 
-   Kontrola: v `trial` je `main` se sloučením a tagem `v0.1.0`, `develop` se sloučením zpět, koncept jako v kroku 3. Navázání: během buildu přeruš skript (Ctrl+C) a spusť ho znovu – musí ukázat kroky 1–6 jako hotové a začít buildem; po úspěšném konci musí další běh skončit bez práce (vše `[done]`). Zveřejnění pak podle kroku 5 (`release.ps1` nezveřejňuje).
+   Kontrola: v `trial` je `main` se sloučením a tagem `v0.1.0`, `develop` se sloučením zpět, koncept jako v kroku 3. Navázání: během buildu přeruš skript (Ctrl+C) a spusť ho znovu – musí ukázat kroky 1–6 jako hotové a začít buildem; po úspěšném konci musí další běh skončit bez práce (vše `[done]`). Zveřejnění nabídne až běh, který nahraje druhý OS (níže).
 
-   **Zkouška doplnění druhého OS (T-113)** po zveřejnění s `-AllowIncomplete` (krok 5), na počítači s druhým OS v samostatném klonu se stejným remote `trial`:
+   **Zkouška druhého počítače (T-200)** na počítači s druhým OS, v samostatném klonu bez `origin` (remote jen `trial`):
 
    ```powershell
-   git fetch trial --tags
-   git switch --detach v0.1.0
-   pwsh scripts/release-build.ps1 -FeedSigningKey <klíč>
-   pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial               # musí odmítnout: already published, s radou -AddToPublished
-   pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -AddToPublished -DryRun
-   pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -AddToPublished
-   pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -AddToPublished   # musí odmítnout: already contains SHA256SUMS-<os>.txt
+   git clone --origin trial https://github.com/<owner>/LayerPeek-release-trial.git $env:TEMP\layerpeek-trial-2
+   cd $env:TEMP\layerpeek-trial-2
+   git switch develop
+   pwsh scripts/release.ps1 -Version 0.1.0 -Repo <owner>/LayerPeek-release-trial -DryRun   # ohlásí tag na trial, který tu ještě není
+   pwsh scripts/release.ps1 -Version 0.1.0 -Repo <owner>/LayerPeek-release-trial          # stáhne tag, přeskočí Gitflow, build, nahrání, nabídne zveřejnění
+   pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -AddToPublished   # musí odmítnout s kódem 1 (T-200)
    ```
 
-   Kontrola na GitHubu: vydání je pořád zveřejněné a předběžné, text se nezměnil, obsahuje soubory obou OS a skript na konci ohlásil „the release is complete“. Přerušené doplnění (Ctrl+C během nahrávání balíčků) a nové spuštění musí stejné soubory přeskočit; nedokončený soubor (`state` `starter`) musí odmítnout.
+   Kontrola na GitHubu: jediné vydání `v0.1.0`, zveřejněné a předběžné, se soubory obou OS; další běh na obou počítačích vypíše „Nothing left to do“. Souběžná varianta: druhý počítač spustit hned po hlášce `Tag v0.1.0 and the draft are on GitHub` prvního.
 
 6. Úklid:
 

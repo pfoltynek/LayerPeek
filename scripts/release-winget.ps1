@@ -3,8 +3,8 @@
     Submits a published release to winget (microsoft/winget-pkgs) as package 3DPrint.LayerPeek (T-059). Windows only.
 
 .DESCRIPTION
-    The optional last step of a release (docs/release.md, "Publikace do winget"). release-publish.ps1 and
-    release-upload.ps1 -AddToPublished offer it themselves once the release has the Windows installer; this script runs
+    The optional last step of a release (docs/release.md, "Publikace do winget"). release-publish.ps1 (also run
+    by release.ps1) offers it itself once the published release has the Windows installer; this script runs
     it on its own, e.g. later on a Windows machine.
 
     Refuses pre-releases (0.x; winget gets stable versions from 1.0.0 on), releases of another repository than

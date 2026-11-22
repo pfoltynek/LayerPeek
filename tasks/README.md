@@ -222,7 +222,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-192 | Hardwarové dekódování H.264 kamery – průzkum (spike) (hotovo; rozhodnuto 2026-11-12, implementace T-203 až T-206) | all | architect | P3 | T-184, T-185 |
 | T-198 | Připravenost vydání 1.0.0 (blokery, první podepsané vydání, kontrola veřejného repozitáře, plán dne vydání) (hotovo) | all | architect | P1 | – |
 | T-199 | Vydání – zdrojový kód FFmpeg přiložený k vydání a věta o FFmpeg v okně O aplikaci (LGPL) (hotovo; ověření v T-125) | all | qa-reviewer | P1 | T-198 |
-| T-200 | Skripty vydání pro neměnná vydání – odmítnout `-AddToPublished` a `-AllowIncomplete` (až po vydání 1.0.0) | all | qa-reviewer | P2 | T-180 |
+| T-200 | Skripty vydání pro neměnná vydání – odmítnout `-AddToPublished` a `-AllowIncomplete`, `release.ps1` na obou počítačích (hotovo 2026-11-22) | all | qa-reviewer | P2 | T-180 |
 | T-203 | Kamera – hardwarové dekódování H.264, sdílený základ a VideoToolbox (macOS) (hotovo; Windows D3D11VA v T-206) | all | core-dev | P2 | T-192 |
 | T-204 | Nastavení > Kamera – volba „Hardwarové dekódování“ (Automaticky / Vypnuto) (hotovo; sada snímků Windows v T-125) | all | ui-dev | P2 | T-203 |
 | T-207 | Kamera – dekodér si pamatuje poslední SPS/PPS pro nově otevřený kontext kodeku | all | core-dev | P3 | T-205 |

@@ -8,6 +8,15 @@ older versions always load.
 
 ## [Unreleased]
 
+### Changed
+
+- **Release scripts (maintainers):** `scripts/release.ps1 -Version X.Y.Z` now runs on both release machines (Windows
+  and macOS, either one first). The first run creates the draft right after the tag push; the second machine fetches
+  only the release tag, skips the Gitflow steps, uploads its files into the same draft and offers to publish it
+  (confirmed by typing the version). Every run ends with the exact next step and the machine to run it on. GitHub
+  releases are immutable since 1.0.0, so `release-upload.ps1 -AddToPublished` and `release-publish.ps1
+  -AllowIncomplete` now always refuse with that procedure, and two drafts of one tag are refused.
+
 ## [1.1.0] - 2026-11-16
 
 ### Added

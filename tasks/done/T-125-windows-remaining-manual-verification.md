@@ -640,6 +640,8 @@ Build Tools 2026 18.12.0 (MSVC 14.52), Windows 11 SDK 10.0.26100, Edge 157.0.434
       z T-115 (běh na Macu první; od 2026-11-01 bod v T-127) doplní Windows své soubory (`release-upload.ps1
       -AddToPublished`, `docs/release.md`, „Zkouška doplnění druhého OS (T-113)“); `release-publish.ps1 -DryRun` bez
       `-AllowIncomplete` pak projde.
+      → zrušeno (T-200): doplnění do zveřejněného vydání s neměnnými vydáními nejde, `-AddToPublished` a
+      `-AllowIncomplete` skripty od T-200 vždy odmítnou; oba OS jdou do konceptu přes `release.ps1` (2026-11-22).
 - [x] **T-058** (krit. „Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack“,
       část Windows): skutečný klik na položku „Je dostupná nová verze X.Y.Z“ v menu a na banner toastu; nainstalovaná
       starší verze se přes Velopack aktualizuje z GitHub Releases (bez tokenu) a znovu spustí; `.zip` verze otevře

@@ -479,7 +479,8 @@ LayerPeek nesmí běžet; tiskárna nastavená (pro krok 3 se simulátorem nebo 
 Jen ve zkušebním repozitáři podle [release.md](release.md), „Zkušební vydání (testovací repozitář)“: v čistém klonu na
 otagovaném commitu `pwsh scripts/release-build.ps1 -FeedSigningKey <klíč>`, `pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun`,
 pak bez `-DryRun` do konceptu z běhu na Windows; na GitHubu `.dmg`, `.tar.gz` a `SHA256SUMS-macos.txt` vedle souborů
-Windows; `release-publish.ps1 -Repo … -DryRun` bez `-AllowIncomplete` projde. Stažení `.dmg` z konceptu je zároveň
+Windows; `release-publish.ps1 -Repo … -DryRun` projde. Od T-200 obojí udělá `pwsh scripts/release.ps1 -Version X.Y.Z -Repo …`
+(viz „Vydání ze dvou počítačů“). Stažení `.dmg` z konceptu je zároveň
 nejvěrnější varianta kroku 1.2. **Uzavírá:** T-019 kritérium 2.
 
 ## Sezení 12 – Úklid

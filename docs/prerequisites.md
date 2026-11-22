@@ -290,7 +290,7 @@ Podporuje se jen Apple Silicon (`osx-arm64`), Intel Macy (`osx-x64`) ani univers
 
 ## Vydání (GitHub CLI)
 
-Pro nahrání vydání na GitHub (`scripts/release-upload.ps1`, `scripts/release-publish.ps1`, postup v [release.md](release.md)) je potřeba **GitHub CLI** `gh`, přihlášené k účtu s právem zápisu do repozitáře. Samotné sestavení (`scripts/release-build.ps1`) ho nepotřebuje.
+Pro nahrání vydání na GitHub (`scripts/release-upload.ps1`, `scripts/release-publish.ps1`, postup v [release.md](release.md)) je potřeba **GitHub CLI** `gh`, přihlášené k účtu s právem zápisu do repozitáře. Samotné sestavení (`scripts/release-build.ps1`) ho nepotřebuje. Skripty používají `gh release list --json` (kontrola dvou konceptů, T-200); ověřeno s `gh` 2.105.0, starší verzi aktualizuj (`winget upgrade GitHub.cli` / `brew upgrade gh`).
 
 ```powershell
 winget install --id GitHub.cli     # Windows
@@ -311,7 +311,7 @@ Pro `.tar.gz` na macOS stačí systémový `tar`. Na Windows skripty používaj�
 
 ### winget (jen Windows, T-059)
 
-Odeslání vydání do winget (`scripts/release-winget.ps1`, volitelný krok `release-publish.ps1` a `release-upload.ps1 -AddToPublished`, postup v [release.md](release.md#publikace-do-winget-t-059)) potřebuje na Windows **wingetcreate** (licence MIT) a **winget** (App Installer, součást Windows 10/11). Na macOS se nespouští, skript to odmítne se zprávou.
+Odeslání vydání do winget (`scripts/release-winget.ps1`, volitelný krok po zveřejnění v `release-publish.ps1`, i spuštěném z `release.ps1`, postup v [release.md](release.md#publikace-do-winget-t-059)) potřebuje na Windows **wingetcreate** (licence MIT) a **winget** (App Installer, součást Windows 10/11). Na macOS se nespouští, skript to odmítne se zprávou.
 
 ```powershell
 winget install --id Microsoft.WingetCreate

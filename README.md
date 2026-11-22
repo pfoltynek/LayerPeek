@@ -535,11 +535,12 @@ macOS. The Windows ARM64 build is cross-compiled on Windows x64 (its camera libr
 Releases are built locally with PowerShell 7.2+ scripts in `scripts/` (build, tests, AOT publish, smoke test, archives,
 SHA-256 checksums, GitHub release). The version comes from `<Version>` in `Directory.Build.props` and the release notes
 from [CHANGELOG.md](CHANGELOG.md). One command, `pwsh scripts/release.ps1 -Version X.Y.Z` (try `-DryRun` first), runs the
-Gitflow release (release branch, merge into `main` with the tag `vX.Y.Z`, merge back into `develop`), builds the tag and
-uploads it into a draft GitHub release, asking before every push and upload. Publishing the draft stays a separate
-manual step (`scripts/release-publish.ps1`). It runs on Windows or macOS, whichever goes first; the other OS can add
-its files later, also to the already published release (`scripts/release-upload.ps1 -AddToPublished`). See
-[docs/release.md](docs/release.md) for the full procedure (in Czech).
+Gitflow release (release branch, merge into `main` with the tag `vX.Y.Z`, merge back into `develop`), creates the
+draft GitHub release, builds the tag and uploads it into the draft, asking before every push and upload. The same
+command runs on the Windows machine and on the Mac, in either order: the second machine skips the Gitflow steps, uploads
+its files into the same draft and then offers to publish it (confirmed by typing the version). GitHub releases are
+immutable, so a release is published only with the files of both operating systems. Every run ends with the exact next
+step and the machine to run it on. See [docs/release.md](docs/release.md) for the full procedure (in Czech).
 The checks on a Mac that only a person can do (Gatekeeper, macOS permissions, Open at Login, monitors, a sleeping
 display) are collected in one walk-through in [docs/macos-manual-testing.md](docs/macos-manual-testing.md) (in Czech).
 
