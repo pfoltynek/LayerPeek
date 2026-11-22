@@ -239,6 +239,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-246 | CI Windows – Pester VerifyTools.Tests.ps1 překračuje 5 min (macos-verify -ListChecks 66 s na runneru) (hotovo) | windows | qa-reviewer | P2 | – |
 | T-249 | Malý náhled kamery – profily snímkové frekvence Úsporný 10 fps a Vyvážený 15 fps (dosud 5 / 10) | all | core-dev | P2 | T-185 |
 | T-250 | Znovu posoudit napojení na Prusa Connect (cloud i Prusa Connect Local) – průzkum a návrh | all | architect | P2 | T-170 |
+| T-251 | Malý náhled kamery – štítek se skutečným a nastaveným fps v levém horním rohu (volitelný) | all | ui-dev | P2 | T-185 |
 
 ### Windows (`windows`)
 
