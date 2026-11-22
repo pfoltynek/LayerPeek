@@ -960,6 +960,30 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Valor propio: menos fotogramas por segundo suponen menos carga de CPU y menos datos copiados.</value>
   </data>
+  <data name="CameraMiniFrameRateBadge" xml:space="preserve">
+    <value>{0} / {1} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNoLimit" xml:space="preserve">
+    <value>{0} fps / sin límite</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeName" xml:space="preserve">
+    <value>Frecuencia de fotogramas {0} de {1} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameNoLimit" xml:space="preserve">
+    <value>Frecuencia de fotogramas {0} fps, sin límite</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuring" xml:space="preserve">
+    <value>Frecuencia de fotogramas: midiendo, límite {0} fps</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuringNoLimit" xml:space="preserve">
+    <value>Frecuencia de fotogramas: midiendo, sin límite</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadge" xml:space="preserve">
+    <value>Mostrar los fotogramas por segundo en la vista mini</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadgeHint" xml:space="preserve">
+    <value>Valor real y configurado en la esquina superior izquierda de la imagen mientras se transmite.</value>
+  </data>
   <data name="SettingsHardwareDecoding" xml:space="preserve">
     <value>Decodificación por hardware</value>
   </data>

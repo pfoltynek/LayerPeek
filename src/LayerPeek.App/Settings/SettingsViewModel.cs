@@ -148,6 +148,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private bool _debugLogging;
 
     private bool _cameraWindowAutoClose = true;
+    private bool _showMiniFrameRateBadge = true;
 
     private bool _offerPrereleaseUpdates;
     private bool _startWithWindows;
@@ -561,6 +562,16 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     {
         get => _cameraWindowAutoClose;
         set => SetGeneral(ref _cameraWindowAutoClose, value);
+    }
+
+    /// <summary>
+    /// "Show the frame rate in the mini preview" (T-251): global, on by default, on the Camera tab below the frame rate;
+    /// applied to the open camera windows right after saving.
+    /// </summary>
+    public bool ShowMiniFrameRateBadge
+    {
+        get => _showMiniFrameRateBadge;
+        set => SetGeneral(ref _showMiniFrameRateBadge, value);
     }
 
     /// <summary>Detailed logging (Debug) in the log file (T-047); applied right after saving, without a restart.</summary>
@@ -1088,6 +1099,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _startWithWindows = _autostartBaseline;
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
         _cameraWindowAutoClose = settings.CameraWindowAutoClose;
+        _showMiniFrameRateBadge = settings.ShowMiniPreviewFrameRate;
         PopulateMiniFrameRate(settings.MiniPreviewFrameRate);
         _hardwareDecoding = settings.CameraHardwareDecoding;
         PopulateRecording(settings.Recording);
@@ -1510,6 +1522,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 CameraWindowAutoClose = _cameraWindowAutoClose,
                 // T-185: always valid (the slider is clamped and rounded by its property).
                 MiniPreviewFrameRate = _miniFrameRate,
+                ShowMiniPreviewFrameRate = _showMiniFrameRateBadge,
                 // T-204: the window keeps a saved "Off" (before it, every save wrote the default).
                 CameraHardwareDecoding = _hardwareDecoding,
                 Recording = recording,

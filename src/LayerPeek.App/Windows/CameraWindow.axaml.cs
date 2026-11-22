@@ -63,6 +63,8 @@ public sealed partial class CameraWindow : Window
         // T-184: the frames are decoded at the size of the image area.
         Surface.PropertyChanged += OnSurfacePropertyChanged;
         ScalingChanged += OnScalingChanged;
+        // T-251: the frame rate badge of the mini preview gives way to the window buttons.
+        WatchFrameRateBadgeRoom();
         // DataContext (CameraViewModel) is set by the creator.
         // macOS (T-100): ⌘W closes the window like its close button, ⌘. is Esc, ⌃⌘F is F11 (the KeyBindings).
         MacShortcuts.HandleCloseKeys(this, UsesMacShortcuts, Close, CancelFromKeyboard);
@@ -220,6 +222,7 @@ public sealed partial class CameraWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        OnFrameRateBadgeViewModelPropertyChanged(e.PropertyName);
         if (_viewModel is { IsResettingPlacement: true })
         {
             // "Apply" (T-040): the whole placement follows in OnPlacementResetRequested.

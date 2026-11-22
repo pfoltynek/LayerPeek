@@ -1711,6 +1711,19 @@
                        Classes="hint"
                        Text="{Binding MiniFrameRateDescription}" />
             <!--
+              T-251 (user decision 2026-11-22): the frame rate badge of the mini preview, on by default; part of the frame rate
+              section, so no header of its own. Applied to the open camera windows after saving.
+            -->
+            <CheckBox AutomationProperties.AutomationId="MiniFrameRateBadge"
+                      Margin="0,8,0,0"
+                      Content="{Binding [SettingsMiniFrameRateBadge], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.HelpText="{Binding [SettingsMiniFrameRateBadgeHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      IsChecked="{Binding ShowMiniFrameRateBadge}" />
+            <TextBlock AutomationProperties.AutomationId="MiniFrameRateBadgeHint"
+                       Classes="hint"
+                       Margin="28,0,0,0"
+                       Text="{Binding [SettingsMiniFrameRateBadgeHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <!--
               T-204 (user decisions 2026-11-12): hardware decoding, Automatic (default) or Off, like the profile above: the
               selection and the description of the selected option below it. Where Automatic is still software (Windows
               until T-206) a second hint says so. Applied after saving from the next key frame of a running camera window.

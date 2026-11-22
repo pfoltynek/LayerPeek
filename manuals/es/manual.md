@@ -227,6 +227,11 @@ Para ahorrar CPU, la vista mini muestra por defecto como máximo 15 fotogramas p
 imagen pequeña; la ventana normal y la pantalla completa muestran todos los fotogramas de la cámara. El límite se
 configura en la pestaña **Cámara** de la configuración (consulte [11.6](#116-cámara)).
 
+En la esquina superior izquierda de la imagen, la vista mini muestra cuántos fotogramas por segundo muestra realmente y
+su límite, por ejemplo «14 / 15 fps» («24 fps / sin límite» con **Fluido**). Donde los botones de la ventana necesitan
+el espacio, la etiqueta se oculta hasta que los botones vuelven a desaparecer; se puede desactivar en la pestaña
+**Cámara**.
+
 La ventana también deja de recibir fotogramas mientras nadie la ve: cuando está minimizada, mientras el equipo está
 bloqueado o la pantalla está apagada, en Windows mientras la ventana está en otro escritorio virtual (una ventana solo
 tapada por otras sigue funcionando) y en macOS mientras no se ve ninguna parte de ella, por ejemplo cuando otras
@@ -522,6 +527,9 @@ Ajustes para todas las cámaras (la cámara de cada impresora se configura en su
   datos copiados; la cámara se sigue leyendo completa, así que las grabaciones, los timelapses y la detección de errores
   de impresión no cambian. La ventana normal y la pantalla completa muestran siempre todos los fotogramas. El cambio se
   aplica a una vista mini abierta después de **Guardar**.
+- **Mostrar los fotogramas por segundo en la vista mini:** la etiqueta con los fotogramas por segundo reales y el límite
+  en la esquina superior izquierda de la imagen de la vista mini; activada de forma predeterminada. El cambio se aplica
+  a una vista mini abierta después de **Guardar**.
 - **Decodificación por hardware:** **Automática** (el valor predeterminado) deja que el hardware gráfico decodifique el
   vídeo de la ventana de la cámara y de la vista mini cuando puede; si no, lo decodifica el procesador. Así baja la
   carga de CPU. **Desactivada** decodifica siempre con el procesador: menos memoria y ningún decodificador del sistema,

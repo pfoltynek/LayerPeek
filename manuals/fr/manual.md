@@ -232,6 +232,11 @@ Pour économiser le processeur, le mini-aperçu affiche par défaut au plus 15 i
 la petite image ; la fenêtre normale et le plein écran affichent chaque image de la caméra. La limite se règle dans
 l'onglet **Caméra** des paramètres (voir [11.6](#116-caméra)).
 
+Dans le coin supérieur gauche de l'image, le mini-aperçu indique combien d'images par seconde il affiche réellement et
+sa limite, par exemple « 14 / 15 i/s » (« 24 i/s, sans limite » avec **Fluide**). Là où les boutons de la fenêtre ont
+besoin de la place, l'étiquette s'efface jusqu'à ce que les boutons disparaissent ; elle se désactive dans l'onglet
+**Caméra**.
+
 La fenêtre cesse aussi de recevoir des images tant que personne ne la voit : quand elle est réduite, tant que
 l'ordinateur est verrouillé ou que l'écran est éteint, sous Windows tant que la fenêtre est sur un autre bureau virtuel
 (une fenêtre simplement cachée par d'autres fenêtres continue) et sous macOS tant qu'on n'en voit aucune partie, par
@@ -538,6 +543,9 @@ Paramètres de toutes les caméras (la caméra de chaque imprimante se configure
   30 i/s (**Personnalisé**). Moins d'images, c'est moins de charge processeur et moins de données copiées ; la caméra
   reste lue en entier, les enregistrements, les timelapses et la détection des défauts d'impression ne changent pas. La
   fenêtre normale et le plein écran affichent toujours chaque image. Le changement s'applique à un mini-aperçu ouvert
+  après **Enregistrer**.
+- **Afficher la fréquence d'images dans le mini-aperçu :** l'étiquette avec la fréquence réelle et la limite dans le
+  coin supérieur gauche de l'image du mini-aperçu ; activée par défaut. Le changement s'applique à un mini-aperçu ouvert
   après **Enregistrer**.
 - **Décodage matériel :** **Automatique** (par défaut) laisse le matériel graphique décoder la vidéo de la fenêtre de la
   caméra et du mini-aperçu quand c'est possible, sinon le processeur s'en charge ; la charge processeur baisse.

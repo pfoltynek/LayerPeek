@@ -1001,6 +1001,36 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Your own limit: fewer frames per second mean less CPU load and less image data copied.</value>
   </data>
+  <data name="CameraMiniFrameRateBadge" xml:space="preserve">
+    <value>{0} / {1} fps</value>
+    <comment>T-251: badge in the mini preview; {0} = shown fps (padded to two digits with U+2007), {1} = limit; NBSP before the unit.</comment>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNoLimit" xml:space="preserve">
+    <value>{0} fps / no limit</value>
+    <comment>T-251: badge for the Smooth profile; {0} = shown fps.</comment>
+  </data>
+  <data name="CameraMiniFrameRateBadgeName" xml:space="preserve">
+    <value>Frame rate {0} of {1} fps</value>
+    <comment>T-251: screen reader name of the badge; {0} = shown fps, {1} = limit.</comment>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameNoLimit" xml:space="preserve">
+    <value>Frame rate {0} fps, no limit</value>
+    <comment>T-251: screen reader name of the badge without a limit; {0} = shown fps.</comment>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuring" xml:space="preserve">
+    <value>Frame rate: measuring, limit {0} fps</value>
+    <comment>T-251: screen reader name of the badge before the first measurement; {0} = limit.</comment>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuringNoLimit" xml:space="preserve">
+    <value>Frame rate: measuring, no limit</value>
+    <comment>T-251: the same without a limit.</comment>
+  </data>
+  <data name="SettingsMiniFrameRateBadge" xml:space="preserve">
+    <value>Show the frame rate in the mini preview</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadgeHint" xml:space="preserve">
+    <value>Actual and set value in the top left corner of the picture while it streams.</value>
+  </data>
   <data name="SettingsHardwareDecoding" xml:space="preserve">
     <value>Hardware decoding</value>
   </data>

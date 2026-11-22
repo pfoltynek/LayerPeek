@@ -960,6 +960,30 @@
   <data name="SettingsMiniFrameRateCustomHint" xml:space="preserve">
     <value>Valeur personnelle : moins d'images par seconde, c'est moins de charge processeur et moins de données copiées.</value>
   </data>
+  <data name="CameraMiniFrameRateBadge" xml:space="preserve">
+    <value>{0} / {1} i/s</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNoLimit" xml:space="preserve">
+    <value>{0} i/s, sans limite</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeName" xml:space="preserve">
+    <value>Fréquence d'images {0} sur {1} i/s</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameNoLimit" xml:space="preserve">
+    <value>Fréquence d'images {0} i/s, sans limite</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuring" xml:space="preserve">
+    <value>Fréquence d'images : mesure en cours, limite {0} i/s</value>
+  </data>
+  <data name="CameraMiniFrameRateBadgeNameMeasuringNoLimit" xml:space="preserve">
+    <value>Fréquence d'images : mesure en cours, sans limite</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadge" xml:space="preserve">
+    <value>Afficher la fréquence d'images dans le mini-aperçu</value>
+  </data>
+  <data name="SettingsMiniFrameRateBadgeHint" xml:space="preserve">
+    <value>Valeur réelle et réglée dans le coin supérieur gauche de l'image pendant la diffusion.</value>
+  </data>
   <data name="SettingsHardwareDecoding" xml:space="preserve">
     <value>Décodage matériel</value>
   </data>

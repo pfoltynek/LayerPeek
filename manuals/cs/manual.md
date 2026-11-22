@@ -224,6 +224,10 @@ Aby šetřil procesor, ukazuje malý náhled ve výchozím nastavení nejvýš 1
 normální okno a celá obrazovka ukazují každý snímek kamery. Omezení se nastavuje na záložce **Kamera** v nastavení (viz
 [11.6](#116-kamera)).
 
+V levém horním rohu obrazu malý náhled ukazuje, kolik snímků za sekundu opravdu zobrazuje, a nastavené omezení, např.
+„14 / 15 fps“ (u profilu **Plynulý** „24 fps / bez limitu“). Kde potřebují místo tlačítka okna, štítek zmizí, dokud se
+tlačítka zase neschovají; vypnout ho lze na záložce **Kamera**.
+
 Okno také přestane brát snímky, když ho nikdo nevidí: když je minimalizované, při zamčeném počítači nebo vypnutém
 displeji, na Windows i na jiné virtuální ploše (okno jen zakryté jinými okny běží dál) a na macOS, když z něj není vidět
 nic, třeba když je celé zakryté jinými okny nebo na jiné ploše (asi po dvou sekundách). Chvíli po návratu se obraz vrátí
@@ -496,6 +500,9 @@ Nastavení pro všechny kamery (kameru jednotlivé tiskárny nastavíte na její
   (**Vlastní**). Méně snímků znamená menší zátěž procesoru a méně kopírovaných dat; kamera se dál čte celá, takže
   nahrávky, timelapse a detekce chyb tisku se nemění. Normální okno a celá obrazovka ukazují vždy každý snímek. Změna se
   u otevřeného malého náhledu projeví po **Uložit**.
+- **Zobrazovat snímkovou frekvenci v malém náhledu:** štítek se skutečnou a nastavenou snímkovou frekvencí v levém
+  horním rohu obrazu malého náhledu; ve výchozím stavu zapnuto. Změna se u otevřeného malého náhledu projeví po
+  **Uložit**.
 - **Hardwarové dekódování:** **Automaticky** (výchozí) nechá video okna kamery a malého náhledu dekódovat grafický
   hardware, když to jde, jinak ho dekóduje procesor; to snižuje zátěž procesoru. **Vypnuto** dekóduje vždy procesorem:
   méně paměti a žádný systémový dekodér, ale vyšší zátěž procesoru. **Vypnuto** zvolte, když je obraz kamery poškozený

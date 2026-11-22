@@ -117,6 +117,13 @@ public sealed record AppSettings
     } = Cameras.MiniPreviewFrameRate.Default;
 
     /// <summary>
+    /// "Show the frame rate in the mini preview" (T-251, user decision 2026-11-22): one option for every camera window, on
+    /// by default. The mini preview then shows the frame rate it really shows and its limit in the top left corner of the
+    /// picture while it streams.
+    /// </summary>
+    public bool ShowMiniPreviewFrameRate { get; init; } = true;
+
+    /// <summary>
     /// "Hardware decoding" of the camera video (T-203, user decision 2026-11-12): one value for every camera,
     /// <see cref="CameraHardwareDecoding.Automatic"/> by default. Applied by the decoder from its next key frame on.
     /// </summary>
@@ -331,6 +338,7 @@ public sealed record AppSettings
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && CameraWindowAutoClose == other.CameraWindowAutoClose
         && MiniPreviewFrameRate == other.MiniPreviewFrameRate
+        && ShowMiniPreviewFrameRate == other.ShowMiniPreviewFrameRate
         && CameraHardwareDecoding == other.CameraHardwareDecoding
         && Recording == other.Recording
         && Detection == other.Detection
@@ -349,6 +357,7 @@ public sealed record AppSettings
         hash.Add(CameraOverlayOpacityPercent);
         hash.Add(CameraWindowAutoClose);
         hash.Add(MiniPreviewFrameRate);
+        hash.Add(ShowMiniPreviewFrameRate);
         hash.Add(CameraHardwareDecoding);
         hash.Add(Recording);
         hash.Add(Detection);

@@ -436,8 +436,8 @@ submenu.
   printer), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
 - **Camera:** settings for all cameras: the frame rate of the mini preview (Economy 10 fps, Balanced 15 fps by default,
-  Smooth with every frame, or a custom limit of 1–30 fps) and hardware decoding (**Automatic** by default, or **Off**;
-  on Windows the processor decodes in both modes for now).
+  Smooth with every frame, or a custom limit of 1–30 fps), the frame rate label in the mini preview (on by default) and
+  hardware decoding (**Automatic** by default, or **Off**; on Windows the processor decodes in both modes for now).
 - **Startup and updates:** start LayerPeek after you sign in to Windows (on by default: the installer switches it on;
   only the installed version).
   On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of the disk image, e.g. to Applications).

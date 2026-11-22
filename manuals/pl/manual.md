@@ -225,6 +225,10 @@ Aby oszczędzać procesor, mały podgląd domyślnie pokazuje najwyżej 15 klate
 zwykłe okno i pełny ekran pokazują każdą klatkę kamery. Limit ustawisz na karcie **Kamera** w ustawieniach (zob.
 [11.6](#116-kamera)).
 
+W lewym górnym rogu obrazu mały podgląd pokazuje, ile klatek na sekundę rzeczywiście wyświetla, oraz ustawiony limit,
+np. „14 / 15 kl./s” (przy profilu **Płynny** „24 kl./s, bez limitu”). Gdy przyciski okna potrzebują miejsca, etykieta
+znika, dopóki przyciski znów się nie ukryją; wyłączysz ją na karcie **Kamera**.
+
 Okno przestaje też pobierać klatki, gdy nikt go nie widzi: gdy jest zminimalizowane, przy zablokowanym komputerze lub
 wyłączonym ekranie, w Windows także gdy okno jest na innym pulpicie wirtualnym (okno tylko zasłonięte innymi oknami
 działa dalej), a w macOS gdy nie widać żadnej jego części, np. gdy inne okna zasłaniają je całkowicie lub jest na innym
@@ -509,6 +513,8 @@ Ustawienia wszystkich kamer (kamerę każdej drukarki ustawisz w jej podkarcie *
   30 kl./s (**Własny**). Mniej klatek to mniejsze obciążenie procesora i mniej kopiowanych danych; kamera jest nadal
   odczytywana w całości, więc nagrania, timelapse i wykrywanie błędów druku się nie zmieniają. Zwykłe okno i pełny ekran
   zawsze pokazują każdą klatkę. Zmiana obowiązuje dla otwartego małego podglądu po **Zapisz**.
+- **Pokazuj liczbę klatek w małym podglądzie:** etykieta z rzeczywistą liczbą klatek i limitem w lewym górnym rogu
+  obrazu małego podglądu; domyślnie włączona. Zmiana obowiązuje w otwartym małym podglądzie po **Zapisz**.
 - **Dekodowanie sprzętowe:** **Automatycznie** (domyślnie) pozwala sprzętowi graficznemu dekodować wideo okna kamery
   i małego podglądu, gdy to możliwe, a w przeciwnym razie dekoduje je procesor; zmniejsza to obciążenie procesora.
   **Wyłączone** zawsze dekoduje procesorem: mniej pamięci i brak dekodera systemowego, ale większe obciążenie procesora.

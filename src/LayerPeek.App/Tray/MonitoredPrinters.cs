@@ -14,6 +14,9 @@ internal sealed record MonitoredPrintersState(IReadOnlyList<PrinterDefinition>? 
     /// <summary>The frame rate limit of the mini preview (T-185), <see langword="null"/> = none; the default before the first run.</summary>
     public int? MiniPreviewFrameRate { get; init; } = Core.Cameras.MiniPreviewFrameRate.Default;
 
+    /// <summary>Whether the mini preview shows its frame rate (T-251); the default before the first run.</summary>
+    public bool ShowMiniPreviewFrameRate { get; init; } = true;
+
     public static MonitoredPrintersState Starting { get; } = new(null, MonitoringFailed: false);
 }
 
@@ -45,6 +48,7 @@ internal sealed class MonitoredPrinters : IMonitoringObserver
         {
             CameraOverlayOpacityPercent = settings.CameraOverlayOpacityPercent,
             MiniPreviewFrameRate = settings.MiniPreviewFrameRate,
+            ShowMiniPreviewFrameRate = settings.ShowMiniPreviewFrameRate,
         });
     }
 
@@ -62,6 +66,7 @@ internal sealed class MonitoredPrinters : IMonitoringObserver
                 Printers = [.. settings.Printers],
                 CameraOverlayOpacityPercent = settings.CameraOverlayOpacityPercent,
                 MiniPreviewFrameRate = settings.MiniPreviewFrameRate,
+                ShowMiniPreviewFrameRate = settings.ShowMiniPreviewFrameRate,
             });
         }
 

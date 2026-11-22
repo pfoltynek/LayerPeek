@@ -645,6 +645,25 @@ kvůli zakázaným oznámením „LayerPeek E2E“; části panelu prošly.
       `tests/LayerPeek.App.UiTests/Snapshots/macOS/settings-camera-tab.png` (Vyvážený, posuvník na 15 fps, nápověda
       „15 fps (recommended): smooth movement…“). Pak celý `dotnet test` na Macu bez chyb.
 
+### 1y. Štítek fps malého náhledu (z T-251, implementováno na Windows 2026-11-22)
+- [ ] **T-251** (snímky UI, sada macOS): `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests
+      -- --filter-class "*CameraWindowMiniFrameRateBadgeUiTests" --filter-class "*CameraWindowMiniTogglesUiTests"
+      --filter-class "*CameraWindowMiniOutlineUiTests" --filter-class "*CameraWindowMiniStripUiTests"
+      --filter-class "*CameraWindowMiniStripItemsUiTests" --filter-class "*CameraWindowMiniStripFinishUiTests"
+      --filter-class "*CameraWindowMiniFullScreenUiTests" --filter-class "*CameraWindowRecordingUiTests"
+      --filter-class "*CameraWindowTimelapseUiTests" --filter-class "*SettingsWindowSnapshotTests"` a zkontrolovat
+      v `tests/LayerPeek.App.UiTests/Snapshots/macOS/` nový `camera-mini-fps-badge.png` (štítek „‒ / 15 fps“ vlevo
+      nahoře, 8 DIP od okraje, na středu řady tlačítek), změněné `camera-mini-*.png` (štítek navíc; při najetí myší s TL
+      a REC štítek není) a `settings-camera-tab.png` (přepínač „Show the frame rate in the mini preview“ s nápovědou).
+      Pak celý `dotnet test` na Macu bez chyb.
+- [ ] **T-251** (snímky README, sada `docs/images/<lang>/` se generuje na macOS): přegenerovat podle
+      `docs/readme-screenshots.md` a zkontrolovat `camera-mini.jpg` ve všech jazycích (štítek fps vlevo nahoře).
+- [ ] **T-251** (ruční, živá aplikace se simulátorem): malý náhled ukazuje nejdřív „‒ / 15 fps“ a po 1 s skutečnou
+      hodnotu (u simulátoru 25 fps zdroje „15 / 15 fps“, u profilu Plynulý „25 fps / no limit“), hodnota se neobnovuje
+      častěji než 1× za s; při najetí myší v nejužším okně s TL + REC štítek plynule zmizí a vrátí se; tažení za štítek
+      okno posune; VoiceOver přečte „Frame rate 15 of 15 fps“ jen při procházení (žádné hlášení při změně). Aplikace
+      na macOS kreslí Inter (T-223) stejně jako headless testy, rozestupy tedy platí i v běžící aplikaci.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

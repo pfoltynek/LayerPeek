@@ -61,11 +61,17 @@ internal sealed class SettingsDocument
 
     /// <summary>
     /// The frame rate limit of the mini preview (T-185): whole frames per second 1–30, 0 = no limit; missing (older files,
-    /// the default) = 15 (T-249) and not written while it is the default. Read as a number so that fractions and out-of-range values
-    /// fall back to the default with a warning.
+    /// the default) = 15 (T-249) and not written while it is the default. Read as a number so that fractions and
+    /// out-of-range values fall back to the default with a warning.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? MiniPreviewFrameRate { get; set; }
+
+    /// <summary>
+    /// "Show the frame rate in the mini preview" (T-251); written only when off, missing (older files, the default) = on.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ShowMiniPreviewFrameRate { get; set; }
 
     /// <summary>
     /// "Hardware decoding" of the camera video (T-203): <c>Off</c>; missing (older files, the default) = <c>Automatic</c>
