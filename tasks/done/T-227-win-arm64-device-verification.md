@@ -103,4 +103,4 @@ simulátorem (`tools/PrusaSimulator`, běží na x64 stroji v síti nebo na zař
    z existujícího tagu jen s macOS a `win-x64`; změny ARM64 a README jdou do develop a vyjdou v dalším vydání.
 
 ## Poznámky k implementaci
-- Uzavřeno 2026-11-22: uživatel potvrdil, že ověření na zařízení s Windows na ARM64 proběhlo („ověřeno“). Podrobnosti (zařízení, verze Windows, CPU, stav D3D11VA) uživatel nedodal. Otázka 3 (přesná kontrola aktualizací ZIP podle RID) zůstává dnešní stav, varianta (b).
+- Uzavřeno 2026-11-22: uživatel potvrdil, že ověření na zařízení s Windows na ARM64 proběhlo („ověřeno“). Podrobnosti (zařízení, verze Windows, CPU, stav D3D11VA) uživatel nedodal. Otázka 3 (přesná kontrola aktualizací ZIP podle RID): **rozhodnuto uživatelem 2026-11-22 – (b) ne**, stačí dnešní stav.
