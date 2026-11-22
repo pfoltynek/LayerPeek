@@ -237,6 +237,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-248 | Dashcam – SteadyStateBufferingDoesNotAllocate naměřil v CI na Windows 4 120 B ve všech průchodech | all | core-dev | P2 | – |
 | T-245 | UI test EveryButtonIsAtLeast32DipHighInEveryState překračuje 30 s na runneru Windows (blokuje další UI testy) (hotovo) | all | qa-reviewer | P2 | – |
 | T-246 | CI Windows – Pester VerifyTools.Tests.ps1 překračuje 5 min (macos-verify -ListChecks 66 s na runneru) (hotovo) | windows | qa-reviewer | P2 | – |
+| T-249 | Malý náhled kamery – profily snímkové frekvence Úsporný 10 fps a Vyvážený 15 fps (dosud 5 / 10) | all | core-dev | P2 | T-185 |
 
 ### Windows (`windows`)
 
