@@ -27,6 +27,12 @@ older versions always load.
   releases are immutable since 1.0.0, so `release-upload.ps1 -AddToPublished` and `release-publish.ps1
   -AllowIncomplete` now always refuse with that procedure, and two drafts of one tag are refused.
 
+### Fixed
+
+- **Camera window over Remote Desktop (Windows):** the camera window no longer stays black on "Connecting to the
+  camera…" in a Remote Desktop session. Windows reports the console display as off there, which paused the picture;
+  in a remote session only locking the session pauses it now. On the console nothing changes.
+
 ## [1.1.0] - 2026-11-16
 
 ### Added
