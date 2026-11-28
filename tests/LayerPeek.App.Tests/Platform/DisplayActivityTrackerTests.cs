@@ -124,4 +124,64 @@ public sealed class DisplayActivityTrackerTests
         Assert.False(_tracker.IsScreenVisible);
         Assert.Equal(1, _changes);
     }
+
+    [Fact]
+    public void RemoteSessionIgnoresTheConsoleDisplay()
+    {
+        // T-252: Remote Desktop reports the console display as off; the user looks at the remote client's screen.
+        _tracker.SetRemoteSession(true);
+        _tracker.SetConsoleDisplayState(DisplayActivityTracker.DisplayOff);
+
+        Assert.True(_tracker.IsScreenVisible);
+        Assert.Equal(0, _changes);
+    }
+
+    [Fact]
+    public void RemoteSessionStillHidesALockedScreen()
+    {
+        _tracker.SetRemoteSession(true);
+        _tracker.SetSessionLocked(true);
+        Assert.False(_tracker.IsScreenVisible);
+
+        _tracker.SetSessionLocked(false);
+        Assert.True(_tracker.IsScreenVisible);
+        Assert.Equal(2, _changes);
+    }
+
+    [Fact]
+    public void SwitchToRemoteDesktopShowsTheScreenWithTheConsoleDisplayOff()
+    {
+        _tracker.SetConsoleDisplayState(DisplayActivityTracker.DisplayOff);
+        Assert.False(_tracker.IsScreenVisible);
+
+        _tracker.SetRemoteSession(true);
+
+        Assert.True(_tracker.IsScreenVisible);
+        Assert.Equal(2, _changes);
+    }
+
+    [Fact]
+    public void BackOnTheConsoleTheLastConsoleDisplayStateCountsAgain()
+    {
+        _tracker.SetRemoteSession(true);
+        _tracker.SetConsoleDisplayState(DisplayActivityTracker.DisplayOff);
+
+        _tracker.SetRemoteSession(false);
+        Assert.False(_tracker.IsScreenVisible);
+        Assert.Equal(1, _changes);
+
+        _tracker.SetConsoleDisplayState(DisplayActivityTracker.DisplayOn);
+        Assert.True(_tracker.IsScreenVisible);
+        Assert.Equal(2, _changes);
+    }
+
+    [Fact]
+    public void RemoteSessionReportedRepeatedlyRaisesNothing()
+    {
+        _tracker.SetRemoteSession(true);
+        _tracker.SetRemoteSession(true);
+        _tracker.SetRemoteSession(false);
+
+        Assert.Equal(0, _changes);
+    }
 }

@@ -75,6 +75,15 @@ public sealed class WindowsDisplayActivityServiceTests
     }
 
     [Fact]
+    public void CurrentSessionTypeCanBeQueried()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);
+
+        // T-252: console or Remote Desktop depends on how the tests run; only that Windows answers is checked.
+        Assert.NotNull(WindowsDisplayActivityService.QueryRemoteSession());
+    }
+
+    [Fact]
     public void NoWindowIsNeverCloaked()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnly);

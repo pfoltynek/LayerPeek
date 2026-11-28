@@ -1,7 +1,7 @@
 ---
 id: T-252
 title: Okno kamery ve vzdálené relaci (RDP) zůstane na „Connecting to the camera…“ – stav konzolového displeje se ignoruje
-status: todo
+status: done
 owner: ui-dev
 priority: P2
 platform: windows
@@ -35,16 +35,31 @@ fungují. Pozastavení se nezapisuje do logu, proto v něm nic není.
 - Testy logiky trackeru (běží na všech OS) a test dotazu na typ relace (jen Windows).
 
 ## Akceptační kritéria
-- [ ] Ve vzdálené relaci hlášení „konzolový displej vypnutý“ obrazovku neskryje; zámek relace ji skryje dál.
-- [ ] Na konzoli se chování T-186 nemění (vypnutý displej i zámek obrazovku skryjí).
-- [ ] Přepnutí relace mezi RDP a konzolí za běhu přepočítá viditelnost (na konzoli platí poslední hlášený stav displeje).
-- [ ] Testy trackeru pro vzdálenou relaci; test, že `WindowsDisplayActivityService` na Windows typ relace zjistí.
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování (Linux: build bez FFmpeg; Windows: celé řešení ve VM).
-- [ ] Ruční ověření ve Windows VM: přes RDP (Remmina) okno kamery ukáže obraz; přes konzoli po vypnutí displeje
+- [x] Ve vzdálené relaci hlášení „konzolový displej vypnutý“ obrazovku neskryje; zámek relace ji skryje dál.
+- [x] Na konzoli se chování T-186 nemění (vypnutý displej i zámek obrazovku skryjí).
+- [x] Přepnutí relace mezi RDP a konzolí za běhu přepočítá viditelnost (na konzoli platí poslední hlášený stav displeje).
+- [x] Testy trackeru pro vzdálenou relaci; test, že `WindowsDisplayActivityService` na Windows typ relace zjistí.
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (Linux: build bez FFmpeg; Windows: celé řešení ve VM).
+- [x] Ruční ověření ve Windows VM: přes RDP (Remmina) okno kamery ukáže obraz; přes konzoli po vypnutí displeje
       (nebo zamčení) se pozastaví jako dosud.
 
 ## Otevřené otázky
 - (žádné)
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- `DisplayActivityTracker.SetRemoteSession`: viditelnost = odemčeno a (vzdálená relace nebo displej zapnutý). Stav
+  konzolového displeje se ve vzdálené relaci dál ukládá, po návratu na konzoli platí poslední hlášený.
+- `WindowsDisplayActivityService.QueryRemoteSession`: `WTSQuerySessionInformationW(WTS_CURRENT_SESSION,
+  WTSClientProtocolType)` (USHORT, 0 = konzole); dotaz v `Start`, po registraci a při `WM_WTSSESSION_CHANGE` 0x1–0x4
+  (`WTS_CONSOLE_CONNECT` … `WTS_REMOTE_DISCONNECT`). Neznámá odpověď = konzole (chování T-186). Žádná nová závislost.
+- Testy: 5 nových v `DisplayActivityTrackerTests`, `CurrentSessionTypeCanBeQueried` ve
+  `WindowsDisplayActivityServiceTests` (jen Windows).
+- Linux (2026-11-28, .NET SDK 11.0.100, `-p:LayerPeekFFmpegEnabled=false`): build 0 chyb, 0 varování; testy trackeru
+  prošly. Celé `dotnet test` na Linuxu má 158 selhání nesouvisejících s úkolem (156 UI snapshotů bez linuxových
+  referenčních obrázků, 2 testy licencí kvůli balíčku `runtime.linux-x64.Microsoft.DotNet.ILCompiler`) – podklad pro
+  port na Linux.
+- Mimo rozsah (k zvážení): odpojená relace (RDP zavřené bez odhlášení) se dál počítá jako vzdálená, takže okno kamery
+  v ní stream nepozastaví.
+- Windows 11 VM (2026-11-28, uživatel): `dotnet build` a `dotnet test` prošly. Ručně ověřeno: přes RDP (Remmina) okno
+  kamery ukazuje obraz, přes konzoli (Incus) se při zamčení pozastaví jako dosud a přepnutí konzole → RDP za běhu obraz
+  obnoví bez restartu aplikace.
