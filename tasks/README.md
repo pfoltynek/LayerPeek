@@ -287,6 +287,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-232 | Windows – aktualizace nativních závislostí a nástrojů (FFmpeg, MSVC/Windows SDK, Playwright/Edge, runner CI) | windows | qa-reviewer | P2 | T-202 |
 | T-234 | Pole hesla – UI Automation hlásí IsPassword = False a délku hesla (Avalonia 12.1.6) (hotovo; koncept upstream issue, macOS v T-127) | windows | ui-dev | P3 | T-054 |
 | T-236 | CI – křížový build win-arm64 (Native AOT publish + kontrola architektury, bez spuštění) (hotovo) | windows | qa-reviewer | P3 | T-225, T-226 |
+| T-252 | Okno kamery ve vzdálené relaci (RDP) zůstane na „Connecting to the camera…“ – stav konzolového displeje se ignoruje | windows | ui-dev | P2 | T-186 |
 
 ### macOS (`macos`) – jen na Macu, později
 
