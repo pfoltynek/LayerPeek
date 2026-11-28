@@ -10,7 +10,9 @@ namespace LayerPeek.App.Platform.Windows;
 /// <summary>
 /// Whether the screen can be seen on Windows (T-186): the lock and unlock of this session
 /// (<c>WTSRegisterSessionNotification</c>, <c>WM_WTSSESSION_CHANGE</c>) and the state of the console display
-/// (<c>RegisterPowerSettingNotification</c> with <c>GUID_CONSOLE_DISPLAY_STATE</c>, <c>WM_POWERBROADCAST</c>).
+/// (<c>RegisterPowerSettingNotification</c> with <c>GUID_CONSOLE_DISPLAY_STATE</c>, <c>WM_POWERBROADCAST</c>). In a remote
+/// session (T-252, Remote Desktop: <c>WTSClientProtocolType</c> is not the console) the console display state is ignored;
+/// the session type is queried again whenever the session connects to or disconnects from the console or a remote client.
 /// </summary>
 /// <remarks>
 /// Both notifications go to a message-only window on a thread of its own with its own message loop (like
@@ -31,6 +33,8 @@ internal sealed unsafe partial class WindowsDisplayActivityService : IDisplayAct
     private const uint WmPowerBroadcast = 0x0218;
     private const uint WmWtsSessionChange = 0x02B1;
     private const nint PbtPowerSettingChange = 0x8013;
+    private const nint WtsConsoleConnect = 0x1;
+    private const nint WtsRemoteDisconnect = 0x4;
     private const nint WtsSessionLock = 0x7;
     private const nint WtsSessionUnlock = 0x8;
     private const uint NotifyForThisSession = 0;
@@ -39,6 +43,7 @@ internal sealed unsafe partial class WindowsDisplayActivityService : IDisplayAct
     private const nint HwndMessage = -3;
     private const uint WtsCurrentSession = uint.MaxValue;
     private const int WtsSessionInfoEx = 25;
+    private const int WtsClientProtocolType = 16;
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(5);
 
     // GUID_CONSOLE_DISPLAY_STATE (winnt.h).
@@ -109,6 +114,7 @@ internal sealed unsafe partial class WindowsDisplayActivityService : IDisplayAct
             }
 
             _started = true;
+            ApplySessionType();
             ApplySessionLockState();
             _thread = new Thread(Run) { IsBackground = true, Name = "LayerPeek display activity" };
             _thread.Start();
@@ -196,6 +202,34 @@ internal sealed unsafe partial class WindowsDisplayActivityService : IDisplayAct
         }
     }
 
+    /// <summary>
+    /// Whether this session is a remote one (T-252): <c>WTSClientProtocolType</c> is not <c>WTS_PROTOCOL_TYPE_CONSOLE</c>
+    /// (0); <see langword="null"/> when Windows does not tell.
+    /// </summary>
+    internal static bool? QueryRemoteSession()
+    {
+        try
+        {
+            if (!WTSQuerySessionInformationW(0, WtsCurrentSession, WtsClientProtocolType, out nint buffer, out uint bytes))
+            {
+                return null;
+            }
+
+            try
+            {
+                return buffer != 0 && bytes >= sizeof(ushort) ? *(ushort*)buffer != 0 : null;
+            }
+            finally
+            {
+                WTSFreeMemory(buffer);
+            }
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return null;
+        }
+    }
+
     private void ApplySessionLockState()
     {
         if (QuerySessionFlags() is { } flags)
@@ -203,6 +237,9 @@ internal sealed unsafe partial class WindowsDisplayActivityService : IDisplayAct
             _tracker.SetSessionLocked(DisplayActivityTracker.IsLockedSession(flags));
         }
     }
+
+    // Unknown counts as the console (the behaviour of T-186).
+    private void ApplySessionType() => _tracker.SetRemoteSession(QueryRemoteSession() ?? false);
 
     // The window thread: creates the window, registers, pumps until WM_CLOSE destroyed the window, then cleans up.
     private void Run()
@@ -217,7 +254,9 @@ internal sealed unsafe partial class WindowsDisplayActivityService : IDisplayAct
             _sessionRegistered = WTSRegisterSessionNotification(_window, NotifyForThisSession);
             Guid setting = ConsoleDisplayState;
             _powerNotification = RegisterPowerSettingNotification(_window, &setting, DeviceNotifyWindowHandle);
-            // A lock between the first query (Start) and the registration is not missed.
+            // A lock (or a switch to or from Remote Desktop) between the first query (Start) and the registration is not
+            // missed.
+            ApplySessionType();
             ApplySessionLockState();
             _ready.Set();
             _listening.TrySetResult();
@@ -333,6 +372,12 @@ internal sealed unsafe partial class WindowsDisplayActivityService : IDisplayAct
                         else if (wParam == WtsSessionUnlock)
                         {
                             current._tracker.SetSessionLocked(false);
+                        }
+                        else if (wParam is >= WtsConsoleConnect and <= WtsRemoteDisconnect)
+                        {
+                            // T-252: the session moved between the console and a remote client (console / remote
+                            // connect or disconnect).
+                            current.ApplySessionType();
                         }
 
                         return 0;
