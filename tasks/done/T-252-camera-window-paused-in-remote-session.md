@@ -1,7 +1,7 @@
 ---
 id: T-252
 title: Okno kamery ve vzdálené relaci (RDP) zůstane na „Connecting to the camera…“ – stav konzolového displeje se ignoruje
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: windows
@@ -39,8 +39,8 @@ fungují. Pozastavení se nezapisuje do logu, proto v něm nic není.
 - [x] Na konzoli se chování T-186 nemění (vypnutý displej i zámek obrazovku skryjí).
 - [x] Přepnutí relace mezi RDP a konzolí za běhu přepočítá viditelnost (na konzoli platí poslední hlášený stav displeje).
 - [x] Testy trackeru pro vzdálenou relaci; test, že `WindowsDisplayActivityService` na Windows typ relace zjistí.
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování (Linux: build bez FFmpeg; Windows: celé řešení ve VM).
-- [ ] Ruční ověření ve Windows VM: přes RDP (Remmina) okno kamery ukáže obraz; přes konzoli po vypnutí displeje
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (Linux: build bez FFmpeg; Windows: celé řešení ve VM).
+- [x] Ruční ověření ve Windows VM: přes RDP (Remmina) okno kamery ukáže obraz; přes konzoli po vypnutí displeje
       (nebo zamčení) se pozastaví jako dosud.
 
 ## Otevřené otázky
@@ -60,4 +60,6 @@ fungují. Pozastavení se nezapisuje do logu, proto v něm nic není.
   port na Linux.
 - Mimo rozsah (k zvážení): odpojená relace (RDP zavřené bez odhlášení) se dál počítá jako vzdálená, takže okno kamery
   v ní stream nepozastaví.
-- Čeká na: `dotnet build` a `dotnet test` na Windows a ruční ověření ve VM (RDP i konzole).
+- Windows 11 VM (2026-11-28, uživatel): `dotnet build` a `dotnet test` prošly. Ručně ověřeno: přes RDP (Remmina) okno
+  kamery ukazuje obraz, přes konzoli (Incus) se při zamčení pozastaví jako dosud a přepnutí konzole → RDP za běhu obraz
+  obnoví bez restartu aplikace.
